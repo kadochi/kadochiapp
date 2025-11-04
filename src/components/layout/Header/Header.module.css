@@ -1,0 +1,144 @@
+:root {
+  --header-height: 88px;
+}
+
+.headerWrap {
+  position: fixed;
+  top: 0;
+  inset-inline: 0;
+  z-index: 50;
+  background: var(--surface-background);
+}
+
+.header {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  height: var(--header-height);
+  padding-inline: var(--space-16);
+
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+
+  box-sizing: border-box;
+  background-color: var(--surface-background);
+  direction: ltr;
+}
+
+.iconWrapper {
+  position: relative;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+}
+
+.icon {
+  width: 32px;
+  height: 32px;
+}
+
+.iconWithBadge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.badge {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  background-color: var(--error-error);
+  color: var(--error-on-error);
+  font-size: var(--fs-label-14);
+  font-family: var(--font-sans);
+  line-height: 24px;
+  text-align: center;
+  border-radius: 360px;
+  font-weight: var(--fw-regular);
+  box-sizing: border-box;
+}
+
+.logo {
+  width: 60px;
+  height: 56px;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.leftGroup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.navLinks {
+  display: none;
+}
+
+@media (min-width: 864px) {
+  .hamburger {
+    display: none;
+    cursor: pointer;
+  }
+
+  .navLinks {
+    display: flex;
+    gap: var(--space-24);
+    direction: rtl;
+  }
+
+  .navLink {
+    font-family: var(--font-sans);
+    font-size: var(--fs-label-16);
+    color: var(--surface-neutral-high-emphasis);
+    text-decoration: none;
+    font-weight: var(--fw-regular);
+  }
+
+  .bold {
+    font-weight: var(--fw-bold);
+  }
+}
+
+.logoLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.accountBtn {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  cursor: pointer;
+  padding: 8px 12px 8px 16px;
+  border-radius: var(--radius-rounded);
+  background: var(--secondary-secondary-container);
+  color: var(--secondary-secondary);
+  text-decoration: none;
+}
+
+.accountText {
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-16);
+  line-height: var(--lh-label-16);
+  font-weight: var(--fw-regular);
+}
+
+.accountIcon {
+  width: 24px;
+  height: 24px;
+}
+
+@media (min-width: 864px) {
+  .accountBtn {
+    display: inline-flex;
+  }
+}

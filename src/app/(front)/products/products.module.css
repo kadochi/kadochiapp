@@ -1,0 +1,170 @@
+.filterBar {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 10;
+  background: var(--surface-background);
+  padding-block: var(--space-8) var(--space-16);
+  padding-inline: 0;
+}
+
+.filterSpacer {
+  display: none;
+  height: 0;
+}
+
+.scrollArea {
+  display: flex;
+  gap: var(--space-8);
+  align-items: center;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-inline: 0;
+  scroll-padding-inline: var(--space-16);
+}
+.scrollArea::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollArea::before,
+.scrollArea::after {
+  content: "";
+  flex: 0 0 calc(var(--space-16) - var(--space-8));
+}
+
+.scrollArea > * {
+  flex: 0 0 auto;
+}
+
+.scrollArea a {
+  display: inline-flex;
+  text-decoration: none;
+}
+
+.content {
+  margin-top: 0;
+  padding-top: 0;
+  margin-bottom: var(--space-32);
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-16);
+  padding: var(--space-8) var(--space-16) var(--space-24);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: var(--space-20);
+  }
+}
+
+.footer {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-8) 0 var(--space-28);
+}
+.moreBtn {
+  width: 188px;
+}
+
+.gradientTitle {
+  background: linear-gradient(
+    to left,
+    var(--secondary-secondary-gradient),
+    var(--secondary-on-secondary-container)
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ---------- Skeletons ---------- */
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+.skel,
+.skeletonChip,
+.skeletonCrumb,
+.skeletonCrumbSm,
+.skeletonTitleLg,
+.skeletonSub,
+.skeletonMoreBtn {
+  display: inline-block;
+  background: var(--surface-elevated, #f3f3f4);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+/* chips in filter bar */
+.skeletonChip {
+  height: 36px;
+  width: 96px;
+  border-radius: var(--radius-rounded);
+}
+
+/* thin divider */
+.skeletonDivider {
+  height: 1px;
+  background: var(--border-border-low-emphasis);
+  margin: 0 var(--space-16);
+}
+
+/* breadcrumb row */
+.breadcrumbRow {
+  display: flex;
+  gap: var(--space-8);
+  align-items: center;
+  padding: var(--space-12) var(--space-16);
+  height: 48px;
+}
+.skeletonCrumb {
+  height: 12px;
+  width: 88px;
+  border-radius: 6px;
+}
+.skeletonCrumbSm {
+  height: 12px;
+  width: 56px;
+  border-radius: 6px;
+}
+
+/* section header */
+.sectionHeaderSkel {
+  padding: var(--space-16) var(--space-16) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+.skeletonTitleLg {
+  height: 24px;
+  width: 240px;
+  border-radius: 8px;
+}
+.skeletonSub {
+  height: 12px;
+  width: 128px;
+  border-radius: 6px;
+}
+
+/* footer "more" button */
+.skeletonMoreBtn {
+  height: 40px;
+  width: 200px;
+  border-radius: var(--radius-rounded);
+  margin-top: var(--space-16);
+}

@@ -1,0 +1,108 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-12);
+  padding: 0 var(--space-16) var(--space-16);
+  direction: ltr;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+
+  padding: var(--space-12) var(--space-8);
+  border-radius: var(--radius-s);
+  border: 1px solid var(--secondary-secondary);
+  background: var(--surface-background);
+  cursor: pointer;
+  outline: none;
+  transition: box-shadow 0.15s ease;
+}
+
+.card[data-selected="true"] {
+  box-shadow: 0 0 0 4px rgba(128, 48, 162, 0.24);
+}
+
+.iconWrap {
+  width: 40px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconWrap img {
+  width: 40px;
+  height: 34px;
+  object-fit: contain;
+  display: block;
+}
+
+.title {
+  margin-top: var(--space-8);
+  white-space: pre-line;
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  font-weight: var(--fw-regular);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.card[data-selected="true"] .title {
+  font-weight: var(--fw-bold);
+}
+
+.sheetHeader {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface-background);
+  padding: 0;
+  border-bottom: 1px solid var(--border-border-low-emphasis);
+}
+
+.sheetBody {
+  max-block-size: calc(100dvh - 224px);
+  overflow: auto;
+}
+
+.sheetFooter {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  background: var(--surface-background);
+  padding: var(--space-16) var(--space-16) var(--space-32) var(--space-16);
+  border-top: 1px solid var(--border-border-low-emphasis);
+  display: flex;
+  gap: var(--space-12);
+}
+
+.applyBtn {
+  inline-size: 100%;
+}
+
+.segment {
+  padding: 0 var(--space-16) var(--space-16);
+}
+
+.segmentWrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  padding: 0 var(--space-16) var(--space-16);
+}
+
+.priceRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-16);
+  padding: 0 var(--space-16) var(--space-40);
+  direction: rtl;
+}
+
+.removeBtn {
+  width: 56px;
+}

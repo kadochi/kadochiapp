@@ -1,0 +1,295 @@
+/* Button (Design System – Kadochi) */
+
+.root {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-weight: var(--fw-regular);
+  text-decoration: none;
+  user-select: none;
+  border-radius: var(--radius-rounded);
+  border: 0;
+  transition: background-color 0.15s ease, color 0.15s ease,
+    border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  gap: var(--btn-gap, var(--space-6));
+  cursor: pointer;
+  direction: rtl;
+  width: 100%;
+}
+
+/* Sizes */
+.sizeSm {
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  padding: 12px 12px;
+  --btn-gap: var(--space-6);
+  --icon-size: 16px;
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
+}
+.sizeMd {
+  font-size: var(--fs-label-16);
+  line-height: var(--lh-label-16);
+  padding: 14px 12px;
+  --btn-gap: var(--space-6);
+  --icon-size: 24px;
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
+}
+.sizeLg {
+  font-size: var(--fs-label-16);
+  line-height: var(--lh-label-16);
+  padding: 18px 16px;
+  --btn-gap: var(--space-8);
+  --icon-size: 24px;
+  height: 56px;
+  min-height: 56px;
+  max-height: 56px;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+/* Intent tokens */
+.intentPrimary {
+  --btn-fg: var(--primary-on-primary);
+  --btn-bg: var(--primary-primary);
+  --btn-bg-pressed: color-mix(in oklab, var(--primary-primary) 84%, black);
+  --btn-tonal-bg: var(--primary-primary-container);
+  --btn-tonal-fg: var(--primary-on-primary-container);
+
+  /* gradients */
+  --btn-grad-from: var(--primary-primary);
+  --btn-grad-to: var(--primary-primary-gradient);
+  --btn-hover-grad-from: var(--primary-on-primary-container);
+  --btn-hover-grad-to: var(--primary-primary);
+  --btn-pressed-grad-from: color-mix(
+    in oklab,
+    var(--primary-primary) 88%,
+    black
+  );
+  --btn-pressed-grad-to: color-mix(
+    in oklab,
+    var(--primary-primary-gradient) 88%,
+    black
+  );
+}
+
+.intentSecondary {
+  --btn-fg: var(--secondary-on-secondary);
+  --btn-bg: var(--secondary-secondary);
+  --btn-bg-pressed: color-mix(in oklab, var(--secondary-secondary) 84%, black);
+  --btn-tonal-bg: var(--secondary-secondary-container);
+  --btn-tonal-fg: var(--secondary-on-secondary-container);
+
+  --btn-grad-from: var(--secondary-secondary);
+  --btn-grad-to: var(--secondary-secondary-gradient);
+  --btn-hover-grad-from: var(--secondary-on-secondary-container);
+  --btn-hover-grad-to: var(--secondary-secondary);
+  --btn-pressed-grad-from: color-mix(
+    in oklab,
+    var(--secondary-secondary) 88%,
+    black
+  );
+  --btn-pressed-grad-to: color-mix(
+    in oklab,
+    var(--secondary-secondary-gradient) 88%,
+    black
+  );
+}
+
+.intentTertiary {
+  --btn-fg: var(--text-primary);
+  --btn-outline: var(--border-border-high-emphasis);
+}
+
+.intentLink {
+  --btn-link-fg: var(--text-primary);
+}
+
+/* Filled (primary / secondary) */
+.intentPrimary.styleFilled {
+  color: var(--btn-fg);
+  background-color: var(--primary-primary);
+  background-image: linear-gradient(
+    to left,
+    var(--btn-grad-from),
+    var(--btn-grad-to)
+  );
+}
+.intentPrimary.styleFilled:hover:not(:disabled):not([aria-disabled="true"]):not(
+    [data-loading="true"]
+  ) {
+  background-color: var(--btn-hover-grad-to);
+  background-image: linear-gradient(
+    to left,
+    var(--btn-hover-grad-from),
+    var(--btn-hover-grad-to)
+  );
+}
+.intentPrimary.styleFilled:active:not(:disabled):not(
+    [aria-disabled="true"]
+  ):not([data-loading="true"]) {
+  background-color: var(--btn-bg-pressed);
+  background-image: linear-gradient(
+    to left,
+    var(--btn-bg-pressed),
+    var(--btn-bg-pressed)
+  );
+}
+
+.intentSecondary.styleFilled {
+  color: var(--btn-fg);
+  background-color: var(--secondary-secondary);
+  background-image: linear-gradient(
+    to left,
+    var(--btn-grad-from),
+    var(--btn-grad-to)
+  );
+}
+.intentSecondary.styleFilled:hover:not(:disabled):not(
+    [aria-disabled="true"]
+  ):not([data-loading="true"]) {
+  background-color: var(--btn-hover-grad-to);
+  background-image: linear-gradient(
+    to left,
+    var(--btn-hover-grad-from),
+    var(--btn-hover-grad-to)
+  );
+}
+.intentSecondary.styleFilled:active:not(:disabled):not(
+    [aria-disabled="true"]
+  ):not([data-loading="true"]) {
+  background-color: var(--btn-bg-pressed);
+  background-image: linear-gradient(
+    to left,
+    var(--btn-bg-pressed),
+    var(--btn-bg-pressed)
+  );
+}
+
+/* Tonal */
+.styleTonal {
+  background-color: var(--btn-tonal-bg);
+  color: var(--btn-tonal-fg);
+}
+.styleTonal:hover:not(:disabled):not([aria-disabled="true"]):not(
+    [data-loading="true"]
+  ) {
+  filter: saturate(1.04) brightness(0.98);
+}
+.styleTonal:active:not(:disabled):not([aria-disabled="true"]):not(
+    [data-loading="true"]
+  ) {
+  filter: saturate(1.08) brightness(0.96);
+}
+
+/* Outline (tertiary) */
+.styleOutline {
+  background-color: transparent;
+  color: var(--btn-fg, var(--text-primary));
+  border: 1px solid var(--btn-outline);
+}
+.styleOutline:hover:not(:disabled):not([aria-disabled="true"]):not(
+    [data-loading="true"]
+  ) {
+  background-color: color-mix(in oklab, var(--btn-outline) 10%, transparent);
+}
+.styleOutline:active:not(:disabled):not([aria-disabled="true"]):not(
+    [data-loading="true"]
+  ) {
+  background-color: color-mix(in oklab, var(--btn-outline) 20%, transparent);
+}
+
+/* Ghost (link) */
+.styleGhost {
+  background-color: transparent;
+  color: var(--btn-link-fg, var(--text-primary));
+}
+.styleGhost:hover:not(:disabled):not([aria-disabled="true"]):not(
+    [data-loading="true"]
+  ) {
+  text-decoration: none;
+}
+.styleGhost:active:not(:disabled):not([aria-disabled="true"]):not(
+    [data-loading="true"]
+  ) {
+  opacity: 0.9;
+}
+
+/* Disabled */
+.root:disabled,
+.root[aria-disabled="true"] {
+  pointer-events: none;
+  cursor: not-allowed;
+  opacity: 1;
+}
+.intentPrimary.styleFilled:disabled,
+.intentPrimary.styleFilled[aria-disabled="true"],
+.intentSecondary.styleFilled:disabled,
+.intentSecondary.styleFilled[aria-disabled="true"],
+.intentLink.styleGhost:disabled,
+.intentLink.styleGhost[aria-disabled="true"] {
+  background-image: none;
+  background-color: var(--disable-disable-container);
+  color: var(--disable-on-disable);
+  border: 0;
+}
+.styleTonal:disabled,
+.styleTonal[aria-disabled="true"] {
+  background-color: var(--disable-disable-container);
+  color: var(--disable-on-disable);
+  border: 0;
+}
+.styleOutline:disabled,
+.styleOutline[aria-disabled="true"] {
+  background-color: var(--disable-disable-container);
+  color: var(--disable-on-disable);
+  border: 1px solid var(--disable-disable);
+}
+
+/* Content & icons */
+.content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--btn-gap, var(--space-6));
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  line-height: 1;
+  font-size: 1em;
+}
+
+.icon > svg,
+.icon > img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Spinner */
+.spinner {
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

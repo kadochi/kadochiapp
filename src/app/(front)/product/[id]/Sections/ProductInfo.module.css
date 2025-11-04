@@ -1,0 +1,61 @@
+.root {
+  padding: var(--space-32) var(--space-16);
+  text-align: center;
+  background: var(--surface-background);
+}
+
+.title {
+  color: var(--neutral-high-emphasis);
+  font-family: var(--font-sans);
+  font-size: var(--fs-title-18);
+  font-weight: var(--fw-bold);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.priceWrap {
+  margin-top: var(--space-8);
+  display: flex;
+  justify-content: center;
+}
+
+.metaRow {
+  margin-top: var(--space-16);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-16);
+  flex-wrap: wrap;
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.icon {
+  inline-size: 24px;
+  block-size: 24px;
+  color: var(--surface-neutral-low-emphasis);
+}
+
+.metaText {
+  color: var(--surface-neutral-low-emphasis);
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-14);
+  font-weight: var(--fw-regular);
+}
+
+.iconGreen {
+  inline-size: 24px;
+  block-size: 24px;
+  color: var(--primary-primary);
+}
+
+.metaTextGreen {
+  color: var(--primary-primary);
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-14);
+  font-weight: var(--fw-bold);
+}

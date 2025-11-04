@@ -1,0 +1,92 @@
+:root {
+  --tog-w: 56px;
+  --tog-h: 32px;
+  --tog-gap: 4px;
+  --tog-thumb: 24px;
+  --tog-stroke: 1.5px;
+  --tog-dur: 120ms;
+  --tog-ease: ease-out;
+}
+
+.wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.track {
+  position: relative;
+  inline-size: var(--tog-w);
+  block-size: var(--tog-h);
+  box-sizing: border-box;
+  border-radius: var(--radius-rounded);
+  transition: background-color var(--tog-dur) var(--tog-ease),
+    color var(--tog-dur) var(--tog-ease);
+}
+
+.off {
+  background: var(--surface-surface);
+  color: var(--border-border-high-emphasis);
+  box-shadow: inset 0 0 0 var(--tog-stroke) var(--border-border-high-emphasis),
+    0 0 0 2px color-mix(in oklab, var(--secondary-secondary) 10%, transparent);
+}
+
+.on {
+  background: var(--secondary-secondary);
+  color: var(--secondary-secondary);
+  box-shadow: inset 0 0 0 var(--tog-stroke) var(--secondary-secondary);
+}
+
+.wrapper:hover .track:not(.disabled) {
+  box-shadow: inset 0 0 0 var(--tog-stroke) var(--secondary-secondary),
+    0 0 0 2px color-mix(in oklab, var(--secondary-secondary) 30%, transparent);
+  border-color: var(--secondary-secondary);
+}
+
+.thumb {
+  position: absolute;
+  inline-size: var(--tog-thumb);
+  block-size: var(--tog-thumb);
+  border-radius: var(--radius-rounded);
+  inset-block-start: var(--tog-gap);
+  inset-inline-start: var(--tog-gap);
+  inset-inline-end: auto;
+  background: var(--disable-disable);
+  transition: transform var(--tog-dur) var(--tog-ease),
+    background-color var(--tog-dur) var(--tog-ease);
+}
+
+:dir(rtl) .track .thumb {
+  inset-inline-start: auto;
+  inset-inline-end: var(--tog-gap);
+}
+
+.on .thumb {
+  transform: translateX(24px);
+  background: var(--secondary-on-secondary);
+}
+
+.disabled {
+  background: var(--disable-disable-container);
+  color: var(--disable-disable);
+  box-shadow: inset 0 0 0 var(--tog-stroke) var(--disable-disable);
+  cursor: not-allowed;
+}
+
+.disabled .thumb {
+  background: var(--disable-disable);
+}
+
+.label {
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  color: var(--surface-neutral-high-emphasis);
+}

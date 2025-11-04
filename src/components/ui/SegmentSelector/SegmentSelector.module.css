@@ -1,0 +1,48 @@
+.root {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--secondary-secondary);
+  border-radius: var(--radius-8, 8px);
+  overflow: hidden;
+  background: var(--surface-background);
+  direction: rtl;
+  width: 100%;
+}
+
+.item {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--surface-neutral-high-emphasis);
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  font-weight: var(--fw-regular);
+  padding: 16px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative;
+  width: 100%;
+}
+
+.item.withSep {
+  border-inline-start: 1px solid var(--secondary-secondary);
+}
+
+.item:hover {
+  filter: brightness(0.98);
+}
+.item:active {
+  filter: brightness(0.96);
+}
+
+.active {
+  background: var(--secondary-secondary-container);
+  color: var(--secondary-on-secondary-container);
+}
+
+.item:focus-visible {
+  outline: 2px solid
+    color-mix(in oklab, var(--secondary-secondary) 60%, transparent);
+  outline-offset: -2px;
+}

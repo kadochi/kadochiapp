@@ -1,0 +1,111 @@
+.categoryCarousel {
+  padding-block: var(--space-16);
+}
+@media (min-width: 1026px) {
+  .categoryCarousel {
+    padding-inline: var(--space-16);
+  }
+}
+
+.swiper {
+  margin-bottom: var(--space-24);
+}
+
+.slide {
+  width: 100%;
+  flex-shrink: 0;
+}
+.slide a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.categoryCard {
+  width: auto;
+  height: 256px;
+  border-radius: var(--radius-xl);
+  padding: var(--space-20, 20px);
+  --category-gradient: linear-gradient(
+    to top,
+    var(--secondary-secondary) 0%,
+    var(--secondary-secondary-gradient) 100%
+  );
+  --overlay-gradient: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  --card-bg-img: none;
+  background-image: var(--overlay-gradient), var(--card-bg-img),
+    var(--category-gradient);
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  background-position: center, center, center;
+  background-size: cover, cover, cover;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  box-sizing: border-box;
+}
+
+.cardInner {
+  display: grid;
+  gap: var(--space-6);
+  margin-top: auto;
+}
+
+.categoryTitle {
+  color: var(--primary-on-primary);
+  font-family: var(--font-sans);
+  font-size: var(--fs-heading-24);
+  line-height: var(--lh-heading-24);
+  font-weight: var(--fw-bold);
+  text-align: start;
+  margin: 0;
+}
+
+.categorySubtitle {
+  color: var(--disable-disable);
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  font-weight: var(--fw-regular);
+  text-align: start;
+  margin: 0;
+}
+
+@media (min-width: 864px) {
+  .slide {
+    width: auto;
+  }
+  .categoryCard {
+    height: 240px;
+  }
+}
+
+.skeletonCard {
+  width: auto;
+  height: 256px;
+  border-radius: var(--radius-xxl);
+  background: linear-gradient(
+    90deg,
+    var(--surface-surface-soft) 0%,
+    var(--surface-surface-dim) 50%,
+    var(--surface-surface-soft) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+@media (min-width: 864px) {
+  .skeletonCard {
+    height: 240px;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}

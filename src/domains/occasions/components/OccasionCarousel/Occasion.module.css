@@ -1,0 +1,139 @@
+.occasionDayCard {
+  padding: var(--space-16) var(--space-8);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+
+  width: auto;
+  min-height: 176px;
+  background-color: var(--surface-surface-soft);
+  border-radius: var(--radius-xl);
+  font-family: var(--font-sans);
+}
+
+@media (min-width: 1026px) {
+  .occasionDayCard {
+    min-height: 200px;
+  }
+}
+
+.occasionDay {
+  font-size: var(--fs-heading-24);
+  line-height: var(--lh-heading-24);
+  font-weight: var(--fw-bold);
+  color: var(--surface-neutral-high-emphasis);
+  text-align: center;
+}
+
+.occasionMonth {
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  font-weight: var(--fw-regular);
+  color: var(--surface-neutral-mid-emphasis);
+  text-align: center;
+  margin: 0;
+}
+
+.occasionTitle {
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  font-weight: var(--fw-bold);
+  color: var(--surface-neutral-high-emphasis);
+  text-align: center;
+  margin-top: var(--space-12);
+}
+
+.occasionRemaining {
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  font-weight: var(--fw-regular);
+  color: var(--surface-neutral-mid-emphasis);
+  text-align: center;
+  margin-top: var(--space-8);
+  margin-bottom: var(--space-16);
+}
+
+.occasionDaysCarousel {
+  padding-block: var(--space-16);
+}
+
+.swiper :global(.swiper-wrapper) {
+  display: flex;
+}
+
+.occasionDaysCarouselSlide {
+  width: 100%;
+  flex-shrink: 0;
+}
+
+@media (min-width: 864px) {
+  .occasionDaysCarouselSlide {
+    width: auto;
+  }
+}
+
+@media (min-width: 1026px) {
+  .occasionDaysCarousel {
+    padding-inline: var(--space-16);
+  }
+}
+
+.skeletonCard {
+  position: relative;
+  overflow: hidden;
+  height: 212px;
+}
+
+.skelDay,
+.skelMonth,
+.skelTitle,
+.skelRemain,
+.skelBtn {
+  background: linear-gradient(90deg, #f1f1f1 25%, #e8e8e8 37%, #f1f1f1 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+.skelDay {
+  width: 48px;
+  height: 24px;
+  margin-top: 0;
+}
+.skelMonth {
+  width: 64px;
+  height: 14px;
+  margin-top: 6px;
+}
+.skelTitle {
+  width: 70%;
+  height: 16px;
+  margin-top: 12px;
+}
+.skelRemain {
+  width: 50%;
+  height: 12px;
+  margin-top: 8px;
+}
+.skelBtn {
+  width: 96px;
+  height: 28px;
+  margin-top: 12px;
+  border-radius: 999px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+.urgentRemaining {
+  color: var(--error-error);
+  font-weight: var(--fw-bold);
+}

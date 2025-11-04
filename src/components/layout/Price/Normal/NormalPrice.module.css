@@ -1,0 +1,32 @@
+.root {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  direction: rtl;
+}
+
+.sizeL .amount {
+  font-size: var(--fs-body-16);
+  line-height: var(--lh-body-16);
+  font-weight: var(--fw-bold);
+  color: var(--surface-neutral-high-emphasis);
+}
+.sizeL .currency {
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  font-weight: var(--fw-regular);
+  color: var(--surface-neutral-low-emphasis);
+}
+
+.sizeM .amount {
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  font-weight: var(--fw-bold);
+  color: var(--surface-neutral-high-emphasis);
+}
+.sizeM .currency {
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  font-weight: var(--fw-regular);
+  color: var(--surface-neutral-low-emphasis);
+}

@@ -1,0 +1,90 @@
+/* InputStepper — Kadochi Design System */
+
+.root {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-background);
+  border-radius: var(--radius-rounded);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--surface-neutral-high-emphasis);
+}
+
+/* Variants */
+.variantProduct {
+  --inset: 16px;
+  height: 56px;
+  min-width: 144px;
+  padding: var(--inset);
+  border: 2px solid var(--primary-primary);
+}
+
+.variantBasket {
+  --inset: 4px;
+  height: 32px;
+  min-width: 96px;
+  padding: var(--inset);
+  border: 0;
+}
+
+/* Typography */
+.variantProduct .value {
+  font-size: var(--fs-title-18);
+  line-height: var(--lh-title-18);
+  font-weight: var(--fw-bold);
+}
+.variantBasket .value {
+  font-size: var(--fs-title-14);
+  line-height: var(--lh-title-14);
+  font-weight: var(--fw-bold);
+}
+
+/* Controls */
+.ctrl {
+  position: absolute;
+  inline-size: 24px;
+  block-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ctrlPlus {
+  inset-inline-start: var(--inset);
+}
+
+.ctrlMinus {
+  inset-inline-end: var(--inset);
+}
+
+/* Basket appearance */
+.variantBasket .ctrl {
+  background: var(--surface-surface);
+  border-radius: var(--radius-rounded);
+}
+
+/* States */
+.asTrash {
+  color: var(--error-error);
+}
+
+.ctrl:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.ctrl:not(:disabled):hover {
+  filter: brightness(0.98);
+}
+
+.ctrl:not(:disabled):active {
+  filter: brightness(0.96);
+}

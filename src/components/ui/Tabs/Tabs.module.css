@@ -1,0 +1,36 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--secondary-secondary-container);
+  border-radius: var(--radius-rounded);
+  background: var(--surface-background);
+  padding: 8px;
+  gap: 12px;
+  direction: rtl;
+}
+
+.btn {
+  appearance: none;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  border-radius: var(--radius-rounded);
+  background: var(--surface-background);
+  color: var(--surface-neutral-high-emphasis);
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  font-weight: var(--fw-regular);
+  padding: 12px 16px;
+  transition: all 0.25s ease;
+}
+
+.btn[aria-selected="true"] {
+  background: var(--secondary-secondary);
+  color: var(--secondary-on-secondary);
+}
+
+.btn:hover:not([aria-selected="true"]) {
+  background: var(--surface-surface);
+}

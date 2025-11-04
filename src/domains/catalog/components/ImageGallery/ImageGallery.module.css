@@ -1,0 +1,66 @@
+.gallery {
+  overflow: hidden;
+  background: var(--surface-background);
+}
+
+.swiper :global(.swiper-wrapper) {
+  display: flex;
+}
+
+.mainSwiper {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.slide {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.mainImage {
+  display: block;
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  max-height: 400px;
+  aspect-ratio: 1 / 1;
+  margin-inline: auto;
+  object-fit: cover;
+}
+
+.thumbSwiper {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0 12px 0;
+}
+
+.thumbSwiper :global(.swiper-wrapper) {
+  align-items: center;
+  justify-content: center;
+}
+.thumbSwiper :global(.swiper-slide) {
+  width: 64px !important;
+  display: flex;
+  justify-content: center;
+}
+
+.thumbSlide {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.thumbImage {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--radius-m);
+  cursor: pointer;
+  border: 1px solid var(--border-border-high-emphasis);
+  transition: border-color 0.2s ease-in-out;
+}
+
+.thumbSwiper :global(.swiper-slide-thumb-active) img {
+  border: 2px solid var(--secondary-secondary);
+}

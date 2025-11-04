@@ -1,0 +1,154 @@
+.card {
+  width: 100%;
+  text-decoration: none;
+  color: inherit;
+}
+
+.info {
+  padding: var(--space-8) var(--space-16) var(--space-16);
+  text-align: center;
+}
+
+.title {
+  color: var(--surface-neutral-high-emphasis);
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  font-weight: var(--fw-bold);
+  margin-bottom: var(--space-8);
+
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  height: calc(var(--lh-label-14) * 2);
+}
+
+.price {
+  color: var(--surface-neutral-high-emphasis);
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  font-weight: var(--fw-regular);
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+}
+
+.outofstock {
+  color: var(--surface-neutral-low-emphasis);
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  font-weight: var(--fw-regular);
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+}
+
+.currency {
+  color: var(--surface-neutral-low-emphasis);
+  font-size: var(--fs-label-12);
+}
+
+.imgWrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+}
+
+.image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.skelCard {
+  pointer-events: none;
+}
+
+.skelImg {
+  inline-size: var(--size-img-skel-width, 80px);
+  block-size: var(--size-img-skel-height, 104px);
+  border-radius: var(--radius-16, 16px);
+  margin-inline: auto;
+  background: linear-gradient(
+    90deg,
+    var(--surface-surface-soft) 0%,
+    var(--surface-surface-dim) 50%,
+    var(--surface-surface-soft) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+.skelTitleRow {
+  border-radius: var(--radius-rounded);
+  block-size: var(--lh-label-14);
+  background: linear-gradient(
+    90deg,
+    var(--surface-surface-soft) 0%,
+    var(--surface-surface-dim) 50%,
+    var(--surface-surface-soft) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+  margin-inline: auto;
+}
+
+.skelTitleTop {
+  inline-size: 58%;
+  margin-top: var(--space-8);
+}
+
+.skelTitleBottom {
+  inline-size: 72%;
+  margin-top: var(--space-4);
+}
+
+.skelPrice {
+  border-radius: var(--radius-rounded);
+  block-size: var(--lh-label-14);
+  inline-size: 44%;
+  background: linear-gradient(
+    90deg,
+    var(--surface-surface-soft) 0%,
+    var(--surface-surface-dim) 50%,
+    var(--surface-surface-soft) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+  margin-inline: auto;
+  margin-top: var(--space-8);
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(0.92);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}

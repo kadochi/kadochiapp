@@ -1,0 +1,37 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--surface-surface-scrim);
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  z-index: 1000;
+}
+
+.panel {
+  width: 100%;
+  max-width: 640px;
+  background: var(--surface-background);
+  border-top-left-radius: var(--radius-xl);
+  border-top-right-radius: var(--radius-xl);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(0);
+}
+
+.handlerArea {
+  padding-top: var(--space-8);
+  padding-bottom: var(--space-16);
+  display: flex;
+  justify-content: center;
+}
+
+.handler {
+  width: 128px;
+  height: 6px;
+  background: var(--border-border-mid-emphasis);
+  border-radius: var(--radius-rounded);
+}
+
+.content {
+  padding-top: 0;
+}

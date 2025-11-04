@@ -1,0 +1,89 @@
+.wrap {
+  padding-block: var(--space-24);
+  overflow-x: clip;
+}
+
+.inner {
+  display: grid;
+  grid-template-columns: repeat(4, 72px);
+  gap: 12px;
+  justify-items: center;
+  max-inline-size: 324px;
+  inline-size: 100%;
+  margin-inline: auto;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+  inline-size: 72px;
+}
+
+.iconBox {
+  inline-size: 72px;
+  block-size: 72px;
+  border-radius: var(--radius-l);
+  background: var(--surface-background);
+  border: 1.5px solid var(--secondary-secondary-container);
+  display: grid;
+  place-items: center;
+}
+
+.icon {
+  inline-size: 40px;
+  block-size: 40px;
+}
+
+.label {
+  margin-top: var(--space-8);
+  color: var(--surface-neutral-high-emphasis);
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  font-weight: var(--fw-bold);
+  text-align: center;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  word-break: break-word;
+  max-inline-size: 100%;
+}
+
+.wide {
+  grid-column: span 2;
+  inline-size: auto;
+  justify-self: stretch;
+}
+
+.wide .iconBox {
+  inline-size: 100%;
+}
+
+@media (min-width: 576px) {
+  .wrap {
+    padding: var(--space-24) var(--space-16);
+  }
+
+  .inner {
+    grid-template-columns: repeat(auto-fit, 72px);
+    gap: var(--space-24);
+    justify-content: center;
+    max-inline-size: none;
+  }
+
+  .item,
+  .wide {
+    inline-size: 72px;
+    grid-column: auto;
+    justify-self: center;
+  }
+
+  .wide .iconBox {
+    inline-size: 72px;
+  }
+}

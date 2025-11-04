@@ -1,0 +1,76 @@
+.wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.control {
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  display: inline-grid;
+  place-items: center;
+
+  background: var(--surface-background);
+  border: 1.5px solid var(--border-border-high-emphasis);
+
+  transition: box-shadow 120ms ease, border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.wrapper:hover .control:not(.disabled) {
+  box-shadow: 0 0 0 2px
+    color-mix(
+      in oklab,
+      var(--secondary-on-secondary-container) 25%,
+      transparent
+    );
+  border-color: var(--secondary-secondary);
+}
+
+.dot {
+  inline-size: 16px;
+  block-size: 16px;
+  border-radius: var(--radius-rounded);
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+.checked {
+  border-color: var(--secondary-secondary);
+  background: var(--secondary-secondary-container);
+}
+
+.checked .dot {
+  background: var(--secondary-secondary);
+}
+
+.wrapper:hover .checked:not(.disabled) {
+  box-shadow: 0 0 0 2px
+    color-mix(in oklab, var(--secondary-secondary) 40%, transparent);
+  border-color: var(--secondary-secondary);
+}
+
+.disabled {
+  background: var(--disable-disable-container);
+  border-color: var(--disable-disable);
+}
+
+.disabled .dot {
+  background: var(--disable-disable);
+}
+
+.label {
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  color: var(--surface-neutral-high-emphasis);
+}

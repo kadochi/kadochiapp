@@ -1,0 +1,146 @@
+.root {
+  display: grid;
+  row-gap: 8px;
+}
+
+/* Label */
+.label {
+  display: inline-flex;
+  align-items: baseline;
+  column-gap: 4px;
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  color: var(--surface-neutral-mid-emphasis, var(--text-secondary));
+}
+.labelText {
+  white-space: nowrap;
+}
+.requiredMark {
+  color: var(--error-error);
+}
+
+/* Field wrapper */
+.control {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-direction: row-reverse; /* icon at visual right in RTL */
+  align-items: flex-start;
+  gap: 8px;
+  inline-size: 100%;
+  min-block-size: 120px;
+  padding: 16px;
+  border-radius: var(--radius-8, 8px);
+  background: var(--surface-background);
+  border: 1px solid var(--border-border-high-emphasis);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    background-color 0.15s ease, color 0.15s ease;
+}
+
+.control[data-has-icon="true"] .textarea {
+  padding-inline-end: 24px;
+}
+
+/* Icon inside field */
+.icon {
+  inline-size: 16px;
+  block-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--surface-neutral-mid-emphasis, var(--text-secondary));
+  margin-top: 2px;
+  pointer-events: none;
+}
+
+/* Textarea element */
+.textarea {
+  appearance: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  inline-size: 100%;
+  min-block-size: 88px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-16);
+  line-height: var(--lh-label-16);
+  color: var(--surface-neutral-mid-emphasis, var(--text-secondary));
+  resize: vertical;
+}
+.textarea::placeholder {
+  color: var(--surface-neutral-mid-emphasis, var(--text-secondary));
+  opacity: 0.8;
+}
+
+/* Focus */
+.root[data-state="focused"] .control {
+  border-width: 1.5px;
+  border-color: var(--primary-primary);
+  box-shadow: 0 0 0 2px
+    var(
+      --primary-primary-container,
+      color-mix(in oklab, var(--primary-primary) 24%, transparent)
+    );
+}
+
+/* Filled */
+.root[data-state="filled"] .textarea {
+  color: var(--surface-neutral-high-emphasis, var(--text-primary));
+}
+.root[data-state="filled"] .control {
+  border-color: var(
+    --surface-neutral-mid-emphasis,
+    var(--border-border-high-emphasis)
+  );
+}
+
+/* Disabled */
+.root[data-state="disable"] .control {
+  background: var(--disable-disable-container);
+  border-color: var(--disable-disable);
+  cursor: not-allowed;
+}
+.root[data-state="disable"] .textarea,
+.root[data-state="disable"] .icon {
+  color: var(--disable-on-disable);
+}
+
+.bottomRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.counter {
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  color: var(--surface-neutral-mid-emphasis, var(--text-secondary));
+}
+
+.message {
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  color: var(--surface-neutral-mid-emphasis, var(--text-secondary));
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.messageIcon {
+  inline-size: 14px;
+  block-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.root[data-message="error"] .message {
+  color: var(--error-error);
+}
+.root[data-message="success"] .message {
+  color: var(--success-success, #1f8f41);
+}
+.root[data-message="error"]:not([data-state="disable"]) .control {
+  border-color: var(--error-error);
+}
+.root[data-message="success"]:not([data-state="disable"]) .control {
+  border-color: var(--success-success, #1f8f41);
+}

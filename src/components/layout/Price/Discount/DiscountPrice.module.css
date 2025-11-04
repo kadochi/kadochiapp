@@ -1,0 +1,112 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  direction: rtl;
+}
+
+.h {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.v {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vRight {
+  align-items: flex-start;
+}
+.vCenter {
+  align-items: center;
+}
+
+.size_L .curr {
+  font-size: var(--fs-label-16);
+  line-height: var(--lh-label-16);
+  font-weight: var(--fw-bold);
+}
+.size_M .curr {
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  font-weight: var(--fw-bold);
+}
+
+.size_L .currLabel {
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  color: var(--surface-neutral-low-emphasis);
+}
+.size_M .currLabel {
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  color: var(--surface-neutral-low-emphasis);
+}
+
+.prevWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--surface-neutral-low-emphasis);
+}
+
+.prevWrapRight {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  color: var(--surface-neutral-low-emphasis);
+  direction: rtl;
+}
+
+.currWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prev {
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  text-decoration: line-through;
+}
+.size_M .prev {
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: var(--radius-rounded);
+  background: var(--error-error);
+  color: var(--error-on-error, var(--surface-on-error, #fff));
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+}
+
+.arrow {
+  display: inline-flex;
+  align-items: center;
+}
+.arrowIcon {
+  inline-size: 20px;
+  block-size: 20px;
+}
+
+.currLine {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.currLineCenter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}

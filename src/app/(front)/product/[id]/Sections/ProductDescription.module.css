@@ -1,0 +1,78 @@
+.descSection {
+  padding: var(--space-16);
+  background: var(--surface-background);
+}
+
+.content {
+  font-family: var(--font-sans);
+  font-size: var(--fs-body-14);
+  line-height: var(--lh-body-14);
+  color: var(--surface-neutral-high-emphasis);
+  direction: rtl;
+
+  overflow: hidden;
+  transition: max-height 300ms ease, -webkit-mask-image 200ms ease;
+
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+.content[data-expanded="true"] {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.content h1,
+.content h2,
+.content h3,
+.content h4,
+.content h5,
+.content h6 {
+  font-weight: var(--fw-bold);
+  color: var(--surface-neutral-high-emphasis);
+  margin: 0 0 var(--space-8) 0;
+}
+
+.content strong,
+.content b,
+.content [style*="font-weight:700"],
+.content [style*="font-weight: 700"] {
+  font-weight: 700 !important;
+}
+
+.content,
+.content * {
+  font-family: var(--font-sans) !important;
+}
+
+.content p {
+  margin: 0 0 var(--space-8) 0;
+}
+
+.content ul,
+.content ol {
+  margin: 0 0 var(--space-8) var(--space-16);
+  padding: 0;
+  list-style-position: inside;
+}
+
+.content a {
+  color: var(--primary-primary);
+  text-decoration: none;
+}
+
+.actions {
+  margin-top: var(--space-8);
+  display: flex;
+  justify-content: center;
+}

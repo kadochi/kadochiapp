@@ -1,0 +1,122 @@
+/* Label — Kadochi Design System */
+
+.root {
+  box-sizing: border-box; /* padding داخل ارتفاع محاسبه شود */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-weight: var(--fw-regular);
+  border-radius: var(--radius-rounded);
+  user-select: none;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: default;
+}
+
+/* Sizes — exact heights (includes padding) */
+.size_small {
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  block-size: 24px; /* ارتفاع دقیق */
+  padding-block: 4px; /* طبق مشخصات */
+  padding-inline: 8px;
+  gap: 4px; /* فاصله آیکون با متن */
+}
+
+.size_medium {
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  block-size: 32px; /* ارتفاع دقیق */
+  padding-block: 8px;
+  padding-inline: 12px;
+  gap: 6px;
+}
+
+/* Icon wrapper keeps icons visually centered regardless of font metrics */
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: inherit;
+}
+
+/* ===== Variant Tokens ===== */
+
+/* Primary */
+.variant_primary {
+  --label-fg: var(--success-on-success);
+  --label-solid-bg: var(--success-success);
+  --label-tonal-bg: var(--success-success-container);
+  --label-tonal-fg: var(--success-on-success-container);
+  --label-grad-from: var(--primary-primary);
+  --label-grad-to: var(--primary-primary-gradient);
+}
+
+/* Secondary */
+.variant_secondary {
+  --label-fg: var(--secondary-on-secondary);
+  --label-solid-bg: var(--secondary-secondary);
+  --label-tonal-bg: var(--secondary-secondary-container);
+  --label-tonal-fg: var(--secondary-on-secondary-container);
+  --label-grad-from: var(--secondary-secondary);
+  --label-grad-to: var(--secondary-secondary-gradient);
+}
+
+/* Warning */
+.variant_warning {
+  --label-fg: var(--warning-on-warning);
+  --label-solid-bg: var(--warning-warning);
+  --label-tonal-bg: var(--warning-warning-container);
+  --label-tonal-fg: var(--warning-on-warning-container);
+  --label-grad-from: var(--warning-warning);
+  --label-grad-to: var(--warning-on-warning-container);
+}
+
+/* Danger */
+.variant_danger {
+  --label-fg: var(--error-on-error);
+  --label-solid-bg: var(--error-error);
+  --label-tonal-bg: var(--error-error-container);
+  --label-tonal-fg: var(--error-on-error-container);
+  --label-grad-from: var(--error-error);
+  --label-grad-to: var(--error-on-error-container);
+}
+
+/* Deactive */
+.variant_deactive {
+  --label-fg: var(--disable-on-disable);
+  --label-solid-bg: var(--disable-disable);
+  --label-tonal-bg: var(--disable-disable-container);
+  --label-tonal-fg: var(--disable-on-disable-container);
+  --label-grad-from: var(--disable-on-disable);
+  --label-grad-to: var(--disable-on-disable-container);
+}
+
+/* ===== Styles ===== */
+
+.style_solid {
+  color: var(--label-fg);
+  background-color: var(--label-solid-bg);
+}
+
+.style_tonal {
+  color: var(--label-tonal-fg);
+  background-color: var(--label-tonal-bg);
+}
+
+.style_gradient {
+  color: var(--label-fg);
+  background-image: linear-gradient(
+    to left,
+    var(--label-grad-from),
+    var(--label-grad-to)
+  );
+}

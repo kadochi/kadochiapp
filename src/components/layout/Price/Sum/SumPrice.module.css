@@ -1,0 +1,58 @@
+.root {
+  direction: rtl;
+  color: var(--surface-neutral-high-emphasis);
+}
+
+.h {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.hSplit {
+  inline-size: 100%;
+  justify-content: space-between;
+}
+
+.v {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: right;
+  gap: 4px;
+}
+
+.sumLabel {
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  color: var(--surface-neutral-low-emphasis);
+}
+
+.priceWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.amount {
+  font-size: var(--fs-label-16);
+  font-weight: var(--fw-bold);
+}
+.currency {
+  font-size: var(--fs-label-14);
+  color: var(--surface-neutral-low-emphasis);
+}
+
+.priceWrapRight {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.amountSmall {
+  font-size: var(--fs-label-14);
+  font-weight: var(--fw-bold);
+}
+.currencySmall {
+  font-size: var(--fs-label-12);
+  color: var(--surface-neutral-low-emphasis);
+}

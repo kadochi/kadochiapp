@@ -1,0 +1,83 @@
+/* Chip — Kadochi (RTL) */
+.root {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-weight: var(--fw-regular);
+  font-size: var(--fs-label-16);
+  line-height: var(--lh-label-16);
+  padding-block: 6px;
+  padding-inline: 8px;
+  gap: 4px;
+  border-radius: var(--radius-rounded);
+  border: 1px solid transparent;
+  background: var(--surface-surface-soft);
+  color: var(--surface-neutral-high-emphasis);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* states */
+.state_default {
+  background: var(--surface-surface-soft);
+  border-color: var(--border-border-high-emphasis);
+  color: var(--surface-neutral-high-emphasis);
+}
+.state_active {
+  background: var(--secondary-secondary-container);
+  border-color: var(--secondary-on-secondary-container);
+  color: var(--surface-neutral-high-emphasis);
+}
+.state_disable {
+  background: var(--disable-disable-container);
+  border-color: var(--disable-disable);
+  color: var(--disable-on-disable);
+  cursor: not-allowed;
+}
+
+/* icons */
+.icon {
+  inline-size: 16px;
+  block-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.leading {
+  margin-inline-start: 2px;
+}
+.trailing {
+  margin-inline-end: 2px;
+}
+
+/* badge: left of label (RTL) */
+.badge {
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: var(--radius-rounded);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  background: var(--secondary-secondary);
+  color: var(--secondary-on-secondary);
+}
+
+/* only add gap when there's a trailing icon after badge */
+.badge + .trailing {
+  margin-inline-start: 2px;
+}
+
+/* disabled visuals */
+.state_disable .icon {
+  color: var(--disable-on-disable);
+}
+.state_disable .badge {
+  background: var(--disable-disable);
+  color: var(--disable-on-disable-container);
+}

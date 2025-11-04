@@ -1,0 +1,9 @@
+.tagsWrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  justify-content: flex-start;
+  direction: rtl;
+  padding: var(--space-8) var(--space-16) var(--space-16) var(--space-16);
+  background: var(--surface-background);
+}
