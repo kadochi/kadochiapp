@@ -1,0 +1,115 @@
+.container {
+  direction: rtl;
+  padding: 0 var(--space-16);
+  max-width: 580px;
+  margin-inline: auto;
+}
+
+.loadingCenter {
+  min-height: 50vh;
+  display: grid;
+  place-items: center;
+  color: var(--surface-neutral-mid-emphasis);
+}
+
+.empty {
+  display: grid;
+  place-items: center;
+  gap: var(--space-12);
+  padding: var(--space-48) var(--space-16);
+  color: var(--surface-neutral-mid-emphasis);
+}
+
+.listWrap {
+  padding-bottom: calc(var(--bar-h, 132px) + 16px);
+}
+
+.list {
+  display: grid;
+  gap: var(--space-12);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.item {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: var(--space-8);
+  border-bottom: 1px solid var(--border-border-low-emphasis);
+  border-radius: var(--radius-16);
+  padding-block: var(--space-12);
+  background: var(--surface-background);
+}
+
+.thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--radius-12, 12px);
+  background: var(--surface-surface-background);
+  align-self: center;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-weight: var(--fw-bold);
+  color: var(--surface-neutral-high-emphasis);
+}
+
+.price {
+  color: var(--surface-neutral-high-emphasis);
+}
+
+.currency {
+  opacity: 0.8;
+  margin-inline-start: 4px;
+}
+
+.bottomBar {
+  --bar-h: 132px;
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 200;
+  background: var(--surface-background);
+  border-top: 1px solid var(--border-border-mid-emphasis);
+  padding: var(--space-16) var(--space-16) var(--space-32);
+  margin-inline: auto;
+}
+
+.rowTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-12);
+  max-width: 580px;
+  margin-inline: auto;
+}
+
+.totalLabel {
+  color: var(--surface-neutral-mid-emphasis);
+}
+
+.totalVal {
+  font-weight: var(--fw-bold);
+  color: var(--surface-neutral-high-emphasis);
+}
+
+.rowCta {
+  display: block;
+  max-width: 580px;
+  margin-inline: auto;
+}
+
+.cta {
+  width: 100%;
+}

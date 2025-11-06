@@ -1,0 +1,78 @@
+.page {
+  background: var(--surface-background);
+  max-width: 580px;
+  margin-inline: auto;
+}
+
+.form {
+  display: grid;
+  gap: var(--space-32);
+  padding-top: 80px;
+  padding-bottom: 120px;
+}
+
+.head {
+  margin-top: 80px;
+  padding-inline: var(--space-24);
+  display: grid;
+  gap: var(--space-8);
+}
+
+.title {
+  margin-bottom: var(--space-12);
+  font-family: var(--font-sans);
+  font-size: var(--fs-title-18);
+  line-height: var(--lh-title-18);
+  font-weight: var(--fw-bold);
+  color: var(--text-primary);
+}
+
+.subtitle {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-body-16);
+  line-height: var(--lh-body-16);
+  color: var(--text-secondary);
+}
+
+.fieldWrap {
+  padding-inline: var(--space-24);
+}
+
+.termsRow {
+  padding-inline: var(--space-24);
+  margin-top: -8px;
+  margin-bottom: 8px;
+  direction: rtl;
+}
+
+.termsText {
+  font-family: var(--font-sans);
+  font-size: var(--fs-body-12);
+  line-height: var(--lh-body-12);
+  color: var(--text-secondary);
+}
+
+.link {
+  color: var(--secondary-secondary, #6a39ff);
+  font-weight: var(--fw-bold);
+  text-decoration: none;
+}
+
+.ctaBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: var(--space-16);
+  padding-bottom: var(--space-32);
+  background: var(--surface-background);
+  border-top: 1px solid var(--border-border-mid-emphasis);
+  display: grid;
+}
+
+.ctaBtn {
+  width: 100%;
+  max-width: 580px;
+  margin-inline: auto;
+}
