@@ -1,3 +1,8 @@
+// src/components/layout/Footer/Footer.tsx
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import s from "./Footer.module.css";
 
@@ -8,38 +13,76 @@ type StoreCategory = {
   image?: { src?: string | null } | null;
 };
 
-async function fetchCategories(limit = 100): Promise<StoreCategory[]> {
-  const WP = process.env.WP_BASE_URL || "https://app.kadochi.com";
-  const url = `${WP}/wp-json/wc/store/v1/products/categories?per_page=${limit}&hide_empty=true`;
-  try {
-    const res = await fetch(url, { next: { revalidate: 3600 } });
-    if (!res.ok) return [];
-    const data = (await res.json()) as StoreCategory[];
+// Routes where footer should be hidden
+const HIDDEN_ROUTES: (string | RegExp)[] = [
+  "/basket",
+  "/login",
+  "/auth/otp",
+  "/checkout",
+  "/checkout/success",
+  "/checkout/zp-callback",
+  /^\/product\/.+/,
+];
 
-    const filtered = (data || []).filter((c) => {
-      const n = (c?.name || "").trim().toLowerCase();
-      const s = (c?.slug || "").trim().toLowerCase();
-      return n !== "بدون دسته‌بندی" && s !== "uncategorized";
-    });
-
-    return filtered.slice(0, limit);
-  } catch {
-    return [];
-  }
+function useHideFooter() {
+  const pathname = usePathname();
+  return useMemo(
+    () =>
+      HIDDEN_ROUTES.some((pattern) =>
+        typeof pattern === "string"
+          ? pathname === pattern
+          : pattern.test(pathname)
+      ),
+    [pathname]
+  );
 }
 
-export default async function Footer() {
-  const categories = await fetchCategories(100);
+export default function Footer() {
+  const hide = useHideFooter();
+  const [categories, setCategories] = useState<StoreCategory[] | null>(null);
+
+  useEffect(() => {
+    if (hide) return;
+    let cancelled = false;
+
+    // Fetch via same-origin proxy to avoid CORS
+    const url = `/api/store/categories?per_page=100&hide_empty=true`;
+
+    fetch(url, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: StoreCategory[]) => {
+        if (cancelled) return;
+        const filtered = (data || []).filter((c) => {
+          const n = (c?.name || "").trim().toLowerCase();
+          const s = (c?.slug || "").trim().toLowerCase();
+          return n !== "بدون دسته‌بندی" && s !== "uncategorized";
+        });
+        setCategories(filtered.slice(0, 100));
+      })
+      .catch(() => {
+        if (!cancelled) setCategories([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hide]);
+
+  if (hide) return null;
 
   return (
-    <footer className={s.root} aria-labelledby="footer-heading">
+    <footer
+      className={s.root}
+      aria-labelledby="footer-heading"
+      data-component="footer"
+    >
       <div className={s.container}>
         <h2 id="footer-heading" className={s.visuallyHidden}>
           فوتر سایت کادوچی
         </h2>
 
         <div className={s.cols}>
-          {/* --- about --- */}
+          {/* about */}
           <section className={s.group} aria-labelledby="footer-about">
             <h3 id="footer-about" className={s.groupTitle}>
               کادوچی
@@ -73,30 +116,34 @@ export default async function Footer() {
             </ul>
           </section>
 
-          {/* --- categories --- */}
+          {/* categories */}
           <section className={s.group} aria-labelledby="footer-categories">
             <h3 id="footer-categories" className={s.groupTitle}>
               دسته‌بندی‌ها
             </h3>
             <ul className={s.list}>
-              {categories.length ? (
-                categories.map((cat) => (
-                  <li key={cat.id}>
-                    <Link
-                      href={`/products?category=${encodeURIComponent(cat.id)}`}
-                      className={s.link}
-                    >
-                      {cat.name}
-                    </Link>
-                  </li>
-                ))
-              ) : (
-                <li>در حال بارگذاری…</li>
-              )}
+              {
+                categories && categories.length > 0 ? (
+                  categories.map((cat) => (
+                    <li key={cat.id}>
+                      <Link
+                        href={`/products?category=${encodeURIComponent(
+                          cat.id
+                        )}`}
+                        className={s.link}
+                      >
+                        {cat.name}
+                      </Link>
+                    </li>
+                  ))
+                ) : categories && categories.length === 0 ? (
+                  <li>موردی یافت نشد</li>
+                ) : null /* render nothing while loading */
+              }
             </ul>
           </section>
 
-          {/* --- occasions --- */}
+          {/* occasions */}
           <section className={s.group} aria-labelledby="footer-help">
             <h3 id="footer-help" className={s.groupTitle}>
               مناسبت‌ها
@@ -121,7 +168,7 @@ export default async function Footer() {
             </ul>
           </section>
 
-          {/* --- contact --- */}
+          {/* contact */}
           <section className={s.group} aria-labelledby="footer-legal">
             <h3 id="footer-legal" className={s.groupTitle}>
               ارتباط
@@ -146,13 +193,12 @@ export default async function Footer() {
 
         <hr className={s.divider} />
 
-        {/* --- bottom row --- */}
+        {/* bottom row */}
         <div className={s.bottomRow}>
           <p className={s.copy}>
             © {new Date().getFullYear()} کادوچی — تمامی حقوق محفوظ است.
           </p>
 
-          {/* social */}
           <div className={s.socials} aria-label="شبکه‌های اجتماعی">
             {[
               ["Instagram", "social-instagram.svg", "https://instagram.com"],
@@ -180,7 +226,6 @@ export default async function Footer() {
             ))}
           </div>
 
-          {/* certificates */}
           <div className={s.enamad} aria-label="نمادها">
             {[
               ["/images/enamad.png", "نماد اعتماد الکترونیکی"],

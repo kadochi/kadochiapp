@@ -9,22 +9,35 @@ import React, {
   type ReactNode,
 } from "react";
 
+/** Basket data shape: productId -> quantity */
 export type BasketMap = Record<string, number>;
 
 export type BasketContextValue = {
   basket: BasketMap;
   basketCount: number;
+  /** add quantity (default 1) to a product id */
   addToBasket: (id: string, qty?: number) => void;
+  /** remove quantity (default 1) from a product id (removes key if <=0) */
   removeFromBasket: (id: string, qty?: number) => void;
+  /** replace the whole map (legacy API compatibility) */
   updateQuantity: (next: BasketMap) => void;
+  /** set an exact quantity for a single id (0 removes it) */
   setItemQuantity: (id: string, qty: number) => void;
+  /** clear basket completely */
   clearBasket: () => void;
 };
 
 const BasketContext = createContext<BasketContextValue | undefined>(undefined);
+
+/** namespaced localStorage key (v1 for future migrations) */
 const STORAGE_KEY = "kadochi:basket:v1";
 
+/**
+ * Provider for basket state.
+ * Note: this file intentionally uses `.ts` (no JSX).
+ */
 export function BasketProvider({ children }: { children: ReactNode }) {
+  // lazy init from localStorage (client only)
   const [basket, setBasket] = useState<BasketMap>(() => {
     if (typeof window === "undefined") return {};
     try {
@@ -35,21 +48,23 @@ export function BasketProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  // persist to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(basket));
     } catch {}
   }, [basket]);
 
+  // sync across tabs/windows
   useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
+    function onStorage(e: StorageEvent) {
       if (e.key === STORAGE_KEY) {
         try {
           const next = e.newValue ? (JSON.parse(e.newValue) as BasketMap) : {};
           setBasket(next);
         } catch {}
       }
-    };
+    }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
@@ -67,7 +82,7 @@ export function BasketProvider({ children }: { children: ReactNode }) {
       const cur = prev[id] || 0;
       const nextQty = cur - qty;
       if (nextQty <= 0) {
-        const { [id]: _, ...rest } = prev;
+        const { [id]: _omit, ...rest } = prev;
         return rest;
       }
       return { ...prev, [id]: nextQty };
@@ -76,7 +91,7 @@ export function BasketProvider({ children }: { children: ReactNode }) {
   const setItemQuantity = (id: string, qty: number) =>
     setBasket((prev) => {
       if (qty <= 0) {
-        const { [id]: _, ...rest } = prev;
+        const { [id]: _omit, ...rest } = prev;
         return rest;
       }
       return { ...prev, [id]: qty };
@@ -95,13 +110,17 @@ export function BasketProvider({ children }: { children: ReactNode }) {
     clearBasket,
   };
 
-  return (
-    <BasketContext.Provider value={value}>{children}</BasketContext.Provider>
+  return React.createElement(
+    BasketContext.Provider,
+    { value },
+    children as any
   );
 }
 
 export function useBasket(): BasketContextValue {
   const ctx = useContext(BasketContext);
-  if (!ctx) throw new Error("useBasket must be used within <BasketProvider>");
+  if (!ctx) {
+    throw new Error("useBasket must be used within <BasketProvider>");
+  }
   return ctx;
 }

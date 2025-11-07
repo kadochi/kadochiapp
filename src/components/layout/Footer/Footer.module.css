@@ -103,10 +103,6 @@
   opacity: 0.9;
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
-.socialLink:hover {
-  opacity: 1;
-  transform: translateY(-1px);
-}
 
 .visuallyHidden {
   position: absolute !important;

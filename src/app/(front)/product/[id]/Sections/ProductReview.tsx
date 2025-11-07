@@ -27,7 +27,7 @@ export default function ProductReview({
   onSubmit,
 }: Props) {
   const sessionCtx = useOptionalSession();
-  const isLoggedIn = !!sessionCtx?.session;
+  const isLoggedIn = !!sessionCtx?.session?.userId;
 
   const avgLabel = useMemo(
     () =>
@@ -44,6 +44,7 @@ export default function ProductReview({
   const [text, setText] = useState("");
   const [rating, setRating] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [submitErr, setSubmitErr] = useState<string | null>(null);
 
   const canSubmit =
     isLoggedIn && rating > 0 && text.trim().length > 0 && !submitting;
@@ -51,10 +52,32 @@ export default function ProductReview({
   const handleSubmit = async () => {
     if (!canSubmit) return;
     try {
+      setSubmitErr(null);
       setSubmitting(true);
-      await onSubmit?.({ productId, rating, text: text.trim() });
+
+      if (onSubmit) {
+        await onSubmit({ productId, rating, text: text.trim() });
+      } else {
+        const r = await fetch("/api/reviews", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ productId, rating, text: text.trim() }),
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        const json = await r.json().catch(() => null);
+        if (!r.ok || json?.ok === false) {
+          throw new Error(json?.error || `HTTP ${r.status}`);
+        }
+      }
+
       setText("");
       setRating(0);
+    } catch (e: any) {
+      setSubmitErr(e?.message || "ارسال نظر ناموفق بود.");
     } finally {
       setSubmitting(false);
     }
@@ -82,7 +105,7 @@ export default function ProductReview({
           <p className={s.loginMsg}>برای درج نظر وارد حساب کاربری خود شوید.</p>
           <Button
             as={Link as any}
-            href="/auth/login"
+            href="/login"
             className={s.loginBtn}
             type="tertiary"
             style="outline"
@@ -94,15 +117,16 @@ export default function ProductReview({
           </Button>
         </div>
       ) : (
-        <div className={s.formWrap}>
+        <div className={s.formWrapLoggedin}>
           <TextArea
             label="نظر شما"
             showLabel={false}
             required={false}
             disabled={false}
             placeholder="نظر خود را وارد کنید."
-            showMessage={false}
-            messageType="hint"
+            showMessage={!!submitErr}
+            messageType={submitErr ? "error" : "hint"}
+            message={submitErr || undefined}
             rows={4}
             showCounter={true}
             maxLength={300}
@@ -115,18 +139,22 @@ export default function ProductReview({
 
           <div className={s.formBottom}>
             <div className={s.stars} role="radiogroup" aria-label="امتیاز شما">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  className={s.starBtn}
-                  aria-label={`${n} ستاره`}
-                  onClick={() => setRating(n)}
-                  data-active={rating >= n}
-                >
-                  <Star size={24} />
-                </button>
-              ))}
+              {[1, 2, 3, 4, 5].map((n) => {
+                const active = rating >= n;
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    className={s.starBtn}
+                    aria-label={`${n} ستاره`}
+                    aria-pressed={active}
+                    onClick={() => setRating(n)}
+                    data-active={active}
+                  >
+                    <Star size={16} />
+                  </button>
+                );
+              })}
             </div>
 
             <Button
@@ -135,6 +163,8 @@ export default function ProductReview({
               size="medium"
               onClick={handleSubmit}
               disabled={!canSubmit}
+              loading={submitting}
+              className={s.submitBtn}
             >
               ثبت نظر
             </Button>

@@ -28,8 +28,8 @@ function corsHeaders(req: NextRequest): Record<string, string> {
     !origin || ALLOWED_ORIGINS.length === 0
       ? undefined
       : ALLOWED_ORIGINS.find((o) => o === "*" || o === origin);
-  return {
-    "Access-Control-Allow-Origin": allowed ? allowed : "", // empty → same-origin only
+
+  const hdrs: Record<string, string> = {
     Vary: "Origin",
     "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS",
     "Access-Control-Allow-Headers":
@@ -37,6 +37,10 @@ function corsHeaders(req: NextRequest): Record<string, string> {
       "Content-Type, Authorization, Accept",
     "Access-Control-Max-Age": "600",
   };
+
+  // فقط وقتی مجازه مقدار بدیم؛ خالی نفرست
+  if (allowed) hdrs["Access-Control-Allow-Origin"] = allowed;
+  return hdrs;
 }
 
 function isAuthRedirect(res: Response): boolean {
@@ -60,13 +64,15 @@ function targetURL(paramsPath: string[] | undefined, search: string): URL {
   return url;
 }
 
+// ⚠️ تغییر کلیدی: امضای ctx و await روی params
 async function handle(
   req: NextRequest,
-  ctx: { params: { path?: string[] } },
+  ctx: { params: Promise<{ path?: string[] }> },
   passthroughBody: boolean
 ) {
   try {
-    const url = targetURL(ctx.params.path, req.nextUrl.search);
+    const { path } = await ctx.params; // ← Next 16: params یک Promise است
+    const url = targetURL(path, req.nextUrl.search);
     const method = req.method.toUpperCase();
 
     // Build upstream headers (do not forward user cookies to WP)
@@ -76,6 +82,7 @@ async function handle(
       "X-From": "next-proxy",
       ...(buildAuthHeader() || {}),
     };
+
     const controller = new AbortController();
     const timer = setTimeout(
       () => controller.abort(new Error("timeout")),
@@ -120,6 +127,7 @@ async function handle(
     // Some endpoints may be 204/304 with empty body
     const body =
       upstream.status === 204 || upstream.status === 304 ? null : upstream.body;
+
     return new NextResponse(body as any, {
       status: upstream.status,
       headers: respHeaders,
@@ -136,48 +144,52 @@ async function handle(
   }
 }
 
+// همه‌ی امضاهای اکسپورت باید مثل بالا Promise params داشته باشند
 export async function OPTIONS(
   req: NextRequest,
-  ctx: { params: { path?: string[] } }
+  ctx: { params: Promise<{ path?: string[] }> }
 ) {
   return new NextResponse(null, { status: 204, headers: corsHeaders(req) });
 }
 
-// HEAD uses no body passthrough
 export async function HEAD(
   req: NextRequest,
-  ctx: { params: { path?: string[] } }
+  ctx: { params: Promise<{ path?: string[] }> }
 ) {
   return handle(req, ctx, false);
 }
 
 export async function GET(
   req: NextRequest,
-  ctx: { params: { path?: string[] } }
+  ctx: { params: Promise<{ path?: string[] }> }
 ) {
   return handle(req, ctx, false);
 }
+
 export async function POST(
   req: NextRequest,
-  ctx: { params: { path?: string[] } }
+  ctx: { params: Promise<{ path?: string[] }> }
 ) {
   return handle(req, ctx, true);
 }
+
 export async function PUT(
   req: NextRequest,
-  ctx: { params: { path?: string[] } }
+  ctx: { params: Promise<{ path?: string[] }> }
 ) {
   return handle(req, ctx, true);
 }
+
 export async function PATCH(
   req: NextRequest,
-  ctx: { params: { path?: string[] } }
+  ctx: { params: Promise<{ path?: string[] }> }
 ) {
   return handle(req, ctx, true);
 }
+
 export async function DELETE(
   req: NextRequest,
-  ctx: { params: { path?: string[] } }
+  ctx: { params: Promise<{ path?: string[] }> }
 ) {
   return handle(req, ctx, true);
 }

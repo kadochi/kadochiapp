@@ -5,13 +5,13 @@ import Providers from "./providers";
 import NextTopLoader from "nextjs-toploader";
 import Header from "@/components/layout/Header/Header";
 import BottomNavigation from "@/components/layout/BottomNavigation/BottomNavigation";
-import getInitialSession from "@/domains/auth/getInitialSession";
+import getInitialSession from "@/lib/auth/session";
 import Footer from "@/components/layout/Footer/Footer";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://kadochi.com"),
   title: {
-    default: "کادوچی | خرید اینترنتی کادو و گل با ارسال سریع",
+    default: "کادوچی | خرید کادو، گل و کیک با ارسال سریع",
     template: "کادوچی | %s",
   },
   description:
@@ -46,7 +46,7 @@ export default async function RootLayout({
   const session = await getInitialSession();
 
   return (
-    <html lang="fa" dir="rtl">
+    <html lang="فا" dir="rtl">
       <head>
         <link rel="preconnect" href="https://app.kadochi.com" crossOrigin="" />
         <link
@@ -74,6 +74,23 @@ export default async function RootLayout({
       <body>
         <main className="layoutContainer">
           <Providers initialSession={session}>
+            {/* scroll-to-top on route changes, no client component needed */}
+            <script
+              id="scroll-restoration"
+              dangerouslySetInnerHTML={{
+                __html: `(function(){
+  try{
+    if('scrollRestoration' in history){ history.scrollRestoration='manual'; }
+    var toTop=function(){ try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch(e){} };
+    var _push=history.pushState, _replace=history.replaceState;
+    history.pushState=function(){ _push.apply(this, arguments); setTimeout(toTop,0); };
+    history.replaceState=function(){ _replace.apply(this, arguments); setTimeout(toTop,0); };
+    window.addEventListener('popstate', toTop);
+    window.addEventListener('load', toTop);
+  }catch(e){}
+})();`,
+              }}
+            />
             <NextTopLoader
               showSpinner={false}
               color="#8030A2"

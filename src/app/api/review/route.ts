@@ -110,7 +110,6 @@ export async function POST(req: Request) {
         "Kadochi User";
     }
 
-    // بعضی نصب‌ها بدون ایمیل اجازه ثبت نمی‌دهند—ایمیل placeholder
     const reviewer_email =
       (sess?.phone ? `${sess.phone}@users.kadochi.local` : null) ||
       "noreply@kadochi.com";

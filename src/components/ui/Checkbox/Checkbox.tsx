@@ -24,7 +24,9 @@ export default function Checkbox({
   onChange,
   className,
 }: Props) {
-  const [internal, setInternal] = React.useState(!!defaultChecked);
+  // Uncontrolled internal state (used only when `checked` prop is NOT provided)
+  const [internal, setInternal] = React.useState<boolean>(!!defaultChecked);
+
   const isControlled = typeof checked === "boolean";
   const isChecked = isControlled ? !!checked : internal;
   const inputId = id ?? React.useId();
@@ -33,6 +35,19 @@ export default function Checkbox({
     if (!isControlled) setInternal(e.target.checked);
     onChange?.(e.target.checked);
   }
+
+  // Build input props to avoid passing both `checked` and `defaultChecked`
+  const inputProps: React.InputHTMLAttributes<HTMLInputElement> = {
+    id: inputId,
+    name,
+    type: "checkbox",
+    className: s.input,
+    disabled,
+    onChange: handleChange,
+    ...(isControlled
+      ? { checked: isChecked, readOnly: !onChange } // controlled
+      : { defaultChecked: !!defaultChecked }), // uncontrolled
+  };
 
   return (
     <label className={`${s.wrapper} ${className ?? ""}`} htmlFor={inputId}>
@@ -62,16 +77,7 @@ export default function Checkbox({
 
       {label ? <span className={s.label}>{label}</span> : null}
 
-      <input
-        id={inputId}
-        name={name}
-        type="checkbox"
-        className={s.input}
-        checked={isChecked}
-        defaultChecked={defaultChecked}
-        disabled={disabled}
-        onChange={handleChange}
-      />
+      <input {...inputProps} />
     </label>
   );
 }

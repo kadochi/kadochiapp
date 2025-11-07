@@ -1,9 +1,8 @@
-// src/app/(front)/products/page.tsx
 import "server-only";
 import Link from "next/link";
 import { cache } from "react";
 import type { Metadata } from "next";
-import { listProducts } from "@/domains/catalog/services/woo.server";
+import { listProducts } from "@/lib/api/woo";
 import Breadcrumb from "@/components/ui/Breadcrumb/Breadcrumb";
 import Divider from "@/components/ui/Divider/Divider";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
@@ -131,6 +130,60 @@ export async function generateMetadata({
   };
 }
 
+function normalizeForClient(items: any[]) {
+  const toNum = (v: any) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const isPriceObj = (v: any): v is { amount: number; currency: string } =>
+    v && typeof v === "object" && "amount" in v && "currency" in v;
+
+  return (items || []).map((p) => {
+    const images =
+      Array.isArray(p?.images) && p.images.length
+        ? p.images
+            .map((im: any) => ({
+              url: im?.url ?? im?.src ?? "",
+              alt: im?.alt ?? p?.name ?? "",
+            }))
+            .filter((im: any) => im.url)
+        : [];
+
+    const currency =
+      (isPriceObj(p?.price) && p.price.currency) || p?.currency || "IRR";
+
+    const toAmount = (val: any): number =>
+      isPriceObj(val) ? Number(val.amount || 0) : toNum(val);
+
+    const baseRaw =
+      (p?.salePrice !== undefined &&
+      p?.salePrice !== null &&
+      p?.salePrice !== ""
+        ? p.salePrice
+        : p?.price !== undefined && p?.price !== null && p?.price !== ""
+        ? p.price
+        : p?.regularPrice) ?? 0;
+
+    const price = isPriceObj(p?.price)
+      ? p.price
+      : { amount: toAmount(baseRaw), currency };
+
+    const regularPrice = isPriceObj(p?.regularPrice)
+      ? p.regularPrice
+      : p?.regularPrice != null && p?.regularPrice !== ""
+      ? { amount: toAmount(p.regularPrice), currency }
+      : undefined;
+
+    const salePrice = isPriceObj(p?.salePrice)
+      ? p.salePrice
+      : p?.salePrice != null && p?.salePrice !== ""
+      ? { amount: toAmount(p.salePrice), currency }
+      : undefined;
+
+    return { ...p, images, price, regularPrice, salePrice };
+  });
+}
+
 export default async function ProductsPage({
   searchParams,
 }: {
@@ -169,7 +222,7 @@ export default async function ProductsPage({
 
   const { items } = await listProducts({
     page,
-    perPage,
+    per_page: perPage,
     search: q,
     category: categoryParam,
     tag: tagParam,
@@ -178,6 +231,8 @@ export default async function ProductsPage({
     min_price: minPrice,
     max_price: maxPrice,
   } as any);
+
+  const normalizedItems = normalizeForClient(items);
 
   const clientKey = (() => {
     const usp = new URLSearchParams();
@@ -240,7 +295,7 @@ export default async function ProductsPage({
 
           <ProductListClient
             key={clientKey}
-            initialItems={items}
+            initialItems={normalizedItems}
             baseParams={baseParams}
           />
         </div>

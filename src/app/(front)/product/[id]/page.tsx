@@ -3,7 +3,7 @@ import "server-only";
 import { Suspense } from "react";
 import ImageGallery from "@/domains/catalog/components/ImageGallery/ImageGallery";
 import ProductInfo from "./Sections/ProductInfo";
-import { getProductDetail } from "@/domains/catalog/services/woo.server";
+import { getProductDetail } from "@/lib/api/woo";
 import Divider from "@/components/ui/Divider/Divider";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
 import ProductTags from "./Sections/ProductTags";
@@ -30,9 +30,7 @@ async function resolveParams(p: Params | Promise<Params>): Promise<Params> {
 export default async function ProductPage({ params }: { params: Params }) {
   const { id } = await resolveParams(params);
 
-  const productPromise = getProductDetail(id);
-
-  const product = await productPromise;
+  const product = await getProductDetail(id);
   if (!product) {
     return (
       <main dir="rtl" style={{ paddingTop: 0 }}>
@@ -42,12 +40,12 @@ export default async function ProductPage({ params }: { params: Params }) {
   }
 
   const tagIds = Array.isArray(product.tags)
-    ? product.tags.map((t) => t.id).filter(Boolean)
+    ? (product.tags as Array<{ id: number }>).map((t) => t.id).filter(Boolean)
     : [];
 
   const primaryCategoryId =
     Array.isArray(product.categories) && product.categories.length
-      ? product.categories[0]!.id
+      ? (product.categories[0] as { id: number }).id
       : undefined;
 
   const tagCsv = tagIds.slice(0, 3).join(",");
@@ -71,19 +69,24 @@ export default async function ProductPage({ params }: { params: Params }) {
       : `/products?orderby=popularity`;
 
   const title = product.name || "محصول";
-  const images = (product.images || []).map((im) => im.url);
+  const images = (product.images || []).map((im: { url: string }) => im.url);
   const amount = Number(product.price.amount || 0);
   const previous = product.previousPrice ?? null;
   const offPercent = product.offPercent ?? null;
   const ratingAvg = Number(product.ratingAvg || 0);
   const reviewsCount = Number(product.reviewsCount || 0);
-  const primaryCat = product.categories?.[0];
+  const commentsCount = Array.isArray(product.comments)
+    ? product.comments.length
+    : 0;
+  const primaryCat = product.categories?.[0] as
+    | { id: number; name: string }
+    | undefined;
 
   return (
     <main dir="rtl" style={{ paddingTop: 0 }}>
       <section>
-        {/* ===== Hero Section ===== */}
         <ImageGallery images={images} title={title} />
+
         <ProductInfo
           title={title}
           amount={amount}
@@ -91,13 +94,13 @@ export default async function ProductPage({ params }: { params: Params }) {
           offPercent={offPercent}
           currencyLabel="تومان"
           shippingLabel="ارسال ۱ روزکاری"
+          commentsCount={commentsCount}
           reviewsCount={reviewsCount}
           ratingAvg={ratingAvg}
         />
 
         <Divider type="spacer" />
 
-        {/* ===== Description ===== */}
         <SectionHeader
           as="h3"
           title="درباره محصول"
@@ -120,7 +123,6 @@ export default async function ProductPage({ params }: { params: Params }) {
 
         <Divider type="spacer" />
 
-        {/* ===== Similar Products (lazy loaded) ===== */}
         <SectionHeader
           title="محصولات مشابه"
           subtitle="کادوهای مشابه این محصول"
@@ -147,16 +149,14 @@ export default async function ProductPage({ params }: { params: Params }) {
 
         <Divider type="spacer" />
 
-        {/* ===== Reviews ===== */}
         <ProductReview
           productId={product.id}
-          ratingAvg={product.ratingAvg}
-          ratingCount={product.reviewsCount}
+          ratingAvg={ratingAvg}
+          ratingCount={reviewsCount}
         />
 
         <Divider type="spacer" />
 
-        {/* ===== Comments (lazy) ===== */}
         <Suspense
           fallback={<div style={{ padding: 16 }}>در حال دریافت نظرات...</div>}
         >

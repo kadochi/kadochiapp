@@ -62,7 +62,6 @@ export default function Header({
     <>
       <div className={s.headerWrap}>
         <header className={s.header}>
-          {/* left group */}
           <div className={s.leftGroup}>
             <Link
               href="/basket"
@@ -110,7 +109,6 @@ export default function Header({
             </Button>
           </div>
 
-          {/* logo – keep eager but de-prioritize so it won't be LCP */}
           <Link href="/" className={s.logoLink} prefetch={false}>
             <img
               src="/images/logo.svg"
@@ -124,7 +122,6 @@ export default function Header({
             />
           </Link>
 
-          {/* menu / back */}
           {shouldShowBack ? (
             <img
               src="/icons/arrow-right.svg"
@@ -149,7 +146,6 @@ export default function Header({
             />
           )}
 
-          {/* desktop nav */}
           <nav className={s.navLinks}>
             <Link
               href="/"
@@ -161,10 +157,18 @@ export default function Header({
             <Link href="/products" className={s.navLink} prefetch={false}>
               کادو‌ها
             </Link>
-            <Link href="/products" className={s.navLink} prefetch={false}>
+            <Link
+              href="/products?category=flower"
+              className={s.navLink}
+              prefetch={false}
+            >
               گل
             </Link>
-            <Link href="/occasions" className={s.navLink} prefetch={false}>
+            <Link
+              href="/products?category=chocolate"
+              className={s.navLink}
+              prefetch={false}
+            >
               کیک تولد
             </Link>
             <Link href="/occasions" className={s.navLink} prefetch={false}>

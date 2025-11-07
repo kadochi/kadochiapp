@@ -1,4 +1,3 @@
-// next.config.mjs
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -8,15 +7,8 @@ const nextConfig = {
         hostname: "secure.gravatar.com",
         pathname: "/avatar/**",
       },
-      {
-        protocol: "https",
-        hostname: "app.kadochi.com",
-        pathname: "/**",
-      },
+      { protocol: "https", hostname: "app.kadochi.com", pathname: "/**" },
     ],
-  },
-  experimental: {
-    serverActions: true,
   },
 };
 

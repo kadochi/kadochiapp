@@ -10,20 +10,22 @@
   position: absolute;
   opacity: 0;
   pointer-events: none;
+  width: 1px;
+  height: 1px;
 }
 
 .control {
   inline-size: 24px;
   block-size: 24px;
+  flex: 0 0 24px;
   border-radius: var(--radius-s);
   box-sizing: border-box;
   display: inline-grid;
   place-items: center;
-
   background: var(--surface-background);
   border: 1.5px solid var(--border-border-high-emphasis);
   color: transparent;
-
+  line-height: 0;
   transition: box-shadow 120ms ease, border-color 120ms ease,
     background-color 120ms ease, color 120ms ease;
 }
@@ -52,6 +54,7 @@
 .icon {
   inline-size: 16px;
   block-size: 16px;
+  display: block;
 }
 
 .disabled {

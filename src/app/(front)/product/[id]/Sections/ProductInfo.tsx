@@ -1,11 +1,10 @@
+// src/app/(front)/product/[id]/Sections/ProductInfo.tsx
 "use client";
 
 import React from "react";
 import s from "./ProductInfo.module.css";
-
 import NormalPrice from "@/components/layout/Price/Normal/NormalPrice";
 import DiscountPrice from "@/components/layout/Price/Discount/DiscountPrice";
-
 import { Clock, MessageSquare, Star } from "lucide-react";
 
 type Unit = "rial" | "toman";
@@ -17,6 +16,7 @@ type Props = {
   offPercent?: number | null;
   currencyLabel?: string;
   shippingLabel?: string;
+  commentsCount?: number;
   reviewsCount?: number;
   ratingAvg?: number;
   inputUnit?: Unit;
@@ -39,11 +39,11 @@ export default function ProductInfo({
   offPercent = null,
   currencyLabel = "تومان",
   shippingLabel = "ارسال ۱ روزکاری",
-  reviewsCount = 2,
-  ratingAvg = 4.5,
+  commentsCount,
+  reviewsCount,
+  ratingAvg = 0,
   inputUnit = "rial",
 }: Props) {
-  // نرمال‌سازی به تومان برای نمایش
   const displayAmount = toDisplayToman(amount, inputUnit) ?? 0;
   const displayPrevious = toDisplayToman(previous, inputUnit);
 
@@ -52,6 +52,14 @@ export default function ProductInfo({
     Number(displayPrevious) > 0 &&
     offPercent != null &&
     Number(offPercent) > 0;
+
+  const rawCount =
+    typeof commentsCount === "number"
+      ? commentsCount
+      : typeof reviewsCount === "number"
+      ? reviewsCount
+      : 0;
+  const safeCount = Number.isFinite(Number(rawCount)) ? Number(rawCount) : 0;
 
   return (
     <section className={s.root} aria-labelledby="pdp-title">
@@ -88,7 +96,7 @@ export default function ProductInfo({
         <div className={s.metaItem} role="listitem">
           <MessageSquare size={24} className={s.icon} aria-hidden />
           <span className={s.metaText}>
-            نظر {Number(reviewsCount).toLocaleString("fa-IR")}
+            نظر {safeCount.toLocaleString("fa-IR")}
           </span>
         </div>
 

@@ -24,41 +24,38 @@ export default function HeaderInternal({ title, backUrl }: Props) {
   }, [title]);
 
   return (
-    <header className={s.root}>
+    <header className={s.root} dir="rtl" aria-label="سربرگ داخلی">
       <a
         href={backUrl || "#"}
         className={s.back}
         aria-label="بازگشت"
         onClick={(e) => {
           e.preventDefault();
-          if (backUrl) {
-            router.push(backUrl);
-          } else if (typeof history !== "undefined") {
-            history.back();
-          }
+          if (backUrl) router.push(backUrl);
+          else if (typeof history !== "undefined") history.back();
         }}
       >
         <Image
           src="/icons/arrow-right.svg"
           alt=""
-          width={24}
-          height={24}
+          width={32}
+          height={32}
           className={s.icon}
           aria-hidden
+          priority={false}
         />
       </a>
 
       {pageTitle ? <h1 className={s.title}>{pageTitle}</h1> : null}
 
       <div className={s.logoWrap}>
-        <Link href="/" aria-label="صفحه اصلی">
+        <Link href="/" aria-label="صفحه اصلی" className={s.logoLink}>
           <Image
             src="/images/logo.svg"
             alt="Kadochi"
-            width={56}
+            width={60}
             height={56}
             className={s.logo}
-            priority
           />
         </Link>
       </div>
