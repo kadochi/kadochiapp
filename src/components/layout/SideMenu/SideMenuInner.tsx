@@ -116,7 +116,7 @@ export default function SideMenuInner({
             aria-label="بستن"
           >
             <img
-              src="/icons/Close.svg"
+              src="/icons/close.svg"
               alt=""
               width={24}
               height={24}
@@ -129,7 +129,7 @@ export default function SideMenuInner({
           <div className={s.profileWrap}>
             <div className={s.avatar}>
               <img
-                src={mergedUser?.avatarSrc || "/icons/User-purple.svg"}
+                src={mergedUser?.avatarSrc || "/icons/user-purple.svg"}
                 alt=""
                 width={40}
                 height={40}

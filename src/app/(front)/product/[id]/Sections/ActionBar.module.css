@@ -1,16 +1,16 @@
-/* src/app/(front)/product/[id]/Sections/ActionBar.module.css */
 :root {
-  --ab-height: 24px;
+  --ab-height: 112px;
 }
 
 .root {
-  position: fixed;
-  inset-inline: 0;
+  position: sticky;
   bottom: 0;
+  inset-inline: 0;
   z-index: 200;
   background: var(--surface-background);
-  padding: var(--space-16) var(--space-16) var(--space-24);
   border-top: 1px solid var(--border-border-low-emphasis);
+  padding: var(--space-16) var(--space-16)
+    calc(var(--space-24) + env(safe-area-inset-bottom));
 }
 
 .inner {
@@ -18,6 +18,8 @@
   grid-template-columns: 1fr 1fr;
   gap: var(--space-8);
   align-items: center;
+  max-width: 580px;
+  margin-inline: auto;
 }
 
 .priceCell,

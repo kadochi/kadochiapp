@@ -2,7 +2,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 
 import Button from "@/components/ui/Button/Button";
 import InputStepper from "@/components/ui/InputStepper/InputStepper";
@@ -32,11 +31,9 @@ function priceFromWP(p?: StoreProduct["prices"]) {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** اگر /api/products نبود، مستقیم از استور API وردپرس می‌گیرد */
 async function fetchProductsByIds(ids: string[]): Promise<StoreProduct[]> {
   if (!ids.length) return [];
 
-  // 1) تلاش با API داخلی
   const qs = new URLSearchParams({
     include: ids.join(","),
     per_page: String(ids.length),
@@ -50,12 +47,8 @@ async function fetchProductsByIds(ids: string[]): Promise<StoreProduct[]> {
       const data = (await r.json()) as unknown;
       return Array.isArray(data) ? (data as StoreProduct[]) : [];
     }
-    // اگر 404 یا غیره بود می‌ریم سراغ fallback
-  } catch {
-    // ignore
-  }
+  } catch {}
 
-  // 2) fallback به Store API
   try {
     const WP_BASE =
       (process.env.NEXT_PUBLIC_WP_BASE_URL as string) ||
@@ -73,11 +66,8 @@ async function fetchProductsByIds(ids: string[]): Promise<StoreProduct[]> {
       const data = (await r2.json()) as unknown;
       return Array.isArray(data) ? (data as StoreProduct[]) : [];
     }
-  } catch {
-    // ignore
-  }
+  } catch {}
 
-  // اگر هر دو شکست خورد
   return [];
 }
 
@@ -130,7 +120,6 @@ export default function CartPageClient() {
         }));
         setItems(mapped);
 
-        // فقط وقتی پاکسازی کن که «واقعاً» چیزی گرفتیم
         if (mapped.length > 0) {
           const valid = new Set(mapped.map((m) => String(m.id)));
           for (const [k, v] of Object.entries(safeBasket)) {
@@ -140,7 +129,7 @@ export default function CartPageClient() {
           }
         }
       } catch {
-        if (!cancelled) setItems([]); // ولی پاکسازی سبد انجام نده
+        if (!cancelled) setItems([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -150,7 +139,7 @@ export default function CartPageClient() {
     return () => {
       cancelled = true;
     };
-  }, [hydrated, idsKey]); // عمداً safeBasket رو توی deps نذاشتیم که لوپ نشه
+  }, [hydrated, idsKey]);
 
   const lines = useMemo(() => {
     const byId = new Map(items.map((p) => [String(p.id), p]));

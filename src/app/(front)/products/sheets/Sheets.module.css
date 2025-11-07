@@ -106,3 +106,7 @@
 .removeBtn {
   width: 56px;
 }
+
+.closeIcon {
+  color: var(--surface-neutral-high-emphasis);
+}

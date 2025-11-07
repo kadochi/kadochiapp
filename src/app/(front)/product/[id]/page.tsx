@@ -12,7 +12,6 @@ import ProductReview from "./Sections/ProductReview";
 import ProductSpecs from "./Sections/ProductSpecs";
 import ProductComments from "./Sections/ProductComments";
 import ActionBar from "./Sections/ActionBar";
-import ActionBarSpacer from "./Sections/ActionBarSpacer";
 import Label from "@/components/ui/Label/Label";
 import Button from "@/components/ui/Button/Button";
 import ProductCarousel from "@/domains/catalog/components/ProductCarousel/ProductCarousel";
@@ -180,7 +179,6 @@ export default async function ProductPage({ params }: { params: Params }) {
           ]}
         />
         <Divider />
-        <ActionBarSpacer />
         <ActionBar
           productId={product.id}
           amount={Number(product.price.amount || 0)}

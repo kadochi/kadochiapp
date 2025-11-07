@@ -1,11 +1,9 @@
+/* globals.css */
+
 @import "./tokens.css";
 
 main {
   padding-top: 0;
-}
-.page {
-  padding-top: var(--header-height);
-  flex: 1;
 }
 
 html,
@@ -13,10 +11,17 @@ body {
   margin: 0;
   padding: 0;
   width: 100%;
+  height: 100%;
   min-height: 100%;
   font-family: var(--font-sans);
   background: var(--surface-background);
   color: var(--text-primary);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
 }
 
 .layoutContainer {
@@ -27,14 +32,15 @@ body {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  flex: 1 0 auto;
+  min-height: 100%;
 }
 
-@media (max-width: 1024px) {
-  .page {
-    padding-bottom: calc(
-      var(--bottom-nav-height, 72px) + env(safe-area-inset-bottom, 0px)
-    );
-  }
+.page {
+  padding-top: var(--header-height);
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
 }
 
 h1,

@@ -283,7 +283,7 @@ export default function AllFiltersSheet({
                 cursor: "pointer",
               }}
             >
-              <X size={24} />
+              <X size={24} className={s.closeIcon} />
             </button>
           }
         />

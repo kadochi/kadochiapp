@@ -28,6 +28,7 @@
   block-size: var(--tog-h);
   box-sizing: border-box;
   border-radius: var(--radius-rounded);
+  overflow: hidden;
   transition: background-color var(--tog-dur) var(--tog-ease),
     color var(--tog-dur) var(--tog-ease);
 }
@@ -57,20 +58,20 @@
   block-size: var(--tog-thumb);
   border-radius: var(--radius-rounded);
   inset-block-start: var(--tog-gap);
+
   inset-inline-start: var(--tog-gap);
   inset-inline-end: auto;
+
   background: var(--disable-disable);
-  transition: transform var(--tog-dur) var(--tog-ease),
+
+  transition: inset-inline-start var(--tog-dur) var(--tog-ease),
+    inset-inline-end var(--tog-dur) var(--tog-ease),
     background-color var(--tog-dur) var(--tog-ease);
 }
 
-:dir(rtl) .track .thumb {
+.on .thumb {
   inset-inline-start: auto;
   inset-inline-end: var(--tog-gap);
-}
-
-.on .thumb {
-  transform: translateX(24px);
   background: var(--secondary-on-secondary);
 }
 

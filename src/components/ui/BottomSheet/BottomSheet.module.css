@@ -1,14 +1,18 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  background: var(--surface-surface-scrim);
   display: flex;
-  justify-content: center;
-  align-items: flex-end;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  background: var(--surface-surface-scrim);
   z-index: 1000;
+  overflow: hidden;
 }
 
 .panel {
+  position: sticky;
+  bottom: 0;
   width: 100%;
   max-width: 640px;
   background: var(--surface-background);
@@ -16,6 +20,7 @@
   border-top-right-radius: var(--radius-xl);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08);
   transform: translateY(0);
+  margin-top: auto;
 }
 
 .handlerArea {
@@ -34,4 +39,7 @@
 
 .content {
   padding-top: 0;
+  overflow-y: auto;
+  max-height: calc(100svh - 64px);
+  overscroll-behavior: contain;
 }
