@@ -1,9 +1,11 @@
 "use client";
+
 import { useEffect, useMemo, useState } from "react";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Autoplay, Pagination } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/pagination";
+
 import Banner from "./Hero";
 import s from "./Hero.module.css";
 
@@ -15,19 +17,15 @@ type BannerData = {
   backgroundImage: string;
 };
 
-export default function HeroSliderClient({
-  initialBanners = [] as BannerData[],
-}) {
-  const [banners, setBanners] = useState<BannerData[]>(initialBanners);
+export default function HeroSlider() {
+  const [banners, setBanners] = useState<BannerData[]>([]);
 
   useEffect(() => {
-    if (initialBanners.length) return;
     const ctl = new AbortController();
-
-    fetch("/api/wp/wp-json/wp/v2/hero?acf_format=standard", {
+    fetch("https://app.kadochi.com/wp-json/wp/v2/hero?acf_format=standard", {
       signal: ctl.signal,
     })
-      .then((res) => (res.ok ? res.json() : Promise.resolve([])))
+      .then((res) => res.json())
       .then((data) => {
         if (!Array.isArray(data)) return;
         const formatted: BannerData[] = data
@@ -45,13 +43,15 @@ export default function HeroSliderClient({
               backgroundImage: bg,
             };
           })
-          .filter((b: BannerData) => b.title && b.backgroundImage);
+          .filter((b) => b.title && b.backgroundImage);
         setBanners(formatted);
       })
-      .catch(() => {});
-
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        console.warn("Banner fetch warn:", err);
+      });
     return () => ctl.abort();
-  }, [initialBanners.length]);
+  }, []);
 
   const { canLoop, showPagination, enableAutoplay } = useMemo(() => {
     const count = banners.length;
@@ -70,13 +70,7 @@ export default function HeroSliderClient({
   );
 
   return (
-    <section
-      className={s.bannerSlider}
-      role="region"
-      aria-roledescription="carousel"
-      aria-label="اسلایدر بنر"
-      aria-live="polite"
-    >
+    <div className={s.bannerSlider} aria-label="اسلایدر بنر">
       {!banners.length ? (
         skeleton
       ) : (
@@ -96,18 +90,13 @@ export default function HeroSliderClient({
           }
           className={s.swiper}
         >
-          {banners.map((banner, i) => (
-            <SwiperSlide
-              key={i}
-              className={s.slide}
-              role="group"
-              aria-label={`اسلاید ${i + 1} از ${banners.length}`}
-            >
+          {banners.map((banner, index) => (
+            <SwiperSlide key={index} className={s.slide}>
               <Banner {...banner} />
             </SwiperSlide>
           ))}
         </Swiper>
       )}
-    </section>
+    </div>
   );
 }

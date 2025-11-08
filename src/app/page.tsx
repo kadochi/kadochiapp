@@ -1,4 +1,4 @@
-import HeroSlider from "@/components/layout/Hero/HeroSliderClient";
+import HeroSlider from "@/components/layout/Hero/HeroSlider";
 import ServicesNav from "@/components/layout/Services/ServicesNav";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
 import Button from "@/components/ui/Button/Button";
