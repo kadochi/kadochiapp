@@ -1,0 +1,95 @@
+.sheetBody {
+  padding: 0 16px 16px;
+  display: grid;
+  gap: 16px;
+}
+
+.input {
+  margin-top: 8px;
+}
+
+.fieldLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-inline: 2px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  color: var(--surface-neutral-mid-emphasis);
+}
+.star {
+  color: var(--feedback-danger, #c00);
+}
+
+.calendarWrap {
+  background: var(--surface-surface-soft);
+  border-radius: var(--radius-s, 8px);
+  padding: 8px;
+  border: 1px solid var(--border-border-mid-emphasis);
+}
+
+.calHeader {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.calHeader > :first-child {
+  justify-self: start;
+}
+.calHeader > :last-child {
+  justify-self: end;
+}
+
+.calTitle {
+  justify-self: center;
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-16);
+  line-height: var(--lh-label-16);
+  font-weight: var(--fw-bold);
+  color: var(--surface-neutral-high-emphasis);
+}
+
+.navBtn {
+  width: auto;
+}
+
+.daysGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.dayBtn {
+  height: 40px;
+  border-radius: var(--radius-s, 8px);
+  background: var(--surface-background);
+  border: 1px solid var(--border-border-high-emphasis);
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  color: var(--surface-neutral-high-emphasis);
+}
+.dayBtn:active {
+  transform: translateY(0.5px);
+}
+
+.daySelected {
+  background: var(--secondary-secondary-container);
+  border: 1px solid var(--secondary-on-secondary-container);
+  font-weight: var(--fw-bold);
+}
+
+.checkbox {
+  margin-top: 4px;
+}
+
+.sheetFooter {
+  padding: 8px 16px 32px 16px;
+  display: grid;
+  grid-auto-flow: column;
+  gap: 8px;
+  justify-content: stretch;
+}

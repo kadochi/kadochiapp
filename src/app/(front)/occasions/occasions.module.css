@@ -1,0 +1,147 @@
+.monthBar {
+  position: sticky;
+  top: var(--header-height, 72px);
+  z-index: 30;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: var(--surface-surface-soft);
+}
+.monthBar > :first-child {
+  justify-self: start;
+}
+.monthBar > :last-child {
+  justify-self: end;
+}
+.monthTitle {
+  justify-self: center;
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-16);
+  line-height: var(--lh-label-16);
+  font-weight: var(--fw-bold);
+  color: var(--surface-neutral-high-emphasis);
+}
+
+.main {
+  padding-top: 8px;
+  background: var(--surface-background);
+}
+.list {
+  background: var(--surface-background);
+}
+
+.item {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: start;
+  padding: 12px 16px;
+  column-gap: 16px;
+  direction: rtl;
+  min-height: 64px;
+}
+
+.dateCol {
+  justify-self: start;
+  width: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.weekday {
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  color: var(--surface-neutral-mid-emphasis);
+}
+
+.dayBig {
+  font-family: var(--font-sans);
+  font-size: var(--fs-heading-24);
+  line-height: var(--lh-heading-24);
+  font-weight: var(--fw-bold);
+  color: var(--surface-neutral-high-emphasis);
+}
+
+.occasionsCol {
+  display: grid;
+  gap: 8px;
+}
+.hasOccasion {
+  align-content: start;
+}
+.noOccasionRow {
+  align-content: center;
+}
+
+.occasionCard {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--secondary-secondary-container);
+  border-radius: var(--radius-s, 8px);
+}
+
+.occTitle {
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-16);
+  line-height: var(--lh-label-16);
+  font-weight: var(--fw-bold);
+  color: var(--surface-neutral-high-emphasis);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.occRemain {
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  color: var(--surface-neutral-mid-emphasis);
+  margin-inline-start: 12px;
+  white-space: nowrap;
+}
+
+.noOccasion {
+  justify-self: start;
+  align-self: center;
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  color: var(--disable-disable);
+}
+
+.listEndSpacer {
+  height: 112px;
+}
+
+.fab {
+  position: fixed !important;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  bottom: calc(var(--space-72) + var(--space-24));
+  box-shadow: 0 4px 4px rgba(0, 0, 0, 0.25);
+  width: auto;
+}
+.fabIcon {
+  inline-size: 20px;
+  block-size: 20px;
+}
+
+@media (min-width: 800px) {
+  .fab {
+    bottom: 40px;
+  }
+  .listEndSpacer {
+    height: 80px;
+  }
+}
+
+.monthBtn {
+  width: auto;
+}

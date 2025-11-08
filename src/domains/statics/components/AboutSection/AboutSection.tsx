@@ -23,9 +23,12 @@ export default function AboutSection() {
           type="secondary"
           style="filled"
           size="large"
-          aria-label="خرید کادو"
           trailingIcon={
-            <img src="/icons/chevron-left-white.svg" alt="chevron left" />
+            <img
+              src="/icons/chevron-left-white.svg"
+              alt=""
+              aria-hidden="true"
+            />
           }
         >
           خرید کادو
