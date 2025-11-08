@@ -46,7 +46,7 @@ export default async function RootLayout({
   const session = await getInitialSession();
 
   return (
-    <html lang="فا" dir="rtl">
+    <html lang="fa-IR" dir="rtl">
       <head>
         <link rel="preconnect" href="https://app.kadochi.com" crossOrigin="" />
         <link

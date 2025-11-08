@@ -1,4 +1,4 @@
-import HeroSlider from "@/components/layout/Hero/HeroSlider";
+import HeroSlider from "@/components/layout/Hero/HeroSliderClient";
 import ServicesNav from "@/components/layout/Services/ServicesNav";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
 import Button from "@/components/ui/Button/Button";
@@ -38,8 +38,8 @@ export default async function WPLatestProductsPage() {
 
   return (
     <>
+      <h1 className="sr-only">کادوچی | خرید کادو، گل و کیک با ارسال سریع</h1>
       <HeroSlider />
-
       <ServicesNav
         items={[
           {
@@ -80,9 +80,7 @@ export default async function WPLatestProductsPage() {
           },
         ]}
       />
-
       <Divider type="spacer" />
-
       <section>
         <SectionHeader
           title="محبوب‌ترین کادوها"
@@ -109,9 +107,7 @@ export default async function WPLatestProductsPage() {
         />
         <ProductCarousel wpParams={popularParams} />
       </section>
-
       <Divider type="spacer" />
-
       <section>
         <SectionHeader
           title="مناسبت‌های پیش‌رو"
@@ -138,9 +134,7 @@ export default async function WPLatestProductsPage() {
         />
         <OccasionCarousel />
       </section>
-
       <Divider type="spacer" />
-
       <section>
         <SectionHeader
           title="جدیدترین کادوها"
@@ -167,9 +161,7 @@ export default async function WPLatestProductsPage() {
         />
         <ProductCarousel wpParams={latestParams} />
       </section>
-
       <Divider type="spacer" />
-
       <section>
         <SectionHeader
           title="بی مناسبت؛ ولی با بهونه"
@@ -177,9 +169,7 @@ export default async function WPLatestProductsPage() {
         />
         <OccasionLabel />
       </section>
-
       <Divider type="spacer" />
-
       <section>
         <SectionHeader
           title="کادوهای ارسال روز"
@@ -227,12 +217,9 @@ export default async function WPLatestProductsPage() {
           wpParams={{ tag: 25, per_page: 8 }}
         />
       </section>
-
       <Divider type="spacer" />
-
       <AboutSection />
       <CategoryCarousel />
-
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(siteLd) }}

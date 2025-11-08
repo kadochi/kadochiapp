@@ -7,7 +7,7 @@ import s from "./AboutSection.module.css";
 export default function AboutSection() {
   return (
     <section className={s.section}>
-      <h1 className={`${s.title} ${s.titleGradient}`}>کادوچی؛ خرید کادو</h1>
+      <h2 className={`${s.title} ${s.titleGradient}`}>کادوچی؛ خرید کادو</h2>
 
       <p className={s.paragraph}>
         کادوچی به شما کمک می‌کند ضمن صرفه‌جویی در هزینه حمل‌ونقل و زمان،
@@ -24,7 +24,9 @@ export default function AboutSection() {
           style="filled"
           size="large"
           aria-label="خرید کادو"
-          trailingIcon={<img src="/icons/chevron-left-white.svg" />}
+          trailingIcon={
+            <img src="/icons/chevron-left-white.svg" alt="chevron left" />
+          }
         >
           خرید کادو
         </Button>
