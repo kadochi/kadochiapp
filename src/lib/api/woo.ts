@@ -409,32 +409,79 @@ const resolveTagIdsCsv = cache(async function resolveTagIdsCsv(
     .filter(Boolean);
   if (!parts.length) return undefined;
 
-  async function partToId(p: string): Promise<number | undefined> {
-    if (/^\d+$/.test(p)) return Number(p);
-    const urls = [
-      `${WP_BASE}/wp-json/wp/v2/product_tag?slug=${encodeURIComponent(
-        p
-      )}&per_page=1`,
-      `${WP_BASE}/wp-json/wc/store/v1/products/tags?slug=${encodeURIComponent(
-        p
-      )}&per_page=1`,
-    ];
+  const numericIds = parts
+    .filter((p) => /^\d+$/.test(p))
+    .map((p) => Number(p))
+    .filter(isFiniteNumber);
+  const slugParts = parts.filter((p) => !/^\d+$/.test(p));
+  const slugPartsLower = slugParts.map((p) => p.toLowerCase());
+
+  const resolved = [...numericIds];
+  const resolvedSlugSet = new Set<string>();
+
+  if (slugParts.length) {
+    const perPage = Math.min(50, Math.max(slugParts.length, 10));
+    const qs = new URLSearchParams({
+      per_page: String(perPage),
+      slug: slugParts.join(","),
+      _fields: "id,slug",
+    });
     try {
-      const results = await Promise.allSettled(
-        urls.map((u) => fetch(u, { next: { revalidate: 60 } }))
-      );
-      for (const r of results) {
-        if (r.status === "fulfilled" && r.value.ok) {
-          const js = (await r.value.json()) as Array<{ id: number }>;
-          if (js?.[0]?.id) return js[0].id;
+      const res = await wooFetch(`/wp-json/wc/v3/products/tags?${qs.toString()}`, {
+        method: "GET",
+        revalidateSeconds: 600,
+      });
+      if (res.ok) {
+        const arr = (await res.json()) as Array<{ id?: number; slug?: string }>;
+        for (const entry of arr || []) {
+          if (!entry) continue;
+          const slug = String(entry.slug || "").trim();
+          if (!slug) continue;
+          const id = Number(entry.id);
+          if (Number.isFinite(id)) {
+            resolved.push(id);
+            resolvedSlugSet.add(slug.toLowerCase());
+          }
         }
       }
     } catch {}
-    return undefined;
+
+    const missing = slugParts.filter(
+      (slug, idx) => !resolvedSlugSet.has(slugPartsLower[idx])
+    );
+    if (missing.length) {
+      const fallbackIds = await Promise.all(
+        missing.map(async (slug) => {
+          const urls = [
+            `${WP_BASE}/wp-json/wp/v2/product_tag?slug=${encodeURIComponent(
+              slug
+            )}&per_page=1`,
+            `${WP_BASE}/wp-json/wc/store/v1/products/tags?slug=${encodeURIComponent(
+              slug
+            )}&per_page=1`,
+          ];
+          try {
+            const results = await Promise.allSettled(
+              urls.map((u) => fetch(u, { next: { revalidate: 60 } }))
+            );
+            for (const r of results) {
+              if (r.status === "fulfilled" && r.value.ok) {
+                const js = (await r.value.json()) as Array<{ id: number }>;
+                if (js?.[0]?.id) return Number(js[0].id);
+              }
+            }
+          } catch {}
+          return undefined;
+        })
+      );
+      for (const id of fallbackIds) {
+        if (isFiniteNumber(id)) resolved.push(id);
+      }
+    }
   }
 
-  const ids = (await Promise.all(parts.map(partToId))).filter(isFiniteNumber);
-  return ids.length ? ids.join(",") : undefined;
+  const uniq = Array.from(new Set(resolved.filter(isFiniteNumber)));
+  return uniq.length ? uniq.join(",") : undefined;
 });
 
 function mapOrderby(
@@ -624,9 +671,31 @@ function _mapAttributes(attrs?: any[]): Array<{ name: string; value: string }> {
     .filter(Boolean) as Array<{ name: string; value: string }>;
 }
 
-async function _resolveProductIdBySlug(slugOrMaybeEncoded: string) {
+const _resolveProductIdBySlug = cache(async function _resolveProductIdBySlug(
+  slugOrMaybeEncoded: string
+) {
   const clean = decodeURIComponent(String(slugOrMaybeEncoded || "").trim());
   if (!clean) return null;
+
+  const wc3Qs = new URLSearchParams({
+    slug: clean,
+    per_page: "1",
+    _fields: "id,slug",
+  });
+
+  try {
+    const wc3Res = await wooFetch(`/wp-json/wc/v3/products?${wc3Qs.toString()}`, {
+      method: "GET",
+      revalidateSeconds: 600,
+    });
+    if (wc3Res.ok) {
+      const items = (await wc3Res.json()) as Array<{ id: number } | null>;
+      if (Array.isArray(items) && items[0]?.id) {
+        return Number(items[0].id);
+      }
+    }
+  } catch {}
+
   try {
     const r = await fetch(
       `${WP_BASE}/wp-json/wp/v2/product?slug=${encodeURIComponent(
@@ -640,7 +709,7 @@ async function _resolveProductIdBySlug(slugOrMaybeEncoded: string) {
     }
   } catch {}
   return null;
-}
+});
 
 const fetchProductComments = cache(async function fetchProductComments(
   productId: number
@@ -724,41 +793,7 @@ const fetchProductComments = cache(async function fetchProductComments(
   return [];
 });
 
-export async function getProductDetail(
-  idOrSlug: string
-): Promise<ProductDetail | null> {
-  let id: number | null = null;
-  if (/^\d+$/.test(String(idOrSlug))) id = Number(idOrSlug);
-  else id = await _resolveProductIdBySlug(idOrSlug);
-  if (!id) return null;
-
-  const r = await fetch(
-    `${WP_BASE}/wp-json/wc/store/v1/products/${id}?_fields=${[
-      "id",
-      "name",
-      "description",
-      "short_description",
-      "images",
-      "prices",
-      "is_in_stock",
-      "is_purchasable",
-      "stock_status",
-      "attributes",
-      "tags",
-      "categories",
-      "average_rating",
-      "rating_count",
-      "slug",
-    ].join(",")}`,
-    {
-      cache: "force-cache",
-      next: { revalidate: 300 },
-    }
-  );
-  if (!r.ok) return null;
-
-  const p = (await r.json()) as StoreProduct_B;
-
+function mapStoreProductDetail(id: number, p: StoreProduct_B): ProductDetail {
   const images: Array<{ url: string; alt?: string }> =
     Array.isArray(p.images) && p.images.length
       ? p.images
@@ -843,6 +878,236 @@ export async function getProductDetail(
     ratingAvg,
     reviewsCount,
   };
+}
+
+type WooProductV3 = {
+  id: number;
+  name?: string;
+  description?: string | null;
+  short_description?: string | null;
+  images?: Array<{ src?: string | null; alt?: string | null }>;
+  price?: string | number | null;
+  regular_price?: string | number | null;
+  sale_price?: string | number | null;
+  stock_status?: string | null;
+  manage_stock?: boolean | null;
+  stock_quantity?: number | null;
+  is_in_stock?: boolean | null;
+  is_purchasable?: boolean | null;
+  purchasable?: boolean | null;
+  attributes?: any[];
+  average_rating?: string | number | null;
+  rating_count?: number | null;
+  tags?: Array<{ id?: number; name?: string; slug?: string }>;
+  categories?: Array<{ id?: number; name?: string; slug?: string }>;
+  meta_data?: Array<{ key?: string; value?: unknown }>;
+  currency?: string | null;
+};
+
+function parseAmount(raw: unknown): number | undefined {
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : undefined;
+}
+
+function mapWcProductToDetail(id: number, p: WooProductV3): ProductDetail {
+  const images: Array<{ url: string; alt?: string }> =
+    Array.isArray(p.images) && p.images.length
+      ? p.images
+          .map((im) => ({ url: im?.src || "", alt: im?.alt || p.name || undefined }))
+          .filter((img) => !!img.url)
+      : [{ url: "/images/placeholder.png", alt: p.name || undefined }];
+
+  const metaCurrency = Array.isArray(p.meta_data)
+    ? p.meta_data.find((m) => {
+        const key = String(m?.key || "").toLowerCase();
+        return (
+          key === "currency" ||
+          key === "_currency" ||
+          key === "currency_code" ||
+          key === "_price_currency"
+        );
+      })?.value
+    : undefined;
+
+  const currency =
+    (typeof p.currency === "string" && p.currency) ||
+    (typeof metaCurrency === "string" && metaCurrency) ||
+    "IRR";
+
+  const sale = parseAmount(p.sale_price);
+  const regular = parseAmount(p.regular_price);
+  const base =
+    parseAmount(p.price) ??
+    (sale ?? regular ?? 0);
+
+  const price = { amount: base, currency };
+  const regularPrice =
+    typeof regular === "number" ? { amount: regular, currency } : undefined;
+  const salePrice = typeof sale === "number" ? { amount: sale, currency } : undefined;
+
+  const previousPrice = regularPrice?.amount;
+  const offPercent =
+    previousPrice && salePrice
+      ? Math.max(0, Math.round((1 - salePrice.amount / previousPrice) * 100))
+      : null;
+
+  const rawHtml = String(p?.short_description || p?.description || "");
+  const cleanedFonts = _stripFontFamily(rawHtml);
+  const descriptionHtml = cleanedFonts.includes("<")
+    ? cleanedFonts
+    : cleanedFonts.replace(/\n/g, "<br/>");
+  const descriptionPlain = _stripHtml(cleanedFonts);
+
+  const attributes = _mapAttributes(p?.attributes);
+
+  const tags: ProductDetail["tags"] = Array.isArray(p?.tags)
+    ? (p.tags as any[]).map((t: any) => ({
+        id: Number(t?.id),
+        name: String(t?.name ?? ""),
+        slug: t?.slug,
+      }))
+    : [];
+
+  const categories: ProductDetail["categories"] = Array.isArray(p?.categories)
+    ? (p.categories as any[]).map((c: any) => ({
+        id: Number(c?.id),
+        name: String(c?.name ?? ""),
+        slug: c?.slug,
+      }))
+    : [];
+
+  const stockStatus = String(p?.stock_status || "").toLowerCase();
+  const purchasable =
+    p?.purchasable ?? p?.is_purchasable ?? true;
+  const manageStock = p?.manage_stock ?? null;
+  const qty = Number(p?.stock_quantity ?? 0);
+  const outOfStock =
+    stockStatus === "outofstock" ||
+    stockStatus === "out_of_stock" ||
+    stockStatus === "out-of-stock";
+
+  const rawInStock =
+    typeof p?.is_in_stock === "boolean" ? p.is_in_stock : undefined;
+
+  const inStock =
+    purchasable !== false &&
+    !outOfStock &&
+    (rawInStock !== undefined
+      ? rawInStock
+      : stockStatus === "instock" || (manageStock ? qty > 0 : true));
+
+  const ratingAvg =
+    typeof p?.average_rating === "string"
+      ? parseFloat(p.average_rating)
+      : Number(p?.average_rating || 0);
+  const reviewsCount = Number(p?.rating_count || 0) || 0;
+
+  return {
+    id,
+    name: String(p?.name || ""),
+    images,
+    descriptionHtml,
+    descriptionPlain,
+    price,
+    regularPrice,
+    salePrice,
+    previousPrice,
+    offPercent,
+    stock: { inStock, status: p?.stock_status ?? null },
+    attributes,
+    tags: tags.filter((t) => Number.isFinite(t.id) && t.name),
+    categories: categories.filter((c) => Number.isFinite(c.id) && c.name),
+    ratingAvg,
+    reviewsCount,
+  };
+}
+
+const fetchProductDetailFromStore = cache(async (id: number) => {
+  try {
+    const r = await fetch(
+      `${WP_BASE}/wp-json/wc/store/v1/products/${id}?_fields=${[
+        "id",
+        "name",
+        "description",
+        "short_description",
+        "images",
+        "prices",
+        "is_in_stock",
+        "is_purchasable",
+        "stock_status",
+        "attributes",
+        "tags",
+        "categories",
+        "average_rating",
+        "rating_count",
+        "slug",
+      ].join(",")}`,
+      {
+        cache: "force-cache",
+        next: { revalidate: 300 },
+      }
+    );
+    if (!r.ok) return null;
+
+    const p = (await r.json()) as StoreProduct_B;
+    return mapStoreProductDetail(id, p);
+  } catch {
+    return null;
+  }
+});
+
+const fetchProductDetailFromWoo = cache(async (id: number) => {
+  try {
+    const res = await wooFetch(
+      `/wp-json/wc/v3/products/${id}?dp=0&_fields=${[
+        "id",
+        "name",
+        "description",
+        "short_description",
+        "images",
+        "price",
+        "regular_price",
+        "sale_price",
+        "stock_status",
+        "manage_stock",
+        "stock_quantity",
+        "is_in_stock",
+        "is_purchasable",
+        "purchasable",
+        "currency",
+        "attributes",
+        "average_rating",
+        "rating_count",
+        "tags",
+        "categories",
+        "meta_data",
+      ].join(",")}`,
+      {
+        method: "GET",
+        revalidateSeconds: 300,
+      }
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as WooProductV3;
+    if (!data || typeof data !== "object") return null;
+    return mapWcProductToDetail(id, data);
+  } catch {
+    return null;
+  }
+});
+
+export async function getProductDetail(
+  idOrSlug: string
+): Promise<ProductDetail | null> {
+  let id: number | null = null;
+  if (/^\d+$/.test(String(idOrSlug))) id = Number(idOrSlug);
+  else id = await _resolveProductIdBySlug(idOrSlug);
+  if (!id) return null;
+
+  const viaWoo = await fetchProductDetailFromWoo(id);
+  if (viaWoo) return viaWoo;
+
+  return await fetchProductDetailFromStore(id);
 }
 
 /* Dual exports so older call sites can import explicitly if needed */

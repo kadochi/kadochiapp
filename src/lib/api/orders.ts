@@ -362,7 +362,6 @@ const fetchOrdersForCustomer = cache(async (customerId: number) => {
       if (li?.image?.src) return li;
       const image = normaliseLineItem(li).image;
       return image ? { ...li, image } : li;
-      // به این شکل تصاویر مطلق می‌شوند تا سمت کلاینت نیاز به اصلاح نباشد
     });
     return normaliseOrderSummary({ ...o, line_items: patched });
   });
