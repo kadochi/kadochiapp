@@ -30,15 +30,19 @@ export interface PagedResult<T> {
  * Config (kept)
  * ==========================================================================*/
 const WP_BASE =
+  process.env.WOO_BASE_URL ||
   process.env.WP_BASE_URL ||
   process.env.NEXT_PUBLIC_WP_BASE_URL ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
   "https://app.kadochi.com";
 
 const CK = process.env.WOO_CONSUMER_KEY || "";
 const CS = process.env.WOO_CONSUMER_SECRET || "";
 
-const APP_USER = process.env.WP_BASIC_USER || "";
-const APP_PASS = process.env.WP_BASIC_PASS || "";
+const APP_USER =
+  process.env.WP_APP_USER || process.env.WP_BASIC_USER || process.env.WP_USER || "";
+const APP_PASS =
+  process.env.WP_APP_PASS || process.env.WP_BASIC_PASS || process.env.WP_PASS || "";
 
 const DEV_FAKE =
   process.env.NODE_ENV !== "production" && !!process.env.WOO_DEV_FAKE;

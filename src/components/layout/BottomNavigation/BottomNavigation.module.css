@@ -21,10 +21,6 @@
   height: calc(var(--bottom-nav-height) + max(env(safe-area-inset-bottom), var(--space-8)));
 }
 
-.spacer {
-  height: calc(var(--bottom-nav-height) + max(env(safe-area-inset-bottom), var(--space-8)));
-}
-
 .item {
   flex: 1 1 0;
   display: flex;
