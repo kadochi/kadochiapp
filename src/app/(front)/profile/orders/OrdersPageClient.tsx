@@ -102,22 +102,6 @@ function inGroup(status: Status, g: GroupKey) {
   return true;
 }
 
-function fixSrc(u?: string): string {
-  if (!u) return "";
-  try {
-    const base = process.env.WP_BASE_URL || "";
-    const url = new URL(u, base);
-    if (url.protocol === "http:") url.protocol = "https:";
-    return url.toString();
-  } catch {
-    if (u.startsWith("/")) {
-      const base = process.env.WP_BASE_URL || "";
-      return `${base}${u}`;
-    }
-    return u;
-  }
-}
-
 function normalizeOrders(payload: any): Order[] {
   const list =
     (Array.isArray(payload) && payload) ||
@@ -141,7 +125,7 @@ function normalizeOrders(payload: any): Order[] {
         name: li?.name,
         quantity: li?.quantity,
         image: candidate
-          ? { src: fixSrc(String(candidate)), alt: li?.name }
+          ? { src: String(candidate), alt: li?.name }
           : null,
       };
     });
@@ -183,10 +167,16 @@ function badgeFor(s: Status): {
   }
 }
 
-export default function OrdersPageClient() {
+export default function OrdersPageClient({
+  initialOrders = [],
+}: {
+  initialOrders?: Order[];
+}) {
   const [active, setActive] = useState<GroupKey>("current");
   const [loading, setLoading] = useState(false);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[]>(() =>
+    normalizeOrders(initialOrders)
+  );
   const [err, setErr] = useState<string>("");
 
   const lastReqId = useRef(0);
@@ -213,8 +203,8 @@ export default function OrdersPageClient() {
   };
 
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    if (initialOrders.length === 0) fetchOrders();
+  }, [initialOrders.length]);
 
   const filtered = useMemo(
     () => orders.filter((o) => inGroup(o.status, active)),
