@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BottomSheet from "@/components/ui/BottomSheet/BottomSheet";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
@@ -34,16 +34,26 @@ export default function PriceSheet({
   const router = useRouter();
   const sp = useSearchParams();
 
-  const initMin = useMemo(() => sp.get("min_price") || "", [sp]);
-  const initMax = useMemo(() => sp.get("max_price") || "", [sp]);
+  const [min, setMin] = useState<string>(() =>
+    withThousands(onlyDigits(sp.get("min_price") || ""))
+  );
+  const [max, setMax] = useState<string>(() =>
+    withThousands(onlyDigits(sp.get("max_price") || ""))
+  );
+  const [isPending, startTransition] = useTransition();
 
-  const [min, setMin] = useState<string>(withThousands(onlyDigits(initMin)));
-  const [max, setMax] = useState<string>(withThousands(onlyDigits(initMax)));
+  useEffect(() => {
+    if (!isOpen) return;
+    setMin(withThousands(onlyDigits(sp.get("min_price") || "")));
+    setMax(withThousands(onlyDigits(sp.get("max_price") || "")));
+  }, [isOpen, sp]);
 
   const close = () => {
     const usp = new URLSearchParams(sp.toString());
     usp.delete("sheet");
-    router.replace(`/products?${usp.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`/products?${usp.toString()}`, { scroll: false });
+    });
   };
 
   const apply = () => {
@@ -60,7 +70,9 @@ export default function PriceSheet({
     usp.set("page", "1");
     usp.delete("sheet");
 
-    router.replace(`/products?${usp.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`/products?${usp.toString()}`, { scroll: false });
+    });
   };
 
   return (
@@ -103,6 +115,8 @@ export default function PriceSheet({
             size="medium"
             aria-label="اعمال بازه قیمت"
             style={{ width: "100%" } as any}
+            loading={isPending}
+            disabled={isPending}
           >
             اعمال
           </Button>

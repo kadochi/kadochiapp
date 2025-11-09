@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BottomSheet from "@/components/ui/BottomSheet/BottomSheet";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
@@ -200,10 +200,9 @@ export default function AllFiltersSheet({
     setMaxStr(withThousands(onlyDigits(sp.get("max_price") || "")));
   }, [isOpen, sp]);
 
-  const [isApplying, setIsApplying] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   const applyAll = useCallback(() => {
-    setIsApplying(true);
     const usp = new URLSearchParams(sp.toString());
 
     if (sort === "popular") {
@@ -239,10 +238,11 @@ export default function AllFiltersSheet({
 
     usp.set("page", "1");
     usp.delete("sheet");
-    router.replace(`/products?${usp.toString()}`, { scroll: false });
 
-    setTimeout(() => setIsApplying(false), 400);
-  }, [sp, router, sort, category, occasion, fast, minStr, maxStr]);
+    startTransition(() => {
+      router.replace(`/products?${usp.toString()}`, { scroll: false });
+    });
+  }, [sp, router, sort, category, occasion, fast, minStr, maxStr, startTransition]);
 
   const clearAll = () => {
     setSort("latest");
@@ -391,18 +391,18 @@ export default function AllFiltersSheet({
         className={s.sheetFooter}
         style={{ display: "flex", gap: 12, alignItems: "center" }}
       >
-        <Button
-          type="secondary"
-          size="large"
-          className={s.applyBtn}
-          onClick={applyAll}
-          aria-label="اعمال فیلتر"
-          loading={isApplying}
-          disabled={isApplying}
-        >
-          {isApplying
-            ? "در حال اعمال…"
-            : `اعمال فیلتر${activeCount > 0 ? ` (${activeCount})` : ""}`}
+          <Button
+            type="secondary"
+            size="large"
+            className={s.applyBtn}
+            onClick={applyAll}
+            aria-label="اعمال فیلتر"
+            loading={isPending}
+            disabled={isPending}
+          >
+            {isPending
+              ? "در حال اعمال…"
+              : `اعمال فیلتر${activeCount > 0 ? ` (${activeCount})` : ""}`}
         </Button>
 
         {activeCount > 0 && (
