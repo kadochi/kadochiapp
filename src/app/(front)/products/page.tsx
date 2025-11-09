@@ -1,5 +1,4 @@
 import "server-only";
-import Link from "next/link";
 import { cache } from "react";
 import type { Metadata } from "next";
 import { listProducts } from "@/lib/api/woo";
@@ -100,7 +99,6 @@ async function getAllCategoriesSSR() {
   return arr.map((c) => ({ label: c.name, value: String(c.id) }));
 }
 
-export const dynamic = "force-dynamic";
 export const dynamicParams = true;
 export const revalidate = 300;
 
@@ -204,10 +202,31 @@ export default async function ProductsPage({
   const minPrice = sp.min_price?.trim();
   const maxPrice = sp.max_price?.trim();
 
-  const categoriesSSR = await getAllCategoriesSSR();
+  const categoriesPromise = getAllCategoriesSSR();
+  const catMetaPromise = categoryParam
+    ? getCategoryMeta(categoryParam)
+    : Promise.resolve(null);
+  const tagMetaPromise = !categoryParam && tagParam
+    ? getTagMeta(tagParam)
+    : Promise.resolve(null);
 
-  const catMeta = categoryParam ? await getCategoryMeta(categoryParam) : null;
-  const tagMeta = !catMeta && tagParam ? await getTagMeta(tagParam) : null;
+  const listPromise = listProducts({
+    page,
+    per_page: perPage,
+    search: q,
+    category: categoryParam,
+    tag: tagParam,
+    order,
+    orderby,
+    min_price: minPrice,
+    max_price: maxPrice,
+  } as any);
+
+  const [categoriesSSR, catMetaRaw, tagMetaRaw, listResult] =
+    await Promise.all([categoriesPromise, catMetaPromise, tagMetaPromise, listPromise]);
+
+  const catMeta = catMetaRaw;
+  const tagMeta = !catMeta ? tagMetaRaw : null;
 
   let title = "لیست محصولات کادویی";
   let subtitle = "انواع محصولات مناسب برای هدیه و کادو";
@@ -220,17 +239,7 @@ export default async function ProductsPage({
     subtitle = tagMeta.description || "محصولات کادویی مرتبط با این تگ";
   }
 
-  const { items } = await listProducts({
-    page,
-    per_page: perPage,
-    search: q,
-    category: categoryParam,
-    tag: tagParam,
-    order,
-    orderby,
-    min_price: minPrice,
-    max_price: maxPrice,
-  } as any);
+  const { items } = listResult;
 
   const normalizedItems = normalizeForClient(items);
 

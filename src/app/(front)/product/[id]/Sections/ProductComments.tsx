@@ -1,5 +1,6 @@
 // src/app/(front)/product/[id]/Sections/ProductComments.tsx
 import React from "react";
+import { getProductComments } from "@/lib/api/woo";
 import s from "./ProductComments.module.css";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
 import Divider from "@/components/ui/Divider/Divider";
@@ -15,9 +16,16 @@ export type ProductComment = {
   content: string;
 };
 
-type Props = { comments?: ProductComment[] };
+type Props = { productId: number };
 
-export default function ProductComments({ comments = [] }: Props) {
+export default async function ProductComments({ productId }: Props) {
+  let comments: ProductComment[] = [];
+  try {
+    comments = await getProductComments(productId);
+  } catch (err) {
+    console.error("[product-comments] failed to load", err);
+    comments = [];
+  }
   const count = comments.length;
   const subtitle = count
     ? `${count.toLocaleString("fa-IR")} نظر ثبت شده`

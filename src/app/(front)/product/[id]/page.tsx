@@ -74,9 +74,7 @@ export default async function ProductPage({ params }: { params: Params }) {
   const offPercent = product.offPercent ?? null;
   const ratingAvg = Number(product.ratingAvg || 0);
   const reviewsCount = Number(product.reviewsCount || 0);
-  const commentsCount = Array.isArray(product.comments)
-    ? product.comments.length
-    : 0;
+  const commentsCount = Number(product.reviewsCount || 0);
   const primaryCat = product.categories?.[0] as
     | { id: number; name: string }
     | undefined;
@@ -159,7 +157,7 @@ export default async function ProductPage({ params }: { params: Params }) {
         <Suspense
           fallback={<div style={{ padding: 16 }}>در حال دریافت نظرات...</div>}
         >
-          <ProductComments comments={product.comments || []} />
+          <ProductComments productId={product.id} />
         </Suspense>
 
         <Divider />
