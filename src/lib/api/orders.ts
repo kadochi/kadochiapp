@@ -131,6 +131,7 @@ function absolutize(url?: string | null): string | null {
 async function wooFetch<T = any>(
   path: string,
   { revalidate = 60, signal }: { revalidate?: number; signal?: AbortSignal } = {}
+  { revalidate = 60 }: { revalidate?: number } = {}
 ): Promise<{ ok: boolean; status: number; data: T | null }> {
   if (!WP_BASE || !APP_USER || !APP_PASS) {
     throw new Error("WooCommerce credentials are not configured");
@@ -144,6 +145,7 @@ async function wooFetch<T = any>(
     cache: "force-cache",
     next: { revalidate },
     signal,
+
   });
 
   let data: T | null = null;
