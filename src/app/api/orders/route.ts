@@ -1,4 +1,3 @@
-// src/app/api/orders/route.ts
 import { NextResponse, NextRequest } from "next/server";
 import { getSessionFromCookies } from "@/lib/auth/session";
 
@@ -19,6 +18,24 @@ async function wooFetch<T = any>(path: string) {
   const pass = process.env.WP_APP_PASS!;
   const url = new URL(path, base);
 
+  if (!url.searchParams.has("_fields")) {
+    url.searchParams.set(
+      "_fields",
+      [
+        "id",
+        "status",
+        "date_created",
+        "total",
+        "line_items",
+        "line_items.name",
+        "line_items.product_id",
+        "line_items.quantity",
+        "line_items.image",
+        "line_items.meta_data",
+      ].join(",")
+    );
+  }
+
   const r = await fetch(url.toString(), {
     headers: {
       Authorization: btoaBasic(user, pass),
@@ -32,6 +49,27 @@ async function wooFetch<T = any>(path: string) {
     data = await r.json();
   } catch {}
   return { ok: r.ok, status: r.status, data };
+}
+
+function extractLineItemImage(li: any): { src: string; alt?: string } | null {
+  const direct =
+    li?.image?.src ||
+    li?.image?.url ||
+    li?.image_url ||
+    li?.thumbnail ||
+    (typeof li?.image === "string" ? li.image : "");
+  if (direct) return { src: String(direct), alt: li?.name || "" };
+
+  const metas: any[] = Array.isArray(li?.meta_data) ? li.meta_data : [];
+  const m =
+    metas.find((m) =>
+      String(m?.key || "")
+        .toLowerCase()
+        .includes("image")
+    )?.value || "";
+  if (m && typeof m === "string") return { src: m, alt: li?.name || "" };
+
+  return null;
 }
 
 async function findCustomerIdByPhone(phone: string): Promise<number | null> {
@@ -61,7 +99,16 @@ async function fetchOrdersForCustomer(customerId: number): Promise<any[]> {
     res = await wooFetch<any[]>(`/wp-json/wc/v3/orders?${qs2.toString()}`);
   }
 
-  return Array.isArray(res.data) ? res.data : [];
+  const list = Array.isArray(res.data) ? res.data : [];
+  return list.map((o: any) => {
+    const items: any[] = Array.isArray(o?.line_items) ? o.line_items : [];
+    const patched = items.map((li) => {
+      if (li?.image?.src) return li;
+      const img = extractLineItemImage(li);
+      return img ? { ...li, image: img } : li;
+    });
+    return { ...o, line_items: patched };
+  });
 }
 
 export async function GET(_req: NextRequest) {
@@ -83,7 +130,6 @@ export async function GET(_req: NextRequest) {
     const orders = await fetchOrdersForCustomer(customerId);
     return NextResponse.json(orders ?? [], { status: 200 });
   } catch (e) {
-    console.error("[/api/orders] error:", e);
     return NextResponse.json(
       { ok: false, error: "server_error" },
       { status: 500 }

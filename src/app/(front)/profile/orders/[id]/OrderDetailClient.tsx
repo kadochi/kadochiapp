@@ -70,46 +70,34 @@ function buildSteps3(current: number): StepItem[] {
   ];
 }
 
-/** اسکلتون سبک که ساختار نهایی رو نگه می‌داره (بدون تغییر استایل‌های تو) */
 function OrderDetailSkeleton() {
   return (
     <div className={s.page} dir="rtl">
       <HeaderInternal title="جزئیات سفارش" backUrl="/profile/orders" />
+
       <div className={s.stepperOuter}>
         <div className={s.stepperInner}>
-          <div
-            style={{
-              height: 40,
-              borderRadius: 9999,
-              background: "var(--surface-surface-soft)",
-            }}
-          />
+          <div className={s.skelStepper} />
         </div>
       </div>
 
-      <SectionHeader
-        title="—"
-        subtitle="—"
-        leftSlot={
-          <div
-            style={{
-              width: 88,
-              height: 24,
-              borderRadius: 9999,
-              background: "var(--surface-surface-soft)",
-            }}
-          />
-        }
-      />
+      <div className={s.section}>
+        <div className={s.skelTitle} />
+        <div className={s.skelSub} />
+      </div>
+
       <Divider type="spacer" />
 
-      <SectionHeader title="جزئیات ارسال" subtitle="مشخصات فرستنده و گیرنده" />
+      <div className={s.section}>
+        <div className={s.skelTitle} />
+        <div className={s.skelSub} />
+      </div>
       <div className={s.kvWrap}>
         {[0, 1, 2, 3].map((i) => (
           <div key={i}>
             <div className={s.detailRow}>
-              <div className={s.detailKey}>—</div>
-              <div className={s.detailVal}>—</div>
+              <div className={s.skelLineShort} />
+              <div className={s.skelLineLong} />
             </div>
             {i < 3 && <Divider />}
           </div>
@@ -117,28 +105,31 @@ function OrderDetailSkeleton() {
       </div>
 
       <Divider type="spacer" />
-      <SectionHeader title="اقلام سفارش" subtitle="لیست محصولات" />
+
+      <div className={s.section}>
+        <div className={s.skelTitle} />
+        <div className={s.skelSub} />
+      </div>
       <div className={s.section}>
         <div className={s.itemsRow}>
           {[0, 1, 2].map((i) => (
-            <div key={i} className={s.thumb} />
+            <div key={i} className={s.skelThumb} />
           ))}
         </div>
       </div>
 
       <Divider type="spacer" />
+
       <div className={s.sectionHeaderOnly}>
-        <SectionHeader
-          title="جزئیات پرداخت"
-          subtitle="مشخصات هزینه‌های سفارش"
-        />
+        <div className={s.skelTitle} />
+        <div className={s.skelSub} />
       </div>
       <div className={s.kvWrap}>
         {[0, 1, 2, 3, 4].map((i) => (
           <div key={i}>
             <div className={s.detailRow}>
-              <div className={s.detailKey}>—</div>
-              <div className={i === 4 ? s.detailValBold : s.detailVal}>—</div>
+              <div className={s.skelLineShort} />
+              <div className={s.skelLineLong} />
             </div>
             {i < 4 && <Divider />}
           </div>
@@ -157,7 +148,6 @@ export default function OrderDetailClient({
 }) {
   const [data, setData] = useState<OrderDetailData | undefined>(initialData);
 
-  // فقط اگر SSR داده نداد، CSR فِچ کن
   useEffect(() => {
     if (initialData) return;
     const ctl = new AbortController();
@@ -168,7 +158,6 @@ export default function OrderDetailClient({
     return () => ctl.abort();
   }, [orderId, initialData]);
 
-  // هوک‌ها همیشه در یک ترتیب صدا زده شوند (هیچ early-return قبل از این‌ها نیست)
   const createdDateTime = useMemo(() => {
     try {
       const d = new Date(data?.created_at ?? Date.now());
@@ -207,7 +196,7 @@ export default function OrderDetailClient({
       </div>
 
       <SectionHeader
-        title={String(orderId)}
+        title={`شماره سفارش: #${orderId}`}
         subtitle={createdDateTime}
         leftSlot={
           <Label type={ui.chip.type as any} style="tonal" size="medium">

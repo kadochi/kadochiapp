@@ -4,18 +4,18 @@ import OrderDetailClient, { type OrderDetailData } from "./OrderDetailClient";
 
 export const metadata: Metadata = {
   title: "جزئیات سفارش",
-  description: "نمایش مراحل و ریزجزئیات یک سفارش.",
+  description: "مشاهده وضعیت سفارش و جزئیات",
 };
 
 export const dynamic = "force-dynamic";
 
 async function fetchOrder(id: string): Promise<OrderDetailData | undefined> {
   try {
-    const h = await headers(); // ← حتما await
+    const h = await headers();
     const cookie = h.get("cookie") ?? "";
     const r = await fetch(`/api/orders/${id}`, {
       cache: "no-store",
-      headers: cookie ? { cookie } : undefined, // ← کوکی سشن فوروارد بشه
+      headers: cookie ? { cookie } : undefined,
     });
     if (!r.ok) return undefined;
     return (await r.json()) as OrderDetailData;
@@ -31,6 +31,6 @@ export default async function Page({ params }: { params: Promise<Params> }) {
   const orderId = (p.orderId ?? p.id ?? "").trim();
   if (!orderId) return null;
 
-  const initial = await fetchOrder(orderId); // ← SSR prefetch
+  const initial = await fetchOrder(orderId);
   return <OrderDetailClient orderId={orderId} initialData={initial} />;
 }

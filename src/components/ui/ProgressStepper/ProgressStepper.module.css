@@ -60,6 +60,10 @@
   block-size: 14px;
 }
 
+.status_current .label {
+  font-weight: var(--fw-bold);
+}
+
 .status_todo .circle {
   box-shadow: inset 0 0 0 1px var(--border-border-high-emphasis);
   color: var(--border-border-high-emphasis);

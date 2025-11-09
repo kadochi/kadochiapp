@@ -32,7 +32,7 @@ export default function ProgressStepper({
       dir="rtl"
       style={
         gap
-          ? ({ ["--gap" as any]: `${gap}px` } as React.CSSProperties)
+          ? ({ ["--ps-gap" as any]: `${gap}px` } as React.CSSProperties)
           : undefined
       }
     >
@@ -62,7 +62,15 @@ export default function ProgressStepper({
               ) : null}
             </div>
 
-            {!isRightmost && <div className={s.divider} aria-hidden />}
+            {!isRightmost && (
+              <div
+                className={cx(
+                  s.divider,
+                  step.status === "done" ? s.dividerActive : false
+                )}
+                aria-hidden
+              />
+            )}
 
             <div className={s.label} title={step.label}>
               {step.label}

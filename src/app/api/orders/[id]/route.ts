@@ -1,4 +1,3 @@
-// src/app/api/orders/[orderId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookies } from "@/lib/auth/session";
 
@@ -138,11 +137,9 @@ export async function GET(
 
     const { ok, status, data } = await wooFetch<any>(
       `/wp-json/wc/v3/orders/${idNum}`,
-      {
-        revalidate: 20,
-        signal: ctl.signal,
-      }
+      { revalidate: 20, signal: ctl.signal }
     );
+
     clearTimeout(timeout);
 
     if (status === 404) return NextResponse.json({}, { status: 404 });
