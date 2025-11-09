@@ -74,7 +74,9 @@ export async function wooFetch(
       url.searchParams.set("consumer_secret", CS);
   }
 
-  const hdrs = new Headers(init?.headers);
+  const { revalidateSeconds, headers: initHeaders, next, cache, ...rest } = init ?? {};
+
+  const hdrs = new Headers(initHeaders);
   if (!hdrs.has("Content-Type")) hdrs.set("Content-Type", "application/json");
 
   if (APP_USER && APP_PASS && !hdrs.has("Authorization")) {
@@ -85,13 +87,15 @@ export async function wooFetch(
     hdrs.set("Authorization", `Basic ${token}`);
   }
 
+  const cacheMode = cache ?? (revalidateSeconds != null ? "force-cache" : "no-store");
+  const nextConfig =
+    revalidateSeconds != null ? { revalidate: revalidateSeconds } : next;
+
   const res = await fetch(url.toString(), {
-    ...init,
+    ...rest,
     headers: hdrs,
-    cache: "no-store",
-    next: init?.revalidateSeconds
-      ? { revalidate: init.revalidateSeconds }
-      : undefined,
+    cache: cacheMode,
+    next: nextConfig,
   });
 
   return res;
@@ -116,7 +120,7 @@ export async function wooFetchJSON<T>(
 /* ============================================================================
  * Customers (kept 1:1)
  * ==========================================================================*/
-export async function getCustomerById(id: number): Promise<WooCustomer | null> {
+const getCustomerByIdCached = cache(async (id: number): Promise<WooCustomer | null> => {
   if (DEV_FAKE) {
     return {
       id,
@@ -128,10 +132,14 @@ export async function getCustomerById(id: number): Promise<WooCustomer | null> {
     };
   }
   const path = `/wp-json/wc/v3/customers/${id}`;
-  const r = await wooFetch(path, { method: "GET" });
+  const r = await wooFetch(path, { method: "GET", revalidateSeconds: 120 });
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`getCustomerById failed: ${r.status}`);
   return (await r.json()) as WooCustomer;
+});
+
+export async function getCustomerById(id: number): Promise<WooCustomer | null> {
+  return getCustomerByIdCached(id);
 }
 
 export async function findCustomers(params: { search?: string }) {

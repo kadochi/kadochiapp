@@ -39,8 +39,21 @@ export default function Header({
   );
 
   const handleBack = () => {
-    if (backHref) router.push(backHref);
-    else router.back();
+    if (backHref) {
+      router.push(backHref);
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      const referrer = document.referrer;
+      const hasHistory = window.history.length > 1;
+      if (hasHistory || (referrer && referrer !== window.location.href)) {
+        router.back();
+        return;
+      }
+    }
+
+    router.push("/products");
   };
 
   const isLoggedIn = !!session;
