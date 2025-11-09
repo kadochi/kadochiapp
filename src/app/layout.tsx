@@ -72,8 +72,8 @@ export default async function RootLayout({
         />
       </head>
       <body>
-        <main className="layoutContainer">
-          <Providers initialSession={session}>
+        <Providers initialSession={session}>
+          <div className="layoutContainer">
             {/* scroll-to-top on route changes, no client component needed */}
             <script
               id="scroll-restoration"
@@ -100,11 +100,11 @@ export default async function RootLayout({
               zIndex={2000}
             />
             <Header />
-            <div className="page noHeaderPad">{children}</div>
+            <main className="page noHeaderPad">{children}</main>
             <BottomNavigation />
-          </Providers>
-        </main>
-        <Footer />
+            <Footer />
+          </div>
+        </Providers>
       </body>
     </html>
   );

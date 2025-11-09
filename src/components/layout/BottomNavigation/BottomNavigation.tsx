@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import s from "./BottomNavigation.module.css";
 
@@ -41,60 +42,80 @@ const menuItems: MenuItem[] = [
   },
 ];
 
+const NAV_SAFE_VALUE = "calc(80px + max(env(safe-area-inset-bottom), 8px))";
+
 export default function BottomNavigation() {
   const pathname = usePathname();
 
-  if (
+  const shouldHide =
     pathname.includes("/product/") ||
     pathname.includes("/basket") ||
     pathname.includes("/auth/") ||
     pathname.includes("/login") ||
     pathname.includes("/checkout") ||
-    pathname.includes("/profile/")
-  ) {
+    pathname.includes("/profile/");
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const body = document.body;
+    if (!body) return;
+
+    if (shouldHide) {
+      body.style.removeProperty("--bottom-nav-safe");
+      delete body.dataset.bottomNav;
+      return;
+    }
+
+    body.dataset.bottomNav = "active";
+    body.style.setProperty("--bottom-nav-safe", NAV_SAFE_VALUE);
+
+    return () => {
+      body.style.removeProperty("--bottom-nav-safe");
+      delete body.dataset.bottomNav;
+    };
+  }, [shouldHide]);
+
+  if (shouldHide) {
     return null;
   }
 
   return (
-    <>
-      <div className={s.spacer} aria-hidden />
-      <nav className={s.root} aria-label="پیمایش پایین صفحه">
-        {menuItems.map((item) => {
-          const isActive = item.matchExact
-            ? pathname === item.href
-            : pathname === item.href || pathname.startsWith(item.href + "/");
+    <nav className={s.root} aria-label="پیمایش پایین صفحه">
+      {menuItems.map((item) => {
+        const isActive = item.matchExact
+          ? pathname === item.href
+          : pathname === item.href || pathname.startsWith(item.href + "/");
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`${s.item} ${isActive ? s.active : ""}`}
-              aria-current={isActive ? "page" : undefined}
-              prefetch={false}
-            >
-              <span className={s.iconWrap} aria-hidden>
-                <Image
-                  src={item.icon}
-                  alt=""
-                  width={24}
-                  height={24}
-                  className={s.iconBase}
-                  priority={false}
-                />
-                <Image
-                  src={item.activeIcon}
-                  alt=""
-                  width={24}
-                  height={24}
-                  className={s.iconActive}
-                  priority={false}
-                />
-              </span>
-              <span className={s.label}>{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-    </>
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`${s.item} ${isActive ? s.active : ""}`}
+            aria-current={isActive ? "page" : undefined}
+            prefetch={false}
+          >
+            <span className={s.iconWrap} aria-hidden>
+              <Image
+                src={item.icon}
+                alt=""
+                width={24}
+                height={24}
+                className={s.iconBase}
+                priority={false}
+              />
+              <Image
+                src={item.activeIcon}
+                alt=""
+                width={24}
+                height={24}
+                className={s.iconActive}
+                priority={false}
+              />
+            </span>
+            <span className={s.label}>{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
