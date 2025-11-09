@@ -26,6 +26,15 @@ const ORDER_DETAIL_FIELDS = [
   "meta_data",
 ].join(",");
 
+const WP_BASE = process.env.WP_BASE_URL || "";
+const APP_USER = process.env.WP_APP_USER || "";
+const APP_PASS = process.env.WP_APP_PASS || "";
+
+const BASIC_TOKEN =
+  APP_USER && APP_PASS
+    ? Buffer.from(`${APP_USER}:${APP_PASS}`).toString("base64")
+    : "";
+
 export type RawWooStatus =
   | "pending"
   | "pending-payment"
@@ -125,6 +134,31 @@ function absolutize(url?: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+
+async function wooFetch<T = any>(
+  path: string,
+  { revalidate = 60 }: { revalidate?: number } = {}
+): Promise<{ ok: boolean; status: number; data: T | null }> {
+  if (!WP_BASE || !APP_USER || !APP_PASS) {
+    throw new Error("WooCommerce credentials are not configured");
+  }
+  const url = new URL(path, WP_BASE);
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Basic ${BASIC_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    cache: "force-cache",
+    next: { revalidate },
+  });
+
+  let data: T | null = null;
+  try {
+    data = (await res.json()) as T;
+  } catch {}
+  return { ok: res.ok, status: res.status, data };
 }
 
 function normaliseLineItem(li: any): OrderLineItem {
@@ -237,6 +271,24 @@ const findCustomerIdByPhone = cache(async (phoneDigits: string) => {
   if (fallbackRes.ok) {
     const data = (await fallbackRes.json()) as any[];
     const hit = data.find((c) => onlyDigits(c?.billing?.phone) === phoneDigits);
+const findCustomerIdByPhone = cache(async (phoneDigits: string) => {
+  if (!phoneDigits) return null;
+  const searchQs = new URLSearchParams({ per_page: "20", search: phoneDigits });
+  const searchRes = await wooFetch<any[]>(
+    `/wp-json/wc/v3/customers?${searchQs.toString()}`,
+    { revalidate: 300 }
+  );
+  if (searchRes.ok && Array.isArray(searchRes.data)) {
+    const hit = searchRes.data.find((c) => onlyDigits(c?.billing?.phone) === phoneDigits);
+    if (hit?.id) return Number(hit.id);
+  }
+
+  const fallbackRes = await wooFetch<any[]>(
+    "/wp-json/wc/v3/customers?per_page=50",
+    { revalidate: 300 }
+  );
+  if (fallbackRes.ok && Array.isArray(fallbackRes.data)) {
+    const hit = fallbackRes.data.find((c) => onlyDigits(c?.billing?.phone) === phoneDigits);
     if (hit?.id) return Number(hit.id);
   }
 
@@ -256,6 +308,10 @@ const fetchOrdersForCustomer = cache(async (customerId: number) => {
     method: "GET",
     revalidateSeconds: 30,
   });
+  let res = await wooFetch<any[]>(
+    `/wp-json/wc/v3/orders?${qs.toString()}`,
+    { revalidate: 30 }
+  );
 
   if (!res.ok && (res.status === 400 || res.status === 404)) {
     const qs2 = new URLSearchParams(qs);
@@ -272,6 +328,14 @@ const fetchOrdersForCustomer = cache(async (customerId: number) => {
   if (!Array.isArray(data)) return [];
 
   return data.map((o) => {
+    res = await wooFetch<any[]>(
+      `/wp-json/wc/v3/orders?${qs2.toString()}`,
+      { revalidate: 30 }
+    );
+  }
+
+  if (!Array.isArray(res.data)) return [];
+  return res.data.map((o) => {
     const items: any[] = Array.isArray(o?.line_items) ? o.line_items : [];
     const patched = items.map((li) => {
       if (li?.image?.src) return li;
@@ -370,3 +434,4 @@ export async function getOrderDetailForSession(
     clearTimeout(timeout);
   }
 }
+
