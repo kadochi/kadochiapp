@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 
 /* ============================================================================
  * Base types (kept)
@@ -73,7 +74,9 @@ export async function wooFetch(
       url.searchParams.set("consumer_secret", CS);
   }
 
-  const hdrs = new Headers(init?.headers);
+  const { revalidateSeconds, headers: initHeaders, next, cache, ...rest } = init ?? {};
+
+  const hdrs = new Headers(initHeaders);
   if (!hdrs.has("Content-Type")) hdrs.set("Content-Type", "application/json");
 
   if (APP_USER && APP_PASS && !hdrs.has("Authorization")) {
@@ -84,13 +87,15 @@ export async function wooFetch(
     hdrs.set("Authorization", `Basic ${token}`);
   }
 
+  const cacheMode = cache ?? (revalidateSeconds != null ? "force-cache" : "no-store");
+  const nextConfig =
+    revalidateSeconds != null ? { revalidate: revalidateSeconds } : next;
+
   const res = await fetch(url.toString(), {
-    ...init,
+    ...rest,
     headers: hdrs,
-    cache: "no-store",
-    next: init?.revalidateSeconds
-      ? { revalidate: init.revalidateSeconds }
-      : undefined,
+    cache: cacheMode,
+    next: nextConfig,
   });
 
   return res;
@@ -115,7 +120,7 @@ export async function wooFetchJSON<T>(
 /* ============================================================================
  * Customers (kept 1:1)
  * ==========================================================================*/
-export async function getCustomerById(id: number): Promise<WooCustomer | null> {
+const getCustomerByIdCached = cache(async (id: number): Promise<WooCustomer | null> => {
   if (DEV_FAKE) {
     return {
       id,
@@ -127,10 +132,14 @@ export async function getCustomerById(id: number): Promise<WooCustomer | null> {
     };
   }
   const path = `/wp-json/wc/v3/customers/${id}`;
-  const r = await wooFetch(path, { method: "GET" });
+  const r = await wooFetch(path, { method: "GET", revalidateSeconds: 120 });
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`getCustomerById failed: ${r.status}`);
   return (await r.json()) as WooCustomer;
+});
+
+export async function getCustomerById(id: number): Promise<WooCustomer | null> {
+  return getCustomerByIdCached(id);
 }
 
 export async function findCustomers(params: { search?: string }) {
@@ -355,7 +364,9 @@ type StoreProduct_B = {
 const isFiniteNumber = (n: unknown): n is number =>
   typeof n === "number" && Number.isFinite(n);
 
-async function resolveCategoryId(input?: number | string) {
+const resolveCategoryId = cache(async function resolveCategoryId(
+  input?: number | string
+) {
   if (!input) return undefined;
   if (typeof input === "number" || /^\d+$/.test(String(input)))
     return Number(input);
@@ -381,9 +392,11 @@ async function resolveCategoryId(input?: number | string) {
     }
   } catch {}
   return undefined;
-}
+});
 
-async function resolveTagIdsCsv(input?: number | string) {
+const resolveTagIdsCsv = cache(async function resolveTagIdsCsv(
+  input?: number | string
+) {
   if (!input) return undefined;
   const parts = String(input)
     .trim()
@@ -418,7 +431,7 @@ async function resolveTagIdsCsv(input?: number | string) {
 
   const ids = (await Promise.all(parts.map(partToId))).filter(isFiniteNumber);
   return ids.length ? ids.join(",") : undefined;
-}
+});
 
 function mapOrderby(
   v?: "date" | "price" | "popularity" | "rating"
@@ -625,7 +638,7 @@ async function _resolveProductIdBySlug(slugOrMaybeEncoded: string) {
   return null;
 }
 
-async function fetchProductComments(
+const fetchProductComments = cache(async function fetchProductComments(
   productId: number
 ): Promise<ProductComment[]> {
   const base = WP_BASE.replace(/\/$/, "");
@@ -643,7 +656,10 @@ async function fetchProductComments(
           )}&consumer_secret=${encodeURIComponent(cs)}`
         : "");
 
-    const r = await fetch(url, { cache: "no-store" });
+    const r = await fetch(url, {
+      cache: "force-cache",
+      next: { revalidate: 120 },
+    });
     if (r.ok) {
       const arr = (await r.json()) as Array<{
         id: number;
@@ -672,7 +688,10 @@ async function fetchProductComments(
   try {
     const r2 = await fetch(
       `${base}/wp-json/wp/v2/comments?post=${productId}&per_page=20&_fields=id,author_name,author_avatar_urls,date,content`,
-      { cache: "no-store" }
+      {
+        cache: "force-cache",
+        next: { revalidate: 120 },
+      }
     );
     if (r2.ok) {
       const arr = (await r2.json()) as Array<{
@@ -699,7 +718,7 @@ async function fetchProductComments(
   }
 
   return [];
-}
+});
 
 export async function getProductDetail(
   idOrSlug: string
@@ -727,7 +746,10 @@ export async function getProductDetail(
       "rating_count",
       "slug",
     ].join(",")}`,
-    { cache: "no-store" }
+    {
+      cache: "force-cache",
+      next: { revalidate: 300 },
+    }
   );
   if (!r.ok) return null;
 
@@ -799,8 +821,6 @@ export async function getProductDetail(
       : Number(p?.average_rating || 0);
   const reviewsCount = Number(p?.rating_count || 0) || 0;
 
-  const comments = await fetchProductComments(id);
-
   return {
     id,
     name: String(p.name || ""),
@@ -818,7 +838,6 @@ export async function getProductDetail(
     categories: categories.filter((c) => Number.isFinite(c.id) && c.name),
     ratingAvg,
     reviewsCount,
-    comments,
   };
 }
 
@@ -827,6 +846,8 @@ export {
   listProducts as listProducts_b,
   getProductDetail as getProductDetail_b,
 };
+
+export const getProductComments = fetchProductComments;
 
 /* ============================================================================
  * Review Helper

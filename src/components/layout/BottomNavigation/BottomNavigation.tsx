@@ -56,42 +56,45 @@ export default function BottomNavigation() {
   }
 
   return (
-    <nav className={s.root} aria-label="پیمایش پایین صفحه">
-      {menuItems.map((item) => {
-        const isActive = item.matchExact
-          ? pathname === item.href
-          : pathname === item.href || pathname.startsWith(item.href + "/");
+    <>
+      <div className={s.spacer} aria-hidden />
+      <nav className={s.root} aria-label="پیمایش پایین صفحه">
+        {menuItems.map((item) => {
+          const isActive = item.matchExact
+            ? pathname === item.href
+            : pathname === item.href || pathname.startsWith(item.href + "/");
 
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`${s.item} ${isActive ? s.active : ""}`}
-            aria-current={isActive ? "page" : undefined}
-            prefetch={false}
-          >
-            <span className={s.iconWrap} aria-hidden>
-              <Image
-                src={item.icon}
-                alt=""
-                width={24}
-                height={24}
-                className={s.iconBase}
-                priority={false}
-              />
-              <Image
-                src={item.activeIcon}
-                alt=""
-                width={24}
-                height={24}
-                className={s.iconActive}
-                priority={false}
-              />
-            </span>
-            <span className={s.label}>{item.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`${s.item} ${isActive ? s.active : ""}`}
+              aria-current={isActive ? "page" : undefined}
+              prefetch={false}
+            >
+              <span className={s.iconWrap} aria-hidden>
+                <Image
+                  src={item.icon}
+                  alt=""
+                  width={24}
+                  height={24}
+                  className={s.iconBase}
+                  priority={false}
+                />
+                <Image
+                  src={item.activeIcon}
+                  alt=""
+                  width={24}
+                  height={24}
+                  className={s.iconActive}
+                  priority={false}
+                />
+              </span>
+              <span className={s.label}>{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+    </>
   );
 }
