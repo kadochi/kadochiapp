@@ -4,6 +4,7 @@
   flex-direction: row-reverse;
   align-items: flex-start;
   column-gap: var(--ps-gap);
+  width: 100%;
 }
 
 .step {
@@ -12,6 +13,7 @@
   grid-template-rows: 24px auto;
   justify-items: center;
   min-inline-size: 24px;
+  width: 100%;
 }
 
 .circle {

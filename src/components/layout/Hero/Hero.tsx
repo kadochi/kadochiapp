@@ -37,7 +37,13 @@ export default function Hero({
             style="ghost"
             size="small"
             className={s.ctaBtn}
-            trailingIcon={<img src="/icons/chevron-left-white.svg" />}
+            trailingIcon={
+              <img
+                src="/icons/chevron-left-white.svg"
+                alt=""
+                aria-hidden="true"
+              />
+            }
             aria-label={ctaText}
           >
             {ctaText}
@@ -56,7 +62,13 @@ export default function Hero({
             style="ghost"
             size="medium"
             className={s.ctaBtnDesktop}
-            trailingIcon={<img src="/icons/chevron-left-white.svg" />}
+            trailingIcon={
+              <img
+                src="/icons/chevron-left-white.svg"
+                alt=""
+                aria-hidden="true"
+              />
+            }
             aria-label={ctaText}
           >
             {ctaText}

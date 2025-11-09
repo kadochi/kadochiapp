@@ -25,7 +25,7 @@ export default function HeroSlider() {
     fetch("https://app.kadochi.com/wp-json/wp/v2/hero?acf_format=standard", {
       signal: ctl.signal,
     })
-      .then((res) => res.json())
+      .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (!Array.isArray(data)) return;
         const formatted: BannerData[] = data
@@ -46,10 +46,7 @@ export default function HeroSlider() {
           .filter((b) => b.title && b.backgroundImage);
         setBanners(formatted);
       })
-      .catch((err) => {
-        if (err?.name === "AbortError") return;
-        console.warn("Banner fetch warn:", err);
-      });
+      .catch(() => {});
     return () => ctl.abort();
   }, []);
 
@@ -70,14 +67,20 @@ export default function HeroSlider() {
   );
 
   return (
-    <div className={s.bannerSlider} aria-label="اسلایدر بنر">
+    <section
+      className={s.bannerSlider}
+      role="region"
+      aria-roledescription="carousel"
+      aria-label="اسلایدر بنر"
+      aria-live="polite"
+      dir="rtl"
+    >
       {!banners.length ? (
         skeleton
       ) : (
         <Swiper
           key={canLoop ? "loop" : "no-loop"}
           modules={[Autoplay, Pagination]}
-          dir="rtl"
           slidesPerView={1}
           loop={canLoop}
           watchOverflow
@@ -90,13 +93,18 @@ export default function HeroSlider() {
           }
           className={s.swiper}
         >
-          {banners.map((banner, index) => (
-            <SwiperSlide key={index} className={s.slide}>
+          {banners.map((banner, i) => (
+            <SwiperSlide
+              key={i}
+              className={s.slide}
+              role="group"
+              aria-label={`اسلاید ${i + 1} از ${banners.length}`}
+            >
               <Banner {...banner} />
             </SwiperSlide>
           ))}
         </Swiper>
       )}
-    </div>
+    </section>
   );
 }

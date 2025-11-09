@@ -1,0 +1,213 @@
+.page {
+  background: var(--surface-background);
+}
+
+.tabsWrap {
+  padding: 0 var(--space-16) var(--space-16) var(--space-16);
+  display: flex;
+  justify-content: center;
+}
+
+.tabs {
+  width: 100%;
+  max-width: 100%;
+}
+@media (min-width: 860px) {
+  .tabs {
+    max-width: 400px;
+    margin-inline: auto;
+  }
+}
+
+.list {
+  display: grid;
+  gap: var(--space-8);
+  padding-inline: var(--space-16);
+  padding-bottom: var(--space-16);
+  padding-top: var(--space-16);
+}
+.list .card:last-child {
+  border-bottom: none;
+}
+
+.error {
+  padding: var(--space-24);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body-14);
+  line-height: var(--lh-body-14);
+  color: var(--text-secondary);
+}
+
+.card {
+  display: grid;
+  gap: var(--space-16);
+  text-decoration: none;
+  padding: var(--space-24) var(--space-0);
+  background: var(--surface-background);
+  color: var(--text-primary);
+  border-bottom: 1px var(--border-border-low-emphasis) solid;
+}
+
+.rowTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.meta {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.orderId {
+  font-family: var(--font-sans);
+  font-size: var(--fs-title-16);
+  line-height: var(--lh-title-16);
+  font-weight: var(--fw-bold);
+  color: var(--text-primary);
+}
+
+.orderDate {
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  color: var(--text-secondary);
+}
+
+.rightSide {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.chev {
+  inline-size: 20px;
+  block-size: 20px;
+}
+
+.rowBottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.total {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.thumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.thumb {
+  inline-size: 56px;
+  block-size: 56px;
+  border-radius: var(--radius-l);
+  object-fit: cover;
+  background: var(--surface-background);
+  border: 1px solid var(--border-border-low-emphasis);
+}
+
+.more {
+  inline-size: 56px;
+  block-size: 56px;
+  border-radius: var(--radius-l);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-sans);
+  font-size: var(--fs-title-16);
+  line-height: var(--lh-title-16);
+  font-weight: var(--fw-bold);
+  color: var(--text-secondary);
+  background: var(--surface-background);
+  border: 1px solid var(--border-border-low-emphasis);
+  direction: ltr;
+}
+
+.skelOrder {
+  display: grid;
+  gap: var(--space-16);
+  padding: var(--space-24) 0;
+  border-bottom: 1px solid var(--border-border-low-emphasis);
+}
+
+.skelRowTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.skelMeta {
+  display: grid;
+  gap: var(--space-8);
+}
+.skelLine {
+  height: 16px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-surface-soft) 0%,
+    var(--surface-surface-dim) 50%,
+    var(--surface-surface-soft) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+.skelLineShort {
+  width: 60px;
+}
+.skelLineLong {
+  width: 100px;
+}
+
+.skelRowBottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.skelThumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+.skelThumb {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-l);
+  background: linear-gradient(
+    90deg,
+    var(--surface-surface-soft) 0%,
+    var(--surface-surface-dim) 50%,
+    var(--surface-surface-soft) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+.skelPrice {
+  width: 80px;
+  height: 20px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-surface-soft) 0%,
+    var(--surface-surface-dim) 50%,
+    var(--surface-surface-soft) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
