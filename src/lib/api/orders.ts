@@ -1,3 +1,4 @@
+// src/lib/api/orders.ts
 import "server-only";
 
 import { cache } from "react";
@@ -156,7 +157,7 @@ function absolutize(url?: string | null): string | null {
 
 async function fetchCustomerCandidates(
   qs: URLSearchParams,
-  timeoutMs = CUSTOMER_TIMEOUT_MS,
+  timeoutMs = CUSTOMER_TIMEOUT_MS
 ): Promise<any[]> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -179,7 +180,7 @@ async function fetchCustomerCandidates(
 
 async function fetchOrdersResponse(
   qs: URLSearchParams,
-  timeoutMs = ORDERS_TIMEOUT_MS,
+  timeoutMs = ORDERS_TIMEOUT_MS
 ): Promise<Response | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -217,7 +218,9 @@ function normaliseLineItem(li: any): OrderLineItem {
 function normaliseOrderSummary(order: any): OrderSummary {
   const created =
     order?.date_created || order?.date_created_gmt || new Date().toISOString();
-  const rawItems: any[] = Array.isArray(order?.line_items) ? order.line_items : [];
+  const rawItems: any[] = Array.isArray(order?.line_items)
+    ? order.line_items
+    : [];
   const lineItems = rawItems.map(normaliseLineItem);
   return {
     id: order?.id ?? order?.order_id ?? "",
@@ -241,12 +244,15 @@ function mapOrderDetailPayload(order: any): OrderDetail {
     : [];
 
   const meta: any[] = Array.isArray(order?.meta_data) ? order.meta_data : [];
-  const getMeta = (k: string) => meta.find((m) => String(m?.key) === k)?.value ?? "";
+  const getMeta = (k: string) =>
+    meta.find((m) => String(m?.key) === k)?.value ?? "";
 
   const receiverMeta = String(getMeta("_kadochi_receiver_name") || "");
   const receiverName = receiverMeta
     ? receiverMeta
-    : `${order?.shipping?.first_name || ""} ${order?.shipping?.last_name || ""}`.trim();
+    : `${order?.shipping?.first_name || ""} ${
+        order?.shipping?.last_name || ""
+      }`.trim();
 
   const senderName = `${order?.billing?.first_name || ""} ${
     order?.billing?.last_name || ""
@@ -261,10 +267,16 @@ function mapOrderDetailPayload(order: any): OrderDetail {
   const address = addressParts.join("، ");
 
   const subtotal = Array.isArray(order?.line_items)
-    ? order.line_items.reduce((sum: number, li: any) => sum + Number(li?.subtotal || 0), 0)
+    ? order.line_items.reduce(
+        (sum: number, li: any) => sum + Number(li?.subtotal || 0),
+        0
+      )
     : 0;
   const service = Array.isArray(order?.fee_lines)
-    ? order.fee_lines.reduce((sum: number, f: any) => sum + Number(f?.total || 0), 0)
+    ? order.fee_lines.reduce(
+        (sum: number, f: any) => sum + Number(f?.total || 0),
+        0
+      )
     : 0;
   const total = Number(order?.total || 0);
   const tax = Number(order?.total_tax || 0);
@@ -273,7 +285,10 @@ function mapOrderDetailPayload(order: any): OrderDetail {
   return {
     id: order?.id ?? order?.order_id ?? "",
     status: mapStatus(order?.status),
-    created_at: order?.date_created || order?.date_created_gmt || new Date().toISOString(),
+    created_at:
+      order?.date_created ||
+      order?.date_created_gmt ||
+      new Date().toISOString(),
     sender: senderName || undefined,
     receiver: receiverName || undefined,
     delivery_window: String(getMeta("_kadochi_delivery") || "") || undefined,
@@ -293,7 +308,7 @@ const findCustomerIdByPhone = cache(async (phoneDigits: string) => {
   });
   const searchCandidates = await fetchCustomerCandidates(searchQs);
   const matchFromSearch = searchCandidates.find(
-    (c) => onlyDigits(c?.billing?.phone) === phoneDigits,
+    (c) => onlyDigits(c?.billing?.phone) === phoneDigits
   );
   if (matchFromSearch?.id) return Number(matchFromSearch.id);
 
@@ -305,10 +320,10 @@ const findCustomerIdByPhone = cache(async (phoneDigits: string) => {
   });
   const fallbackCandidates = await fetchCustomerCandidates(
     fallbackQs,
-    CUSTOMER_TIMEOUT_MS + 1000,
+    CUSTOMER_TIMEOUT_MS + 1000
   );
   const matchFromFallback = fallbackCandidates.find(
-    (c) => onlyDigits(c?.billing?.phone) === phoneDigits,
+    (c) => onlyDigits(c?.billing?.phone) === phoneDigits
   );
   if (matchFromFallback?.id) return Number(matchFromFallback.id);
 
@@ -347,6 +362,7 @@ const fetchOrdersForCustomer = cache(async (customerId: number) => {
       if (li?.image?.src) return li;
       const image = normaliseLineItem(li).image;
       return image ? { ...li, image } : li;
+      // به این شکل تصاویر مطلق می‌شوند تا سمت کلاینت نیاز به اصلاح نباشد
     });
     return normaliseOrderSummary({ ...o, line_items: patched });
   });
@@ -355,7 +371,9 @@ const fetchOrdersForCustomer = cache(async (customerId: number) => {
 export async function listOrdersForSession(): Promise<OrderSummary[]> {
   const session = await getSessionFromCookies();
   const sessionId =
-    typeof session.userId === "number" && session.userId > 0 ? session.userId : null;
+    typeof session.userId === "number" && session.userId > 0
+      ? session.userId
+      : null;
   const phoneDigits = onlyDigits(session.phone);
 
   if (!sessionId && !phoneDigits) {
@@ -364,14 +382,15 @@ export async function listOrdersForSession(): Promise<OrderSummary[]> {
     throw err;
   }
 
-  const customerId = sessionId ?? (phoneDigits ? await findCustomerIdByPhone(phoneDigits) : null);
+  const customerId =
+    sessionId ?? (phoneDigits ? await findCustomerIdByPhone(phoneDigits) : null);
   if (!customerId) return [];
 
   return await fetchOrdersForCustomer(customerId);
 }
 
 export async function getOrderDetailForSession(
-  orderId: string | number,
+  orderId: string | number
 ): Promise<OrderDetail | null> {
   const idNum = Number(orderId);
   if (!Number.isFinite(idNum) || idNum <= 0) {
@@ -382,7 +401,9 @@ export async function getOrderDetailForSession(
 
   const session = await getSessionFromCookies();
   const sessionUserId =
-    typeof session.userId === "number" && session.userId > 0 ? session.userId : null;
+    typeof session.userId === "number" && session.userId > 0
+      ? session.userId
+      : null;
   const sessionPhone = onlyDigits(session.phone);
 
   if (!sessionUserId && !sessionPhone) {
@@ -401,7 +422,7 @@ export async function getOrderDetailForSession(
         method: "GET",
         cache: "no-store",
         signal: controller.signal,
-      },
+      }
     );
 
     if (res.status === 404) return null;
