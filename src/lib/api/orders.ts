@@ -1,7 +1,11 @@
 import "server-only";
+
 import { cache } from "react";
+
 import { getSessionFromCookies } from "@/lib/auth/session";
 import { wooFetch } from "@/lib/api/woo";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 const WP_BASE =
   process.env.WOO_BASE_URL ||
@@ -25,15 +29,6 @@ const ORDER_DETAIL_FIELDS = [
   "shipping_total",
   "meta_data",
 ].join(",");
-
-const WP_BASE = process.env.WP_BASE_URL || "";
-const APP_USER = process.env.WP_APP_USER || "";
-const APP_PASS = process.env.WP_APP_PASS || "";
-
-const BASIC_TOKEN =
-  APP_USER && APP_PASS
-    ? Buffer.from(`${APP_USER}:${APP_PASS}`).toString("base64")
-    : "";
 
 export type RawWooStatus =
   | "pending"
@@ -136,31 +131,6 @@ function absolutize(url?: string | null): string | null {
   }
 }
 
-
-async function wooFetch<T = any>(
-  path: string,
-  { revalidate = 60 }: { revalidate?: number } = {}
-): Promise<{ ok: boolean; status: number; data: T | null }> {
-  if (!WP_BASE || !APP_USER || !APP_PASS) {
-    throw new Error("WooCommerce credentials are not configured");
-  }
-  const url = new URL(path, WP_BASE);
-  const res = await fetch(url.toString(), {
-    headers: {
-      Authorization: `Basic ${BASIC_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    cache: "force-cache",
-    next: { revalidate },
-  });
-
-  let data: T | null = null;
-  try {
-    data = (await res.json()) as T;
-  } catch {}
-  return { ok: res.ok, status: res.status, data };
-}
-
 function normaliseLineItem(li: any): OrderLineItem {
   const candidate =
     li?.image?.src ||
@@ -225,10 +195,7 @@ function mapOrderDetailPayload(order: any): OrderDetail {
   const address = addressParts.join("، ");
 
   const subtotal = Array.isArray(order?.line_items)
-    ? order.line_items.reduce(
-        (sum: number, li: any) => sum + Number(li?.subtotal || 0),
-        0
-      )
+    ? order.line_items.reduce((sum: number, li: any) => sum + Number(li?.subtotal || 0), 0)
     : 0;
   const service = Array.isArray(order?.fee_lines)
     ? order.fee_lines.reduce((sum: number, f: any) => sum + Number(f?.total || 0), 0)
@@ -240,8 +207,7 @@ function mapOrderDetailPayload(order: any): OrderDetail {
   return {
     id: order?.id ?? order?.order_id ?? "",
     status: mapStatus(order?.status),
-    created_at:
-      order?.date_created || order?.date_created_gmt || new Date().toISOString(),
+    created_at: order?.date_created || order?.date_created_gmt || new Date().toISOString(),
     sender: senderName || undefined,
     receiver: receiverName || undefined,
     delivery_window: String(getMeta("_kadochi_delivery") || "") || undefined,
@@ -253,42 +219,25 @@ function mapOrderDetailPayload(order: any): OrderDetail {
 
 const findCustomerIdByPhone = cache(async (phoneDigits: string) => {
   if (!phoneDigits) return null;
+
   const searchQs = new URLSearchParams({ per_page: "20", search: phoneDigits });
-  const searchRes = await wooFetch(
-    `/wp-json/wc/v3/customers?${searchQs.toString()}`,
-    { method: "GET", revalidateSeconds: 300 }
-  );
+  const searchRes = await wooFetch(`/wp-json/wc/v3/customers?${searchQs.toString()}`, {
+    method: "GET",
+    revalidateSeconds: 300,
+  });
   if (searchRes.ok) {
     const data = (await searchRes.json()) as any[];
     const hit = data.find((c) => onlyDigits(c?.billing?.phone) === phoneDigits);
     if (hit?.id) return Number(hit.id);
   }
 
-  const fallbackRes = await wooFetch(
-    "/wp-json/wc/v3/customers?per_page=50",
-    { method: "GET", revalidateSeconds: 300 }
-  );
+  const fallbackRes = await wooFetch("/wp-json/wc/v3/customers?per_page=50", {
+    method: "GET",
+    revalidateSeconds: 300,
+  });
   if (fallbackRes.ok) {
     const data = (await fallbackRes.json()) as any[];
     const hit = data.find((c) => onlyDigits(c?.billing?.phone) === phoneDigits);
-const findCustomerIdByPhone = cache(async (phoneDigits: string) => {
-  if (!phoneDigits) return null;
-  const searchQs = new URLSearchParams({ per_page: "20", search: phoneDigits });
-  const searchRes = await wooFetch<any[]>(
-    `/wp-json/wc/v3/customers?${searchQs.toString()}`,
-    { revalidate: 300 }
-  );
-  if (searchRes.ok && Array.isArray(searchRes.data)) {
-    const hit = searchRes.data.find((c) => onlyDigits(c?.billing?.phone) === phoneDigits);
-    if (hit?.id) return Number(hit.id);
-  }
-
-  const fallbackRes = await wooFetch<any[]>(
-    "/wp-json/wc/v3/customers?per_page=50",
-    { revalidate: 300 }
-  );
-  if (fallbackRes.ok && Array.isArray(fallbackRes.data)) {
-    const hit = fallbackRes.data.find((c) => onlyDigits(c?.billing?.phone) === phoneDigits);
     if (hit?.id) return Number(hit.id);
   }
 
@@ -308,10 +257,6 @@ const fetchOrdersForCustomer = cache(async (customerId: number) => {
     method: "GET",
     revalidateSeconds: 30,
   });
-  let res = await wooFetch<any[]>(
-    `/wp-json/wc/v3/orders?${qs.toString()}`,
-    { revalidate: 30 }
-  );
 
   if (!res.ok && (res.status === 400 || res.status === 404)) {
     const qs2 = new URLSearchParams(qs);
@@ -328,14 +273,6 @@ const fetchOrdersForCustomer = cache(async (customerId: number) => {
   if (!Array.isArray(data)) return [];
 
   return data.map((o) => {
-    res = await wooFetch<any[]>(
-      `/wp-json/wc/v3/orders?${qs2.toString()}`,
-      { revalidate: 30 }
-    );
-  }
-
-  if (!Array.isArray(res.data)) return [];
-  return res.data.map((o) => {
     const items: any[] = Array.isArray(o?.line_items) ? o.line_items : [];
     const patched = items.map((li) => {
       if (li?.image?.src) return li;
@@ -358,15 +295,14 @@ export async function listOrdersForSession(): Promise<OrderSummary[]> {
     throw err;
   }
 
-  const customerId =
-    sessionId ?? (phoneDigits ? await findCustomerIdByPhone(phoneDigits) : null);
+  const customerId = sessionId ?? (phoneDigits ? await findCustomerIdByPhone(phoneDigits) : null);
   if (!customerId) return [];
 
   return await fetchOrdersForCustomer(customerId);
 }
 
 export async function getOrderDetailForSession(
-  orderId: string | number
+  orderId: string | number,
 ): Promise<OrderDetail | null> {
   const idNum = Number(orderId);
   if (!Number.isFinite(idNum) || idNum <= 0) {
@@ -390,10 +326,11 @@ export async function getOrderDetailForSession(
   const timeout = setTimeout(() => controller.abort(), 6000);
 
   try {
-    const res = await wooFetch(
-      `/wp-json/wc/v3/orders/${idNum}?_fields=${ORDER_DETAIL_FIELDS}`,
-      { method: "GET", revalidateSeconds: 30, signal: controller.signal }
-    );
+    const res = await wooFetch(`/wp-json/wc/v3/orders/${idNum}?_fields=${ORDER_DETAIL_FIELDS}`, {
+      method: "GET",
+      revalidateSeconds: 30,
+      signal: controller.signal,
+    });
 
     if (res.status === 404) return null;
     if (!res.ok) {
@@ -434,4 +371,3 @@ export async function getOrderDetailForSession(
     clearTimeout(timeout);
   }
 }
-
