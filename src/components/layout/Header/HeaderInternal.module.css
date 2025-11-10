@@ -7,10 +7,11 @@
   background: var(--surface-background);
   direction: rtl;
 
-  position: fixed;
+  position: sticky;
   top: 0;
-  inset-inline: 0;
+  width: 100%;
   z-index: 1000;
+
   max-width: 1440px;
   margin: 0 auto;
   box-sizing: border-box;

@@ -107,13 +107,9 @@ export default function ProfilePageClient({
     (document.getElementById("logoutForm") as HTMLFormElement | null)?.submit();
   };
 
-  // Debug (remove if noisy)
-  // console.log("[Profile] session:", session);
-
   return (
     <div className={s.container}>
       <Header />
-
       {!isLoggedIn ? (
         <>
           <StateMessage

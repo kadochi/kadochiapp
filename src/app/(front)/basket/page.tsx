@@ -1,6 +1,6 @@
 // src/app/(front)/basket/page.tsx
 import type { Metadata } from "next";
-import HeaderInternal from "@/components/layout/Header/HeaderInternal";
+import Header from "@/components/layout/Header/Header";
 import CartPageClient from "./CartPageClient";
 import s from "./cart.module.css";
 
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function BasketPage() {
   return (
     <>
-      <HeaderInternal title="سبد خرید" />
+      <Header variant="internal" title="سبد خرید" backUrl="" />
       <main className={s.container}>
         <CartPageClient />
       </main>

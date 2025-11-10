@@ -16,6 +16,7 @@ import Label from "@/components/ui/Label/Label";
 import Button from "@/components/ui/Button/Button";
 import ProductCarousel from "@/domains/catalog/components/ProductCarousel/ProductCarousel";
 import Breadcrumb from "@/components/ui/Breadcrumb/Breadcrumb";
+import Header from "@/components/layout/Header/Header";
 
 export const revalidate = 300;
 
@@ -81,6 +82,7 @@ export default async function ProductPage({ params }: { params: Params }) {
 
   return (
     <main dir="rtl" style={{ paddingTop: 0 }}>
+      <Header />
       <section>
         <ImageGallery images={images} title={title} />
 

@@ -10,6 +10,7 @@ import SumPrice from "@/components/layout/Price/Sum/SumPrice";
 import StateMessage from "@/components/layout/StateMessage/StateMessage";
 import s from "./orders.module.css";
 import OrderSkeleton from "./OrderSkeleton";
+import Header from "@/components/layout/Header/Header";
 
 type RawWooStatus =
   | "pending"
@@ -124,9 +125,7 @@ function normalizeOrders(payload: any): Order[] {
         product_id: li?.product_id ?? null,
         name: li?.name,
         quantity: li?.quantity,
-        image: candidate
-          ? { src: String(candidate), alt: li?.name }
-          : null,
+        image: candidate ? { src: String(candidate), alt: li?.name } : null,
       };
     });
     return {
@@ -213,7 +212,7 @@ export default function OrdersPageClient({
 
   return (
     <div className={s.page} dir="rtl">
-      <HeaderInternal title="سفارش‌های من" backUrl="/profile" />
+      <Header variant="internal" title="سفارش‌های من" backUrl="/profile" />
       <div className={s.tabsWrap}>
         <Tabs
           items={TABS}

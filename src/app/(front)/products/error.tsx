@@ -2,6 +2,7 @@
 
 import StateMessage from "@/components/layout/StateMessage/StateMessage";
 import Button from "@/components/ui/Button/Button";
+import Header from "@/components/layout/Header/Header";
 
 export default function Error({
   error,
@@ -12,6 +13,7 @@ export default function Error({
 }) {
   return (
     <main className="page" dir="rtl">
+      <Header />
       <div className="layoutContainer" style={{ padding: "var(--space-16)" }}>
         <StateMessage
           imageSrc="/images/illustration-failed.png"

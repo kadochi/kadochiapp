@@ -40,7 +40,6 @@ export default async function OccasionsPage() {
         const t = it.acf?.title?.trim();
         const owner = it.acf?.user_id ?? null;
 
-        // فقط عمومی‌ها یا مناسبت‌های همین کاربر
         const isPublic =
           owner === null || owner === "" || typeof owner === "undefined";
         const isMine = userId != null && String(owner) === String(userId);

@@ -1,3 +1,5 @@
+import Header from "@/components/layout/Header/Header";
+
 export default function Loading() {
   const shimmer =
     "linear-gradient(90deg, #f2f2f5 25%, #e8e8ee 37%, #f2f2f5 63%)";
@@ -9,6 +11,7 @@ export default function Loading() {
 
   return (
     <main dir="rtl" style={{ paddingTop: 0 }}>
+      <Header />
       <section
         style={{
           background: "var(--surface-background, #fff)",

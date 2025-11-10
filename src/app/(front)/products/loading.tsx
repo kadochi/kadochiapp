@@ -1,9 +1,11 @@
 import ProductCardSkeleton from "@/domains/catalog/components/ProductCard/ProductCardSkeleton";
 import s from "./products.module.css";
+import Header from "@/components/layout/Header/Header";
 
 export default function Loading() {
   return (
     <main dir="rtl">
+      <Header />
       <div className="plp">
         {/* Filter bar skeleton */}
         <div className={s.filterBar}>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import HeaderInternal from "@/components/layout/Header/HeaderInternal";
+import Header from "@/components/layout/Header/Header";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
 import Label from "@/components/ui/Label/Label";
 import Divider from "@/components/ui/Divider/Divider";
@@ -73,8 +73,11 @@ function buildSteps3(current: number): StepItem[] {
 function OrderDetailSkeleton() {
   return (
     <div className={s.page} dir="rtl">
-      <HeaderInternal title="جزئیات سفارش" backUrl="/profile/orders" />
-
+      <Header
+        variant="internal"
+        title="جزئیات سفارش"
+        backUrl="/profile/orders"
+      />
       <div className={s.stepperOuter}>
         <div className={s.stepperInner}>
           <div className={s.skelStepper} />
@@ -184,7 +187,8 @@ export default function OrderDetailClient({
 
   return (
     <div className={s.page} dir="rtl">
-      <HeaderInternal
+      <Header
+        variant="internal"
         title={`جزئیات سفارش #${orderId}`}
         backUrl="/profile/orders"
       />

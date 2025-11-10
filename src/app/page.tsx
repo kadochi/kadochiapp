@@ -9,6 +9,7 @@ import OccasionCarousel from "@/domains/occasions/components/OccasionCarousel/Oc
 import OccasionLabel from "@/domains/occasions/components/OccasionLabel/OccasionLabel";
 import AboutSection from "@/domains/statics/components/AboutSection/AboutSection";
 import Label from "@/components/ui/Label/Label";
+import Header from "@/components/layout/Header/Header";
 
 export const revalidate = 60;
 
@@ -38,6 +39,7 @@ export default async function WPLatestProductsPage() {
 
   return (
     <>
+      <Header />
       <h1 className="sr-only">کادوچی | خرید کادو، گل و کیک با ارسال سریع</h1>
       <HeroSlider />
       <ServicesNav

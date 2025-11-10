@@ -2,33 +2,66 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import SideMenu from "@/components/layout/SideMenu/SideMenu";
 import { useBasket } from "@/domains/basket/state/basket-context";
 import { useSession } from "@/domains/auth/session-context";
 import Button from "@/components/ui/Button/Button";
+
+// استایل‌های هر دو ورژن بدون تغییر
 import s from "./Header.module.css";
+import si from "./HeaderInternal.module.css";
+
+type HeaderVariant = "default" | "internal";
 
 type HeaderProps = {
+  variant?: HeaderVariant;
+
+  // props مخصوص default
   showBack?: boolean;
   backHref?: string;
   backAriaLabel?: string;
+
+  // props مخصوص internal
+  title?: string;
+  backUrl?: string;
 };
 
 export default function Header({
+  variant = "default",
+
+  // default props
   showBack = false,
   backHref,
   backAriaLabel = "بازگشت",
+
+  // internal props
+  title,
+  backUrl,
 }: HeaderProps) {
+  // هوک‌ها را همیشه یکسان صدا می‌زنیم تا اختلاف تعداد هوک پیش نیاید
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const { basketCount } = useBasket();
+  const [pageTitle, setPageTitle] = useState<string | undefined>(title);
+
   const router = useRouter();
   const pathname = usePathname();
+  const { basketCount } = useBasket();
   const { session } = useSession();
 
   useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    if (variant === "internal") {
+      if (title === undefined && typeof document !== "undefined") {
+        setPageTitle(document.title || undefined);
+      } else {
+        setPageTitle(title);
+      }
+    }
+  }, [variant, title]);
 
+  // منطقِ ورژن default (عین قبل)
   const safeCount = mounted ? basketCount : 0;
   const basketActive = safeCount > 0;
 
@@ -43,7 +76,6 @@ export default function Header({
       router.push(backHref);
       return;
     }
-
     if (typeof window !== "undefined") {
       const referrer = document.referrer;
       const hasHistory = window.history.length > 1;
@@ -52,7 +84,6 @@ export default function Header({
         return;
       }
     }
-
     router.push("/products");
   };
 
@@ -63,14 +94,52 @@ export default function Header({
     return (name && name.trim()) || phone || "حساب کاربری";
   }, [session]);
 
-  const handleAccountClick = () => {
-    if (isLoggedIn) router.push("/profile");
-    else router.push("/login");
-  };
-
   const isOnProductPage = pathname?.startsWith("/product/");
   const shouldShowBack = showBack || isOnProductPage;
 
+  // رندر بر اساس ورینت—کدها بدون تغییرِ منطقی/استایلی
+  if (variant === "internal") {
+    return (
+      <header className={si.root} dir="rtl" aria-label="سربرگ داخلی">
+        <a
+          href={backUrl || "#"}
+          className={si.back}
+          aria-label="بازگشت"
+          onClick={(e) => {
+            e.preventDefault();
+            if (backUrl) router.push(backUrl);
+            else if (typeof history !== "undefined") history.back();
+          }}
+        >
+          <Image
+            src="/icons/arrow-right.svg"
+            alt=""
+            width={32}
+            height={32}
+            className={si.icon}
+            aria-hidden
+            priority={false}
+          />
+        </a>
+
+        {pageTitle ? <h1 className={si.title}>{pageTitle}</h1> : null}
+
+        <div className={si.logoWrap}>
+          <Link href="/" aria-label="صفحه اصلی" className={si.logoLink}>
+            <Image
+              src="/images/logo.svg"
+              alt="Kadochi"
+              width={60}
+              height={56}
+              className={si.logo}
+            />
+          </Link>
+        </div>
+      </header>
+    );
+  }
+
+  // ورینت default (قبلی)
   return (
     <>
       <div className={s.headerWrap}>
@@ -92,7 +161,6 @@ export default function Header({
                 loading="lazy"
                 decoding="async"
               />
-
               {basketActive && (
                 <div className={s.badge} data-active aria-hidden={false}>
                   {safeCount}
@@ -105,7 +173,9 @@ export default function Header({
               type="secondary"
               style="tonal"
               size="medium"
-              onClick={handleAccountClick}
+              onClick={() =>
+                isLoggedIn ? router.push("/profile") : router.push("/login")
+              }
               aria-label={isLoggedIn ? "حساب کاربری" : "ورود / عضویت"}
               leadingIcon={
                 <img

@@ -3,8 +3,6 @@ import type { Metadata } from "next";
 import { getSessionFromCookies } from "@/lib/auth/session";
 import { getCustomerById } from "@/lib/api/woo";
 import Header from "@/components/layout/Header/Header";
-import Divider from "@/components/ui/Divider/Divider";
-import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
 import InfoForm from "./InfoForm";
 import s from "./info.module.css";
 import HeaderInternal from "@/components/layout/Header/HeaderInternal";
@@ -40,7 +38,7 @@ export default async function ProfileInfoPage() {
 
   return (
     <div className={s.container} dir="rtl">
-      <HeaderInternal title="اطلاعات حساب کاربری" />
+      <Header variant="internal" title="اطلاعات حساب کاربری" backUrl="" />
 
       <InfoForm
         initialFirstName={initialFirstName}

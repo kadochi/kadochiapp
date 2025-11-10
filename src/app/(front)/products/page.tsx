@@ -13,6 +13,7 @@ import OccasionsSheet from "./sheets/OccasionsSheet.client";
 import FiltersBar from "./sheets/FiltersBar.client";
 import ProductListClient from "@/domains/catalog/components/ProductList/ProductList.client";
 import s from "./products.module.css";
+import Header from "@/components/layout/Header/Header";
 
 type Search = {
   q?: string;
@@ -206,9 +207,8 @@ export default async function ProductsPage({
   const catMetaPromise = categoryParam
     ? getCategoryMeta(categoryParam)
     : Promise.resolve(null);
-  const tagMetaPromise = !categoryParam && tagParam
-    ? getTagMeta(tagParam)
-    : Promise.resolve(null);
+  const tagMetaPromise =
+    !categoryParam && tagParam ? getTagMeta(tagParam) : Promise.resolve(null);
 
   const listPromise = listProducts({
     page,
@@ -222,8 +222,9 @@ export default async function ProductsPage({
     max_price: maxPrice,
   } as any);
 
-  const [categoriesSSR, catMetaRaw, tagMetaRaw, listResult] =
-    await Promise.all([categoriesPromise, catMetaPromise, tagMetaPromise, listPromise]);
+  const [categoriesSSR, catMetaRaw, tagMetaRaw, listResult] = await Promise.all(
+    [categoriesPromise, catMetaPromise, tagMetaPromise, listPromise]
+  );
 
   const catMeta = catMetaRaw;
   const tagMeta = !catMeta ? tagMetaRaw : null;
@@ -287,6 +288,7 @@ export default async function ProductsPage({
   return (
     <main dir="rtl">
       <div className="plp">
+        <Header />
         <div className={s.filterBar}>
           <FiltersBar categoryLabel={catMeta?.name ?? undefined} />
         </div>

@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import "@/styles/globals.css";
 import Providers from "./providers";
 import NextTopLoader from "nextjs-toploader";
-import Header from "@/components/layout/Header/Header";
 import BottomNavigation from "@/components/layout/BottomNavigation/BottomNavigation";
 import getInitialSession from "@/lib/auth/session";
 import Footer from "@/components/layout/Footer/Footer";
@@ -74,7 +73,6 @@ export default async function RootLayout({
       <body>
         <Providers initialSession={session}>
           <div className="layoutContainer">
-            {/* scroll-to-top on route changes, no client component needed */}
             <script
               id="scroll-restoration"
               dangerouslySetInnerHTML={{
@@ -99,7 +97,6 @@ export default async function RootLayout({
               crawlSpeed={200}
               zIndex={2000}
             />
-            <Header />
             <main className="page noHeaderPad">{children}</main>
             <BottomNavigation />
             <Footer />

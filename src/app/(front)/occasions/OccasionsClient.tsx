@@ -9,6 +9,7 @@ import Divider from "@/components/ui/Divider/Divider";
 import { useSession } from "@/domains/auth/session-context";
 import AddOccasionSheet from "./AddOccasionSheet";
 import s from "./occasions.module.css";
+import Header from "@/components/layout/Header/Header";
 
 type DayRow = {
   gDate: Date;
@@ -177,7 +178,7 @@ export default function OccasionsClient({
 
   const handleCreate = async (data: {
     title: string;
-    date: string; // YYYY-MM-DD (Gregorian)
+    date: string;
     repeatYearly: boolean;
   }) => {
     try {
@@ -189,19 +190,17 @@ export default function OccasionsClient({
 
       if (!res.ok) throw new Error("failed");
 
-      // Optimistic UI: به نقشه محلی اضافه کن
       setWpMap((prev) => {
         const m = { ...prev };
         (m[data.date] ||= []).push(data.title);
         return m;
       });
-    } catch {
-      // می‌تونی نوتیف هم بزاری
-    }
+    } catch {}
   };
 
   return (
     <>
+      <Header />
       <div ref={headerRef}>
         <SectionHeader
           title="تقویم مناسبت‌ها"
