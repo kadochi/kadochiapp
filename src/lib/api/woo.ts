@@ -40,9 +40,15 @@ const CK = process.env.WOO_CONSUMER_KEY || "";
 const CS = process.env.WOO_CONSUMER_SECRET || "";
 
 const APP_USER =
-  process.env.WP_APP_USER || process.env.WP_BASIC_USER || process.env.WP_USER || "";
+  process.env.WP_APP_USER ||
+  process.env.WP_BASIC_USER ||
+  process.env.WP_USER ||
+  "";
 const APP_PASS =
-  process.env.WP_APP_PASS || process.env.WP_BASIC_PASS || process.env.WP_PASS || "";
+  process.env.WP_APP_PASS ||
+  process.env.WP_BASIC_PASS ||
+  process.env.WP_PASS ||
+  "";
 
 const DEV_FAKE =
   process.env.NODE_ENV !== "production" && !!process.env.WOO_DEV_FAKE;
@@ -78,7 +84,13 @@ export async function wooFetch(
       url.searchParams.set("consumer_secret", CS);
   }
 
-  const { revalidateSeconds, headers: initHeaders, next, cache, ...rest } = init ?? {};
+  const {
+    revalidateSeconds,
+    headers: initHeaders,
+    next,
+    cache,
+    ...rest
+  } = init ?? {};
 
   const hdrs = new Headers(initHeaders);
   if (!hdrs.has("Content-Type")) hdrs.set("Content-Type", "application/json");
@@ -91,7 +103,8 @@ export async function wooFetch(
     hdrs.set("Authorization", `Basic ${token}`);
   }
 
-  const cacheMode = cache ?? (revalidateSeconds != null ? "force-cache" : "no-store");
+  const cacheMode =
+    cache ?? (revalidateSeconds != null ? "force-cache" : "no-store");
   const nextConfig =
     revalidateSeconds != null ? { revalidate: revalidateSeconds } : next;
 
@@ -124,23 +137,25 @@ export async function wooFetchJSON<T>(
 /* ============================================================================
  * Customers (kept 1:1)
  * ==========================================================================*/
-const getCustomerByIdCached = cache(async (id: number): Promise<WooCustomer | null> => {
-  if (DEV_FAKE) {
-    return {
-      id,
-      email: null,
-      username: String(id),
-      first_name: "",
-      last_name: "",
-      billing: { phone: null, email: null, first_name: "", last_name: "" },
-    };
+const getCustomerByIdCached = cache(
+  async (id: number): Promise<WooCustomer | null> => {
+    if (DEV_FAKE) {
+      return {
+        id,
+        email: null,
+        username: String(id),
+        first_name: "",
+        last_name: "",
+        billing: { phone: null, email: null, first_name: "", last_name: "" },
+      };
+    }
+    const path = `/wp-json/wc/v3/customers/${id}`;
+    const r = await wooFetch(path, { method: "GET", revalidateSeconds: 120 });
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(`getCustomerById failed: ${r.status}`);
+    return (await r.json()) as WooCustomer;
   }
-  const path = `/wp-json/wc/v3/customers/${id}`;
-  const r = await wooFetch(path, { method: "GET", revalidateSeconds: 120 });
-  if (r.status === 404) return null;
-  if (!r.ok) throw new Error(`getCustomerById failed: ${r.status}`);
-  return (await r.json()) as WooCustomer;
-});
+);
 
 export async function getCustomerById(id: number): Promise<WooCustomer | null> {
   return getCustomerByIdCached(id);
@@ -427,10 +442,13 @@ const resolveTagIdsCsv = cache(async function resolveTagIdsCsv(
       _fields: "id,slug",
     });
     try {
-      const res = await wooFetch(`/wp-json/wc/v3/products/tags?${qs.toString()}`, {
-        method: "GET",
-        revalidateSeconds: 600,
-      });
+      const res = await wooFetch(
+        `/wp-json/wc/v3/products/tags?${qs.toString()}`,
+        {
+          method: "GET",
+          revalidateSeconds: 600,
+        }
+      );
       if (res.ok) {
         const arr = (await res.json()) as Array<{ id?: number; slug?: string }>;
         for (const entry of arr || []) {
@@ -684,10 +702,13 @@ const _resolveProductIdBySlug = cache(async function _resolveProductIdBySlug(
   });
 
   try {
-    const wc3Res = await wooFetch(`/wp-json/wc/v3/products?${wc3Qs.toString()}`, {
-      method: "GET",
-      revalidateSeconds: 600,
-    });
+    const wc3Res = await wooFetch(
+      `/wp-json/wc/v3/products?${wc3Qs.toString()}`,
+      {
+        method: "GET",
+        revalidateSeconds: 600,
+      }
+    );
     if (wc3Res.ok) {
       const items = (await wc3Res.json()) as Array<{ id: number } | null>;
       if (Array.isArray(items) && items[0]?.id) {
@@ -905,6 +926,7 @@ type WooProductV3 = {
 };
 
 function parseAmount(raw: unknown): number | undefined {
+  if (raw === "" || raw == null) return undefined;
   const num = Number(raw);
   return Number.isFinite(num) ? num : undefined;
 }
@@ -913,7 +935,10 @@ function mapWcProductToDetail(id: number, p: WooProductV3): ProductDetail {
   const images: Array<{ url: string; alt?: string }> =
     Array.isArray(p.images) && p.images.length
       ? p.images
-          .map((im) => ({ url: im?.src || "", alt: im?.alt || p.name || undefined }))
+          .map((im) => ({
+            url: im?.src || "",
+            alt: im?.alt || p.name || undefined,
+          }))
           .filter((img) => !!img.url)
       : [{ url: "/images/placeholder.png", alt: p.name || undefined }];
 
@@ -936,14 +961,13 @@ function mapWcProductToDetail(id: number, p: WooProductV3): ProductDetail {
 
   const sale = parseAmount(p.sale_price);
   const regular = parseAmount(p.regular_price);
-  const base =
-    parseAmount(p.price) ??
-    (sale ?? regular ?? 0);
+  const base = parseAmount(p.price) ?? sale ?? regular ?? 0;
 
   const price = { amount: base, currency };
   const regularPrice =
     typeof regular === "number" ? { amount: regular, currency } : undefined;
-  const salePrice = typeof sale === "number" ? { amount: sale, currency } : undefined;
+  const salePrice =
+    typeof sale === "number" ? { amount: sale, currency } : undefined;
 
   const previousPrice = regularPrice?.amount;
   const offPercent =
@@ -977,8 +1001,7 @@ function mapWcProductToDetail(id: number, p: WooProductV3): ProductDetail {
     : [];
 
   const stockStatus = String(p?.stock_status || "").toLowerCase();
-  const purchasable =
-    p?.purchasable ?? p?.is_purchasable ?? true;
+  const purchasable = p?.purchasable ?? p?.is_purchasable ?? true;
   const manageStock = p?.manage_stock ?? null;
   const qty = Number(p?.stock_quantity ?? 0);
   const outOfStock =

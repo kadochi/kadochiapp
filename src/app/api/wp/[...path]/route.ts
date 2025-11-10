@@ -38,7 +38,6 @@ function corsHeaders(req: NextRequest): Record<string, string> {
     "Access-Control-Max-Age": "600",
   };
 
-  // فقط وقتی مجازه مقدار بدیم؛ خالی نفرست
   if (allowed) hdrs["Access-Control-Allow-Origin"] = allowed;
   return hdrs;
 }
@@ -64,14 +63,13 @@ function targetURL(paramsPath: string[] | undefined, search: string): URL {
   return url;
 }
 
-// ⚠️ تغییر کلیدی: امضای ctx و await روی params
 async function handle(
   req: NextRequest,
   ctx: { params: Promise<{ path?: string[] }> },
   passthroughBody: boolean
 ) {
   try {
-    const { path } = await ctx.params; // ← Next 16: params یک Promise است
+    const { path } = await ctx.params;
     const url = targetURL(path, req.nextUrl.search);
     const method = req.method.toUpperCase();
 
@@ -144,7 +142,6 @@ async function handle(
   }
 }
 
-// همه‌ی امضاهای اکسپورت باید مثل بالا Promise params داشته باشند
 export async function OPTIONS(
   req: NextRequest,
   ctx: { params: Promise<{ path?: string[] }> }

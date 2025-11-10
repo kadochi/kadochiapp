@@ -38,14 +38,18 @@ async function fetchProductsByIds(ids: string[]): Promise<StoreProduct[]> {
     include: ids.join(","),
     per_page: String(ids.length),
     orderby: "include",
-  });
+  }).toString();
+
   try {
-    const r = await fetch(`/api/products?${qs.toString()}`, {
+    const r = await fetch(`/api/wp/wp-json/wc/store/v1/products?${qs}`, {
       cache: "no-store",
     });
     if (r.ok) {
       const data = (await r.json()) as unknown;
-      return Array.isArray(data) ? (data as StoreProduct[]) : [];
+      if (Array.isArray(data) && data.length) {
+        const idSet = new Set(ids.map(String));
+        return (data as StoreProduct[]).filter((p) => idSet.has(String(p?.id)));
+      }
     }
   } catch {}
 
@@ -53,18 +57,16 @@ async function fetchProductsByIds(ids: string[]): Promise<StoreProduct[]> {
     const WP_BASE =
       (process.env.NEXT_PUBLIC_WP_BASE_URL as string) ||
       "https://app.kadochi.com";
-    const storeQs = new URLSearchParams({
-      include: ids.join(","),
-      per_page: String(ids.length),
-      orderby: "include",
-    });
     const r2 = await fetch(
-      `${WP_BASE}/wp-json/wc/store/v1/products?${storeQs.toString()}`,
-      { next: { revalidate: 0 } }
+      `${WP_BASE.replace(/\/$/, "")}/wp-json/wc/store/v1/products?${qs}`,
+      { cache: "no-store" }
     );
     if (r2.ok) {
       const data = (await r2.json()) as unknown;
-      return Array.isArray(data) ? (data as StoreProduct[]) : [];
+      if (Array.isArray(data) && data.length) {
+        const idSet = new Set(ids.map(String));
+        return (data as StoreProduct[]).filter((p) => idSet.has(String(p?.id)));
+      }
     }
   } catch {}
 
@@ -176,8 +178,8 @@ export default function CartPageClient() {
     [lines]
   );
 
-  if (!hydrated || (loading && !items.length)) {
-    return <div className={s.loadingCenter}>در حال بارگذاری…</div>;
+  if (!hydrated || (ids.length > 0 && items.length === 0)) {
+    return <div className={s.loadingCenter}>در حال دریافت محصولات…</div>;
   }
 
   if (!ids.length) {

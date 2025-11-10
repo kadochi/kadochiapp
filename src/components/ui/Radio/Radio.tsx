@@ -4,6 +4,7 @@ import React from "react";
 import s from "./Radio.module.css";
 
 type Props = {
+  /** Use either checked (controlled) OR defaultChecked (uncontrolled init) */
   checked?: boolean;
   defaultChecked?: boolean;
   disabled?: boolean;
@@ -26,7 +27,8 @@ export default function Radio({
   onChange,
   className,
 }: Props) {
-  const [internal, setInternal] = React.useState(!!defaultChecked);
+  // initialize from defaultChecked, then behave as controlled if "checked" prop is provided
+  const [internal, setInternal] = React.useState<boolean>(!!defaultChecked);
   const isControlled = typeof checked === "boolean";
   const isChecked = isControlled ? !!checked : internal;
   const inputId = id ?? React.useId();
@@ -56,7 +58,6 @@ export default function Radio({
         type="radio"
         className={s.input}
         checked={isChecked}
-        defaultChecked={defaultChecked}
         disabled={disabled}
         onChange={handleChange}
       />

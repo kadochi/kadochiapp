@@ -26,6 +26,12 @@ export type InputProps = {
   onFocus?: React.FocusEventHandler<HTMLInputElement>;
   onBlur?: React.FocusEventHandler<HTMLInputElement>;
   className?: string;
+
+  /** Native HTML input helpers (for better keyboards & autofill) */
+  inputMode?: React.InputHTMLAttributes<HTMLInputElement>["inputMode"];
+  autoComplete?: React.InputHTMLAttributes<HTMLInputElement>["autoComplete"];
+  pattern?: string;
+  enterKeyHint?: React.InputHTMLAttributes<HTMLInputElement>["enterKeyHint"];
 };
 
 function cx(...a: Array<string | false | undefined>) {
@@ -53,7 +59,6 @@ const HintIcon = () => (
     <circle cx="12" cy="16" r="1" fill="currentColor" />
   </svg>
 );
-
 const SuccessIcon = () => (
   <svg className={s.messageIcon} viewBox="0 0 24 24" aria-hidden>
     <circle
@@ -72,7 +77,6 @@ const SuccessIcon = () => (
     />
   </svg>
 );
-
 const ErrorIcon = () => (
   <svg className={s.messageIcon} viewBox="0 0 24 24" aria-hidden>
     <circle
@@ -115,6 +119,10 @@ export default function Input({
   onFocus,
   onBlur,
   className,
+  inputMode,
+  autoComplete,
+  pattern,
+  enterKeyHint,
 }: InputProps) {
   const [focused, setFocused] = React.useState(false);
   const controlled = value !== undefined;
@@ -173,6 +181,11 @@ export default function Input({
             onBlur?.(e);
           }}
           aria-invalid={messageType === "error" ? true : undefined}
+          /** passthroughs for better mobile UX */
+          inputMode={inputMode}
+          autoComplete={autoComplete}
+          pattern={pattern}
+          enterKeyHint={enterKeyHint}
         />
         {icon ? <span className={s.icon}>{icon}</span> : null}
       </div>

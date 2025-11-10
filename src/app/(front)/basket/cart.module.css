@@ -1,10 +1,3 @@
-.container {
-  direction: rtl;
-  padding: 0 var(--space-16);
-  max-width: 580px;
-  margin-inline: auto;
-}
-
 .loadingCenter {
   min-height: 50vh;
   display: grid;
@@ -22,6 +15,9 @@
 
 .listWrap {
   padding-bottom: calc(var(--bar-h, 132px) + 16px);
+  max-width: 580px;
+  margin-inline: auto;
+  padding-inline: var(--space-16);
 }
 
 .list {

@@ -62,6 +62,7 @@
 
 .status_current .label {
   font-weight: var(--fw-bold);
+  color: var(--secondary-secondary);
 }
 
 .status_todo .circle {

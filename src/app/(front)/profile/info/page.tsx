@@ -5,7 +5,6 @@ import { getCustomerById } from "@/lib/api/woo";
 import Header from "@/components/layout/Header/Header";
 import InfoForm from "./InfoForm";
 import s from "./info.module.css";
-import HeaderInternal from "@/components/layout/Header/HeaderInternal";
 
 export const metadata: Metadata = {
   title: "کادوچی | اطلاعات حساب کاربری",
