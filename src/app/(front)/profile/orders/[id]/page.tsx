@@ -29,7 +29,12 @@ export default async function Page({ params }: { params: Promise<Params> }) {
       } as OrderDetailData;
     }
   } catch (err: any) {
-    if (err?.status && err.status !== 401 && err.status !== 404 && err.status !== 403) {
+    if (
+      err?.status &&
+      err.status !== 401 &&
+      err.status !== 404 &&
+      err.status !== 403
+    ) {
       console.error("[orders] detail prefetch failed", err);
     }
   }

@@ -1,8 +1,8 @@
 // src/lib/api/orders.ts
+// Lean Woo orders client with explicit timeouts, short ISR, stable IDs, and paging.
+
 import "server-only";
-
 import { cache } from "react";
-
 import { getSessionFromCookies } from "@/lib/auth/session";
 import { wooFetch } from "@/lib/api/woo";
 
@@ -54,6 +54,7 @@ const CUSTOMER_SUMMARY_FIELDS = ["id", "billing"].join(",");
 const CUSTOMER_TIMEOUT_MS = 4500;
 const ORDERS_TIMEOUT_MS = 8000;
 
+// ---------- Types ----------
 export type RawWooStatus =
   | "pending"
   | "pending-payment"
@@ -111,8 +112,13 @@ export type OrderDetail = {
   };
 };
 
+// ---------- Helpers ----------
 function onlyDigits(v?: string | null) {
   return String(v || "").replace(/\D+/g, "");
+}
+
+function stableId(...parts: Array<string | number | undefined>): string {
+  return parts.filter(Boolean).map(String).join(":");
 }
 
 function mapStatus(raw?: RawWooStatus): OrderStatus {
@@ -180,24 +186,32 @@ async function fetchCustomerCandidates(
 
 async function fetchOrdersResponse(
   qs: URLSearchParams,
-  timeoutMs = ORDERS_TIMEOUT_MS
-): Promise<Response | null> {
+  options?: { timeoutMs?: number; revalidateSeconds?: number }
+): Promise<Response> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    options?.timeoutMs ?? ORDERS_TIMEOUT_MS
+  );
   try {
     return await wooFetch(`/wp-json/wc/v3/orders?${qs.toString()}`, {
       method: "GET",
-      cache: "no-store",
+      revalidateSeconds: options?.revalidateSeconds ?? 30,
       signal: controller.signal,
     });
   } catch (error: any) {
-    if (error?.name === "AbortError") return null;
+    if (error?.name === "AbortError") {
+      const e = new Error("upstream_timeout");
+      (e as any).status = 504;
+      throw e;
+    }
     throw error;
   } finally {
     clearTimeout(timeout);
   }
 }
 
+// ---------- Normalizers ----------
 function normaliseLineItem(li: any): OrderLineItem {
   const candidate =
     li?.image?.src ||
@@ -207,7 +221,11 @@ function normaliseLineItem(li: any): OrderLineItem {
     (typeof li?.image === "string" ? li.image : "");
   const abs = absolutize(candidate);
   return {
-    id: li?.id ?? li?.item_id ?? li?.product_id ?? Math.random(),
+    id:
+      li?.id ??
+      li?.item_id ??
+      li?.product_id ??
+      stableId("li", li?.name, li?.product_id),
     product_id: li?.product_id ?? null,
     name: li?.name ?? undefined,
     quantity: typeof li?.quantity === "number" ? li.quantity : undefined,
@@ -234,12 +252,8 @@ function normaliseOrderSummary(order: any): OrderSummary {
 function mapOrderDetailPayload(order: any): OrderDetail {
   const items = Array.isArray(order?.line_items)
     ? order.line_items.map((li: any) => {
-        const normalized = normaliseLineItem(li);
-        return {
-          id: normalized.id,
-          name: normalized.name,
-          image: normalized.image?.src ?? null,
-        };
+        const n = normaliseLineItem(li);
+        return { id: n.id, name: n.name, image: n.image?.src ?? null };
       })
     : [];
 
@@ -248,11 +262,11 @@ function mapOrderDetailPayload(order: any): OrderDetail {
     meta.find((m) => String(m?.key) === k)?.value ?? "";
 
   const receiverMeta = String(getMeta("_kadochi_receiver_name") || "");
-  const receiverName = receiverMeta
-    ? receiverMeta
-    : `${order?.shipping?.first_name || ""} ${
-        order?.shipping?.last_name || ""
-      }`.trim();
+  const receiverName =
+    receiverMeta ||
+    `${order?.shipping?.first_name || ""} ${
+      order?.shipping?.last_name || ""
+    }`.trim();
 
   const senderName = `${order?.billing?.first_name || ""} ${
     order?.billing?.last_name || ""
@@ -298,6 +312,7 @@ function mapOrderDetailPayload(order: any): OrderDetail {
   };
 }
 
+// ---------- Customer lookup ----------
 const findCustomerIdByPhone = cache(async (phoneDigits: string) => {
   if (!phoneDigits) return null;
 
@@ -330,44 +345,55 @@ const findCustomerIdByPhone = cache(async (phoneDigits: string) => {
   return null;
 });
 
-const fetchOrdersForCustomer = cache(async (customerId: number) => {
-  const qs = new URLSearchParams({
-    customer: String(customerId),
-    per_page: "50",
-    orderby: "date",
-    order: "desc",
-    status: "any",
-    dp: "0",
-    _fields: ORDER_SUMMARY_FIELDS,
-  });
-
-  let res = await fetchOrdersResponse(qs);
-  if (!res) return [];
-
-  if (!res.ok && (res.status === 400 || res.status === 404)) {
-    const qs2 = new URLSearchParams(qs);
-    qs2.delete("status");
-    res = await fetchOrdersResponse(qs2);
-    if (!res) return [];
-  }
-
-  if (!res.ok) return [];
-
-  const data = (await res.json().catch(() => [])) as any[];
-  if (!Array.isArray(data)) return [];
-
-  return data.map((o) => {
-    const items: any[] = Array.isArray(o?.line_items) ? o.line_items : [];
-    const patched = items.map((li) => {
-      if (li?.image?.src) return li;
-      const image = normaliseLineItem(li).image;
-      return image ? { ...li, image } : li;
+// ---------- Orders list (paged) ----------
+export const fetchOrdersForCustomer = cache(
+  async (
+    customerId: number,
+    page = 1,
+    perPage = 5
+  ): Promise<OrderSummary[]> => {
+    const qs = new URLSearchParams({
+      customer: String(customerId),
+      per_page: String(Math.max(1, Math.min(perPage, 50))),
+      page: String(Math.max(1, page)),
+      orderby: "date",
+      order: "desc",
+      status: "any",
+      dp: "0",
+      _fields: ORDER_SUMMARY_FIELDS,
     });
-    return normaliseOrderSummary({ ...o, line_items: patched });
-  });
-});
 
-export async function listOrdersForSession(): Promise<OrderSummary[]> {
+    let res = await fetchOrdersResponse(qs, { revalidateSeconds: 30 });
+
+    if (!res.ok && (res.status === 400 || res.status === 404)) {
+      const qs2 = new URLSearchParams(qs);
+      qs2.delete("status");
+      res = await fetchOrdersResponse(qs2, { revalidateSeconds: 30 });
+    }
+
+    if (!res.ok) {
+      const e = new Error(`upstream_error_${res.status}`);
+      (e as any).status = res.status >= 500 ? 502 : res.status;
+      throw e;
+    }
+
+    const data = (await res.json().catch(() => [])) as any[];
+    if (!Array.isArray(data)) return [];
+
+    return data.map((o) => {
+      const items: any[] = Array.isArray(o?.line_items) ? o.line_items : [];
+      const patched = items.map((li) =>
+        li?.image?.src ? li : { ...li, image: normaliseLineItem(li).image }
+      );
+      return normaliseOrderSummary({ ...o, line_items: patched });
+    });
+  }
+);
+
+export async function listOrdersForSessionPaged(
+  page = 1,
+  perPage = 5
+): Promise<OrderSummary[]> {
   const session = await getSessionFromCookies();
   const sessionId =
     typeof session.userId === "number" && session.userId > 0
@@ -382,12 +408,14 @@ export async function listOrdersForSession(): Promise<OrderSummary[]> {
   }
 
   const customerId =
-    sessionId ?? (phoneDigits ? await findCustomerIdByPhone(phoneDigits) : null);
+    sessionId ??
+    (phoneDigits ? await findCustomerIdByPhone(phoneDigits) : null);
   if (!customerId) return [];
 
-  return await fetchOrdersForCustomer(customerId);
+  return await fetchOrdersForCustomer(customerId, page, perPage);
 }
 
+// ---------- Order detail ----------
 export async function getOrderDetailForSession(
   orderId: string | number
 ): Promise<OrderDetail | null> {
@@ -404,7 +432,6 @@ export async function getOrderDetailForSession(
       ? session.userId
       : null;
   const sessionPhone = onlyDigits(session.phone);
-
   if (!sessionUserId && !sessionPhone) {
     const err = new Error("unauthorized");
     (err as any).status = 401;
@@ -412,16 +439,12 @@ export async function getOrderDetailForSession(
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6000);
+  const timeout = setTimeout(() => controller.abort(), 8000);
 
   try {
     const res = await wooFetch(
       `/wp-json/wc/v3/orders/${idNum}?_fields=${ORDER_DETAIL_FIELDS}&dp=0`,
-      {
-        method: "GET",
-        cache: "no-store",
-        signal: controller.signal,
-      }
+      { method: "GET", revalidateSeconds: 30, signal: controller.signal }
     );
 
     if (res.status === 404) return null;
@@ -440,11 +463,9 @@ export async function getOrderDetailForSession(
 
     const orderCustomerId = Number(data?.customer_id || 0) || null;
     const orderPhone = onlyDigits(data?.billing?.phone);
-
     const ownsOrder =
       (sessionUserId && orderCustomerId && sessionUserId === orderCustomerId) ||
       (sessionPhone && orderPhone && sessionPhone === orderPhone);
-
     if (!ownsOrder) {
       const err = new Error("forbidden");
       (err as any).status = 403;
