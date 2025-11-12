@@ -16,13 +16,6 @@ export interface UseWordPressFetchOptions<T> extends WordPressJsonOptions<T> {
   enabled?: boolean;
 }
 
-const DEFAULT_STATE: UseWordPressFetchState<unknown> = {
-  data: null,
-  error: null,
-  loading: false,
-  etag: null,
-};
-
 function parseClientSchema<T>(
   raw: unknown,
   options: UseWordPressFetchOptions<T>
@@ -43,9 +36,12 @@ export function useWordPressFetch<T = unknown>(
   path: string,
   { enabled = true, ...options }: UseWordPressFetchOptions<T> = {}
 ) {
-  const [state, setState] = useState<UseWordPressFetchState<T>>({
-    ...DEFAULT_STATE,
-  });
+  const [state, setState] = useState<UseWordPressFetchState<T>>(() => ({
+    data: null,
+    error: null,
+    loading: false,
+    etag: null,
+  }));
   const abortRef = useRef<AbortController | null>(null);
   const key = useMemo(() => `${path}:${options.ifNoneMatch ?? ""}`, [
     path,

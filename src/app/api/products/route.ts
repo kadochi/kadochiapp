@@ -34,7 +34,7 @@ function lruGet<T>(key: string): LruEntry<T> | null {
   }
   return hit;
 }
-function lruSet<T>(key: string, entry: LruEntry<T>) {
+function lruSet<T>(key: string, entry: Omit<LruEntry<T>, "t">) {
   memoryLRU.set(key, { ...entry, t: Date.now() });
   // Keep a tiny footprint
   if (memoryLRU.size > 100) {

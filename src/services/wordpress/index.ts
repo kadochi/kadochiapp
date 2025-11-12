@@ -102,10 +102,16 @@ function abortSignalAny(signals: AbortSignal[]): AbortSignal | undefined {
   return typeof anyFn === "function" ? anyFn(signals) : undefined;
 }
 
-function composeSignal(signal: AbortSignal | undefined, timeoutMs: number) {
+function composeSignal(
+  signal: AbortSignal | null | undefined,
+  timeoutMs: number
+) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(new Error("timeout")), timeoutMs);
-  const signals = [controller.signal, signal].filter(Boolean) as AbortSignal[];
+  const signals = [controller.signal, signal].filter(
+    (value): value is AbortSignal =>
+      typeof value === "object" && value !== null && "aborted" in value
+  );
   const combined =
     signals.length > 1 ? abortSignalAny(signals) ?? signals[0] : signals[0];
   return { controller, timeout, signal: combined ?? controller.signal } as const;
@@ -332,8 +338,7 @@ export async function wordpressJson<T>(
     }
 
     const raw = await response.json();
-    let data: T;
-    const data = parseWithSchema(raw, options);
+    const data = parseWithSchema<T>(raw, options);
 
     return { data, response, etag, notModified: false } satisfies WordPressJsonResult<T>;
   })().catch((err: unknown) => {
