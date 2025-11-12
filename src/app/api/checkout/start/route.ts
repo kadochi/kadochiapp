@@ -64,6 +64,7 @@ function resolveCallbackUrl(req: NextRequest) {
     return `${fallback.replace(/\/$/, "")}/checkout/zp-callback`;
   }
 }
+
 async function findCustomerIdByPhone(phone: string): Promise<number | null> {
   const norm = onlyDigits(phone);
   if (!norm) return null;
@@ -83,10 +84,13 @@ async function findCustomerIdByPhone(phone: string): Promise<number | null> {
 
   const fetchCustomers = async (qs: URLSearchParams) => {
     try {
-      const data = await wooFetchJSON<Array<{ id?: number; billing?: { phone?: string } }>>(
-        `/wp-json/wc/v3/customers?${qs.toString()}`,
-        { method: "GET", cache: "no-store", timeoutMs: 7000 }
-      );
+      const data = await wooFetchJSON<
+        Array<{ id?: number; billing?: { phone?: string } }>
+      >(`/wp-json/wc/v3/customers?${qs.toString()}`, {
+        method: "GET",
+        cache: "no-store",
+        timeoutMs: 7000,
+      });
       return Array.isArray(data) ? data : [];
     } catch {
       return [];
@@ -136,7 +140,10 @@ async function parseWooOrderResponse(res: Response): Promise<any> {
   }
 
   if (!res.ok || !json || typeof json !== "object") {
-    const err = new UpstreamBadResponse(502, "order_create_failed") as UpstreamBadResponse & {
+    const err = new UpstreamBadResponse(
+      502,
+      "order_create_failed"
+    ) as UpstreamBadResponse & {
       detail?: unknown;
       upstreamStatus?: number;
     };
@@ -209,7 +216,10 @@ function paymentErrorResponse(error: unknown) {
     }
     if (error.status === 500 && error.message === "missing_merchant_id") {
       return noStore(
-        NextResponse.json({ ok: false, error: "missing_merchant_id" }, { status: 500 })
+        NextResponse.json(
+          { ok: false, error: "missing_merchant_id" },
+          { status: 500 }
+        )
       );
     }
     const status = error.status >= 400 ? error.status : 502;
@@ -383,6 +393,7 @@ export async function POST(req: NextRequest) {
     }
     if (fee_lines.length) orderPayload.fee_lines = fee_lines;
 
+    // --- Create Woo order (with fallback auth on 401/403) ---
     let json: any;
     try {
       json = await submitWooOrder(orderPayload);
@@ -391,10 +402,11 @@ export async function POST(req: NextRequest) {
         error instanceof UpstreamBadResponse &&
         error.message === "order_create_failed"
       ) {
-        const detail = (error as UpstreamBadResponse & { detail?: unknown }).detail;
-        const upstreamStatus =
-          (error as UpstreamBadResponse & { upstreamStatus?: number })
-            .upstreamStatus ?? 502;
+        const detail = (error as UpstreamBadResponse & { detail?: unknown })
+          .detail;
+        const upstreamStatus = (
+          error as UpstreamBadResponse & { upstreamStatus?: number }
+        ).upstreamStatus ?? 502;
         return noStore(
           NextResponse.json(
             {
