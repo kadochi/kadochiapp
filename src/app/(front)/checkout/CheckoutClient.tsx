@@ -1,11 +1,14 @@
 "use client";
 
 /**
- * Checkout page – payment step updates:
- * - Progress stepper shows "پرداخت" as current (not done).
- * - Payment method uses your <Radio> component inside a selectable card.
- * - Payment summary styled like Order Detail kv list (key/value with dividers).
- * - Zarinpal fallback wired via /api/pay/start if /api/checkout/start isn't available.
+ * Checkout page
+ * ---------------------------------------------------------------------------
+ * - Keeps current UI/flow intact.
+ * - Creates Woo order (pending) in handlePay() and then starts Zarinpal.
+ * - Loads product prices via Woo Store API (proxy) to compute totals (IRT).
+ * - "Fast delivery" probe uses the same Store API (best-effort, fully guarded).
+ * - Adds defensive fetches, AbortController, stable memo deps, and comments.
+ * - Does NOT reset any field when moving between steps.
  */
 
 import { useEffect, useMemo, useState, useCallback } from "react";
@@ -20,12 +23,15 @@ import ProgressStepper, {
 } from "@/components/ui/ProgressStepper/ProgressStepper";
 import Radio from "@/components/ui/Radio/Radio";
 import { normalizeDigits } from "@/lib/utils/normalizeDigits";
+import { useBasket } from "@/domains/basket/state/basket-context";
 import s from "./Checkout.module.css";
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
-import { useBasket } from "@/domains/basket/state/basket-context";
 
-/* ---------- Types ---------- */
+/* -------------------------------- Types & helpers -------------------------------- */
+
+type PackagingId = "normal" | "gift";
+
 type Slot = {
   id: string;
   dayLabel: string;
@@ -35,19 +41,30 @@ type Slot = {
   to: string;
   disabled?: boolean;
 };
-type PackagingId = "normal" | "gift";
 
-/* ---------- Consts ---------- */
-const SHIPPING_IRT = 120_000;
+type StoreProduct = {
+  id: number;
+  name?: string;
+  prices?: {
+    price?: string | null;
+    sale_price?: string | null;
+    regular_price?: string | null;
+  };
+  // Store API often includes taxonomy arrays like tags; keep as unknown-safe.
+  tags?: Array<{ id?: number; slug?: string; name?: string }>;
+};
+
+type ViewProduct = { id: number; prices?: StoreProduct["prices"] };
+
+const SHIPPING_IRT = 120;
 const GIFT_WRAP_IRT = 80_000;
+const TAX_RATE = 0.1;
 
-/** Build stepper so that at step=2 only "پرداخت" is current (no check). */
+const toman = (n: number) => n.toLocaleString("fa-IR");
+
 function buildStepper(currentIndex: 0 | 1 | 2): StepItem[] {
   return [
-    {
-      label: "پرداخت",
-      status: currentIndex === 2 ? "current" : "todo",
-    },
+    { label: "پرداخت", status: currentIndex === 2 ? "current" : "todo" },
     {
       label: "بسته‌بندی و ارسال",
       status:
@@ -56,9 +73,8 @@ function buildStepper(currentIndex: 0 | 1 | 2): StepItem[] {
     { label: "تکمیل اطلاعات", status: currentIndex === 0 ? "current" : "done" },
   ];
 }
-const toman = (n: number) => n.toLocaleString("fa-IR");
 
-/* debounce helper */
+/** Debounced effect without changing public behavior. */
 function useDebouncedEffect(fn: () => void, deps: any[], ms: number) {
   useEffect(() => {
     const id = setTimeout(fn, ms);
@@ -67,17 +83,18 @@ function useDebouncedEffect(fn: () => void, deps: any[], ms: number) {
   }, deps);
 }
 
-/* ---------- Date utils for slots ---------- */
 const PARTS = [
   { part: "صبح" as const, from: 10, to: 13, fa: ["۱۰", "۱۳"] },
   { part: "ظهر" as const, from: 13, to: 16, fa: ["۱۳", "۱۶"] },
   { part: "عصر" as const, from: 16, to: 19, fa: ["۱۶", "۱۹"] },
 ];
+
 const faDay = new Intl.DateTimeFormat("fa-IR", { weekday: "long" });
 const faDate = new Intl.DateTimeFormat("fa-IR", {
   day: "2-digit",
   month: "long",
 });
+
 const addDays = (d: Date, n: number) => {
   const x = new Date(d);
   x.setDate(x.getDate() + n);
@@ -89,19 +106,77 @@ const sameDay = (a: Date, b: Date) =>
   a.getMonth() === b.getMonth() &&
   a.getDate() === b.getDate();
 
+const priceFromWP = (p?: StoreProduct["prices"]) => {
+  const raw = p?.sale_price ?? p?.price ?? p?.regular_price ?? "0";
+  const n = Number(raw || 0);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const irrToIrt = (irr: number) => Math.round(Math.max(0, irr) / 10);
+const irtToIrrStr = (irt: number) => String(Math.max(0, Math.round(irt * 10)));
+
+/* Fetch products via Woo Store API (proxy first, then direct fallback) */
+async function fetchProductsByIds(
+  ids: string[],
+  signal?: AbortSignal
+): Promise<StoreProduct[]> {
+  if (!ids.length) return [];
+  const qs = new URLSearchParams({
+    include: ids.join(","),
+    per_page: String(Math.min(50, ids.length)),
+    orderby: "include",
+  }).toString();
+
+  try {
+    const r = await fetch(`/api/wp/wp-json/wc/store/v1/products?${qs}`, {
+      cache: "no-store",
+      signal,
+    });
+    if (r.ok) {
+      const data = (await r.json().catch(() => [])) as unknown;
+      if (Array.isArray(data)) return data as StoreProduct[];
+    }
+  } catch {}
+
+  try {
+    const base =
+      (process.env.NEXT_PUBLIC_WP_BASE_URL as string) ||
+      "https://app.kadochi.com";
+    const r2 = await fetch(
+      `${base.replace(/\/$/, "")}/wp-json/wc/store/v1/products?${qs}`,
+      {
+        cache: "no-store",
+        signal,
+      }
+    );
+    if (r2.ok) {
+      const data = (await r2.json().catch(() => [])) as unknown;
+      if (Array.isArray(data)) return data as StoreProduct[];
+    }
+  } catch {}
+
+  return [];
+}
+
+/* -------------------------------- Component -------------------------------- */
+
 export default function CheckoutClient(props: {
   initialFirstName: string;
   initialLastName: string;
   phoneValue: string;
   userId: number;
 }) {
-  /* ---------- STEP STATE ---------- */
+  /* Step state (kept in-memory; not reset across step changes) */
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const steps = useMemo(() => buildStepper(step), [step]);
 
-  /* ---------- Basket ---------- */
+  /* Basket → line items */
   const { basket } = useBasket();
-  const basketIds = useMemo(() => Object.keys(basket || {}), [basket]);
+  const basketIds = useMemo(
+    () => Object.keys(basket || {}).filter(Boolean),
+    [basket]
+  );
+
   const lineItems = useMemo(
     () =>
       basketIds.map((id) => ({
@@ -111,7 +186,34 @@ export default function CheckoutClient(props: {
     [basketIds, basket]
   );
 
-  /* ---------- SENDER / RECEIVER ---------- */
+  /* Products for price calculation */
+  const [items, setItems] = useState<ViewProduct[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const ac = new AbortController();
+
+    (async () => {
+      if (!basketIds.length) {
+        if (!cancelled) setItems([]);
+        return;
+      }
+      const arr = await fetchProductsByIds(basketIds, ac.signal);
+      if (cancelled) return;
+
+      const idSet = new Set(basketIds.map(String));
+      const mapped: ViewProduct[] = (arr || [])
+        .filter((p) => idSet.has(String(p?.id)))
+        .map((p) => ({ id: p.id, prices: p.prices }));
+      setItems(mapped);
+    })();
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [basketIds.join(",")]);
+
+  /* Sender / Receiver (kept as controlled state → values persist across steps) */
   const [senderFirst, setSenderFirst] = useState(props.initialFirstName || "");
   const [senderLast, setSenderLast] = useState(props.initialLastName || "");
   const [senderPhone, setSenderPhone] = useState(
@@ -119,6 +221,7 @@ export default function CheckoutClient(props: {
   );
 
   useEffect(() => {
+    // Keep initial values in sync, but never blank-out existing typed values
     setSenderFirst((v) => (v ? v : props.initialFirstName || ""));
     setSenderLast((v) => (v ? v : props.initialLastName || ""));
     setSenderPhone(normalizeDigits((props.phoneValue || "").trim()));
@@ -153,27 +256,14 @@ export default function CheckoutClient(props: {
     [senderPhone]
   );
 
-  const [cardMessage, setCardMessage] = useState("");
-
   useDebouncedEffect(
     () => {
-      if (
-        senderFirst.trim() !== (props.initialFirstName || "").trim() ||
-        senderLast.trim() !== (props.initialLastName || "").trim()
-      ) {
-        void saveProfile(senderFirst, senderLast);
-      }
+      // Background profile save – does not change UI flow
+      void saveProfile(senderFirst, senderLast);
     },
-    [
-      senderFirst,
-      senderLast,
-      props.initialFirstName,
-      props.initialLastName,
-      saveProfile,
-    ],
+    [senderFirst, senderLast, saveProfile],
     600
   );
-
   const onSenderBlur = () => void saveProfile(senderFirst, senderLast);
 
   const [receiverIsMe, setReceiverIsMe] = useState(false);
@@ -182,6 +272,7 @@ export default function CheckoutClient(props: {
   const [recAddress, setRecAddress] = useState("");
 
   useEffect(() => {
+    // If user toggles "receiver is me", mirror values; otherwise keep typed values intact
     if (receiverIsMe) {
       setRecName(`${senderFirst} ${senderLast}`.trim());
       setRecPhone(senderPhone);
@@ -200,33 +291,23 @@ export default function CheckoutClient(props: {
 
   const canNext0 = validSender && validReceiver && lineItems.length > 0;
 
-  /* ---------- PACKAGING & DELIVERY ---------- */
+  /* Packaging & Delivery */
   const [packId, setPackId] = useState<PackagingId>("normal");
-  const packagingPriceIRT = packId === "gift" ? GIFT_WRAP_IRT : 0;
+  const [allFast, setAllFast] = useState(false);
 
-  const [allFast, setAllFast] = useState<boolean>(false);
+  // Best-effort "fast" tag check — now via Store API to avoid 500 on /api/products
   useEffect(() => {
-    let cancel = false;
+    let cancelled = false;
+    const ac = new AbortController();
 
-    async function checkFast(ids: string[]) {
-      if (!ids.length) {
-        if (!cancel) setAllFast(false);
+    (async () => {
+      if (!basketIds.length) {
+        if (!cancelled) setAllFast(false);
         return;
       }
-      const qs = new URLSearchParams({
-        include: ids.join(","),
-        per_page: String(Math.min(50, ids.length)),
-        orderby: "include",
-      });
-
       try {
-        const r = await fetch(`/api/products?${qs.toString()}`, {
-          cache: "no-store",
-        });
-        const arr = (await r.json()) as Array<{
-          id: number;
-          tags?: Array<{ id?: number; slug?: string; name?: string }>;
-        }>;
+        const arr = await fetchProductsByIds(basketIds, ac.signal);
+        if (cancelled) return;
 
         const FAST_SET = new Set(
           [
@@ -238,37 +319,38 @@ export default function CheckoutClient(props: {
           ].map((s) => s.toLowerCase().trim())
         );
 
-        const allAreFast =
-          ids.length > 0 &&
-          (arr || []).length === ids.length &&
-          (arr || []).every(
-            (p) =>
-              Array.isArray(p?.tags) &&
-              p.tags.some((t) => {
-                const slug = String(t?.slug ?? "")
-                  .toLowerCase()
-                  .trim();
-                const name = String(t?.name ?? "")
-                  .toLowerCase()
-                  .trim();
-                return FAST_SET.has(slug) || FAST_SET.has(name);
-              })
-          );
+        const ok =
+          Array.isArray(arr) &&
+          arr.length === basketIds.length &&
+          arr.every((p) => {
+            const tags = Array.isArray(p?.tags) ? p.tags : [];
+            return tags.some((t) => {
+              const slug = String(t?.slug ?? "")
+                .toLowerCase()
+                .trim();
+              const name = String(t?.name ?? "")
+                .toLowerCase()
+                .trim();
+              return FAST_SET.has(slug) || FAST_SET.has(name);
+            });
+          });
 
-        if (!cancel) setAllFast(allAreFast);
+        if (!cancelled) setAllFast(!!ok);
       } catch {
-        if (!cancel) setAllFast(false);
+        if (!cancelled) setAllFast(false);
       }
-    }
+    })();
 
-    checkFast(basketIds);
     return () => {
-      cancel = true;
+      cancelled = true;
+      ac.abort();
     };
   }, [basketIds.join(",")]);
 
   const [slots, setSlots] = useState<Slot[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState("");
+
+  // Build 9 slots starting today (if fast) or tomorrow
   useEffect(() => {
     const now = new Date();
     const startFromToday = allFast === true;
@@ -333,102 +415,191 @@ export default function CheckoutClient(props: {
     selectedSlotId && slots.some((s) => s.id === selectedSlotId && !s.disabled)
   );
 
-  /* ---------- PAYMENT FIGURES (sample numbers) ---------- */
-  const subtotalIRT = 5_800_000;
-  const taxIRT = 580_000;
+  /* Totals (dynamic) */
+  const subtotalIRR = useMemo(() => {
+    const byId = new Map(items.map((p) => [String(p.id), p]));
+    return Object.entries(basket || {}).reduce((sum, [id, qty]) => {
+      const prod = byId.get(String(id));
+      const price = prod ? priceFromWP(prod.prices) : 0;
+      return sum + price * (qty || 0);
+    }, 0);
+  }, [items, basket]);
+
+  const subtotalIRT = irrToIrt(subtotalIRR);
+  const taxIRT = Math.round(subtotalIRT * TAX_RATE);
   const shippingIRT = SHIPPING_IRT;
+  const packagingIRT = packId === "gift" ? GIFT_WRAP_IRT : 0;
   const totalIRT = Math.max(
     0,
-    subtotalIRT + taxIRT + shippingIRT + (packId === "gift" ? GIFT_WRAP_IRT : 0)
+    subtotalIRT + taxIRT + shippingIRT + packagingIRT
   );
 
-  /* ---------- NAV ---------- */
+  /* Step navigation (state persists) */
   const goNext = () => setStep((p) => (p < 2 ? ((p + 1) as 0 | 1 | 2) : p));
   const goPrev = () => setStep((p) => (p > 0 ? ((p - 1) as 0 | 1 | 2) : p));
 
-  /* ---------- SUBMIT ---------- */
+  /* Submit (create pending Woo order → start Zarinpal) */
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [payMethod] = useState<"online">("online"); // currently only online
+  const [cardMessage, setCardMessage] = useState("");
+
+  const buildPayload = () => ({
+    customer: {
+      id: props.userId,
+      sender_first_name: senderFirst.trim(),
+      sender_last_name: senderLast.trim(),
+      sender_phone: senderPhone,
+      receiver_is_sender: receiverIsMe,
+      receiver_name: recName.trim(),
+      receiver_phone: normalizeDigits(recPhone.trim()),
+      address: recAddress.trim(),
+    },
+    items: lineItems,
+    delivery: { slot_id: selectedSlotId, fast_delivery: allFast },
+    packaging: { type: packId, postcard_message: cardMessage.trim() },
+    amounts: {
+      subtotal_irt: subtotalIRT,
+      tax_irt: taxIRT,
+      shipping_irt: shippingIRT,
+      packaging_irt: packagingIRT,
+      total_irt: totalIRT,
+    },
+    meta: { source: "web" },
+  });
 
   async function handlePay() {
     setSubmitError("");
     setSubmitting(true);
+
+    const payload = buildPayload();
+
     try {
-      // 1) Try your existing backend flow (keeps order creation logic intact)
-      const payload = {
-        items: lineItems,
-        sender: {
-          firstName: senderFirst,
-          lastName: senderLast,
-          phone: senderPhone,
+      // 1) Create Woo order (pending) via hardened proxy
+      const orderBody = {
+        status: "pending",
+        set_paid: false,
+        payment_method: "zarinpal",
+        payment_method_title: "Zarinpal",
+        customer_id: props.userId || 0,
+        billing: {
+          first_name: payload.customer.sender_first_name,
+          last_name: payload.customer.sender_last_name,
+          phone: payload.customer.sender_phone,
         },
-        receiver: {
-          isSelf: receiverIsMe,
-          name: receiverIsMe ? `${senderFirst} ${senderLast}`.trim() : recName,
-          phone: receiverIsMe ? senderPhone : normalizedRecPhone,
-          address: recAddress,
+        shipping: {
+          first_name: payload.customer.receiver_is_sender
+            ? payload.customer.sender_first_name
+            : (payload.customer.receiver_name || "").split(" ")[0] || "",
+          last_name: payload.customer.receiver_is_sender
+            ? payload.customer.sender_last_name
+            : (payload.customer.receiver_name || "")
+                .split(" ")
+                .slice(1)
+                .join(" ") || "",
+          phone: payload.customer.receiver_is_sender
+            ? payload.customer.sender_phone
+            : payload.customer.receiver_phone,
+          address_1: payload.customer.address,
+          city: "Tehran",
+          country: "IR",
         },
-        postcard: cardMessage || "",
-        figures: {
-          subtotal: subtotalIRT,
-          tax: taxIRT,
-          discount: 0,
-          total: totalIRT,
-          shipping: shippingIRT,
-          packaging: packId === "gift" ? GIFT_WRAP_IRT : 0,
-        },
-        delivery: { slot_id: selectedSlotId },
-        packaging: {
-          id: packId,
-          title: packId === "gift" ? "بسته‌بندی کادویی" : "بسته‌بندی عادی",
-          price: packId === "gift" ? GIFT_WRAP_IRT : 0,
-        },
-        payMethod: "online" as const,
+        line_items: payload.items.map((li) => ({
+          product_id: li.product_id,
+          quantity: li.quantity,
+        })),
+        shipping_lines: payload.amounts.shipping_irt
+          ? [
+              {
+                method_id: "flat_rate",
+                method_title: "هزینه ارسال",
+                total: irtToIrrStr(payload.amounts.shipping_irt),
+              },
+            ]
+          : [],
+        fee_lines:
+          payload.packaging.type === "gift" && payload.amounts.packaging_irt
+            ? [
+                {
+                  name: "بسته‌بندی کادویی",
+                  total: irtToIrrStr(payload.amounts.packaging_irt),
+                },
+              ]
+            : [],
+        meta_data: [
+          {
+            key: "_kadochi_subtotal_irt",
+            value: String(payload.amounts.subtotal_irt),
+          },
+          { key: "_kadochi_tax_irt", value: String(payload.amounts.tax_irt) },
+          {
+            key: "_kadochi_total_irt",
+            value: String(payload.amounts.total_irt),
+          },
+          { key: "_kadochi_slot_id", value: payload.delivery.slot_id },
+          {
+            key: "_kadochi_fast_delivery",
+            value: String(payload.delivery.fast_delivery),
+          },
+          { key: "_kadochi_packaging", value: payload.packaging.type },
+          {
+            key: "_kadochi_postcard_msg",
+            value: payload.packaging.postcard_message,
+          },
+          { key: "_kadochi_source", value: "web" },
+        ],
       };
 
-      let redirectUrl = "";
+      const createOrderRes = await fetch("/api/wp/wp-json/wc/v3/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        cache: "no-store",
+        body: JSON.stringify(orderBody),
+      });
+
+      const orderJson = (await createOrderRes.json().catch(() => ({}))) as any;
+      if (!createOrderRes.ok || !orderJson?.id) {
+        throw new Error("order_create_failed");
+      }
+      const orderId = orderJson.id as number;
+
+      // 2) Start Zarinpal with orderId (IRT)
+      const zr = await fetch("/api/pay/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          amount: payload.amounts.total_irt,
+          description: `پرداخت سفارش ${orderId}`,
+          mobile: payload.customer.sender_phone,
+          orderId,
+          currency: "IRT",
+        }),
+      });
+      const zd = (await zr.json().catch(() => ({}))) as any;
+      if (!zr.ok || !zd?.ok || !zd?.url)
+        throw new Error(zd?.error || "zarinpal_request_failed");
+
       try {
-        const r = await fetch("/api/checkout/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          cache: "no-store",
-          body: JSON.stringify(payload),
-        });
-        const data = await r.json().catch(() => ({} as any));
-        if (r.ok && data?.ok && data?.redirectUrl)
-          redirectUrl = String(data.redirectUrl);
-      } catch {
-        // ignore, we will fallback
-      }
+        sessionStorage.setItem(
+          "lastPayAmount",
+          String(payload.amounts.total_irt)
+        );
+        sessionStorage.setItem("lastOrderId", String(orderId));
+      } catch {}
 
-      // 2) Fallback to Zarinpal direct start if previous step didn't give a URL
-      if (!redirectUrl) {
-        const zr = await fetch("/api/pay/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            amount: totalIRT, // IRT by default
-            description: `پرداخت سفارش`,
-            mobile: senderPhone,
-            orderId: Date.now(),
-            currency: "IRT",
-          }),
-        });
-        const zd = await zr.json().catch(() => ({} as any));
-        if (!zr.ok || !zd?.ok || !zd?.url) {
-          throw new Error(zd?.error || "zarinpal_request_failed");
-        }
-        redirectUrl = String(zd.url);
-      }
-
-      window.location.href = redirectUrl;
-    } catch (e: any) {
-      setSubmitError("پرداخت با خطا مواجه شد. لطفاً دوباره تلاش کنید.");
+      window.location.href = String(zd.url);
+    } catch {
+      setSubmitError(
+        "در ساخت سفارش یا اتصال به درگاه خطا رخ داد. لطفاً دوباره تلاش کنید."
+      );
       setSubmitting(false);
     }
   }
+
+  /* -------------------------------- UI (unchanged flow) -------------------------------- */
 
   return (
     <div>
@@ -537,7 +708,6 @@ export default function CheckoutClient(props: {
                 message="در حال حاضر کادوچی فقط در شهر تهران فعال است."
               />
             </div>
-
             <div className={s.mt12}>
               <TextArea
                 label="آدرس گیرنده"
@@ -708,8 +878,6 @@ export default function CheckoutClient(props: {
       {step === 2 && (
         <>
           <SectionHeader title="شیوه پرداخت" />
-
-          {/* Radio inside a selectable card (like packaging) */}
           <section className={s.section}>
             <button
               type="button"
@@ -730,7 +898,6 @@ export default function CheckoutClient(props: {
 
           <Divider type="spacer" />
 
-          {/* Payment details styled like Order Detail page */}
           <div className={s.sectionHeaderOnly}>
             <SectionHeader
               title="جزئیات پرداخت"
@@ -755,9 +922,7 @@ export default function CheckoutClient(props: {
             <Divider />
             <div className={s.detailRow}>
               <div className={s.detailKey}>هزینه بسته‌بندی و خدمات</div>
-              <div className={s.detailVal}>
-                {toman(packId === "gift" ? GIFT_WRAP_IRT : 0)} تومان
-              </div>
+              <div className={s.detailVal}>{toman(packagingIRT)} تومان</div>
             </div>
             <Divider />
             <div className={s.detailRow}>

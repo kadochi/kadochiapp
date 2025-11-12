@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
+// Lightweight processing screen. We keep it minimal and fast.
 export default function ZarinpalCallback() {
   const params = useSearchParams();
   const router = useRouter();
@@ -15,11 +16,13 @@ export default function ZarinpalCallback() {
     const Authority = params.get("Authority") || "";
     const Status = params.get("Status") || "";
 
+    // If user cancels at gateway, route to failure (cancelled)
     if (Status !== "OK" || !Authority) {
-      router.replace("/checkout?pay=cancelled");
+      router.replace("/checkout/failure?reason=cancelled");
       return;
     }
 
+    // Read back amount/order from the session
     const amount = Number(sessionStorage.getItem("lastPayAmount") || "0");
     const orderId = sessionStorage.getItem("lastOrderId") || "";
 
@@ -32,12 +35,14 @@ export default function ZarinpalCallback() {
       .then((r) => r.json())
       .then((res) => {
         if (!res?.ok || !res?.paid) {
-          router.replace("/checkout?pay=failed");
+          router.replace("/checkout/failure?reason=verify-failed");
           return;
         }
 
+        // Success → go success page
         router.replace(`/checkout/success?order=${orderId}`);
 
+        // Best-effort: notify backend about ref_id/card
         if (orderId && res?.ref_id) {
           const ctl = new AbortController();
           const t = setTimeout(() => ctl.abort(), 3000);
@@ -54,7 +59,7 @@ export default function ZarinpalCallback() {
             .finally(() => clearTimeout(t));
         }
       })
-      .catch(() => router.replace("/checkout?pay=error"));
+      .catch(() => router.replace("/checkout/failure?reason=network"));
   }, [params, router]);
 
   return (
