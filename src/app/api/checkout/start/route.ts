@@ -1,6 +1,12 @@
 // src/app/api/checkout/start/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookies } from "@/lib/auth/session";
+import {
+  UpstreamBadResponse,
+  UpstreamNetworkError,
+  UpstreamTimeout,
+} from "@/services/http/errors";
+import { wordpressFetch } from "@/services/wordpress";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,23 +58,42 @@ function resolveSelfBase(req: NextRequest) {
 function btoaBasic(user: string, pass: string) {
   return "Basic " + Buffer.from(`${user}:${pass}`).toString("base64");
 }
-async function wooFetch<T = any>(path: string) {
+async function wooFetch<T = unknown>(path: string) {
   const base = process.env.WP_BASE_URL!,
     user = process.env.WP_APP_USER!,
     pass = process.env.WP_APP_PASS!;
   const url = new URL(path, base);
-  const r = await fetch(url.toString(), {
-    headers: {
-      Authorization: btoaBasic(user, pass),
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-  });
-  let data: any = null;
   try {
-    data = await r.json();
-  } catch {}
-  return { ok: r.ok, status: r.status, data };
+    const res = await wordpressFetch(url, {
+      headers: {
+        Authorization: btoaBasic(user, pass),
+        "Content-Type": "application/json",
+      },
+      allowProxyFallback: true,
+      timeoutMs: 7000,
+    });
+    const text = await res.text().catch(() => "");
+    let data: unknown = null;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = null;
+      }
+    }
+    return { ok: res.ok, status: res.status, data };
+  } catch (err) {
+    if (err instanceof UpstreamTimeout) {
+      return { ok: false, status: err.status, data: null };
+    }
+    if (err instanceof UpstreamBadResponse) {
+      return { ok: false, status: err.status, data: null };
+    }
+    if (err instanceof UpstreamNetworkError) {
+      return { ok: false, status: err.status, data: null };
+    }
+    return { ok: false, status: 502, data: null };
+  }
 }
 async function findCustomerIdByPhone(phone: string): Promise<number | null> {
   const norm = onlyDigits(phone);
@@ -235,10 +260,11 @@ export async function POST(req: NextRequest) {
     }
     if (fee_lines.length) orderPayload.fee_lines = fee_lines;
 
-    let resp = await fetch(wcUrl("/wp-json/wc/v3/orders"), {
+    let resp = await wordpressFetch(wcUrl("/wp-json/wc/v3/orders"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      cache: "no-store",
+      allowProxyFallback: true,
+      timeoutMs: 12_000,
       body: JSON.stringify(orderPayload),
     });
     let text = await resp.text().catch(() => "");
@@ -251,12 +277,13 @@ export async function POST(req: NextRequest) {
       const ck = process.env.WC_CONSUMER_KEY || "",
         cs = process.env.WC_CONSUMER_SECRET || "";
       const auth = "Basic " + Buffer.from(`${ck}:${cs}`).toString("base64");
-      resp = await fetch(
+      resp = await wordpressFetch(
         new URL("/wp-json/wc/v3/orders", process.env.WP_BASE_URL!).toString(),
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: auth },
-          cache: "no-store",
+          allowProxyFallback: true,
+          timeoutMs: 12_000,
           body: JSON.stringify(orderPayload),
         }
       );
@@ -316,6 +343,24 @@ export async function POST(req: NextRequest) {
       amount: amountIRT,
     });
   } catch (e) {
+    if (e instanceof UpstreamTimeout) {
+      return NextResponse.json(
+        { ok: false, error: "upstream_timeout" },
+        { status: e.status }
+      );
+    }
+    if (e instanceof UpstreamNetworkError) {
+      return NextResponse.json(
+        { ok: false, error: "upstream_network" },
+        { status: e.status }
+      );
+    }
+    if (e instanceof UpstreamBadResponse) {
+      return NextResponse.json(
+        { ok: false, error: "upstream_bad_response" },
+        { status: 502 }
+      );
+    }
     return NextResponse.json(
       { ok: false, error: "server_error", detail: String(e) },
       { status: 500 }
