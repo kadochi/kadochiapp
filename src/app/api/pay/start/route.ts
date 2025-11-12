@@ -1,4 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+
+import {
+  UpstreamBadResponse,
+  UpstreamNetworkError,
+  UpstreamTimeout,
+} from "@/services/http/errors";
+import { requestPayment } from "@/services/payment/zarinpal";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type StartBody = {
   amount: number;
@@ -9,19 +19,7 @@ type StartBody = {
   currency?: "IRT" | "IRR";
 };
 
-function baseURLs() {
-  const sandbox = (process.env.ZARINPAL_MODE || "").toLowerCase() !== "production";
-  return {
-    request: sandbox
-      ? "https://sandbox.zarinpal.com/pg/v4/payment/request.json"
-      : "https://api.zarinpal.com/pg/v4/payment/request.json",
-    startPay: sandbox
-      ? "https://sandbox.zarinpal.com/pg/StartPay/"
-      : "https://www.zarinpal.com/pg/StartPay/",
-  };
-}
-
-function isBadCallback(u?: string) {
+function isBadCallback(u?: string | null) {
   if (!u) return true;
   try {
     const host = new URL(u).hostname;
@@ -31,69 +29,101 @@ function isBadCallback(u?: string) {
   }
 }
 
-function resolveCallbackUrl(req: Request) {
+function resolveCallbackUrl(req: NextRequest) {
   const envCb = process.env.ZARINPAL_CALLBACK_URL || "";
   if (!isBadCallback(envCb)) return envCb;
   const origin = new URL(req.url).origin;
   return `${origin}/checkout/zp-callback`;
 }
 
-export async function POST(req: Request) {
-  try {
-    const merchant_id = process.env.ZARINPAL_MERCHANT_ID || "";
-    if (!merchant_id) {
-      return NextResponse.json({ ok: false, error: "missing_merchant_id" }, { status: 500 });
-    }
+function noStore<T>(response: NextResponse<T>) {
+  response.headers.set("Cache-Control", "no-store");
+  return response;
+}
 
-    const body = (await req.json().catch(() => ({}))) as StartBody;
-    const amount = Math.max(0, Math.floor(Number(body.amount || 0)));
-    if (!amount) {
-      return NextResponse.json({ ok: false, error: "invalid_amount" }, { status: 400 });
-    }
-
-    const { request, startPay } = baseURLs();
-    const callback_url = resolveCallbackUrl(req);
-
-    const payload: any = {
-      merchant_id,
-      amount,
-      callback_url,
-      description: body.description || `پرداخت سفارش ${body.orderId ?? ""}`,
-      metadata: {
-        order_id: body.orderId ? String(body.orderId) : undefined,
-        email: body.email || undefined,
-        mobile: (body.mobile || "").replace(/\D+/g, "") || undefined,
-      },
-      currency: "IRT",
-    };
-
-    if (body.currency === "IRR") payload.currency = "IRR";
-
-    const r = await fetch(request, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
-
-    const data: any = await r.json().catch(() => ({}));
-    const dr = data?.data;
-    if (!r.ok || !dr?.authority) {
-      return NextResponse.json(
-        { ok: false, error: "zarinpal_request_failed", status: r.status, detail: data },
-        { status: 502 }
+function mapError(error: unknown) {
+  if (error instanceof UpstreamTimeout) {
+    return noStore(
+      NextResponse.json(
+        { ok: false, error: "upstream_timeout" },
+        { status: error.status }
+      )
+    );
+  }
+  if (error instanceof UpstreamNetworkError) {
+    return noStore(
+      NextResponse.json(
+        { ok: false, error: "upstream_network" },
+        { status: error.status }
+      )
+    );
+  }
+  if (error instanceof UpstreamBadResponse) {
+    if (error.status === 400 && error.message === "invalid_amount") {
+      return noStore(
+        NextResponse.json({ ok: false, error: "invalid_amount" }, { status: 400 })
       );
     }
-
-    return NextResponse.json({
-      ok: true,
-      authority: dr.authority,
-      url: `${startPay}${dr.authority}`,
-    });
-  } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: "server_error", detail: String((e as Error)?.message || e) },
-      { status: 500 }
+    if (error.status === 500 && error.message === "missing_merchant_id") {
+      return noStore(
+        NextResponse.json(
+          { ok: false, error: "missing_merchant_id" },
+          { status: 500 }
+        )
+      );
+    }
+    if (error.status === 400 && error.message === "invalid_callback_url") {
+      return noStore(
+        NextResponse.json(
+          { ok: false, error: "invalid_callback_url" },
+          { status: 400 }
+        )
+      );
+    }
+    const status = error.status >= 400 ? error.status : 502;
+    return noStore(
+      NextResponse.json(
+        { ok: false, error: "zarinpal_request_failed", status },
+        { status }
+      )
     );
+  }
+
+  const detail = error instanceof Error ? error.message : String(error);
+  return noStore(
+    NextResponse.json(
+      { ok: false, error: "server_error", detail },
+      { status: 500 }
+    )
+  );
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = (await req.json().catch(() => ({}))) as StartBody;
+    const callbackUrl = resolveCallbackUrl(req);
+
+    const result = await requestPayment(
+      {
+        amount: body.amount,
+        description: body.description,
+        email: body.email,
+        mobile: body.mobile,
+        orderId: body.orderId,
+        currency: body.currency,
+        callbackUrl,
+      },
+      { timeoutMs: 8_000 }
+    );
+
+    return noStore(
+      NextResponse.json({
+        ok: true,
+        authority: result.authority,
+        url: result.url,
+      })
+    );
+  } catch (error) {
+    return mapError(error);
   }
 }

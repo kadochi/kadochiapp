@@ -1,6 +1,15 @@
 // src/app/api/checkout/start/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookies } from "@/lib/auth/session";
+import {
+  UpstreamAuthError,
+  UpstreamBadResponse,
+  UpstreamNetworkError,
+  UpstreamTimeout,
+} from "@/services/http/errors";
+import { requestPayment } from "@/services/payment/zarinpal";
+import { wooFetchJSON } from "@/lib/api/woo";
+import { wordpressFetch } from "@/services/wordpress";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,51 +43,190 @@ function safeEmail(e?: string) {
   const s = (e || "").trim();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : undefined;
 }
-function wcUrl(path: string) {
-  const WP = process.env.WP_BASE_URL!;
-  const u = new URL(path, WP);
-  u.searchParams.set("consumer_key", process.env.WC_CONSUMER_KEY || "");
-  u.searchParams.set("consumer_secret", process.env.WC_CONSUMER_SECRET || "");
-  return u.toString();
-}
-function resolveSelfBase(req: NextRequest) {
+
+function isBadCallback(u?: string | null) {
+  if (!u) return true;
   try {
-    return new URL(req.url).origin;
+    const host = new URL(u).hostname;
+    return !host || /your\.site/i.test(host);
   } catch {
-    return "http://localhost:3000";
+    return true;
   }
 }
 
-function btoaBasic(user: string, pass: string) {
-  return "Basic " + Buffer.from(`${user}:${pass}`).toString("base64");
-}
-async function wooFetch<T = any>(path: string) {
-  const base = process.env.WP_BASE_URL!,
-    user = process.env.WP_APP_USER!,
-    pass = process.env.WP_APP_PASS!;
-  const url = new URL(path, base);
-  const r = await fetch(url.toString(), {
-    headers: {
-      Authorization: btoaBasic(user, pass),
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-  });
-  let data: any = null;
+function resolveCallbackUrl(req: NextRequest) {
+  const envCb = process.env.ZARINPAL_CALLBACK_URL || "";
+  if (!isBadCallback(envCb)) return envCb;
   try {
-    data = await r.json();
-  } catch {}
-  return { ok: r.ok, status: r.status, data };
+    return `${new URL(req.url).origin}/checkout/zp-callback`;
+  } catch {
+    const fallback = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    return `${fallback.replace(/\/$/, "")}/checkout/zp-callback`;
+  }
 }
 async function findCustomerIdByPhone(phone: string): Promise<number | null> {
   const norm = onlyDigits(phone);
-  const { ok, data } = await wooFetch<any[]>(
-    "/wp-json/wc/v3/customers?per_page=50"
+  if (!norm) return null;
+
+  const searchParams = new URLSearchParams({
+    per_page: "20",
+    search: norm,
+    _fields: "id,billing.phone",
+  });
+
+  const fallbackParams = new URLSearchParams({
+    per_page: "50",
+    orderby: "date",
+    order: "desc",
+    _fields: "id,billing.phone",
+  });
+
+  const fetchCustomers = async (qs: URLSearchParams) => {
+    try {
+      const data = await wooFetchJSON<Array<{ id?: number; billing?: { phone?: string } }>>(
+        `/wp-json/wc/v3/customers?${qs.toString()}`,
+        { method: "GET", cache: "no-store", timeoutMs: 7000 }
+      );
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const searchHits = await fetchCustomers(searchParams);
+  const directMatch = searchHits.find(
+    (c) => onlyDigits(c?.billing?.phone || "") === norm
   );
-  if (!ok || !Array.isArray(data)) return null;
-  const hit =
-    data.find((c) => onlyDigits(c?.billing?.phone || "") === norm) ?? null;
-  return hit?.id ?? null;
+  if (directMatch?.id) return Number(directMatch.id);
+
+  const fallbackHits = await fetchCustomers(fallbackParams);
+  const fallbackMatch = fallbackHits.find(
+    (c) => onlyDigits(c?.billing?.phone || "") === norm
+  );
+  if (fallbackMatch?.id) return Number(fallbackMatch.id);
+
+  return null;
+}
+
+function buildConsumerAuthHeader() {
+  const ck =
+    process.env.WOO_CONSUMER_KEY ||
+    process.env.WC_CONSUMER_KEY ||
+    process.env.WOO_KEY ||
+    "";
+  const cs =
+    process.env.WOO_CONSUMER_SECRET ||
+    process.env.WC_CONSUMER_SECRET ||
+    process.env.WOO_SECRET ||
+    "";
+  if (!ck || !cs) return undefined;
+  const token = Buffer.from(`${ck}:${cs}`).toString("base64");
+  return `Basic ${token}`;
+}
+
+async function parseWooOrderResponse(res: Response): Promise<any> {
+  const text = await res.text().catch(() => "");
+  let json: any = null;
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = null;
+    }
+  }
+
+  if (!res.ok || !json || typeof json !== "object") {
+    const err = new UpstreamBadResponse(502, "order_create_failed") as UpstreamBadResponse & {
+      detail?: unknown;
+      upstreamStatus?: number;
+    };
+    err.detail = json ?? text;
+    err.upstreamStatus = res.status;
+    throw err;
+  }
+
+  return json;
+}
+
+async function submitWooOrder(orderPayload: unknown): Promise<any> {
+  const init = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    allowProxyFallback: true,
+    timeoutMs: 12_000,
+    cache: "no-store" as const,
+    body: JSON.stringify(orderPayload),
+  } satisfies Parameters<typeof wordpressFetch>[1];
+
+  try {
+    const res = await wordpressFetch("/wp-json/wc/v3/orders", init);
+    return await parseWooOrderResponse(res);
+  } catch (error) {
+    if (error instanceof UpstreamAuthError) {
+      const auth = buildConsumerAuthHeader();
+      if (auth) {
+        const headers = new Headers(init.headers);
+        headers.set("Authorization", auth);
+        const fallbackRes = await wordpressFetch("/wp-json/wc/v3/orders", {
+          ...init,
+          headers,
+        });
+        return await parseWooOrderResponse(fallbackRes);
+      }
+    }
+    throw error;
+  }
+}
+
+function noStore<T>(response: NextResponse<T>) {
+  response.headers.set("Cache-Control", "no-store");
+  response.headers.set("Vary", "Cookie");
+  return response;
+}
+
+function paymentErrorResponse(error: unknown) {
+  if (error instanceof UpstreamTimeout) {
+    return noStore(
+      NextResponse.json(
+        { ok: false, error: "upstream_timeout" },
+        { status: error.status }
+      )
+    );
+  }
+  if (error instanceof UpstreamNetworkError) {
+    return noStore(
+      NextResponse.json(
+        { ok: false, error: "upstream_network" },
+        { status: error.status }
+      )
+    );
+  }
+  if (error instanceof UpstreamBadResponse) {
+    if (error.status === 400 && error.message === "invalid_amount") {
+      return noStore(
+        NextResponse.json({ ok: false, error: "invalid_amount" }, { status: 400 })
+      );
+    }
+    if (error.status === 500 && error.message === "missing_merchant_id") {
+      return noStore(
+        NextResponse.json({ ok: false, error: "missing_merchant_id" }, { status: 500 })
+      );
+    }
+    const status = error.status >= 400 ? error.status : 502;
+    return noStore(
+      NextResponse.json(
+        { ok: false, error: "zarinpal_start_failed", status },
+        { status }
+      )
+    );
+  }
+  const detail = error instanceof Error ? error.message : String(error);
+  return noStore(
+    NextResponse.json(
+      { ok: false, error: "server_error", detail },
+      { status: 500 }
+    )
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -235,90 +383,92 @@ export async function POST(req: NextRequest) {
     }
     if (fee_lines.length) orderPayload.fee_lines = fee_lines;
 
-    let resp = await fetch(wcUrl("/wp-json/wc/v3/orders"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store",
-      body: JSON.stringify(orderPayload),
-    });
-    let text = await resp.text().catch(() => "");
-    let json: any = null;
+    let json: any;
     try {
-      json = JSON.parse(text);
-    } catch {}
-
-    if ([401, 403].includes(resp.status)) {
-      const ck = process.env.WC_CONSUMER_KEY || "",
-        cs = process.env.WC_CONSUMER_SECRET || "";
-      const auth = "Basic " + Buffer.from(`${ck}:${cs}`).toString("base64");
-      resp = await fetch(
-        new URL("/wp-json/wc/v3/orders", process.env.WP_BASE_URL!).toString(),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: auth },
-          cache: "no-store",
-          body: JSON.stringify(orderPayload),
-        }
-      );
-      text = await resp.text().catch(() => "");
-      json = null;
-      try {
-        json = JSON.parse(text);
-      } catch {}
-    }
-
-    if (!resp.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "order_create_failed",
-          status: resp.status,
-          detail: json || text,
-        },
-        { status: 502 }
-      );
+      json = await submitWooOrder(orderPayload);
+    } catch (error) {
+      if (
+        error instanceof UpstreamBadResponse &&
+        error.message === "order_create_failed"
+      ) {
+        const detail = (error as UpstreamBadResponse & { detail?: unknown }).detail;
+        const upstreamStatus =
+          (error as UpstreamBadResponse & { upstreamStatus?: number })
+            .upstreamStatus ?? 502;
+        return noStore(
+          NextResponse.json(
+            {
+              ok: false,
+              error: "order_create_failed",
+              status: upstreamStatus,
+              detail,
+            },
+            { status: 502 }
+          )
+        );
+      }
+      throw error;
     }
 
     const orderId = json?.id;
-    const amountIRT = Math.round(Number(body.figures.total) || 0);
+    const amountIRT = Math.max(0, Math.round(Number(body.figures.total) || 0));
+    const mobileDigits = onlyDigits(body?.sender?.phone || sessPhone);
 
-    const selfBase = resolveSelfBase(req);
-    const start = await fetch(`${selfBase}/api/pay/start`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store",
-      body: JSON.stringify({
-        amount: amountIRT,
-        currency: "IRT",
-        description: `پرداخت سفارش ${orderId}`,
-        mobile: onlyDigits(body?.sender?.phone || sessPhone),
-        email: email || "",
-        orderId,
-      }),
-    });
-    const startJson: any = await start.json().catch(() => ({}));
-    if (!start.ok || !startJson?.ok || !startJson?.url) {
-      return NextResponse.json(
+    try {
+      const payment = await requestPayment(
         {
-          ok: false,
-          error: "zarinpal_start_failed",
-          status: start.status,
-          detail: startJson,
+          amount: amountIRT,
+          currency: "IRT",
+          description: `پرداخت سفارش ${orderId}`,
+          mobile: mobileDigits,
+          email: email || "",
+          orderId,
+          callbackUrl: resolveCallbackUrl(req),
         },
-        { status: 502 }
+        { timeoutMs: 8_000 }
+      );
+
+      return noStore(
+        NextResponse.json({
+          ok: true,
+          redirectUrl: payment.url,
+          orderId,
+          amount: amountIRT,
+        })
+      );
+    } catch (error) {
+      return paymentErrorResponse(error);
+    }
+  } catch (e) {
+    if (e instanceof UpstreamTimeout) {
+      return noStore(
+        NextResponse.json(
+          { ok: false, error: "upstream_timeout" },
+          { status: e.status }
+        )
       );
     }
-
-    return NextResponse.json({
-      ok: true,
-      redirectUrl: startJson.url,
-      orderId,
-      amount: amountIRT,
-    });
-  } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: "server_error", detail: String(e) },
-      { status: 500 }
+    if (e instanceof UpstreamNetworkError) {
+      return noStore(
+        NextResponse.json(
+          { ok: false, error: "upstream_network" },
+          { status: e.status }
+        )
+      );
+    }
+    if (e instanceof UpstreamBadResponse) {
+      return noStore(
+        NextResponse.json(
+          { ok: false, error: "upstream_bad_response" },
+          { status: 502 }
+        )
+      );
+    }
+    return noStore(
+      NextResponse.json(
+        { ok: false, error: "server_error", detail: String(e) },
+        { status: 500 }
+      )
     );
   }
 }

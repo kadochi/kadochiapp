@@ -1,6 +1,12 @@
 import "server-only";
 import { cache } from "react";
 
+import {
+  wordpressFetch,
+  wordpressJson,
+  type WordPressFetchOptions,
+} from "@/services/wordpress";
+
 /* ============================================================================
  * Base types (kept)
  * ==========================================================================*/
@@ -39,26 +45,14 @@ const WP_BASE =
 const CK = process.env.WOO_CONSUMER_KEY || "";
 const CS = process.env.WOO_CONSUMER_SECRET || "";
 
-const APP_USER =
-  process.env.WP_APP_USER ||
-  process.env.WP_BASIC_USER ||
-  process.env.WP_USER ||
-  "";
-const APP_PASS =
-  process.env.WP_APP_PASS ||
-  process.env.WP_BASIC_PASS ||
-  process.env.WP_PASS ||
-  "";
-
 const DEV_FAKE =
   process.env.NODE_ENV !== "production" && !!process.env.WOO_DEV_FAKE;
 
 /* ============================================================================
  * Low-level fetch (kept)
  * ==========================================================================*/
-type WooFetchOpts = RequestInit & {
+type WooFetchOpts = WordPressFetchOptions & {
   revalidateSeconds?: number;
-  headers?: HeadersInit;
 };
 
 function makeWooUrl(path: string): URL {
@@ -84,54 +78,32 @@ export async function wooFetch(
       url.searchParams.set("consumer_secret", CS);
   }
 
-  const {
-    revalidateSeconds,
-    headers: initHeaders,
-    next,
-    cache,
-    ...rest
-  } = init ?? {};
+  const { revalidateSeconds, revalidate, ...rest } = init ?? {};
 
-  const hdrs = new Headers(initHeaders);
-  if (!hdrs.has("Content-Type")) hdrs.set("Content-Type", "application/json");
-
-  if (APP_USER && APP_PASS && !hdrs.has("Authorization")) {
-    const token =
-      typeof Buffer !== "undefined"
-        ? Buffer.from(`${APP_USER}:${APP_PASS}`).toString("base64")
-        : btoa(`${APP_USER}:${APP_PASS}`);
-    hdrs.set("Authorization", `Basic ${token}`);
-  }
-
-  const cacheMode =
-    cache ?? (revalidateSeconds != null ? "force-cache" : "no-store");
-  const nextConfig =
-    revalidateSeconds != null ? { revalidate: revalidateSeconds } : next;
-
-  const res = await fetch(url.toString(), {
+  return wordpressFetch(url, {
+    allowProxyFallback: true,
+    timeoutMs: rest.timeoutMs ?? 8000,
+    revalidate: revalidate ?? revalidateSeconds,
     ...rest,
-    headers: hdrs,
-    cache: cacheMode,
-    next: nextConfig,
   });
-
-  return res;
 }
 
 export async function wooFetchJSON<T>(
   path: string,
   init?: WooFetchOpts
 ): Promise<T> {
-  const res = await wooFetch(path, init);
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(
-      `wooFetchJSON failed: ${res.status} ${res.statusText}\n` +
-        `URL: ${makeWooUrl(path).toString()}\n` +
-        (body ? `Body: ${body.slice(0, 600)}` : "")
-    );
+  const { data, notModified } = await wordpressJson<T>(makeWooUrl(path), {
+    allowProxyFallback: true,
+    timeoutMs: init?.timeoutMs ?? 8000,
+    ...init,
+  });
+  if (notModified) {
+    throw new Error(`wooFetchJSON received 304 for ${path}`);
   }
-  return (await res.json()) as T;
+  if (data === null || typeof data === "undefined") {
+    return null as unknown as T;
+  }
+  return data;
 }
 
 /* ============================================================================
@@ -391,25 +363,29 @@ const resolveCategoryId = cache(async function resolveCategoryId(
     return Number(input);
 
   const slug = String(input).trim();
-  const urls = [
-    `${WP_BASE}/wp-json/wp/v2/product_cat?slug=${encodeURIComponent(
+  const endpoints = [
+    `/wp-json/wp/v2/product_cat?slug=${encodeURIComponent(
       slug
-    )}&per_page=1`,
-    `${WP_BASE}/wp-json/wc/store/v1/products/categories?slug=${encodeURIComponent(
+    )}&per_page=1&_fields=id,slug`,
+    `/wp-json/wc/store/v1/products/categories?slug=${encodeURIComponent(
       slug
-    )}&per_page=1`,
+    )}&per_page=1&_fields=id,slug`,
   ];
-  try {
-    const results = await Promise.allSettled(
-      urls.map((u) => fetch(u, { next: { revalidate: 60 } }))
-    );
-    for (const r of results) {
-      if (r.status === "fulfilled" && r.value.ok) {
-        const js = (await r.value.json()) as Array<{ id: number }>;
-        if (js?.[0]?.id) return js[0].id;
+
+  for (const endpoint of endpoints) {
+    try {
+      const result = await wordpressJson<Array<{ id?: number }>>(endpoint, {
+        allowProxyFallback: true,
+        timeoutMs: 5000,
+        revalidate: 120,
+        dedupeKey: `cat:${endpoint}`,
+      });
+      const data = result.data;
+      if (Array.isArray(data) && data[0]?.id) {
+        return Number(data[0].id);
       }
-    }
-  } catch {}
+    } catch {}
+  }
   return undefined;
 });
 
@@ -470,25 +446,28 @@ const resolveTagIdsCsv = cache(async function resolveTagIdsCsv(
     if (missing.length) {
       const fallbackIds = await Promise.all(
         missing.map(async (slug) => {
-          const urls = [
-            `${WP_BASE}/wp-json/wp/v2/product_tag?slug=${encodeURIComponent(
+          const endpoints = [
+            `/wp-json/wp/v2/product_tag?slug=${encodeURIComponent(
               slug
-            )}&per_page=1`,
-            `${WP_BASE}/wp-json/wc/store/v1/products/tags?slug=${encodeURIComponent(
+            )}&per_page=1&_fields=id,slug`,
+            `/wp-json/wc/store/v1/products/tags?slug=${encodeURIComponent(
               slug
-            )}&per_page=1`,
+            )}&per_page=1&_fields=id,slug`,
           ];
-          try {
-            const results = await Promise.allSettled(
-              urls.map((u) => fetch(u, { next: { revalidate: 60 } }))
-            );
-            for (const r of results) {
-              if (r.status === "fulfilled" && r.value.ok) {
-                const js = (await r.value.json()) as Array<{ id: number }>;
-                if (js?.[0]?.id) return Number(js[0].id);
+          for (const endpoint of endpoints) {
+            try {
+              const result = await wordpressJson<Array<{ id?: number }>>(endpoint, {
+                allowProxyFallback: true,
+                timeoutMs: 5000,
+                revalidate: 120,
+                dedupeKey: `tag:${endpoint}`,
+              });
+              const data = result.data;
+              if (Array.isArray(data) && data[0]?.id) {
+                return Number(data[0].id);
               }
-            }
-          } catch {}
+            } catch {}
+          }
           return undefined;
         })
       );
@@ -508,6 +487,81 @@ function mapOrderby(
   if (v === "price") return "price";
   if (v === "popularity" || v === "rating") return "popularity";
   return "date";
+}
+
+function mapStoreProductToListEntry(p: StoreProduct_B) {
+  const img = p.images?.[0]?.src || "/images/placeholder.png";
+  const alt = p.images?.[0]?.alt || p.name;
+  const currency = (p.prices?.currency_code as string) || "IRR";
+
+  const sale = Number(p.prices?.sale_price ?? NaN);
+  const regular = Number(p.prices?.regular_price ?? NaN);
+  const baseRaw = Number(
+    p.prices?.sale_price ?? p.prices?.price ?? p.prices?.regular_price ?? 0
+  );
+  const base = Number.isFinite(baseRaw) ? baseRaw : 0;
+
+  const stockStatus = String(p?.stock_status || "").toLowerCase();
+  const inStock =
+    !(stockStatus === "outofstock" || stockStatus === "out_of_stock") &&
+    p?.is_in_stock !== false &&
+    p?.is_purchasable !== false;
+
+  return {
+    id: p.id,
+    name: p.name,
+    images: [{ url: img, alt: alt || p.name }],
+    price: { amount: base, currency },
+    regularPrice: Number.isFinite(regular)
+      ? { amount: regular, currency }
+      : undefined,
+    salePrice: Number.isFinite(sale) ? { amount: sale, currency } : undefined,
+    stock: { inStock, status: p.stock_status ?? null },
+  };
+}
+
+function mapWooProductToListEntry(p: WooProductV3) {
+  const img = Array.isArray(p.images) && p.images[0]?.src
+    ? p.images[0].src
+    : "/images/placeholder.png";
+  const alt = Array.isArray(p.images) && p.images[0]?.alt ? p.images[0].alt : p.name;
+  const currency = (typeof p.currency === "string" && p.currency) || "IRR";
+
+  const sale = Number(p.sale_price ?? NaN);
+  const regular = Number(p.regular_price ?? NaN);
+  const baseRaw = Number(p.price ?? sale ?? regular ?? 0);
+  const base = Number.isFinite(baseRaw) ? baseRaw : 0;
+
+  const stockStatus = String(p?.stock_status || "").toLowerCase();
+  const purchasable = p?.purchasable ?? p?.is_purchasable ?? true;
+  const manageStock = p?.manage_stock ?? null;
+  const qty = Number(p?.stock_quantity ?? 0);
+  const outOfStock =
+    stockStatus === "outofstock" ||
+    stockStatus === "out_of_stock" ||
+    stockStatus === "out-of-stock";
+  const explicitInStock =
+    typeof p?.is_in_stock === "boolean" ? p.is_in_stock : undefined;
+  const inStock =
+    purchasable !== false &&
+    !outOfStock &&
+    (explicitInStock !== undefined
+      ? explicitInStock
+      : manageStock
+      ? qty > 0
+      : true);
+
+  return {
+    id: Number(p.id),
+    name: String(p.name || ""),
+    images: [{ url: img, alt: alt || p.name }],
+    price: { amount: base, currency },
+    regularPrice: Number.isFinite(regular)
+      ? { amount: Number(regular), currency }
+      : undefined,
+    salePrice: Number.isFinite(sale) ? { amount: Number(sale), currency } : undefined,
+    stock: { inStock, status: p.stock_status ?? null },
+  };
 }
 
 /** PLP: shape B */
@@ -544,79 +598,125 @@ export async function listProducts(params: {
     max_price,
   } = params || {};
 
-  const qp = new URLSearchParams({
-    page: String(Math.max(1, page)),
-    per_page: String(Math.max(1, perPage)),
-    order,
-    orderby: mapOrderby(orderby),
+  const pageNum = Math.max(1, page);
+  const perPageNum = Math.max(1, Math.min(perPage, 48));
+  const orderNorm: "asc" | "desc" = order === "asc" ? "asc" : "desc";
+  const orderbyMapped = mapOrderby(orderby);
+
+  const storeQs = new URLSearchParams({
+    page: String(pageNum),
+    per_page: String(perPageNum),
+    order: orderNorm,
+    orderby: orderbyMapped,
   });
-  if (search) qp.set("search", search);
+  if (search) storeQs.set("search", search);
 
   const catId = await resolveCategoryId(category);
-  if (catId) qp.set("category", String(catId));
+  if (catId) storeQs.set("category", String(catId));
 
+  let tagIdsCsv: string | undefined;
   if (typeof tag !== "undefined" && tag !== null && String(tag).trim() !== "") {
-    const tagIdsCsv = await resolveTagIdsCsv(tag);
+    tagIdsCsv = await resolveTagIdsCsv(tag);
     if (tagIdsCsv) {
-      qp.set("tag", tagIdsCsv);
-      if (tagIdsCsv.includes(",")) qp.set("tag_operator", "and");
+      storeQs.set("tag", tagIdsCsv);
+      if (tagIdsCsv.includes(",")) storeQs.set("tag_operator", "and");
     }
   }
 
-  // UI uses toman; Store API in rial → multiply by 10 if numeric
   const decRe = /^\d+(\.\d+)?$/;
-  if (min_price && decRe.test(min_price)) {
-    const rialMin = Math.trunc(Number(min_price) * 10);
-    qp.set("min_price", String(rialMin));
-  }
-  if (max_price && decRe.test(max_price)) {
-    const rialMax = Math.trunc(Number(max_price) * 10);
-    qp.set("max_price", String(rialMax));
-  }
+  const minRial =
+    min_price && decRe.test(min_price)
+      ? Math.trunc(Number(min_price) * 10)
+      : undefined;
+  const maxRial =
+    max_price && decRe.test(max_price)
+      ? Math.trunc(Number(max_price) * 10)
+      : undefined;
 
-  const url = `${WP_BASE}/wp-json/wc/store/v1/products?${qp.toString()}`;
-  const res = await fetch(url, { next: { revalidate: 300 } });
-  if (!res.ok) {
-    if (res.status === 404)
-      return { items: [], page, perPage, total: 0, totalPages: 1 };
-    throw new Error(`Store API failed: ${res.status}`);
-  }
+  if (typeof minRial === "number") storeQs.set("min_price", String(minRial));
+  if (typeof maxRial === "number") storeQs.set("max_price", String(maxRial));
 
-  const raw = (await res.json()) as StoreProduct_B[];
-  const total = Number(res.headers.get("x-wp-total") || raw.length || 0);
-  const totalPages = Number(res.headers.get("x-wp-totalpages") || 1);
-
-  const items = (raw || []).map((p) => {
-    const img = p.images?.[0]?.src || "/images/placeholder.png";
-    const currency = (p.prices?.currency_code as string) || "IRR";
-
-    const sale = Number(p.prices?.sale_price ?? NaN);
-    const regular = Number(p.prices?.regular_price ?? NaN);
-    const baseRaw = Number(
-      p.prices?.sale_price ?? p.prices?.price ?? p.prices?.regular_price ?? 0
+  const fetchStoreListing = async () => {
+    const result = await wordpressJson<StoreProduct_B[]>(
+      `/wp-json/wc/store/v1/products?${storeQs.toString()}`,
+      {
+        allowProxyFallback: true,
+        timeoutMs: 7000,
+        revalidate: 120,
+        dedupeKey: `plp:store:${storeQs.toString()}`,
+      }
     );
-    const base = Number.isFinite(baseRaw) ? baseRaw : 0;
+    const response = result.response;
+    if (response.status === 404) {
+      return { items: [], total: 0, totalPages: 1 };
+    }
+    const data = Array.isArray(result.data) ? result.data : [];
+    const total = Number(
+      response.headers.get("x-wp-total") || data.length || 0
+    );
+    const totalPages = Number(
+      response.headers.get("x-wp-totalpages") || 1
+    );
+    const items = data.map(mapStoreProductToListEntry);
+    return { items, total, totalPages };
+  };
 
-    const stockStatus = String(p?.stock_status || "").toLowerCase();
-    const inStock =
-      !(stockStatus === "outofstock" || stockStatus === "out_of_stock") &&
-      p?.is_in_stock !== false &&
-      p?.is_purchasable !== false;
+  if (orderbyMapped === "popularity") {
+    const wooQs = new URLSearchParams({
+      page: String(pageNum),
+      per_page: String(perPageNum),
+      order: orderNorm,
+      orderby: "popularity",
+      status: "publish",
+    });
+    if (search) wooQs.set("search", search);
+    if (catId) wooQs.set("category", String(catId));
+    if (tagIdsCsv) wooQs.set("tag", tagIdsCsv);
+    if (typeof minRial === "number") wooQs.set("min_price", String(minRial));
+    if (typeof maxRial === "number") wooQs.set("max_price", String(maxRial));
 
-    return {
-      id: p.id,
-      name: p.name,
-      images: [{ url: img, alt: p.images?.[0]?.alt || p.name }],
-      price: { amount: base, currency },
-      regularPrice: Number.isFinite(regular)
-        ? { amount: regular, currency }
-        : undefined,
-      salePrice: Number.isFinite(sale) ? { amount: sale, currency } : undefined,
-      stock: { inStock, status: p.stock_status ?? null },
-    };
-  });
+    try {
+      const result = await wordpressJson<WooProductV3[]>(
+        `/wp-json/wc/v3/products?${wooQs.toString()}`,
+        {
+          allowProxyFallback: true,
+          timeoutMs: 7000,
+          revalidate: 120,
+          dedupeKey: `plp:woo:${wooQs.toString()}`,
+        }
+      );
+      const response = result.response;
+      if (response.status === 404) {
+        return {
+          items: [],
+          page: pageNum,
+          perPage: perPageNum,
+          total: 0,
+          totalPages: 1,
+        };
+      }
+      const data = Array.isArray(result.data) ? result.data : [];
+      const items = data.map(mapWooProductToListEntry);
+      if (items.length) {
+        const total = Number(
+          response.headers.get("x-wp-total") || data.length || 0
+        );
+        const totalPages = Number(
+          response.headers.get("x-wp-totalpages") || 1
+        );
+        return { items, page: pageNum, perPage: perPageNum, total, totalPages };
+      }
+    } catch {}
+  }
 
-  return { items, page, perPage, total, totalPages };
+  const storeResult = await fetchStoreListing();
+  return {
+    items: storeResult.items,
+    page: pageNum,
+    perPage: perPageNum,
+    total: storeResult.total,
+    totalPages: storeResult.totalPages,
+  };
 }
 
 /** PDP: shape B */
