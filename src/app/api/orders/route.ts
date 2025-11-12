@@ -18,15 +18,24 @@ export async function GET(req: Request) {
     const items = await listOrdersForSessionPaged(page, perPage);
     const hasMore = items.length === perPage;
 
-    return NextResponse.json(
+    const res = NextResponse.json(
       { items, page, per_page: perPage, has_more: hasMore },
       { status: 200 }
     );
+    res.headers.set(
+      "Cache-Control",
+      "private, max-age=10, stale-while-revalidate=30"
+    );
+    res.headers.set("Vary", "Cookie");
+    return res;
   } catch (err: any) {
     const status = Number(err?.status) || 500;
-    return NextResponse.json(
+    const res = NextResponse.json(
       { error: String(err?.message || "server_error") },
       { status }
     );
+    res.headers.set("Cache-Control", "no-store");
+    res.headers.set("Vary", "Cookie");
+    return res;
   }
 }
