@@ -1,6 +1,13 @@
 // src/app/api/products/bulk/route.ts
 import { NextResponse } from "next/server";
 
+import {
+  UpstreamBadResponse,
+  UpstreamNetworkError,
+  UpstreamTimeout,
+} from "@/services/http/errors";
+import { wordpressFetch, wordpressJson } from "@/services/wordpress";
+
 const WP_BASE =
   process.env.WP_BASE_URL ||
   process.env.NEXT_PUBLIC_WP_BASE_URL ||
@@ -43,31 +50,41 @@ async function fetchProductsByIds(ids: number[]): Promise<StoreProduct[]> {
     );
     // @ts-ignore
     url.searchParams.set("include", ids.join(","));
-    const r = await fetch(url.toString(), { cache: "no-store" });
-    if (r.ok) {
-      const arr = (await r.json()) as any[];
-      // Already matches the Store shape closely
-      return (arr || []).map((p) => ({
-        id: Number(p.id),
-        name: String(p.name || ""),
-        images: Array.isArray(p.images)
-          ? p.images.map((im: any) => ({
-              id: Number(im?.id || 0),
-              src: String(im?.src || ""),
-              alt: im?.alt || "",
-            }))
-          : [],
-        prices: p.prices ?? {
-          price: p?.price ? String(p.price) : undefined,
-          sale_price: p?.sale_price ? String(p.sale_price) : undefined,
-          regular_price: p?.regular_price ? String(p.regular_price) : undefined,
-        },
-        is_in_stock: p?.is_in_stock ?? undefined,
-        is_purchasable: p?.is_purchasable ?? undefined,
-        stock_status: p?.stock_status ?? undefined,
-      }));
+    const result = await wordpressJson<any[]>(url, {
+      allowProxyFallback: true,
+      timeoutMs: 7000,
+      dedupeKey: `bulk-store:${ids.join(",")}`,
+    });
+    const arr = Array.isArray(result.data) ? result.data : [];
+    return arr.map((p) => ({
+      id: Number(p.id),
+      name: String(p.name || ""),
+      images: Array.isArray(p.images)
+        ? p.images.map((im: any) => ({
+            id: Number(im?.id || 0),
+            src: String(im?.src || ""),
+            alt: im?.alt || "",
+          }))
+        : [],
+      prices: p.prices ?? {
+        price: p?.price ? String(p.price) : undefined,
+        sale_price: p?.sale_price ? String(p.sale_price) : undefined,
+        regular_price: p?.regular_price ? String(p.regular_price) : undefined,
+      },
+      is_in_stock: p?.is_in_stock ?? undefined,
+      is_purchasable: p?.is_purchasable ?? undefined,
+      stock_status: p?.stock_status ?? undefined,
+    }));
+  } catch (err) {
+    if (
+      !(err instanceof UpstreamTimeout) &&
+      !(err instanceof UpstreamNetworkError) &&
+      !(err instanceof UpstreamBadResponse)
+    ) {
+      throw err;
     }
-  } catch {}
+    // swallow and fallback to per-id fetch
+  }
 
   // 2) Fallback: REST v3 per-id and map → Store-like
   const qsAuth =
@@ -79,8 +96,9 @@ async function fetchProductsByIds(ids: number[]): Promise<StoreProduct[]> {
   const results: StoreProduct[] = [];
   for (const id of ids) {
     try {
-      const r = await fetch(makeUrl(`/wp-json/wc/v3/products/${id}${qsAuth}`), {
-        cache: "no-store",
+      const r = await wordpressFetch(makeUrl(`/wp-json/wc/v3/products/${id}${qsAuth}`), {
+        allowProxyFallback: true,
+        timeoutMs: 7000,
       });
       if (!r.ok) continue;
       const p = (await r.json()) as any;
@@ -121,9 +139,31 @@ async function fetchProductsByIds(ids: number[]): Promise<StoreProduct[]> {
         is_purchasable: p?.is_purchasable ?? undefined,
         stock_status: p?.stock_status ?? undefined,
       });
-    } catch {}
+    } catch (err) {
+      if (
+        err instanceof UpstreamTimeout ||
+        err instanceof UpstreamNetworkError ||
+        err instanceof UpstreamBadResponse
+      ) {
+        continue;
+      }
+      throw err;
+    }
   }
   return results;
+}
+
+function resolveError(err: unknown) {
+  if (err instanceof UpstreamTimeout) {
+    return { status: err.status, code: "upstream_timeout" } as const;
+  }
+  if (err instanceof UpstreamNetworkError) {
+    return { status: err.status, code: "upstream_network" } as const;
+  }
+  if (err instanceof UpstreamBadResponse) {
+    return { status: 502, code: "upstream_bad_response" } as const;
+  }
+  return { status: 500, code: "internal_error" } as const;
 }
 
 export async function GET(req: Request) {
@@ -145,9 +185,10 @@ export async function GET(req: Request) {
     const items = await fetchProductsByIds(ids);
     return NextResponse.json({ items }, { status: 200 });
   } catch (err: any) {
+    const { status, code } = resolveError(err);
     return NextResponse.json(
-      { error: err?.message || "failed" },
-      { status: 500 }
+      { error: code },
+      { status }
     );
   }
 }

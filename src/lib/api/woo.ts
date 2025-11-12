@@ -1,6 +1,12 @@
 import "server-only";
 import { cache } from "react";
 
+import {
+  wordpressFetch,
+  wordpressJson,
+  type WordPressFetchOptions,
+} from "@/services/wordpress";
+
 /* ============================================================================
  * Base types (kept)
  * ==========================================================================*/
@@ -39,26 +45,14 @@ const WP_BASE =
 const CK = process.env.WOO_CONSUMER_KEY || "";
 const CS = process.env.WOO_CONSUMER_SECRET || "";
 
-const APP_USER =
-  process.env.WP_APP_USER ||
-  process.env.WP_BASIC_USER ||
-  process.env.WP_USER ||
-  "";
-const APP_PASS =
-  process.env.WP_APP_PASS ||
-  process.env.WP_BASIC_PASS ||
-  process.env.WP_PASS ||
-  "";
-
 const DEV_FAKE =
   process.env.NODE_ENV !== "production" && !!process.env.WOO_DEV_FAKE;
 
 /* ============================================================================
  * Low-level fetch (kept)
  * ==========================================================================*/
-type WooFetchOpts = RequestInit & {
+type WooFetchOpts = WordPressFetchOptions & {
   revalidateSeconds?: number;
-  headers?: HeadersInit;
 };
 
 function makeWooUrl(path: string): URL {
@@ -84,54 +78,32 @@ export async function wooFetch(
       url.searchParams.set("consumer_secret", CS);
   }
 
-  const {
-    revalidateSeconds,
-    headers: initHeaders,
-    next,
-    cache,
-    ...rest
-  } = init ?? {};
+  const { revalidateSeconds, revalidate, ...rest } = init ?? {};
 
-  const hdrs = new Headers(initHeaders);
-  if (!hdrs.has("Content-Type")) hdrs.set("Content-Type", "application/json");
-
-  if (APP_USER && APP_PASS && !hdrs.has("Authorization")) {
-    const token =
-      typeof Buffer !== "undefined"
-        ? Buffer.from(`${APP_USER}:${APP_PASS}`).toString("base64")
-        : btoa(`${APP_USER}:${APP_PASS}`);
-    hdrs.set("Authorization", `Basic ${token}`);
-  }
-
-  const cacheMode =
-    cache ?? (revalidateSeconds != null ? "force-cache" : "no-store");
-  const nextConfig =
-    revalidateSeconds != null ? { revalidate: revalidateSeconds } : next;
-
-  const res = await fetch(url.toString(), {
+  return wordpressFetch(url, {
+    allowProxyFallback: true,
+    timeoutMs: rest.timeoutMs ?? 8000,
+    revalidate: revalidate ?? revalidateSeconds,
     ...rest,
-    headers: hdrs,
-    cache: cacheMode,
-    next: nextConfig,
   });
-
-  return res;
 }
 
 export async function wooFetchJSON<T>(
   path: string,
   init?: WooFetchOpts
 ): Promise<T> {
-  const res = await wooFetch(path, init);
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(
-      `wooFetchJSON failed: ${res.status} ${res.statusText}\n` +
-        `URL: ${makeWooUrl(path).toString()}\n` +
-        (body ? `Body: ${body.slice(0, 600)}` : "")
-    );
+  const { data, notModified } = await wordpressJson<T>(makeWooUrl(path), {
+    allowProxyFallback: true,
+    timeoutMs: init?.timeoutMs ?? 8000,
+    ...init,
+  });
+  if (notModified) {
+    throw new Error(`wooFetchJSON received 304 for ${path}`);
   }
-  return (await res.json()) as T;
+  if (data === null || typeof data === "undefined") {
+    return null as unknown as T;
+  }
+  return data;
 }
 
 /* ============================================================================
