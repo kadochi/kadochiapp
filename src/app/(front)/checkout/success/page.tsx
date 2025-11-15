@@ -30,7 +30,7 @@ export default async function SuccessPage({
   const queryOrder = pickFirst(resolved.order).trim();
   const queryPaid = pickFirst(resolved.paid).trim();
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const cookieOrder = decodeURIComponent(
     cookieStore.get("kadochi_order_id")?.value || ""
   ).trim();
