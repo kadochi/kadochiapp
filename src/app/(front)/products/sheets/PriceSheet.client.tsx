@@ -117,6 +117,7 @@ export default function PriceSheet({
             style={{ width: "100%" } as any}
             loading={isPending}
             disabled={isPending}
+            fullWidth
           >
             اعمال
           </Button>

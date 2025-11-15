@@ -1,6 +1,12 @@
 "use client";
 
-import { useMemo, useState, useCallback, useEffect, useTransition } from "react";
+import {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+  useTransition,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BottomSheet from "@/components/ui/BottomSheet/BottomSheet";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
@@ -242,7 +248,17 @@ export default function AllFiltersSheet({
     startTransition(() => {
       router.replace(`/products?${usp.toString()}`, { scroll: false });
     });
-  }, [sp, router, sort, category, occasion, fast, minStr, maxStr, startTransition]);
+  }, [
+    sp,
+    router,
+    sort,
+    category,
+    occasion,
+    fast,
+    minStr,
+    maxStr,
+    startTransition,
+  ]);
 
   const clearAll = () => {
     setSort("latest");
@@ -391,18 +407,18 @@ export default function AllFiltersSheet({
         className={s.sheetFooter}
         style={{ display: "flex", gap: 12, alignItems: "center" }}
       >
-          <Button
-            type="secondary"
-            size="large"
-            className={s.applyBtn}
-            onClick={applyAll}
-            aria-label="اعمال فیلتر"
-            loading={isPending}
-            disabled={isPending}
-          >
-            {isPending
-              ? "در حال اعمال…"
-              : `اعمال فیلتر${activeCount > 0 ? ` (${activeCount})` : ""}`}
+        <Button
+          type="secondary"
+          size="large"
+          className={s.applyBtn}
+          onClick={applyAll}
+          aria-label="اعمال فیلتر"
+          loading={isPending}
+          disabled={isPending}
+        >
+          {isPending
+            ? "در حال اعمال…"
+            : `اعمال فیلتر${activeCount > 0 ? ` (${activeCount})` : ""}`}
         </Button>
 
         {activeCount > 0 && (
@@ -413,6 +429,7 @@ export default function AllFiltersSheet({
             className={s.removeBtn}
             onClick={clearAll}
             aria-label="حذف فیلترها"
+            fullWidth
           >
             <Trash2 size={24} />
           </Button>
