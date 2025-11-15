@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+// src/app/api/reviews/route.ts
+
+import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookies } from "@/lib/auth/session";
 
 let getCustomerById: ((id: number) => Promise<any>) | undefined;
@@ -21,7 +23,6 @@ try {
   createProductReview = mod.createProductReview;
 } catch {}
 
-/** Fallback direct POST to Woo reviews endpoint */
 async function fallbackCreateReview(productId: number | string, payload: any) {
   const base = process.env.WOO_BASE_URL || process.env.WP_BASE_URL;
   const key = process.env.WOO_CONSUMER_KEY;
@@ -44,7 +45,10 @@ async function fallbackCreateReview(productId: number | string, payload: any) {
 
   const r = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
     body: JSON.stringify(body),
     cache: "no-store",
   });
@@ -60,7 +64,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const sess = await getSessionFromCookies();
     if (!sess?.userId) {
@@ -85,7 +89,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Build reviewer name/email
     let reviewer = "";
     try {
       if (getCustomerById) {
@@ -114,10 +117,12 @@ export async function POST(req: Request) {
       (sess?.phone ? `${sess.phone}@users.kadochi.local` : null) ||
       "noreply@kadochi.com";
 
-    const createFn =
-      createProductReview ??
-      (async (pid: number | string, payload: any) =>
-        fallbackCreateReview(pid, payload));
+    const createFn = async (pid: number | string, payload: any) => {
+      if (createProductReview) {
+        return await createProductReview(pid, payload);
+      }
+      return await fallbackCreateReview(pid, payload);
+    };
 
     await createFn(productId, {
       review: String(text).trim(),

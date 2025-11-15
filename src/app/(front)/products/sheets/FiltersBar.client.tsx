@@ -5,6 +5,7 @@ import {
   useSearchParams,
   type ReadonlyURLSearchParams,
 } from "next/navigation";
+import { useTransition } from "react";
 import Chip from "@/components/ui/Chip/Chip";
 import {
   Filter,
@@ -58,6 +59,7 @@ export default function FiltersBar({
 }) {
   const router = useRouter();
   const sp = useSearchParams();
+  const [isPending, startTransition] = useTransition();
 
   const isCategoryActive = !!sp.get("category");
   const categoryText = isCategoryActive
@@ -124,7 +126,9 @@ export default function FiltersBar({
   const openSheet = (name: string) => {
     const usp = new URLSearchParams(sp.toString());
     usp.set("sheet", name);
-    router.replace(`/products?${usp.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`/products?${usp.toString()}`, { scroll: false });
+    });
   };
 
   const clearCategory = (e?: React.MouseEvent) => {
@@ -134,7 +138,9 @@ export default function FiltersBar({
     usp.delete("category");
     usp.delete("sheet");
     usp.delete("page");
-    router.replace(`/products?${usp.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`/products?${usp.toString()}`, { scroll: false });
+    });
   };
 
   const clearPrice = (e?: React.MouseEvent) => {
@@ -145,7 +151,9 @@ export default function FiltersBar({
     usp.delete("max_price");
     usp.delete("sheet");
     usp.set("page", "1");
-    router.replace(`/products?${usp.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`/products?${usp.toString()}`, { scroll: false });
+    });
   };
 
   const clearOccasion = (e?: React.MouseEvent) => {
@@ -157,7 +165,9 @@ export default function FiltersBar({
     else usp.delete("tag");
     usp.delete("sheet");
     usp.set("page", "1");
-    router.replace(`/products?${usp.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`/products?${usp.toString()}`, { scroll: false });
+    });
   };
 
   const toggleFastDelivery = () => {
@@ -172,11 +182,17 @@ export default function FiltersBar({
     }
     usp.delete("sheet");
     usp.set("page", "1");
-    router.replace(`/products?${usp.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`/products?${usp.toString()}`, { scroll: false });
+    });
   };
 
   return (
-    <nav className={s.scrollArea} aria-label="فیلترها">
+    <nav
+      className={s.scrollArea}
+      aria-label="فیلترها"
+      aria-busy={isPending || undefined}
+    >
       <Chip
         state={activeFiltersCount > 0 ? "active" : "default"}
         leadingIcon={<Filter size={16} />}

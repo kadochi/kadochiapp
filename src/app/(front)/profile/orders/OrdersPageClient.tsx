@@ -1,7 +1,4 @@
 // src/app/(front)/profile/orders/OrdersPageClient.tsx
-// Client UI: sticky internal header + tabs + paginated list (5 per page).
-// Robust against timeouts; retry + accessible empty/error states.
-
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
@@ -106,7 +103,6 @@ function inGroup(status: Status, g: GroupKey) {
   return true;
 }
 
-// Accepts array or payload {items:[]}
 function normalizeOrders(payload: any): Order[] {
   const list =
     (Array.isArray(payload) && payload) ||
@@ -185,18 +181,18 @@ export default function OrdersPageClient({
   const [orders, setOrders] = useState<Order[]>(() =>
     normalizeOrders(initialOrders)
   );
-  const [page, setPage] = useState(orders.length > 0 ? 1 : 0); // 0 => not loaded yet
+  const [page, setPage] = useState(orders.length > 0 ? 1 : 0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string>("");
   const [hasMore, setHasMore] = useState<boolean>(true);
 
-  // Avoid race when multiple fetches overlap
   const lastReqId = useRef(0);
 
   const fetchPage = useCallback(async (nextPage: number) => {
     const reqId = ++lastReqId.current;
     setLoading(true);
     setErr("");
+
     const ctl = new AbortController();
 
     try {
@@ -223,7 +219,21 @@ export default function OrdersPageClient({
     }
   }, []);
 
-  // If SSR had no data, load first page on mount
+  // Refetch orders on visibility/focus to keep list fresh (e.g., after payment)
+  useEffect(() => {
+    function onFocus() {
+      fetchPage(1);
+    }
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") onFocus();
+    });
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus as any);
+    };
+  }, [fetchPage]);
+
   useEffect(() => {
     if ((initialOrders?.length ?? 0) === 0 && page === 0) {
       fetchPage(1);
@@ -244,7 +254,6 @@ export default function OrdersPageClient({
 
   return (
     <div className={s.page} dir="rtl">
-      {/* Unified Header with internal variant (already sticky by CSS) */}
       <Header variant="internal" title="سفارش‌های من" backUrl="/profile" />
 
       <div className={s.tabsWrap}>
@@ -259,7 +268,6 @@ export default function OrdersPageClient({
       <Divider />
 
       <div className={s.list} aria-live="polite">
-        {/* Initial skeletons */}
         {loading && orders.length === 0
           ? Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className={s.skelOrder}>
@@ -281,7 +289,6 @@ export default function OrdersPageClient({
             ))
           : null}
 
-        {/* Error state (uses `actions` prop — بدون children تا TS ارور نده) */}
         {err && orders.length === 0 ? (
           <StateMessage
             imageSrc="/images/illustration-failed.png"
@@ -302,7 +309,6 @@ export default function OrdersPageClient({
           />
         ) : null}
 
-        {/* Empty state */}
         {!loading && !err && filtered.length === 0 && orders.length > 0 ? (
           <StateMessage
             imageSrc="/images/order-list-empty.png"
@@ -311,12 +317,10 @@ export default function OrdersPageClient({
           />
         ) : null}
 
-        {/* List */}
         {filtered.map((o) => (
           <OrderCard key={o.id} order={o} />
         ))}
 
-        {/* Pagination footer */}
         {!err && filtered.length > 0 ? (
           <div
             style={{ display: "grid", placeItems: "center", padding: "16px" }}
@@ -342,7 +346,6 @@ export default function OrdersPageClient({
           </div>
         ) : null}
 
-        {/* Error while loading next page */}
         {err && orders.length > 0 ? (
           <div
             style={{

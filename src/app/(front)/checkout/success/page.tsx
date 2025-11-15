@@ -1,123 +1,139 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useRef } from "react";
+import Lottie from "lottie-react";
+import Button from "@/components/ui/Button/Button";
+import { useBasket } from "@/domains/basket/state/basket-context";
+import ConfettiAnim from "@/assets/Celebration.json";
+import StateMessage from "@/components/layout/StateMessage/StateMessage";
 import Header from "@/components/layout/Header/Header";
-import SuccessClient from "./SuccessClient";
-import { redirect } from "next/navigation";
-import { getOrderDetailForSession } from "@/lib/api/orders";
+import s from "./success.module.css";
 
-export const metadata = { title: "کادوچی | پرداخت موفق" };
-export const dynamic = "force-dynamic";
+type Props = {
+  orderId: string;
+  receiverName: string;
+  delivery: string;
+  orderDateISO?: string;
+  /** Paid amount in IRT (toman) already converted on the server */
+  paidIRT?: number;
+};
 
-function tomanIRTfromIRR(irr?: number) {
-  const v = Math.max(0, Number(irr || 0));
-  return Math.round(v / 10);
+function toman(n?: number) {
+  return Math.max(0, Number(n || 0)).toLocaleString("fa-IR");
 }
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams?: Record<string, unknown>;
-}) {
-  const sp = searchParams ?? {};
-  const orderId = (Array.isArray(sp.order) ? sp.order[0] : sp.order ?? "")
-    .toString()
-    .trim();
-
-  if (!/^\d+$/.test(orderId)) {
-    redirect("/profile/orders");
-  }
-
-  // همون منبع داده‌ای که صفحه‌ی جزئیات سفارش استفاده می‌کند
-  let detail: any | undefined;
-  try {
-    detail = await getOrderDetailForSession(orderId);
-  } catch (e: any) {
-    redirect("/profile/orders");
-  }
-  if (!detail) {
-    redirect("/profile/orders");
-  }
-
-  const orderDateISO: string =
-    detail.created_at ||
-    detail.date_created_gmt ||
-    detail.date_created ||
-    detail.createdAt ||
-    "";
-
-  const receiverName: string =
-    (detail.receiver as string) ||
-    [
-      detail?.shipping?.first_name ||
-        detail?.billing?.first_name ||
-        detail?.shipping_first_name ||
-        detail?.billing_first_name ||
-        "",
-      detail?.shipping?.last_name ||
-        detail?.billing?.last_name ||
-        detail?.shipping_last_name ||
-        detail?.billing_last_name ||
-        "",
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-
-  let delivery: string = (detail.delivery_window as string) || "";
-  if (!delivery) {
-    const metaArr: any[] = Array.isArray(detail?.meta_data)
-      ? detail.meta_data
-      : [];
-    const slotId =
-      metaArr.find((m) => m?.key === "_kadochi_slot_id")?.value || "";
-    if (slotId) {
-      const [d, partRaw] = String(slotId).split("_");
-      const part = String(partRaw || "").trim();
-      try {
-        const dt = new Date(d);
-        const faDay = new Intl.DateTimeFormat("fa-IR", {
-          weekday: "long",
-        }).format(dt);
-        const faDate = new Intl.DateTimeFormat("fa-IR", {
-          day: "2-digit",
-          month: "long",
-        }).format(dt);
-        const range =
-          part === "صبح"
-            ? "۱۰ الی ۱۳"
-            : part === "ظهر"
-            ? "۱۳ الی ۱۶"
-            : part === "عصر"
-            ? "۱۶ الی ۱۹"
-            : "";
-        delivery = `${faDay} ${faDate}${range ? ` | ${part} (${range})` : ""}`;
-      } catch {
-        delivery = slotId;
-      }
+/**
+ * SuccessClient
+ * - Plays lottie (success only)
+ * - Clears basket once
+ * - Shows paid amount, order id, created date, receiver, delivery window
+ * - Pure client UI; no data fetching here
+ */
+export default function SuccessClient({
+  orderId,
+  receiverName,
+  delivery,
+  orderDateISO,
+  paidIRT = 0,
+}: Props) {
+  // Format order date (fixed, from Woo / API)
+  const orderDateText = useMemo(() => {
+    try {
+      if (!orderDateISO) return "—";
+      const d = new Date(orderDateISO);
+      if (isNaN(d.getTime())) return "—";
+      return d.toLocaleString("fa-IR", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "—";
     }
-  }
+  }, [orderDateISO]);
 
-  const paidIRTFromSummary = tomanIRTfromIRR(detail?.summary?.total);
-  const metaArr: any[] = Array.isArray(detail?.meta_data)
-    ? detail.meta_data
-    : [];
-  const paidIRTFromMeta =
-    Number(metaArr.find((m) => m?.key === "_kadochi_total_irt")?.value) || 0;
-  const paidIRT =
-    paidIRTFromSummary || paidIRTFromMeta || Number(sp.paid ?? 0) || 0;
+  // Clear basket once (on success page only)
+  const { updateQuantity } = useBasket();
+  const clearedRef = useRef(false);
+  useEffect(() => {
+    if (clearedRef.current) return;
+    clearedRef.current = true;
+    try {
+      updateQuantity({});
+    } catch {}
+  }, [updateQuantity]);
 
   return (
-    <div>
-      <Header
-        variant="internal"
-        title="نتیجه پرداخت"
-        backUrl="/profile/orders"
-      />
-      <SuccessClient
-        orderId={orderId}
-        receiverName={receiverName}
-        delivery={delivery}
-        orderDateISO={orderDateISO}
-        paidIRT={paidIRT}
-      />
+    <div className={s.page} dir="rtl">
+      <Header />
+      {/* Lottie: play only on success */}
+      <div className={s.confettiWrap} aria-hidden>
+        <Lottie
+          animationData={ConfettiAnim}
+          loop
+          autoplay
+          style={{ width: "100%", height: "100%" }}
+        />
+      </div>
+
+      <main className={s.wrap}>
+        <StateMessage
+          imageSrc="/images/success-illustration.png"
+          imageAlt=""
+          title="سفارش شما ثبت شد!"
+          subtitle="می‌توانید وضعیت سفارش را در بخش سفارش‌های من دنبال کنید."
+        />
+
+        <div className={s.infoList} role="list">
+          {/* Paid amount (IRT) */}
+          <div className={s.infoRow} role="listitem">
+            <span className={s.infoKey}>مبلغ پرداخت‌شده</span>
+            <span className={s.infoValBold}>{toman(paidIRT)} تومان</span>
+          </div>
+
+          <div className={s.sep} aria-hidden />
+
+          <div className={s.infoRow} role="listitem">
+            <span className={s.infoKey}>شماره سفارش</span>
+            <span className={s.infoVal}>{orderId ? `#${orderId}` : "—"}</span>
+          </div>
+
+          <div className={s.sep} aria-hidden />
+
+          <div className={s.infoRow} role="listitem">
+            <span className={s.infoKey}>تاریخ سفارش</span>
+            <span className={s.infoVal}>{orderDateText}</span>
+          </div>
+
+          <div className={s.sep} aria-hidden />
+
+          <div className={s.infoRow} role="listitem">
+            <span className={s.infoKey}>گیرنده</span>
+            <span className={s.infoVal}>{receiverName?.trim() || "—"}</span>
+          </div>
+
+          <div className={s.sep} aria-hidden />
+
+          <div className={s.infoRow} role="listitem">
+            <span className={s.infoKey}>روز و ساعت تحویل</span>
+            <span className={s.infoVal}>{delivery?.trim() || "—"}</span>
+          </div>
+        </div>
+      </main>
+
+      {/* Bottom action bar */}
+      <div className={s.ctaBar} role="region" aria-label="CTA">
+        <div className={s.ctaBtn}>
+          <Link href="/profile/orders">
+            <Button type="primary" size="large" style="filled" fullWidth>
+              مشاهده سفارش‌های من
+            </Button>
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

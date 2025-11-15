@@ -28,7 +28,7 @@ export default async function FailurePage({
       <div className={s.page} dir="rtl">
         <main className={s.wrap}>
           <StateMessage
-            imageSrc="/images/payment-failed.png"
+            imageSrc="/images/illustration-failed.png"
             imageAlt="پرداخت ناموفق"
             title="پرداخت ناموفق بود"
             subtitle={desc}

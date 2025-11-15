@@ -2,13 +2,11 @@
 
 /**
  * Checkout page
- * ---------------------------------------------------------------------------
- * - Keeps current UI/flow intact.
- * - Creates Woo order (pending) in handlePay() and then starts Zarinpal.
- * - Loads product prices via Woo Store API (proxy) to compute totals (IRT).
- * - "Fast delivery" probe uses the same Store API (best-effort, fully guarded).
- * - Adds defensive fetches, AbortController, stable memo deps, and comments.
- * - Does NOT reset any field when moving between steps.
+ * -----------------------------------------------------------------------------
+ * - Multi-step checkout flow (sender/receiver → delivery/packaging → payment).
+ * - Prices are fetched from Woo Store API to compute final totals.
+ * - NEW: Payment step is only reachable after pricing is fully resolved,
+ *   so amounts do not "jump" a few seconds after the payment screen shows.
  */
 
 import { useEffect, useMemo, useState, useCallback } from "react";
@@ -50,7 +48,7 @@ type StoreProduct = {
     sale_price?: string | null;
     regular_price?: string | null;
   };
-  // Store API often includes taxonomy arrays like tags; keep as unknown-safe.
+  // Store API often includes tags/taxonomies; we only care about presence, not shape.
   tags?: Array<{ id?: number; slug?: string; name?: string }>;
 };
 
@@ -74,7 +72,7 @@ function buildStepper(currentIndex: 0 | 1 | 2): StepItem[] {
   ];
 }
 
-/** Debounced effect without changing public behavior. */
+/** Debounced effect helper that keeps public behavior simple. */
 function useDebouncedEffect(fn: () => void, deps: any[], ms: number) {
   useEffect(() => {
     const id = setTimeout(fn, ms);
@@ -100,7 +98,9 @@ const addDays = (d: Date, n: number) => {
   x.setDate(x.getDate() + n);
   return x;
 };
+
 const isFriday = (d: Date) => d.getDay() === 5;
+
 const sameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() &&
   a.getMonth() === b.getMonth() &&
@@ -115,7 +115,12 @@ const priceFromWP = (p?: StoreProduct["prices"]) => {
 const irrToIrt = (irr: number) => Math.round(Math.max(0, irr) / 10);
 const irtToIrrStr = (irt: number) => String(Math.max(0, Math.round(irt * 10)));
 
-/* Fetch products via Woo Store API (proxy first, then direct fallback) */
+/**
+ * Fetch products via Woo Store API.
+ * - Tries proxy route first.
+ * - Falls back to direct Store API if needed.
+ * - Always returns a plain array; caller handles empty as "no prices".
+ */
 async function fetchProductsByIds(
   ids: string[],
   signal?: AbortSignal
@@ -136,7 +141,9 @@ async function fetchProductsByIds(
       const data = (await r.json().catch(() => [])) as unknown;
       if (Array.isArray(data)) return data as StoreProduct[];
     }
-  } catch {}
+  } catch {
+    // Proxy path failed – fall back to direct Woo endpoint.
+  }
 
   try {
     const base =
@@ -153,7 +160,9 @@ async function fetchProductsByIds(
       const data = (await r2.json().catch(() => [])) as unknown;
       if (Array.isArray(data)) return data as StoreProduct[];
     }
-  } catch {}
+  } catch {
+    // Both paths failed – caller will see empty list and keep behavior graceful.
+  }
 
   return [];
 }
@@ -166,7 +175,7 @@ export default function CheckoutClient(props: {
   phoneValue: string;
   userId: number;
 }) {
-  /* Step state (kept in-memory; not reset across step changes) */
+  /* Step state (kept in-memory; not reset across steps) */
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const steps = useMemo(() => buildStepper(step), [step]);
 
@@ -186,34 +195,61 @@ export default function CheckoutClient(props: {
     [basketIds, basket]
   );
 
-  /* Products for price calculation */
+  /* Products for price calculation (Store API) */
   const [items, setItems] = useState<ViewProduct[]>([]);
+
+  // NEW: pricing state so payment step only shows after totals are resolved.
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingReady, setPricingReady] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     const ac = new AbortController();
 
     (async () => {
       if (!basketIds.length) {
-        if (!cancelled) setItems([]);
+        // Empty basket → nothing to price; keep behavior but mark as "ready".
+        if (!cancelled) {
+          setItems([]);
+          setPricingLoading(false);
+          setPricingReady(true);
+        }
         return;
       }
-      const arr = await fetchProductsByIds(basketIds, ac.signal);
-      if (cancelled) return;
 
-      const idSet = new Set(basketIds.map(String));
-      const mapped: ViewProduct[] = (arr || [])
-        .filter((p) => idSet.has(String(p?.id)))
-        .map((p) => ({ id: p.id, prices: p.prices }));
-      setItems(mapped);
+      if (!cancelled) {
+        setPricingLoading(true);
+        setPricingReady(false);
+      }
+
+      try {
+        const arr = await fetchProductsByIds(basketIds, ac.signal);
+        if (cancelled) return;
+
+        const idSet = new Set(basketIds.map(String));
+        const mapped: ViewProduct[] = (arr || [])
+          .filter((p) => idSet.has(String(p?.id)))
+          .map((p) => ({ id: p.id, prices: p.prices }));
+
+        setItems(mapped);
+      } finally {
+        // Even on error we mark as "ready", so behavior stays compatible
+        // with previous logic (totals may be 0, but the flow is not blocked).
+        if (!cancelled) {
+          setPricingLoading(false);
+          setPricingReady(true);
+        }
+      }
     })();
 
     return () => {
       cancelled = true;
       ac.abort();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basketIds.join(",")]);
 
-  /* Sender / Receiver (kept as controlled state → values persist across steps) */
+  /* Sender / Receiver (controlled state; persists across steps) */
   const [senderFirst, setSenderFirst] = useState(props.initialFirstName || "");
   const [senderLast, setSenderLast] = useState(props.initialLastName || "");
   const [senderPhone, setSenderPhone] = useState(
@@ -221,7 +257,7 @@ export default function CheckoutClient(props: {
   );
 
   useEffect(() => {
-    // Keep initial values in sync, but never blank-out existing typed values
+    // Keep initial values in sync, but never wipe user input.
     setSenderFirst((v) => (v ? v : props.initialFirstName || ""));
     setSenderLast((v) => (v ? v : props.initialLastName || ""));
     setSenderPhone(normalizeDigits((props.phoneValue || "").trim()));
@@ -230,8 +266,8 @@ export default function CheckoutClient(props: {
   const [savingProfile, setSavingProfile] = useState(false);
   const saveProfile = useCallback(
     async (first: string, last: string) => {
-      const f = first.trim(),
-        l = last.trim();
+      const f = first.trim();
+      const l = last.trim();
       if (!f || !l) return;
       try {
         setSavingProfile(true);
@@ -258,7 +294,7 @@ export default function CheckoutClient(props: {
 
   useDebouncedEffect(
     () => {
-      // Background profile save – does not change UI flow
+      // Background profile save – non-blocking, no UX change.
       void saveProfile(senderFirst, senderLast);
     },
     [senderFirst, senderLast, saveProfile],
@@ -272,7 +308,7 @@ export default function CheckoutClient(props: {
   const [recAddress, setRecAddress] = useState("");
 
   useEffect(() => {
-    // If user toggles "receiver is me", mirror values; otherwise keep typed values intact
+    // Mirror sender into receiver when "receiver is me" is checked.
     if (receiverIsMe) {
       setRecName(`${senderFirst} ${senderLast}`.trim());
       setRecPhone(senderPhone);
@@ -295,7 +331,7 @@ export default function CheckoutClient(props: {
   const [packId, setPackId] = useState<PackagingId>("normal");
   const [allFast, setAllFast] = useState(false);
 
-  // Best-effort "fast" tag check — now via Store API to avoid 500 on /api/products
+  // Best-effort "fast-delivery" tag check via Store API.
   useEffect(() => {
     let cancelled = false;
     const ac = new AbortController();
@@ -345,12 +381,13 @@ export default function CheckoutClient(props: {
       cancelled = true;
       ac.abort();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basketIds.join(",")]);
 
   const [slots, setSlots] = useState<Slot[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState("");
 
-  // Build 9 slots starting today (if fast) or tomorrow
+  // Build 9 slots starting today (if fast) or tomorrow.
   useEffect(() => {
     const now = new Date();
     const startFromToday = allFast === true;
@@ -415,7 +452,7 @@ export default function CheckoutClient(props: {
     selectedSlotId && slots.some((s) => s.id === selectedSlotId && !s.disabled)
   );
 
-  /* Totals (dynamic) */
+  /* Totals (dynamic; driven by Store API prices + current basket) */
   const subtotalIRR = useMemo(() => {
     const byId = new Map(items.map((p) => [String(p.id), p]));
     return Object.entries(basket || {}).reduce((sum, [id, qty]) => {
@@ -434,11 +471,11 @@ export default function CheckoutClient(props: {
     subtotalIRT + taxIRT + shippingIRT + packagingIRT
   );
 
-  /* Step navigation (state persists) */
+  /* Step navigation */
   const goNext = () => setStep((p) => (p < 2 ? ((p + 1) as 0 | 1 | 2) : p));
   const goPrev = () => setStep((p) => (p > 0 ? ((p - 1) as 0 | 1 | 2) : p));
 
-  /* Submit (create pending Woo order → start Zarinpal) */
+  /* Submit (create Woo order → start Zarinpal) */
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [cardMessage, setCardMessage] = useState("");
@@ -474,7 +511,7 @@ export default function CheckoutClient(props: {
     const payload = buildPayload();
 
     try {
-      // 1) Create Woo order (pending) via hardened proxy
+      // 1) Create Woo order (pending) via hardened proxy.
       const orderBody = {
         status: "pending",
         set_paid: false,
@@ -565,7 +602,7 @@ export default function CheckoutClient(props: {
       }
       const orderId = orderJson.id as number;
 
-      // 2) Start Zarinpal with orderId (IRT)
+      // 2) Start Zarinpal with orderId and final totals (IRT).
       const zr = await fetch("/api/pay/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -579,8 +616,22 @@ export default function CheckoutClient(props: {
         }),
       });
       const zd = (await zr.json().catch(() => ({}))) as any;
-      if (!zr.ok || !zd?.ok || !zd?.url)
-        throw new Error(zd?.error || "zarinpal_request_failed");
+      if (!zr.ok || !zd?.ok || !zd?.url) {
+        const code = zd?.error || "zarinpal_request_failed";
+        const specific =
+          code === "invalid_amount"
+            ? "مبلغ پرداخت نامعتبر است."
+            : code === "missing_merchant_id"
+            ? "شناسه پذیرنده درگاه تنظیم نشده است."
+            : code === "invalid_callback_url"
+            ? "نشانی بازگشت از درگاه نامعتبر است."
+            : code === "upstream_timeout"
+            ? "اتصال به درگاه زمان‌بر شد. لطفاً دوباره تلاش کنید."
+            : code === "upstream_network"
+            ? "اتصال به درگاه برقرار نشد. اینترنت خود را بررسی کنید."
+            : "";
+        throw new Error(specific || "zarinpal_request_failed");
+      }
 
       try {
         sessionStorage.setItem(
@@ -588,18 +639,26 @@ export default function CheckoutClient(props: {
           String(payload.amounts.total_irt)
         );
         sessionStorage.setItem("lastOrderId", String(orderId));
-      } catch {}
+        // Also persist via short-lived cookie to survive edge cases on callback
+        document.cookie = `kadochi_order_id=${encodeURIComponent(
+          String(orderId)
+        )}; Path=/; Max-Age=900; SameSite=Lax`;
+      } catch {
+        // sessionStorage may be unavailable; ignore.
+      }
 
       window.location.href = String(zd.url);
-    } catch {
-      setSubmitError(
-        "در ساخت سفارش یا اتصال به درگاه خطا رخ داد. لطفاً دوباره تلاش کنید."
-      );
+    } catch (e: any) {
+      const msg =
+        typeof e?.message === "string" && e.message !== "zarinpal_request_failed"
+          ? e.message
+          : "در ساخت سفارش یا اتصال به درگاه خطا رخ داد. لطفاً دوباره تلاش کنید.";
+      setSubmitError(msg);
       setSubmitting(false);
     }
   }
 
-  /* -------------------------------- UI (unchanged flow) -------------------------------- */
+  /* -------------------------------- UI -------------------------------- */
 
   return (
     <div>
@@ -616,9 +675,7 @@ export default function CheckoutClient(props: {
             subtitle="اطلاعات فرستنده سفارش"
             labelSlot={
               savingProfile ? (
-                <span className={s.savingHint} aria-live="polite">
-                  در حال ذخیره…
-                </span>
+                <span className={s.savingHint} aria-live="polite"></span>
               ) : null
             }
           />
@@ -756,6 +813,10 @@ export default function CheckoutClient(props: {
               spaceBetween={16}
               slidesOffsetBefore={16}
               slidesOffsetAfter={16}
+              loop={false}
+              centeredSlides={false}
+              centerInsufficientSlides={false}
+              watchOverflow={true}
             >
               {slots.map((sl) => {
                 const selected = selectedSlotId === sl.id;
@@ -852,12 +913,13 @@ export default function CheckoutClient(props: {
               size="large"
               type="primary"
               style="filled"
-              disabled={!canNext1}
+              // NEW: prevent moving to payment step until pricing is resolved.
+              disabled={!canNext1 || pricingLoading || !pricingReady}
               onClick={goNext}
               className={s.nextBtn}
               fullWidth
             >
-              مرحله بعد
+              {pricingLoading ? "در حال محاسبه مبلغ سفارش…" : "مرحله بعد"}
             </Button>
             <Button
               as="button"

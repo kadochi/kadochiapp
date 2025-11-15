@@ -16,7 +16,6 @@
   gap: var(--btn-gap, var(--space-6));
   cursor: pointer;
   direction: rtl;
-  width: 100%;
 }
 
 /* Sizes */

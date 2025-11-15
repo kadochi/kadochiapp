@@ -15,7 +15,7 @@ export const runtime = "nodejs";
 // --- Tunables (adjust to your infra/profile) ---
 const LIST_TIMEOUT_MS = 7000;
 const INCLUDE_TIMEOUT_MS = 5000;
-const EDGE_S_MAXAGE = 30; // CDN TTL (seconds)
+const EDGE_S_MAXAGE = 120; // CDN TTL (seconds)
 const EDGE_STALE_WHILE_REVALIDATE = 300; // Serve stale while revalidating (seconds)
 
 // Request coalescing for identical in-flight queries (prevents bursts)
@@ -134,7 +134,12 @@ export async function GET(req: Request) {
           lruSet(key, { data: cachedEntry.data, etag });
         }
 
-        return okJson(body, "no-store", etag);
+        // If we have an ETag, we can safely allow short CDN caching
+        const cacheCtl =
+          etag != null
+            ? `public, s-maxage=${EDGE_S_MAXAGE}, stale-while-revalidate=${EDGE_STALE_WHILE_REVALIDATE}`
+            : "no-store";
+        return okJson(body, cacheCtl, etag);
       } catch (err) {
         return okJson([], "no-store");
       } finally {

@@ -38,8 +38,8 @@ export interface WordPressJsonResult<T> {
   notModified: boolean;
 }
 
-const DEFAULT_TIMEOUT_MS = 10_000;
-const DEFAULT_RETRIES = 3;
+const DEFAULT_TIMEOUT_MS = 7_000;
+const DEFAULT_RETRIES = 2;
 const inflight = new Map<string, Promise<Response>>();
 const inflightJson = new Map<string, Promise<WordPressJsonResult<unknown>>>();
 

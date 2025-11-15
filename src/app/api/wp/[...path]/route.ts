@@ -20,8 +20,9 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
   .map((s) => s.trim())
   .filter(Boolean);
 
-const DEFAULT_TIMEOUT_MS = 10_000;
-const MAX_RETRIES_IDEMPOTENT = 3;
+const DEFAULT_TIMEOUT_MS = 6_000;
+const MAX_RETRIES_IDEMPOTENT = 2;
+const OUTER_BUDGET_MS_GET = 8_000; // cap overall time for idempotent requests
 
 // Build Basic auth header from env if present
 function buildAuthHeader(): Record<string, string> | undefined {
@@ -75,9 +76,11 @@ function targetURL(paramsPath: string[] | undefined, search: string): URL {
 }
 
 function abortSignalAny(signals: AbortSignal[]): AbortSignal | undefined {
-  const anyFn = (AbortSignal as unknown as {
-    any?: (signals: AbortSignal[]) => AbortSignal;
-  }).any;
+  const anyFn = (
+    AbortSignal as unknown as {
+      any?: (signals: AbortSignal[]) => AbortSignal;
+    }
+  ).any;
   return typeof anyFn === "function" ? anyFn(signals) : undefined;
 }
 
@@ -107,7 +110,11 @@ function shouldRetry(err: unknown) {
 
 function mapProxyError(err: unknown) {
   if (err instanceof CorsRedirectLoop) {
-    return { status: err.status, code: err.code, message: err.message } as const;
+    return {
+      status: err.status,
+      code: err.code,
+      message: err.message,
+    } as const;
   }
   if (err instanceof UpstreamTimeout) {
     return {
@@ -130,7 +137,11 @@ function mapProxyError(err: unknown) {
       message: "Network error contacting upstream",
     } as const;
   }
-  return { status: 502, code: "UPSTREAM_UNKNOWN", message: "Upstream error" } as const;
+  return {
+    status: 502,
+    code: "UPSTREAM_UNKNOWN",
+    message: "Upstream error",
+  } as const;
 }
 
 async function fetchUpstream(
@@ -164,20 +175,24 @@ async function fetchUpstream(
         }
 
         return response;
-        } catch (err) {
-          if (err instanceof CorsRedirectLoop || err instanceof UpstreamBadResponse) {
-            throw err;
-          }
-          if (err instanceof Error && err.name === "AbortError") {
-            throw new UpstreamTimeout();
-          }
-          if (err instanceof UpstreamTimeout) throw err;
-          const message = err instanceof Error ? err.message : "proxy_fetch_failed";
-          throw new UpstreamNetworkError(message);
-        } finally {
-          clearTimeout(timeout);
+      } catch (err) {
+        if (
+          err instanceof CorsRedirectLoop ||
+          err instanceof UpstreamBadResponse
+        ) {
+          throw err;
         }
-      },
+        if (err instanceof Error && err.name === "AbortError") {
+          throw new UpstreamTimeout();
+        }
+        if (err instanceof UpstreamTimeout) throw err;
+        const message =
+          err instanceof Error ? err.message : "proxy_fetch_failed";
+        throw new UpstreamNetworkError(message);
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
     {
       retries,
       shouldRetry,
@@ -218,7 +233,24 @@ async function handle(
       : undefined;
 
     const idempotent = ["GET", "HEAD", "OPTIONS"].includes(method);
-    const upstream = await fetchUpstream(url, { method, headers, body }, idempotent ? MAX_RETRIES_IDEMPOTENT : 1);
+    const fetchPromise = fetchUpstream(
+      url,
+      { method, headers, body },
+      idempotent ? MAX_RETRIES_IDEMPOTENT : 1
+    );
+
+    // Apply an outer time budget for idempotent methods to cap worst-case latency
+    const upstream = idempotent
+      ? await Promise.race([
+          fetchPromise,
+          new Promise<never>((_, reject) => {
+            const t = setTimeout(() => {
+              clearTimeout(t);
+              reject(new UpstreamTimeout("proxy_outer_budget_timeout"));
+            }, OUTER_BUDGET_MS_GET);
+          }),
+        ])
+      : await fetchPromise;
 
     const respHeaders = corsHeaders(req);
     const contentType = upstream.headers.get("content-type");

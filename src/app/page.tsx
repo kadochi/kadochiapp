@@ -107,7 +107,7 @@ export default async function WPLatestProductsPage() {
             </Button>
           }
         />
-        <ProductCarousel wpParams={popularParams} />
+        <ProductCarousel endpoint="/api/products" wpParams={popularParams} />
       </section>
       <Divider type="spacer" />
       <section>

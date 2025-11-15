@@ -82,7 +82,7 @@ export async function wooFetch(
 
   return wordpressFetch(url, {
     allowProxyFallback: true,
-    timeoutMs: rest.timeoutMs ?? 8000,
+    timeoutMs: rest.timeoutMs ?? 7000,
     revalidate: revalidate ?? revalidateSeconds,
     ...rest,
   });
@@ -456,12 +456,15 @@ const resolveTagIdsCsv = cache(async function resolveTagIdsCsv(
           ];
           for (const endpoint of endpoints) {
             try {
-              const result = await wordpressJson<Array<{ id?: number }>>(endpoint, {
-                allowProxyFallback: true,
-                timeoutMs: 5000,
-                revalidate: 120,
-                dedupeKey: `tag:${endpoint}`,
-              });
+              const result = await wordpressJson<Array<{ id?: number }>>(
+                endpoint,
+                {
+                  allowProxyFallback: true,
+                  timeoutMs: 5000,
+                  revalidate: 120,
+                  dedupeKey: `tag:${endpoint}`,
+                }
+              );
               const data = result.data;
               if (Array.isArray(data) && data[0]?.id) {
                 return Number(data[0].id);
@@ -521,10 +524,12 @@ function mapStoreProductToListEntry(p: StoreProduct_B) {
 }
 
 function mapWooProductToListEntry(p: WooProductV3) {
-  const img = Array.isArray(p.images) && p.images[0]?.src
-    ? p.images[0].src
-    : "/images/placeholder.png";
-  const alt = Array.isArray(p.images) && p.images[0]?.alt ? p.images[0].alt : p.name;
+  const img =
+    Array.isArray(p.images) && p.images[0]?.src
+      ? p.images[0].src
+      : "/images/placeholder.png";
+  const alt =
+    Array.isArray(p.images) && p.images[0]?.alt ? p.images[0].alt : p.name;
   const currency = (typeof p.currency === "string" && p.currency) || "IRR";
 
   const sale = Number(p.sale_price ?? NaN);
@@ -559,7 +564,9 @@ function mapWooProductToListEntry(p: WooProductV3) {
     regularPrice: Number.isFinite(regular)
       ? { amount: Number(regular), currency }
       : undefined,
-    salePrice: Number.isFinite(sale) ? { amount: Number(sale), currency } : undefined,
+    salePrice: Number.isFinite(sale)
+      ? { amount: Number(sale), currency }
+      : undefined,
     stock: { inStock, status: p.stock_status ?? null },
   };
 }
@@ -654,9 +661,7 @@ export async function listProducts(params: {
     const total = Number(
       response.headers.get("x-wp-total") || data.length || 0
     );
-    const totalPages = Number(
-      response.headers.get("x-wp-totalpages") || 1
-    );
+    const totalPages = Number(response.headers.get("x-wp-totalpages") || 1);
     const items = data.map(mapStoreProductToListEntry);
     return { items, total, totalPages };
   };
@@ -676,17 +681,15 @@ export async function listProducts(params: {
     if (typeof maxRial === "number") wooQs.set("max_price", String(maxRial));
 
     try {
-      const result = await wordpressJson<WooProductV3[]>(
+      const res = await wooFetch(
         `/wp-json/wc/v3/products?${wooQs.toString()}`,
         {
-          allowProxyFallback: true,
-          timeoutMs: 7000,
-          revalidate: 120,
-          dedupeKey: `plp:woo:${wooQs.toString()}`,
+          method: "GET",
+          revalidateSeconds: 120,
         }
       );
-      const response = result.response;
-      if (response.status === 404) {
+
+      if (res.status === 404) {
         return {
           items: [],
           page: pageNum,
@@ -695,15 +698,17 @@ export async function listProducts(params: {
           totalPages: 1,
         };
       }
-      const data = Array.isArray(result.data) ? result.data : [];
-      const items = data.map(mapWooProductToListEntry);
+      if (!res.ok) {
+        throw new Error(`wc/v3 popularity failed: ${res.status}`);
+      }
+
+      const data = (await res.json()) as WooProductV3[] | null;
+      const arr = Array.isArray(data) ? data : [];
+      const items = arr.map(mapWooProductToListEntry);
+
       if (items.length) {
-        const total = Number(
-          response.headers.get("x-wp-total") || data.length || 0
-        );
-        const totalPages = Number(
-          response.headers.get("x-wp-totalpages") || 1
-        );
+        const total = Number(res.headers.get("x-wp-total") || arr.length || 0);
+        const totalPages = Number(res.headers.get("x-wp-totalpages") || 1);
         return { items, page: pageNum, perPage: perPageNum, total, totalPages };
       }
     } catch {}
