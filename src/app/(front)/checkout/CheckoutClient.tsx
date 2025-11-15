@@ -25,6 +25,11 @@ import { useBasket } from "@/domains/basket/state/basket-context";
 import s from "./Checkout.module.css";
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
+import {
+  DELIVERY_PARTS,
+  type DeliveryPartKey,
+  formatDeliveryWindow,
+} from "@/domains/checkout/delivery-slot";
 
 /* -------------------------------- Types & helpers -------------------------------- */
 
@@ -34,7 +39,7 @@ type Slot = {
   id: string;
   dayLabel: string;
   dateLabel: string;
-  part: "صبح" | "ظهر" | "عصر";
+  part: DeliveryPartKey;
   from: string;
   to: string;
   disabled?: boolean;
@@ -81,12 +86,6 @@ function useDebouncedEffect(fn: () => void, deps: any[], ms: number) {
   }, deps);
 }
 
-const PARTS = [
-  { part: "صبح" as const, from: 10, to: 13, fa: ["۱۰", "۱۳"] },
-  { part: "ظهر" as const, from: 13, to: 16, fa: ["۱۳", "۱۶"] },
-  { part: "عصر" as const, from: 16, to: 19, fa: ["۱۶", "۱۹"] },
-];
-
 const faDay = new Intl.DateTimeFormat("fa-IR", { weekday: "long" });
 const faDate = new Intl.DateTimeFormat("fa-IR", {
   day: "2-digit",
@@ -114,6 +113,35 @@ const priceFromWP = (p?: StoreProduct["prices"]) => {
 
 const irrToIrt = (irr: number) => Math.round(Math.max(0, irr) / 10);
 const irtToIrrStr = (irt: number) => String(Math.max(0, Math.round(irt * 10)));
+
+type FetchWithTimeoutInit = RequestInit & { timeoutMs?: number };
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: FetchWithTimeoutInit = {}
+) {
+  const { timeoutMs = 15_000, signal, ...rest } = init;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let abortCleanup: (() => void) | undefined;
+
+  if (signal) {
+    if (signal.aborted) {
+      clearTimeout(timer);
+      throw signal.reason ?? new DOMException("Aborted", "AbortError");
+    }
+    const onAbort = () => controller.abort(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    abortCleanup = () => signal.removeEventListener("abort", onAbort);
+  }
+
+  try {
+    return await fetch(input, { ...rest, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+    if (abortCleanup) abortCleanup();
+  }
+}
 
 /**
  * Fetch products via Woo Store API.
@@ -399,20 +427,20 @@ export default function CheckoutClient(props: {
         dayCursor = addDays(dayCursor, 1);
         continue;
       }
-      for (const p of PARTS) {
+      for (const p of DELIVERY_PARTS) {
         if (out.length >= 9) break;
         let disabled = false;
         if (sameDay(dayCursor, now)) {
           const h = now.getHours();
-          disabled = h >= p.from;
+          disabled = h >= p.fromHour;
         }
         out.push({
-          id: `${dayCursor.toISOString().slice(0, 10)}_${p.part}`,
+          id: `${dayCursor.toISOString().slice(0, 10)}_${p.key}`,
           dayLabel: faDay.format(dayCursor),
           dateLabel: faDate.format(dayCursor),
-          part: p.part,
-          from: p.fa[0],
-          to: p.fa[1],
+          part: p.key,
+          from: p.fromLabel,
+          to: p.toLabel,
           disabled,
         });
       }
@@ -424,15 +452,15 @@ export default function CheckoutClient(props: {
         dayCursor = addDays(dayCursor, 1);
         continue;
       }
-      for (const p of PARTS) {
+      for (const p of DELIVERY_PARTS) {
         if (out.length >= 9) break;
         out.push({
-          id: `${dayCursor.toISOString().slice(0, 10)}_${p.part}`,
+          id: `${dayCursor.toISOString().slice(0, 10)}_${p.key}`,
           dayLabel: faDay.format(dayCursor),
           dateLabel: faDate.format(dayCursor),
-          part: p.part,
-          from: p.fa[0],
-          to: p.fa[1],
+          part: p.key,
+          from: p.fromLabel,
+          to: p.toLabel,
           disabled: false,
         });
       }
@@ -492,7 +520,11 @@ export default function CheckoutClient(props: {
       address: recAddress.trim(),
     },
     items: lineItems,
-    delivery: { slot_id: selectedSlotId, fast_delivery: allFast },
+    delivery: {
+      slot_id: selectedSlotId,
+      fast_delivery: allFast,
+      label: formatDeliveryWindow(selectedSlotId) || "",
+    },
     packaging: { type: packId, postcard_message: cardMessage.trim() },
     amounts: {
       subtotal_irt: subtotalIRT,
@@ -509,9 +541,25 @@ export default function CheckoutClient(props: {
     setSubmitting(true);
 
     const payload = buildPayload();
+    if (!payload.items.length) {
+      setSubmitError("سبد خرید شما خالی است.");
+      setSubmitting(false);
+      return;
+    }
+    if (!payload.delivery.slot_id) {
+      setSubmitError("لطفاً بازه تحویل را انتخاب کنید.");
+      setSubmitting(false);
+      return;
+    }
+
+    let redirected = false;
 
     try {
       // 1) Create Woo order (pending) via hardened proxy.
+      const receiverMeta = payload.customer.receiver_is_sender
+        ? `${payload.customer.sender_first_name} ${payload.customer.sender_last_name}`.trim()
+        : payload.customer.receiver_name;
+
       const orderBody = {
         status: "pending",
         set_paid: false,
@@ -582,19 +630,35 @@ export default function CheckoutClient(props: {
             key: "_kadochi_postcard_msg",
             value: payload.packaging.postcard_message,
           },
+          {
+            key: "_kadochi_delivery",
+            value: payload.delivery.label,
+          },
+          {
+            key: "_kadochi_delivery_slot",
+            value: payload.delivery.slot_id,
+          },
+          {
+            key: "_kadochi_receiver_name",
+            value: receiverMeta || "",
+          },
           { key: "_kadochi_source", value: "web" },
         ],
       };
 
-      const createOrderRes = await fetch("/api/wp/wp-json/wc/v3/orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        cache: "no-store",
-        body: JSON.stringify(orderBody),
-      });
+      const createOrderRes = await fetchWithTimeout(
+        "/api/wp/wp-json/wc/v3/orders",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          cache: "no-store",
+          credentials: "same-origin",
+          body: JSON.stringify(orderBody),
+        }
+      );
 
       const orderJson = (await createOrderRes.json().catch(() => ({}))) as any;
       if (!createOrderRes.ok || !orderJson?.id) {
@@ -603,18 +667,22 @@ export default function CheckoutClient(props: {
       const orderId = orderJson.id as number;
 
       // 2) Start Zarinpal with orderId and final totals (IRT).
-      const zr = await fetch("/api/pay/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        body: JSON.stringify({
-          amount: payload.amounts.total_irt,
-          description: `پرداخت سفارش ${orderId}`,
-          mobile: payload.customer.sender_phone,
-          orderId,
-          currency: "IRT",
-        }),
-      });
+      const zr = await fetchWithTimeout(
+        "/api/pay/start",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+          credentials: "same-origin",
+          body: JSON.stringify({
+            amount: payload.amounts.total_irt,
+            description: `پرداخت سفارش ${orderId}`,
+            mobile: payload.customer.sender_phone,
+            orderId,
+            currency: "IRT",
+          }),
+        }
+      );
       const zd = (await zr.json().catch(() => ({}))) as any;
       if (!zr.ok || !zd?.ok || !zd?.url) {
         const code = zd?.error || "zarinpal_request_failed";
@@ -643,18 +711,25 @@ export default function CheckoutClient(props: {
         document.cookie = `kadochi_order_id=${encodeURIComponent(
           String(orderId)
         )}; Path=/; Max-Age=900; SameSite=Lax`;
+        document.cookie = `kadochi_pay_amount=${encodeURIComponent(
+          String(payload.amounts.total_irt)
+        )}; Path=/; Max-Age=900; SameSite=Lax`;
       } catch {
         // sessionStorage may be unavailable; ignore.
       }
 
       window.location.href = String(zd.url);
+      redirected = true;
     } catch (e: any) {
-      const msg =
-        typeof e?.message === "string" && e.message !== "zarinpal_request_failed"
-          ? e.message
-          : "در ساخت سفارش یا اتصال به درگاه خطا رخ داد. لطفاً دوباره تلاش کنید.";
+      const aborted = e?.name === "AbortError";
+      const msg = aborted
+        ? "فرایند طولانی شد. لطفاً دوباره تلاش کنید."
+        : typeof e?.message === "string" && e.message !== "zarinpal_request_failed"
+        ? e.message
+        : "در ساخت سفارش یا اتصال به درگاه خطا رخ داد. لطفاً دوباره تلاش کنید.";
       setSubmitError(msg);
-      setSubmitting(false);
+    } finally {
+      if (!redirected) setSubmitting(false);
     }
   }
 
