@@ -4,9 +4,14 @@ import { getSessionFromCookies } from "@/lib/auth/session";
 import { getCustomerById } from "@/lib/api/woo";
 import CheckoutClient from "./CheckoutClient";
 import s from "./Checkout.module.css";
+import type { Metadata } from "next";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "تکمیل سفارش",
+};
 
 export default async function CheckoutPage() {
   const session = await getSessionFromCookies();

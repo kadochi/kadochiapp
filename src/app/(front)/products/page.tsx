@@ -40,6 +40,12 @@ const WP_BASE =
   process.env.NEXT_PUBLIC_WP_BASE_URL ||
   "https://app.kadochi.com";
 
+const SITE_BASE =
+  (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") ||
+  WP_BASE.replace(/\/$/, "");
+
+/* ---- helpers ---- */
+
 const getCategoryMeta = cache(async (input: string) => {
   const isId = /^\d+$/.test(input);
   const url = isId
@@ -100,6 +106,14 @@ async function getAllCategoriesSSR() {
   return arr.map((c) => ({ label: c.name, value: String(c.id) }));
 }
 
+function stripHtml(input?: string | null) {
+  if (!input) return "";
+  return input
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export const dynamicParams = true;
 export const revalidate = 300;
 
@@ -111,21 +125,61 @@ export async function generateMetadata({
   const sp = await searchParams;
   const categoryParam = sp.category?.trim();
   const tagParam = sp.tag?.trim();
+  const q = sp.q?.trim() || "";
+  const page = Math.max(1, Number(sp.page ?? 1) || 1);
 
   let metaTitle = "لیست محصولات کادویی";
+  let metaDescription =
+    "لیست محصولات کادویی؛ انواع هدایا و کادوهای مناسب برای مناسبت‌های مختلف، با امکان فیلتر بر اساس قیمت، دسته‌بندی و مناسبت.";
 
   if (categoryParam) {
     const cat = await getCategoryMeta(categoryParam);
-    if (cat?.name) metaTitle = `لیست کادوهای ${cat.name}`;
+    if (cat?.name) {
+      metaTitle = `لیست کادوهای ${cat.name}`;
+      const desc = stripHtml(cat.description);
+      if (desc) {
+        metaDescription = desc.slice(0, 155);
+      } else {
+        metaDescription = `خرید کادو و هدیه در دسته‌بندی ${cat.name} با امکان ارسال و فیلتر بر اساس قیمت و مناسبت.`;
+      }
+    }
   } else if (tagParam) {
     const tag = await getTagMeta(tagParam);
-    if (tag?.name) metaTitle = `لیست کادوهای ${tag.name}`;
+    if (tag?.name) {
+      metaTitle = `لیست کادوهای ${tag.name}`;
+      const desc = stripHtml(tag.description);
+      if (desc) {
+        metaDescription = desc.slice(0, 155);
+      } else {
+        metaDescription = `خرید هدیه و کادو برای ${tag.name} با ارسال سریع و امکان فیلتر محصولات.`;
+      }
+    }
+  } else if (q) {
+    metaTitle = `جستجو برای "${q}" در کادوچی`;
+    metaDescription = `نتایج جستجو برای "${q}" در فروشگاه کادوچی؛ لیست محصولات کادویی مرتبط با جستجوی شما.`;
   }
+
+  const usp = new URLSearchParams();
+  if (categoryParam) usp.set("category", categoryParam);
+  if (tagParam) usp.set("tag", tagParam);
+  if (q) usp.set("q", q);
+  if (page > 1) usp.set("page", String(page));
+  const canonicalPath =
+    "/products" + (usp.toString() ? `?${usp.toString()}` : "");
 
   return {
     title: metaTitle,
-    openGraph: { title: metaTitle },
-    twitter: { title: metaTitle },
+    description: metaDescription,
+    alternates: { canonical: canonicalPath },
+    openGraph: {
+      title: metaTitle,
+      description: metaDescription,
+      url: canonicalPath,
+    },
+    twitter: {
+      title: metaTitle,
+      description: metaDescription,
+    },
   };
 }
 
@@ -285,8 +339,94 @@ export default async function ProductsPage({
     });
   }
 
+  // ----- SEO structured data (no UI change) -----
+
+  const searchForCanonical = new URLSearchParams();
+  if (categoryParam) searchForCanonical.set("category", categoryParam);
+  if (tagParam) searchForCanonical.set("tag", tagParam);
+  if (q) searchForCanonical.set("q", q);
+  if (page > 1) searchForCanonical.set("page", String(page));
+  const canonicalPath =
+    "/products" +
+    (searchForCanonical.toString() ? `?${searchForCanonical.toString()}` : "");
+  const canonicalUrl = `${SITE_BASE}${canonicalPath}`;
+
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: crumbs.map((c, idx) => ({
+      "@type": "ListItem",
+      position: idx + 1,
+      name: c.label,
+      ...(c.href ? { item: `${SITE_BASE}${c.href}` } : {}),
+    })),
+  };
+
+  const itemListLd =
+    normalizedItems.length > 0
+      ? {
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          name: title,
+          itemListOrder: order === "asc" ? "Ascending" : "Descending",
+          numberOfItems: normalizedItems.length,
+          itemListElement: normalizedItems
+            .map((p: any, index: number) => {
+              const url =
+                p?.permalink ||
+                (p?.slug ? `${SITE_BASE}/product/${p.slug}` : null) ||
+                (p?.id ? `${SITE_BASE}/product/${p.id}` : null);
+              if (!url) return null;
+
+              const firstImage =
+                Array.isArray(p.images) && p.images.length
+                  ? p.images[0]?.url
+                  : undefined;
+
+              return {
+                "@type": "ListItem",
+                position: (page - 1) * perPage + index + 1,
+                item: {
+                  "@type": "Product",
+                  name: p.name || "",
+                  image: firstImage,
+                  sku: p.sku || undefined,
+                  url,
+                  offers: {
+                    "@type": "Offer",
+                    priceCurrency: p.price?.currency || "IRR",
+                    price: String(p.price?.amount ?? 0),
+                    availability: "https://schema.org/InStock",
+                  },
+                },
+              };
+            })
+            .filter(Boolean),
+        }
+      : null;
+
   return (
-    <main dir="rtl">
+    <main
+      dir="rtl"
+      itemScope
+      itemType="https://schema.org/CollectionPage"
+      // semantic only; no visual changes
+    >
+      {/* JSON-LD for breadcrumbs */}
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+      />
+      {/* JSON-LD for product list (ItemList) */}
+      {itemListLd && (
+        <script
+          type="application/ld+json"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }}
+        />
+      )}
+
       <div className="plp">
         <Header />
         <div className={s.filterBar}>

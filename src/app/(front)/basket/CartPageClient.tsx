@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 import Button from "@/components/ui/Button/Button";
 import InputStepper from "@/components/ui/InputStepper/InputStepper";
@@ -179,7 +180,7 @@ export default function CartPageClient() {
   );
 
   if (!hydrated || (ids.length > 0 && items.length === 0)) {
-    return <div className={s.loadingCenter}>در حال دریافت محصولات…</div>;
+    return <div className={s.loadingCenter}>در حال به روزرسانی سبد خرید</div>;
   }
 
   if (!ids.length) {
@@ -192,6 +193,8 @@ export default function CartPageClient() {
           subtitle="در حال حاضر محصولی در سبد خرید خود اضافه نکرده‌اید."
           actions={
             <Button
+              as={Link as any}
+              href="/products"
               type="tertiary"
               style="outline"
               size="medium"

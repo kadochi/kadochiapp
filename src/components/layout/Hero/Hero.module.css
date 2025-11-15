@@ -100,13 +100,13 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--secondary-on-secondary);
+  color: var(--secondary-on-secondary) !important;
   font-family: var(--font-sans);
   font-size: var(--fs-label-14);
   font-weight: var(--fw-regular);
   text-decoration: none;
   flex: 0 0 auto;
-  width: auto;
+  width: auto !important;
 }
 
 .ctaBtn svg {
