@@ -1,6 +1,7 @@
 // src/app/(front)/product/[id]/page.tsx
 import "server-only";
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import ImageGallery from "@/domains/catalog/components/ImageGallery/ImageGallery";
 import ProductInfo from "./Sections/ProductInfo";
 import { getProductDetail } from "@/lib/api/woo";
@@ -22,9 +23,85 @@ export const revalidate = 300;
 
 type Params = { id: string };
 
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.SITE_URL ||
+  "https://app.kadochi.com";
+
+function toPlainText(input?: string | null): string {
+  return String(input || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function truncate(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
+}
+
+function toAbsoluteUrl(path: string): string {
+  try {
+    return new URL(path, SITE_URL).toString();
+  } catch {
+    return path;
+  }
+}
+
 async function resolveParams(p: Params | Promise<Params>): Promise<Params> {
   const maybe = p as any;
   return typeof maybe?.then === "function" ? await maybe : (p as Params);
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Params | Promise<Params>;
+}): Promise<Metadata> {
+  const resolved = await resolveParams(params);
+  const product = await getProductDetail(resolved.id);
+
+  const canonical = toAbsoluteUrl(`/product/${resolved.id}`);
+
+  if (!product) {
+    return {
+      title: "محصول پیدا نشد",
+      alternates: { canonical },
+      openGraph: { title: "محصول پیدا نشد", url: canonical },
+      twitter: { title: "محصول پیدا نشد" },
+    };
+  }
+
+  const title = product.name || "محصول";
+  const description = truncate(
+    toPlainText(product.descriptionPlain || product.descriptionHtml) ||
+      "مشاهده جزئیات محصول در کادوچی.",
+    160
+  );
+  const images = (product.images || [])
+    .map((img) => img?.url)
+    .filter((src): src is string => Boolean(src));
+
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      type: "product",
+      images: images.length
+        ? images.map((url) => ({ url }))
+        : undefined,
+    },
+    twitter: {
+      title,
+      description,
+      card: images.length ? "summary_large_image" : "summary",
+      images: images.length ? images : undefined,
+    },
+  };
 }
 
 export default async function ProductPage({ params }: { params: Params }) {
@@ -69,7 +146,9 @@ export default async function ProductPage({ params }: { params: Params }) {
       : `/products?orderby=popularity`;
 
   const title = product.name || "محصول";
-  const images = (product.images || []).map((im: { url: string }) => im.url);
+  const images = (product.images || [])
+    .map((im: { url: string }) => im?.url)
+    .filter((src): src is string => Boolean(src));
   const amount = Number(product.price.amount || 0);
   const previous = product.previousPrice ?? null;
   const offPercent = product.offPercent ?? null;
@@ -79,6 +158,117 @@ export default async function ProductPage({ params }: { params: Params }) {
   const primaryCat = product.categories?.[0] as
     | { id: number; name: string }
     | undefined;
+
+  const canonicalUrl = toAbsoluteUrl(`/product/${product.id}`);
+  const priceValueRaw =
+    product.salePrice?.amount ??
+    product.price?.amount ??
+    product.regularPrice?.amount ??
+    0;
+  const priceValue = Number(priceValueRaw);
+  const priceCurrency =
+    product.salePrice?.currency ||
+    product.price?.currency ||
+    product.regularPrice?.currency ||
+    "IRR";
+
+  const aggregateRating =
+    ratingAvg > 0 && reviewsCount > 0
+      ? {
+          "@type": "AggregateRating",
+          ratingValue: Number(ratingAvg).toFixed(1),
+          reviewCount: reviewsCount,
+        }
+      : undefined;
+
+  const additionalPropertyRaw = Array.isArray(product.attributes)
+    ? product.attributes
+        .filter((attr) => attr?.name && attr?.value)
+        .map((attr) => ({
+          "@type": "PropertyValue",
+          name: attr.name,
+          value: attr.value,
+        }))
+    : undefined;
+  const additionalProperty =
+    additionalPropertyRaw && additionalPropertyRaw.length
+      ? additionalPropertyRaw
+      : undefined;
+
+  const productStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "@id": `${canonicalUrl}#product`,
+    name: title,
+    description:
+      toPlainText(product.descriptionPlain || product.descriptionHtml) || undefined,
+    sku: String(product.id),
+    mpn: String(product.id),
+    url: canonicalUrl,
+    image: images.length ? images : undefined,
+    category: primaryCat?.name,
+    brand: {
+      "@type": "Brand",
+      name: "کادوچی",
+    },
+    keywords:
+      product.tags
+        ?.map((tag) => tag?.name)
+        .filter((name): name is string => Boolean(name))
+        .join(", ") || undefined,
+    offers: {
+      "@type": "Offer",
+      url: canonicalUrl,
+      priceCurrency,
+      price: Number(priceValue).toString(),
+      availability: product.stock?.inStock
+        ? "https://schema.org/InStock"
+        : "https://schema.org/OutOfStock",
+      itemCondition: "https://schema.org/NewCondition",
+      seller: {
+        "@type": "Organization",
+        name: "کادوچی",
+      },
+    },
+    aggregateRating,
+    additionalProperty,
+  };
+
+  const breadcrumbStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "@id": `${canonicalUrl}#breadcrumb`,
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "خانه",
+        item: toAbsoluteUrl("/"),
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "محصولات",
+        item: toAbsoluteUrl("/products"),
+      },
+      ...(primaryCat
+        ? [
+            {
+              "@type": "ListItem",
+              position: 3,
+              name: primaryCat.name,
+              item: toAbsoluteUrl(`/products?category=${primaryCat.id}`),
+            },
+          ]
+        : []),
+      {
+        "@type": "ListItem",
+        position: primaryCat ? 4 : 3,
+        name: title,
+        item: canonicalUrl,
+      },
+    ],
+  };
 
   return (
     <main dir="rtl" style={{ paddingTop: 0 }}>
@@ -189,6 +379,20 @@ export default async function ProductPage({ params }: { params: Params }) {
           max={9}
         />
       </section>
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(productStructuredData),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(breadcrumbStructuredData),
+        }}
+      />
     </main>
   );
 }

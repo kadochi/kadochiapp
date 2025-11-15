@@ -15,6 +15,41 @@ import ProductListClient from "@/domains/catalog/components/ProductList/ProductL
 import s from "./products.module.css";
 import Header from "@/components/layout/Header/Header";
 
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.SITE_URL ||
+  "https://app.kadochi.com";
+
+function toPlainText(input?: string | null): string {
+  return String(input || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildProductsUrl(search: URLSearchParams): string {
+  const query = search.toString();
+  const path = `/products${query ? `?${query}` : ""}`;
+  try {
+    return new URL(path, SITE_URL).toString();
+  } catch {
+    return path;
+  }
+}
+
+function toAbsoluteUrl(path: string): string {
+  try {
+    return new URL(path, SITE_URL).toString();
+  } catch {
+    return path;
+  }
+}
+
+function truncate(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
+}
+
 type Search = {
   q?: string;
   page?: string;
@@ -113,19 +148,51 @@ export async function generateMetadata({
   const tagParam = sp.tag?.trim();
 
   let metaTitle = "لیست محصولات کادویی";
+  let metaDescription =
+    "خرید آنلاین انواع هدایا و کادوها بر اساس دسته‌بندی، قیمت و مناسبت در کادوچی.";
 
   if (categoryParam) {
     const cat = await getCategoryMeta(categoryParam);
     if (cat?.name) metaTitle = `لیست کادوهای ${cat.name}`;
+    if (cat?.description) {
+      metaDescription = truncate(toPlainText(cat.description), 160);
+    }
   } else if (tagParam) {
     const tag = await getTagMeta(tagParam);
     if (tag?.name) metaTitle = `لیست کادوهای ${tag.name}`;
+    if (tag?.description) {
+      metaDescription = truncate(toPlainText(tag.description), 160);
+    }
+  } else if (sp.q) {
+    metaDescription = truncate(
+      `جستجو برای «${sp.q.trim()}» در میان بهترین هدایا و کادوهای کادوچی.`,
+      160
+    );
   }
+
+  const canonicalSearch = new URLSearchParams();
+  if (sp.q) canonicalSearch.set("q", sp.q.trim());
+  if (categoryParam) canonicalSearch.set("category", categoryParam);
+  if (tagParam) canonicalSearch.set("tag", tagParam);
+  if (sp.min_price) canonicalSearch.set("min_price", sp.min_price.trim());
+  if (sp.max_price) canonicalSearch.set("max_price", sp.max_price.trim());
+  if (sp.order && sp.order !== "desc") canonicalSearch.set("order", sp.order);
+  if (sp.orderby && sp.orderby !== "date")
+    canonicalSearch.set("orderby", sp.orderby);
+  if (sp.page && sp.page !== "1") canonicalSearch.set("page", sp.page);
+
+  const canonicalUrl = buildProductsUrl(canonicalSearch);
 
   return {
     title: metaTitle,
-    openGraph: { title: metaTitle },
-    twitter: { title: metaTitle },
+    description: metaDescription,
+    alternates: { canonical: canonicalUrl },
+    openGraph: {
+      title: metaTitle,
+      description: metaDescription,
+      url: canonicalUrl,
+    },
+    twitter: { title: metaTitle, description: metaDescription },
   };
 }
 
@@ -243,6 +310,7 @@ export default async function ProductsPage({
   const { items } = listResult;
 
   const normalizedItems = normalizeForClient(items);
+  const subtitleText = toPlainText(subtitle) || subtitle;
 
   const clientKey = (() => {
     const usp = new URLSearchParams();
@@ -285,6 +353,79 @@ export default async function ProductsPage({
     });
   }
 
+  const canonicalSearch = new URLSearchParams();
+  if (q) canonicalSearch.set("q", q);
+  if (categoryParam) canonicalSearch.set("category", categoryParam);
+  if (tagParam) canonicalSearch.set("tag", tagParam);
+  if (minPrice) canonicalSearch.set("min_price", minPrice);
+  if (maxPrice) canonicalSearch.set("max_price", maxPrice);
+  if (order !== "desc") canonicalSearch.set("order", order);
+  if (orderby !== "date") canonicalSearch.set("orderby", orderby);
+  if (page > 1) canonicalSearch.set("page", String(page));
+
+  const canonicalUrl = buildProductsUrl(canonicalSearch);
+
+  const breadcrumbStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "@id": `${canonicalUrl}#breadcrumb`,
+    itemListElement: crumbs.map((crumb, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: crumb.label,
+      item: crumb.href ? toAbsoluteUrl(crumb.href) : canonicalUrl,
+    })),
+  };
+
+  const itemListStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "@id": `${canonicalUrl}#itemlist`,
+    name: title,
+    description: subtitleText,
+    numberOfItems: normalizedItems.length,
+    url: canonicalUrl,
+    itemListElement: normalizedItems.map((item, index) => {
+      const productUrl = (() => {
+        try {
+          return new URL(`/product/${item.id}`, SITE_URL).toString();
+        } catch {
+          return `/product/${item.id}`;
+        }
+      })();
+
+      const priceValue =
+        item.salePrice?.amount ?? item.price?.amount ?? item.regularPrice?.amount;
+      const priceCurrency =
+        item.salePrice?.currency || item.price?.currency || item.regularPrice?.currency || "IRR";
+
+      return {
+        "@type": "ListItem",
+        position: index + 1,
+        url: productUrl,
+        name: item.name,
+        image: item.images?.[0]?.url,
+        item: {
+          "@type": "Product",
+          name: item.name,
+          image: item.images?.map((img) => img.url).filter((src): src is string => Boolean(src)),
+          offers:
+            priceValue !== undefined && priceValue !== null
+            ? {
+                "@type": "Offer",
+                price: Number(priceValue).toString(),
+                priceCurrency,
+                availability: item.stock?.inStock
+                  ? "https://schema.org/InStock"
+                  : "https://schema.org/OutOfStock",
+                url: productUrl,
+              }
+            : undefined,
+        },
+      };
+    }),
+  };
+
   return (
     <main dir="rtl">
       <div className="plp">
@@ -323,6 +464,20 @@ export default async function ProductsPage({
       <SortSheet isOpen={(sp.sheet ?? "") === "sort"} />
       <PriceSheet isOpen={(sp.sheet ?? "") === "price"} />
       <OccasionsSheet isOpen={(sp.sheet ?? "") === "occasions"} />
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(breadcrumbStructuredData),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(itemListStructuredData),
+        }}
+      />
     </main>
   );
 }
