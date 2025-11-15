@@ -5,6 +5,7 @@ import "server-only";
 import { cache } from "react";
 import { getSessionFromCookies } from "@/lib/auth/session";
 import { wooFetch } from "@/lib/api/woo";
+import { formatDeliveryWindow } from "@/domains/checkout/delivery-slot";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -258,8 +259,7 @@ function mapOrderDetailPayload(order: any): OrderDetail {
     : [];
 
   const meta: any[] = Array.isArray(order?.meta_data) ? order.meta_data : [];
-  const getMeta = (k: string) =>
-    meta.find((m) => String(m?.key) === k)?.value ?? "";
+  const getMeta = (k: string) => meta.find((m) => String(m?.key) === k)?.value;
 
   const receiverMeta = String(getMeta("_kadochi_receiver_name") || "");
   const receiverName =
@@ -279,6 +279,13 @@ function mapOrderDetailPayload(order: any): OrderDetail {
     order?.shipping?.address_2,
   ].filter(Boolean);
   const address = addressParts.join("، ");
+
+  const deliveryLabelMeta = String(getMeta("_kadochi_delivery") || "");
+  const deliverySlotMeta = String(
+    getMeta("_kadochi_delivery_slot") || getMeta("_kadochi_slot_id") || ""
+  );
+  const deliveryWindow =
+    deliveryLabelMeta || formatDeliveryWindow(deliverySlotMeta) || "";
 
   const subtotal = Array.isArray(order?.line_items)
     ? order.line_items.reduce(
@@ -305,7 +312,7 @@ function mapOrderDetailPayload(order: any): OrderDetail {
       new Date().toISOString(),
     sender: senderName || undefined,
     receiver: receiverName || undefined,
-    delivery_window: String(getMeta("_kadochi_delivery") || "") || undefined,
+    delivery_window: deliveryWindow || undefined,
     address: address || undefined,
     items,
     summary: { subtotal, tax, shipping, service, total },

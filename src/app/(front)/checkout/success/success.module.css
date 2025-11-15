@@ -48,6 +48,14 @@
   color: var(--text-primary);
   font-weight: var(--fw-bold);
 }
+.infoValBold {
+  justify-self: end;
+  font-family: var(--font-sans);
+  font-size: var(--fs-body-18);
+  line-height: var(--lh-body-20);
+  color: var(--text-primary);
+  font-weight: var(--fw-extra-bold);
+}
 .sep {
   border-top: 1px dashed var(--border-border-low-emphasis);
   margin-block: 16px;

@@ -73,11 +73,18 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json().catch(() => ({}))) as VerifyBody;
     const authority = String(body?.Authority || "").trim();
+    const amount = Number(body?.amount ?? 0);
+
+    if (!authority || !Number.isFinite(amount) || amount <= 0) {
+      return noStore(
+        NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 })
+      );
+    }
 
     const result = await verifyPayment(
       {
         authority,
-        amount: body.amount || 0,
+        amount,
         currency: body.currency,
       },
       { timeoutMs: 8_000 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
 import Lottie from "lottie-react";
 import Button from "@/components/ui/Button/Button";
+import StateMessage from "@/components/layout/StateMessage/StateMessage";
 import { useBasket } from "@/domains/basket/state/basket-context";
 import ConfettiAnim from "@/assets/Celebration.json";
 import s from "./success.module.css";
@@ -66,7 +67,6 @@ export default function SuccessClient({
 
   return (
     <div className={s.page} dir="rtl">
-      {/* Lottie: play only on success */}
       <div className={s.confettiWrap} aria-hidden>
         <Lottie
           animationData={ConfettiAnim}
@@ -77,19 +77,12 @@ export default function SuccessClient({
       </div>
 
       <main className={s.wrap}>
-        <img
-          src="/images/success-illustration.png"
-          width={200}
-          height={200}
-          className={s.illus}
-          alt=""
-          aria-hidden
+        <StateMessage
+          imageSrc="/images/success-illustration.png"
+          imageAlt=""
+          title="سفارش شما ثبت شد!"
+          subtitle="می‌توانید وضعیت سفارش را در بخش سفارش‌های من دنبال کنید."
         />
-
-        <h1 className={s.title}>سفارش شما ثبت شد!</h1>
-        <p className={s.subtitle}>
-          می‌توانید وضعیت سفارش را در بخش سفارش‌های من دنبال کنید.
-        </p>
 
         <div className={s.infoList} role="list">
           {/* Paid amount (IRT) */}
