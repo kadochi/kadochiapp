@@ -6,17 +6,18 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type Ctx = { params: { id: string } };
+type Ctx = { params: Promise<{ id: string }> };
 
-function noStore(res: NextResponse) {
+function noStore<T>(res: NextResponse<T>) {
   res.headers.set("Cache-Control", "no-store");
   res.headers.set("Vary", "Cookie");
   return res;
 }
 
-export async function GET(_req: NextRequest, { params }: Ctx) {
+export async function GET(_req: NextRequest, ctx: Ctx) {
   try {
-    const orderId = (params.id || "").trim();
+    const { id } = await ctx.params;
+    const orderId = (id || "").trim();
 
     if (!orderId) {
       return noStore(
@@ -50,8 +51,10 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   }
 }
 
-export async function POST(req: NextRequest, { params }: Ctx) {
-  const orderId = (params.id || "").trim();
+export async function POST(req: NextRequest, ctx: Ctx) {
+  const { id } = await ctx.params;
+  const orderId = (id || "").trim();
+
   if (!orderId) {
     return noStore(
       NextResponse.json({ ok: false, error: "bad_id" }, { status: 400 })
