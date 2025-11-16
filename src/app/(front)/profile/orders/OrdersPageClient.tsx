@@ -170,7 +170,7 @@ function badgeFor(s: Status): {
   }
 }
 
-const PER_PAGE = 5;
+const PER_PAGE = 20;
 
 export default function OrdersPageClient({
   initialOrders = [] as Order[],
@@ -187,6 +187,7 @@ export default function OrdersPageClient({
   const [hasMore, setHasMore] = useState<boolean>(true);
 
   const lastReqId = useRef(0);
+  const loaderRef = useRef<HTMLDivElement | null>(null);
 
   const fetchPage = useCallback(async (nextPage: number) => {
     const reqId = ++lastReqId.current;
@@ -219,18 +220,21 @@ export default function OrdersPageClient({
     }
   }, []);
 
-  // Refetch orders on visibility/focus to keep list fresh (e.g., after payment)
   useEffect(() => {
-    function onFocus() {
+    const onFocus = () => {
       fetchPage(1);
-    }
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", () => {
+    };
+
+    const onVisibility = () => {
       if (document.visibilityState === "visible") onFocus();
-    });
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
     return () => {
       window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus as any);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [fetchPage]);
 
@@ -241,7 +245,6 @@ export default function OrdersPageClient({
       setHasMore((initialOrders?.length ?? 0) === PER_PAGE);
       if (page === 0) setPage(1);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = useMemo(
@@ -250,7 +253,35 @@ export default function OrdersPageClient({
   );
 
   const onRetry = () => fetchPage(page || 1);
-  const onLoadMore = () => !loading && hasMore && fetchPage(page + 1);
+
+  const onLoadMore = useCallback(() => {
+    if (!loading && hasMore) {
+      fetchPage((page || 1) + 1);
+    }
+  }, [loading, hasMore, fetchPage, page]);
+
+  useEffect(() => {
+    if (!hasMore) return;
+    const el = loaderRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting) {
+          onLoadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "0px 0px 200px 0px",
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, onLoadMore]);
 
   return (
     <div className={s.page} dir="rtl">
@@ -323,26 +354,18 @@ export default function OrdersPageClient({
 
         {!err && filtered.length > 0 ? (
           <div
+            ref={loaderRef}
             style={{ display: "grid", placeItems: "center", padding: "16px" }}
           >
-            {hasMore ? (
-              <Button
-                as="button"
-                className={s.moreBtn}
-                type="tertiary"
-                style="outline"
-                size="medium"
-                onClick={onLoadMore}
-                disabled={loading}
-                aria-label="نمایش سفارش‌های بیشتر"
-              >
-                {loading ? "در حال بارگذاری..." : "نمایش بیشتر"}
-              </Button>
-            ) : (
+            {loading && hasMore ? (
+              <div className={s.moreDone} aria-live="polite">
+                در حال بارگذاری سفارش‌های بیشتر...
+              </div>
+            ) : !hasMore ? (
               <div className={s.moreDone} aria-live="polite">
                 همه سفارش‌ها نمایش داده شده است.
               </div>
-            )}
+            ) : null}
           </div>
         ) : null}
 

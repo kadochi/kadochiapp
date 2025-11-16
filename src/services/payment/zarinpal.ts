@@ -71,7 +71,11 @@ const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_RETRIES = 3;
 
 function resolveBaseUrls() {
-  const sandbox = (process.env.ZARINPAL_MODE || "").toLowerCase() !== "production";
+  const mode = (process.env.ZARINPAL_MODE || "").toLowerCase().trim();
+  const isProd = process.env.NODE_ENV === "production";
+
+  const sandbox = mode === "sandbox" || (!mode && !isProd);
+
   return {
     request: sandbox
       ? "https://sandbox.zarinpal.com/pg/v4/payment/request.json"
@@ -90,7 +94,10 @@ function createTimeoutController(
   upstream?: AbortSignal | null | undefined
 ) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(new Error("timeout")), timeoutMs);
+  const timeout = setTimeout(
+    () => controller.abort(new Error("timeout")),
+    timeoutMs
+  );
 
   if (upstream) {
     if (upstream.aborted) {
@@ -119,7 +126,11 @@ function createTimeoutController(
 async function callZarinpal<T>(
   endpoint: string,
   payload: object,
-  { timeoutMs = DEFAULT_TIMEOUT_MS, retries = DEFAULT_RETRIES, signal }: CallOptions = {}
+  {
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    retries = DEFAULT_RETRIES,
+    signal,
+  }: CallOptions = {}
 ): Promise<BaseZarinpalResponse<T>> {
   return retry(
     async (attempt) => {
@@ -231,8 +242,7 @@ export async function requestPayment(
 
   const callback_url = sanitizeCallbackUrl(input.callbackUrl);
   const description =
-    input.description ||
-    `پرداخت سفارش ${input.orderId ?? ""}`;
+    input.description || `پرداخت سفارش ${input.orderId ?? ""}`;
 
   const metadata: RequestPayload["metadata"] = {
     order_id: input.orderId ? String(input.orderId) : undefined,

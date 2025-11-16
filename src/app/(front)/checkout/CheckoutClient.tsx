@@ -60,6 +60,8 @@ type StoreProduct = {
 type ViewProduct = { id: number; prices?: StoreProduct["prices"] };
 
 const SHIPPING_IRT = 120;
+// قیمت بسته‌بندی عادی هم قابل تنظیم باشد
+const NORMAL_WRAP_IRT = 0;
 const GIFT_WRAP_IRT = 80_000;
 const TAX_RATE = 0.1;
 
@@ -170,7 +172,7 @@ async function fetchProductsByIds(
       if (Array.isArray(data)) return data as StoreProduct[];
     }
   } catch {
-    // Proxy path failed – fall back to direct Woo endpoint.
+    // Proxy path failed – fall back to direct Store API.
   }
 
   try {
@@ -206,6 +208,13 @@ export default function CheckoutClient(props: {
   /* Step state (kept in-memory; not reset across steps) */
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const steps = useMemo(() => buildStepper(step), [step]);
+
+  // تغییر اسکرول: هر بار استپ عوض شد اسکرول بره بالا
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo(0, 0);
+    }
+  }, [step]);
 
   /* Basket → line items */
   const { basket } = useBasket();
@@ -356,7 +365,8 @@ export default function CheckoutClient(props: {
   const canNext0 = validSender && validReceiver && lineItems.length > 0;
 
   /* Packaging & Delivery */
-  const [packId, setPackId] = useState<PackagingId>("normal");
+  // پیش‌فرض: بسته‌بندی کادویی
+  const [packId, setPackId] = useState<PackagingId>("gift");
   const [allFast, setAllFast] = useState(false);
 
   // Best-effort "fast-delivery" tag check via Store API.
@@ -493,7 +503,15 @@ export default function CheckoutClient(props: {
   const subtotalIRT = irrToIrt(subtotalIRR);
   const taxIRT = Math.round(subtotalIRT * TAX_RATE);
   const shippingIRT = SHIPPING_IRT;
-  const packagingIRT = packId === "gift" ? GIFT_WRAP_IRT : 0;
+
+  // مبلغ بسته‌بندی بر اساس نوع انتخاب‌شده
+  const packagingIRT =
+    packId === "gift"
+      ? GIFT_WRAP_IRT
+      : packId === "normal"
+      ? NORMAL_WRAP_IRT
+      : 0;
+
   const totalIRT = Math.max(
     0,
     subtotalIRT + taxIRT + shippingIRT + packagingIRT
@@ -601,15 +619,18 @@ export default function CheckoutClient(props: {
               },
             ]
           : [],
-        fee_lines:
-          payload.packaging.type === "gift" && payload.amounts.packaging_irt
-            ? [
-                {
-                  name: "بسته‌بندی کادویی",
-                  total: irtToIrrStr(payload.amounts.packaging_irt),
-                },
-              ]
-            : [],
+        // هر دو نوع بسته‌بندی اگر مبلغ داشته باشند، به عنوان fee ثبت می‌شوند
+        fee_lines: payload.amounts.packaging_irt
+          ? [
+              {
+                name:
+                  payload.packaging.type === "gift"
+                    ? "بسته‌بندی کادویی"
+                    : "بسته‌بندی عادی",
+                total: irtToIrrStr(payload.amounts.packaging_irt),
+              },
+            ]
+          : [],
         meta_data: [
           {
             key: "_kadochi_subtotal_irt",
@@ -667,22 +688,19 @@ export default function CheckoutClient(props: {
       const orderId = orderJson.id as number;
 
       // 2) Start Zarinpal with orderId and final totals (IRT).
-      const zr = await fetchWithTimeout(
-        "/api/pay/start",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-          credentials: "same-origin",
-          body: JSON.stringify({
-            amount: payload.amounts.total_irt,
-            description: `پرداخت سفارش ${orderId}`,
-            mobile: payload.customer.sender_phone,
-            orderId,
-            currency: "IRT",
-          }),
-        }
-      );
+      const zr = await fetchWithTimeout("/api/pay/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        credentials: "same-origin",
+        body: JSON.stringify({
+          amount: payload.amounts.total_irt,
+          description: `پرداخت سفارش ${orderId}`,
+          mobile: payload.customer.sender_phone,
+          orderId,
+          currency: "IRT",
+        }),
+      });
       const zd = (await zr.json().catch(() => ({}))) as any;
       if (!zr.ok || !zd?.ok || !zd?.url) {
         const code = zd?.error || "zarinpal_request_failed";
@@ -724,7 +742,8 @@ export default function CheckoutClient(props: {
       const aborted = e?.name === "AbortError";
       const msg = aborted
         ? "فرایند طولانی شد. لطفاً دوباره تلاش کنید."
-        : typeof e?.message === "string" && e.message !== "zarinpal_request_failed"
+        : typeof e?.message === "string" &&
+          e.message !== "zarinpal_request_failed"
         ? e.message
         : "در ساخت سفارش یا اتصال به درگاه خطا رخ داد. لطفاً دوباره تلاش کنید.";
       setSubmitError(msg);
@@ -929,7 +948,7 @@ export default function CheckoutClient(props: {
           />
           <section className={s.section} aria-labelledby="pack">
             <div className={s.packGrid}>
-              {(["normal", "gift"] as PackagingId[]).map((id) => {
+              {(["gift", "normal"] as PackagingId[]).map((id) => {
                 const active = id === packId;
                 return (
                   <button
