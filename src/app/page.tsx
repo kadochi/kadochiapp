@@ -52,9 +52,10 @@ export default async function WPLatestProductsPage() {
           },
           {
             label: "جستجوی کادوی مناسب",
-            href: "/gifts",
+            href: "/",
             icon: "/icons/giftf-inder.svg",
             variant: "sq",
+            comingSoon: true,
           },
           {
             label: "تقویم مناسبت‌ها",

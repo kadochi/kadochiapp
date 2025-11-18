@@ -104,6 +104,7 @@ export default function SigninInner({ onSubmit, initialPhone = "" }: Props) {
               onClick={handleSend}
               loading={loading}
               disabled={loading}
+              fullWidth
             >
               ارسال کد یکبار مصرف
             </Button>

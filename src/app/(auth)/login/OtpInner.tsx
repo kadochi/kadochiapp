@@ -145,7 +145,7 @@ export default function OtpInner({
     }
   }
 
-  // WebOTP (اختیاری)
+  // WebOTP
   useEffect(() => {
     let aborter: AbortController | null = null;
 
@@ -286,6 +286,7 @@ export default function OtpInner({
               onClick={handleVerify}
               loading={loading}
               disabled={loading}
+              fullWidth
             >
               ورود
             </Button>

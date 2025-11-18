@@ -172,6 +172,7 @@ async function fetchCustomerCandidates(
     const res = await wooFetch(`/wp-json/wc/v3/customers?${qs.toString()}`, {
       method: "GET",
       cache: "no-store",
+      revalidateSeconds: 0,
       signal: controller.signal,
     });
     if (!res.ok) return [];
@@ -187,7 +188,7 @@ async function fetchCustomerCandidates(
 
 async function fetchOrdersResponse(
   qs: URLSearchParams,
-  options?: { timeoutMs?: number; revalidateSeconds?: number }
+  options?: { timeoutMs?: number }
 ): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(
@@ -197,7 +198,8 @@ async function fetchOrdersResponse(
   try {
     return await wooFetch(`/wp-json/wc/v3/orders?${qs.toString()}`, {
       method: "GET",
-      revalidateSeconds: options?.revalidateSeconds ?? 30,
+      cache: "no-store",
+      revalidateSeconds: 0,
       signal: controller.signal,
     });
   } catch (error: any) {
@@ -353,49 +355,47 @@ const findCustomerIdByPhone = cache(async (phoneDigits: string) => {
 });
 
 // ---------- Orders list (paged) ----------
-export const fetchOrdersForCustomer = cache(
-  async (
-    customerId: number,
-    page = 1,
-    perPage = 5
-  ): Promise<OrderSummary[]> => {
-    const qs = new URLSearchParams({
-      customer: String(customerId),
-      per_page: String(Math.max(1, Math.min(perPage, 50))),
-      page: String(Math.max(1, page)),
-      orderby: "date",
-      order: "desc",
-      status: "any",
-      dp: "0",
-      _fields: ORDER_SUMMARY_FIELDS,
-    });
+export async function fetchOrdersForCustomer(
+  customerId: number,
+  page = 1,
+  perPage = 5
+): Promise<OrderSummary[]> {
+  const qs = new URLSearchParams({
+    customer: String(customerId),
+    per_page: String(Math.max(1, Math.min(perPage, 50))),
+    page: String(Math.max(1, page)),
+    orderby: "date",
+    order: "desc",
+    status: "any",
+    dp: "0",
+    _fields: ORDER_SUMMARY_FIELDS,
+  });
 
-    let res = await fetchOrdersResponse(qs, { revalidateSeconds: 30 });
+  let res = await fetchOrdersResponse(qs);
 
-    if (!res.ok && (res.status === 400 || res.status === 404)) {
-      const qs2 = new URLSearchParams(qs);
-      qs2.delete("status");
-      res = await fetchOrdersResponse(qs2, { revalidateSeconds: 30 });
-    }
-
-    if (!res.ok) {
-      const e = new Error(`upstream_error_${res.status}`);
-      (e as any).status = res.status >= 500 ? 502 : res.status;
-      throw e;
-    }
-
-    const data = (await res.json().catch(() => [])) as any[];
-    if (!Array.isArray(data)) return [];
-
-    return data.map((o) => {
-      const items: any[] = Array.isArray(o?.line_items) ? o.line_items : [];
-      const patched = items.map((li) =>
-        li?.image?.src ? li : { ...li, image: normaliseLineItem(li).image }
-      );
-      return normaliseOrderSummary({ ...o, line_items: patched });
-    });
+  if (!res.ok && (res.status === 400 || res.status === 404)) {
+    const qs2 = new URLSearchParams(qs);
+    qs2.delete("status");
+    res = await fetchOrdersResponse(qs2);
   }
-);
+
+  if (!res.ok) {
+    const e = new Error(`upstream_error_${res.status}`);
+    (e as any).status = res.status >= 500 ? 502 : res.status;
+    throw e;
+  }
+
+  const data = (await res.json().catch(() => [])) as any[];
+  if (!Array.isArray(data)) return [];
+
+  return data.map((o) => {
+    const items: any[] = Array.isArray(o?.line_items) ? o.line_items : [];
+    const patched = items.map((li) =>
+      li?.image?.src ? li : { ...li, image: normaliseLineItem(li).image }
+    );
+    return normaliseOrderSummary({ ...o, line_items: patched });
+  });
+}
 
 export async function listOrdersForSessionPaged(
   page = 1,
@@ -451,7 +451,12 @@ export async function getOrderDetailForSession(
   try {
     const res = await wooFetch(
       `/wp-json/wc/v3/orders/${idNum}?_fields=${ORDER_DETAIL_FIELDS}&dp=0`,
-      { method: "GET", revalidateSeconds: 30, signal: controller.signal }
+      {
+        method: "GET",
+        cache: "no-store",
+        revalidateSeconds: 0,
+        signal: controller.signal,
+      }
     );
 
     if (res.status === 404) return null;

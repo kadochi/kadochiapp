@@ -6,13 +6,14 @@ import { useSearchParams, useRouter } from "next/navigation";
 
 function readCookie(name: string) {
   try {
-    return document.cookie
-      .split(";")
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((entry) => entry.split("=", 2))
-      .find(([key]) => key === name)?.[1]
-      ?? "";
+    return (
+      document.cookie
+        .split(";")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((entry) => entry.split("=", 2))
+        .find(([key]) => key === name)?.[1] ?? ""
+    );
   } catch {
     return "";
   }
@@ -45,6 +46,7 @@ async function fetchOrderTotalIrt(orderId: string): Promise<number> {
 async function verifyPaymentOnServer(body: {
   Authority: string;
   amount: number;
+  orderId?: string;
 }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10_000);
@@ -108,19 +110,24 @@ export default function ZarinpalCallback() {
           ? window.sessionStorage.getItem("lastOrderId")
           : "") || "";
 
-      const cookieOrder = decodeURIComponent(readCookie("kadochi_order_id") || "");
+      const cookieOrder = decodeURIComponent(
+        readCookie("kadochi_order_id") || ""
+      );
       const cookieAmount = Number(readCookie("kadochi_pay_amount") || "0");
 
       const qsOrder = params.get("order") || "";
 
       let orderId = (storedOrderId || qsOrder || cookieOrder).trim();
-      let amount = Number.isFinite(storedAmount) && storedAmount > 0 ? storedAmount : 0;
+      let amount =
+        Number.isFinite(storedAmount) && storedAmount > 0 ? storedAmount : 0;
+
       if (!amount && Number.isFinite(cookieAmount) && cookieAmount > 0) {
         amount = cookieAmount;
       }
 
       if (!orderId) {
-        if (!cancelled) router.replace("/checkout/failure?reason=order-missing");
+        if (!cancelled)
+          router.replace("/checkout/failure?reason=order-missing");
         return;
       }
 
@@ -131,15 +138,21 @@ export default function ZarinpalCallback() {
       }
 
       if (!amount) {
-        if (!cancelled) router.replace("/checkout/failure?reason=verify-failed");
+        if (!cancelled)
+          router.replace("/checkout/failure?reason=verify-failed");
         return;
       }
 
-      const verifyRes = await verifyPaymentOnServer({ Authority, amount });
+      const verifyRes = await verifyPaymentOnServer({
+        Authority,
+        amount,
+        orderId,
+      });
       if (cancelled) return;
 
       if (!verifyRes?.ok || !verifyRes?.paid) {
-        if (!cancelled) router.replace("/checkout/failure?reason=verify-failed");
+        if (!cancelled)
+          router.replace("/checkout/failure?reason=verify-failed");
         return;
       }
 
@@ -151,7 +164,8 @@ export default function ZarinpalCallback() {
       clearFallbackCookies();
 
       if (!/^\d+$/.test(orderId)) {
-        if (!cancelled) router.replace("/checkout/failure?reason=order-missing");
+        if (!cancelled)
+          router.replace("/checkout/failure?reason=order-missing");
         return;
       }
 

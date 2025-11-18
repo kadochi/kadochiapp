@@ -20,6 +20,14 @@
   text-decoration: none;
   color: inherit;
   inline-size: 72px;
+  position: relative;
+}
+
+.comingSoon {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  z-index: 2;
 }
 
 .iconBox {

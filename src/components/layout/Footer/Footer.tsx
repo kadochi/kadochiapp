@@ -19,9 +19,13 @@ const HIDDEN_ROUTES: (string | RegExp)[] = [
   "/login",
   "/auth/otp",
   "/checkout",
+  "/profile",
+  "/profile/info",
+  "/profile/orders",
   "/checkout/success",
   "/checkout/zp-callback",
   /^\/product\/.+/,
+  /orders\/.+/,
 ];
 
 function useHideFooter() {
@@ -94,22 +98,22 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className={s.link}>
-                  کادو
+                <Link href="/products" className={s.link}>
+                  خرید کادو
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className={s.link}>
-                  گل
+                <Link href="/products?category=flower" className={s.link}>
+                  خرید گل
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className={s.link}>
-                  کیک تولد
+                <Link href="/products?category=chocolate" className={s.link}>
+                  خرید کیک تولد
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className={s.link}>
+                <Link href="/occasions" className={s.link}>
                   تقویم مناسبت‌ها
                 </Link>
               </li>
@@ -150,17 +154,17 @@ export default function Footer() {
             </h3>
             <ul className={s.list}>
               {[
-                "کادو جشن تولد",
-                "کادو روز مادر",
-                "کادو روز پدر",
-                "کادو سالگرد ازدواج",
-                "کادو ولنتاین",
-                "کادو شب یلدا",
-                "کادو سال نو",
-                "کادو فارغ التحصیلی",
-              ].map((label, i) => (
-                <li key={i}>
-                  <Link href="/occasions" className={s.link}>
+                ["کادو جشن تولد", "/products?tag=birthday"],
+                ["کادو سالگرد ازدواج", "/products?tag=anniversary"],
+                ["کادو روز مادر", "/products?tag=motherday"],
+                ["کادو روز پدر", "/products?tag=fatherday"],
+                ["کادو ولنتاین", "/products?tag=valentine"],
+                ["کادو شب یلدا", "/products?tag=yalda"],
+                ["کادو سال نو", "/products?tag=newyear"],
+                ["کادو فارغ التحصیلی", "/products?tag=graduation"],
+              ].map(([label, href]) => (
+                <li key={href}>
+                  <Link href={href} className={s.link}>
                     {label}
                   </Link>
                 </li>
@@ -228,14 +232,26 @@ export default function Footer() {
 
           <div className={s.enamad} aria-label="نمادها">
             {[
-              ["/images/enamad.png", "نماد اعتماد الکترونیکی"],
-              ["/images/eanjoman.png", "اتحادیه کسب‌وکارهای مجازی"],
-              ["/images/brand.svg", "برند محبوب ایرانی ۱۳۹۸"],
-            ].map(([src, alt], i) => (
+              [
+                "/images/enamad.png",
+                "نماد اعتماد الکترونیکی",
+                "https://trustseal.enamad.ir/?id=4427&code=",
+              ],
+              [
+                "/images/eanjoman.png",
+                "اتحادیه کسب‌وکارهای مجازی",
+                "https://ecunion.ir/",
+              ],
+              [
+                "/images/brand.svg",
+                "برند محبوب ایرانی ۱۳۹۸",
+                "https://1398.irantopbrands.org/%D9%86%D8%AA%D8%A7%DB%8C%D8%AC_1398",
+              ],
+            ].map(([src, alt, href], i) => (
               <a
                 key={i}
                 className={s.badgeItem}
-                href="#"
+                href={href}
                 target="_blank"
                 rel="noopener noreferrer"
               >

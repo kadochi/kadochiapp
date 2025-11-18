@@ -221,6 +221,10 @@ export default function OrdersPageClient({
   }, []);
 
   useEffect(() => {
+    fetchPage(1);
+  }, [fetchPage]);
+
+  useEffect(() => {
     const onFocus = () => {
       fetchPage(1);
     };
@@ -238,21 +242,12 @@ export default function OrdersPageClient({
     };
   }, [fetchPage]);
 
-  useEffect(() => {
-    if ((initialOrders?.length ?? 0) === 0 && page === 0) {
-      fetchPage(1);
-    } else {
-      setHasMore((initialOrders?.length ?? 0) === PER_PAGE);
-      if (page === 0) setPage(1);
-    }
-  }, []);
-
   const filtered = useMemo(
     () => orders.filter((o) => inGroup(o.status, active)),
     [orders, active]
   );
 
-  const onRetry = () => fetchPage(page || 1);
+  const onRetry = () => fetchPage(1);
 
   const onLoadMore = useCallback(() => {
     if (!loading && hasMore) {

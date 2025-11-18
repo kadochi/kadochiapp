@@ -1,12 +1,13 @@
 // src/app/api/orders/route.ts
-// Paginated orders for the current session: GET ?page=1&per_page=5
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { listOrdersForSessionPaged } from "@/lib/api/orders";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const page = Math.max(1, Number(url.searchParams.get("page") || "1"));
@@ -22,11 +23,10 @@ export async function GET(req: Request) {
       { items, page, per_page: perPage, has_more: hasMore },
       { status: 200 }
     );
-    res.headers.set(
-      "Cache-Control",
-      "private, max-age=10, stale-while-revalidate=30"
-    );
+
+    res.headers.set("Cache-Control", "no-store");
     res.headers.set("Vary", "Cookie");
+
     return res;
   } catch (err: any) {
     const status = Number(err?.status) || 500;

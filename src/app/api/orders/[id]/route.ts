@@ -61,8 +61,30 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     );
   }
 
-  const body = await req.json().catch(() => ({} as any));
+  const body = (await req.json().catch(() => ({} as any))) as {
+    ref_id?: string | number;
+    card_pan?: string;
+  };
+
   console.log("[api/orders] payment meta", { orderId, body });
+
+  try {
+    const updatePayload = {
+      status: "on-hold",
+      set_paid: true,
+    };
+
+    await fetch(`/api/wp/wp-json/wc/v3/orders/${orderId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify(updatePayload),
+    }).catch((err) => {
+      console.error("[api/orders] failed to update Woo order", err);
+    });
+  } catch (e) {
+    console.error("[api/orders] Woo update error", e);
+  }
 
   return noStore(NextResponse.json({ ok: true }, { status: 200 }));
 }

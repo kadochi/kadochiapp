@@ -88,7 +88,7 @@ export default function SuccessClient({
           {/* Paid amount (IRT) */}
           <div className={s.infoRow} role="listitem">
             <span className={s.infoKey}>مبلغ پرداخت‌شده</span>
-            <span className={s.infoValBold}>{toman(paidIRT)} تومان</span>
+            <span className={s.infoVal}>{toman(paidIRT)} تومان</span>
           </div>
 
           <div className={s.sep} aria-hidden />
@@ -125,7 +125,7 @@ export default function SuccessClient({
       <div className={s.ctaBar} role="region" aria-label="CTA">
         <div className={s.ctaBtn}>
           <Link href="/profile/orders">
-            <Button type="primary" style="filled" fullWidth>
+            <Button type="primary" size="large" style="filled" fullWidth>
               مشاهده سفارش‌های من
             </Button>
           </Link>

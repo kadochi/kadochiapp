@@ -18,6 +18,11 @@ const DEFAULT_ITEMS: MenuItem[] = [
   { label: "کادوچی", href: "/", icon: "/icons/home.svg" },
   { label: "محصولات", href: "/products", icon: "/icons/products.svg" },
   { label: "مناسبت‌ها", href: "/occasions", icon: "/icons/occasions.svg" },
+  { label: "درباره ما", href: "/about", icon: "/icons/info.svg" },
+  { label: "تماس با ما", href: "/contact", icon: "/icons/phone.svg" },
+  { label: "قوانین و مقررات", href: "/terms", icon: "/icons/document.svg" },
+  { label: "حفظ حریم شخصی", href: "/privacy", icon: "/icons/shield.svg" },
+  { label: "سوالات متداول", href: "/faq", icon: "/icons/help.svg" },
 ];
 
 export default function SideMenuInner({

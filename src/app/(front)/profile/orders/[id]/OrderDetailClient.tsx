@@ -1,6 +1,4 @@
 // src/app/(front)/profile/orders/[orderId]/OrderDetailClient.tsx
-// Client UI: skeleton + robust fetch with 2x retry + visibility revalidate.
-
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -48,7 +46,7 @@ function toman(n?: number) {
 
 function statusToUi(st: OrderDetailData["status"]) {
   if (st === "completed")
-    return { chip: { type: "secondary", text: "تحویل‌شده" }, step: 3 };
+    return { chip: { type: "secondary", text: "تحویل‌شده" }, step: 4 };
   if (st === "processing")
     return { chip: { type: "primary", text: "در حال آماده‌سازی" }, step: 2 };
   if (st === "on-hold")
@@ -153,7 +151,6 @@ export default function OrderDetailClient({
   const lastReqId = useRef(0);
   const lastLoadedAt = useRef<number>(initialData ? Date.now() : 0);
 
-  // Robust fetch with 2x retry + exponential backoff (400ms, 1200ms)
   async function fetchDetailWithRetry(signal: AbortSignal) {
     let attempt = 0;
     while (attempt < 3) {
@@ -172,7 +169,6 @@ export default function OrderDetailClient({
       } catch (e: any) {
         attempt++;
         if (signal.aborted) throw e;
-        // do not retry for auth/404
         const msg = String(e?.message || "");
         if (["not_found", "unauthorized", "forbidden"].includes(msg)) throw e;
         if (attempt >= 3) throw e;
@@ -182,12 +178,12 @@ export default function OrderDetailClient({
     throw new Error("failed");
   }
 
-  // Initial client fetch only if SSR didn't provide data
   useEffect(() => {
-    if (initialData) return;
     const reqId = ++lastReqId.current;
     const ctl = new AbortController();
-    setLoading(true);
+    if (!initialData) {
+      setLoading(true);
+    }
     setErr("");
 
     fetchDetailWithRetry(ctl.signal)
@@ -198,17 +194,15 @@ export default function OrderDetailClient({
       })
       .catch((e) => {
         if (reqId !== lastReqId.current) return;
-        setErr(String(e?.message || "error"));
+        if (!initialData) setErr(String(e?.message || "error"));
       })
       .finally(() => {
         if (reqId === lastReqId.current) setLoading(false);
       });
 
     return () => ctl.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
 
-  // Revalidate when tab regains focus and data is older than 30s
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === "visible") {
@@ -252,7 +246,6 @@ export default function OrderDetailClient({
 
   if (loading && !data) return <OrderDetailSkeleton />;
 
-  // Error states (auth/404/others)
   if (err && !data) {
     const isAuth = err === "unauthorized" || err === "forbidden";
     const is404 = err === "not_found";
