@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import HeroSlider from "@/components/layout/Hero/HeroSlider";
 import ServicesNav from "@/components/layout/Services/ServicesNav";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
@@ -12,6 +13,26 @@ import Label from "@/components/ui/Label/Label";
 import Header from "@/components/layout/Header/Header";
 
 export const revalidate = 60;
+
+export const metadata: Metadata = {
+  title: "کادوچی | خرید کادو، گل و کیک با ارسال سریع",
+  description:
+    "کادوچی فروشگاه آنلاین خرید کادو، گل، باکس گل و کیک با ارسال سریع. انتخاب هدیه برای تولد، سالگرد، ولنتاین و سایر مناسبت‌ها با بسته‌بندی شیک.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "کادوچی | خرید کادو، گل و کیک با ارسال سریع",
+    description:
+      "خرید انواع هدایا، گل و کیک با ارسال سریع و بسته‌بندی مخصوص هدیه در کادوچی.",
+    url: "/",
+  },
+  twitter: {
+    title: "کادوچی | خرید کادو، گل و کیک با ارسال سریع",
+    description:
+      "خرید اینترنتی کادو، گل و کیک با ارسال سریع برای مناسبت‌های مختلف.",
+  },
+};
 
 export default async function WPLatestProductsPage() {
   const latestParams = { orderby: "date", order: "desc", per_page: 12 };

@@ -15,7 +15,6 @@ export const metadata: Metadata = {
   },
   description:
     "خرید آنلاین کادو، گل، شکلات و اکسسوری با ارسال سریع امروز. جستجوی کادوی مناسب برای تولد، سالگرد، ولنتاین و سایر مناسبت‌ها.",
-  alternates: { canonical: "/" },
   robots: { index: true, follow: true },
   openGraph: {
     type: "website",

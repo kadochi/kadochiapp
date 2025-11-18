@@ -85,7 +85,7 @@
 
 .copy {
   margin: 0;
-  color: var(--surface-neutral-low-emphasis);
+  color: var(--surface-neutral-mid-emphasis);
   font-family: var(--font-sans);
   font-size: var(--fs-label-12);
   line-height: var(--lh-label-12);

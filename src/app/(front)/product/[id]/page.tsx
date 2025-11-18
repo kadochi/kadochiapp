@@ -1,6 +1,7 @@
 // src/app/(front)/product/[id]/page.tsx
 import "server-only";
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import ImageGallery from "@/domains/catalog/components/ImageGallery/ImageGallery";
 import ProductInfo from "./Sections/ProductInfo";
 import { getProductDetail } from "@/lib/api/woo";
@@ -25,6 +26,62 @@ type Params = { id: string };
 async function resolveParams(p: Params | Promise<Params>): Promise<Params> {
   const maybe = p as any;
   return typeof maybe?.then === "function" ? await maybe : (p as Params);
+}
+
+function stripHtml(input?: string | null) {
+  if (!input) return "";
+  return input
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Params | Promise<Params>;
+}): Promise<Metadata> {
+  const { id } = await resolveParams(params);
+  const product = await getProductDetail(id);
+
+  const canonical = `/product/${id}`;
+
+  if (!product) {
+    return {
+      title: "محصول پیدا نشد | کادوچی",
+      description: "این محصول در فروشگاه کادوچی یافت نشد.",
+      alternates: { canonical },
+    };
+  }
+
+  const title = product.name
+    ? `${product.name} | خرید کادو از کادوچی`
+    : "خرید کادو | کادوچی";
+
+  const descSource =
+    (product as any).shortDescriptionHtml ??
+    (product as any).descriptionHtml ??
+    "";
+  const description =
+    stripHtml(descSource) ||
+    "خرید کادو و هدیه با بسته‌بندی شیک و ارسال سریع از فروشگاه کادوچی.";
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+    },
+    twitter: {
+      title,
+      description,
+    },
+  };
 }
 
 export default async function ProductPage({ params }: { params: Params }) {
