@@ -6,6 +6,10 @@ import NextTopLoader from "nextjs-toploader";
 import BottomNavigation from "@/components/layout/BottomNavigation/BottomNavigation";
 import getInitialSession from "@/lib/auth/session";
 import Footer from "@/components/layout/Footer/Footer";
+import Script from "next/script";
+import GATracker from "./ga-tracker";
+
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://kadochi.com"),
@@ -46,6 +50,23 @@ export default async function RootLayout({
   return (
     <html lang="fa-IR" dir="rtl">
       <head>
+        {GA_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga-init" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${GA_ID}');
+              `}
+            </Script>
+          </>
+        )}
+
         <link rel="preconnect" href="https://app.kadochi.com" crossOrigin="" />
         <link
           rel="preload"
@@ -69,25 +90,29 @@ export default async function RootLayout({
           crossOrigin="anonymous"
         />
       </head>
+
       <body>
         <Providers initialSession={session}>
+          <GATracker />
+
           <div className="layoutContainer">
             <script
               id="scroll-restoration"
               dangerouslySetInnerHTML={{
                 __html: `(function(){
-  try{
-    if('scrollRestoration' in history){ history.scrollRestoration='manual'; }
-    var toTop=function(){ try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch(e){} };
-    var _push=history.pushState, _replace=history.replaceState;
-    history.pushState=function(){ _push.apply(this, arguments); setTimeout(toTop,0); };
-    history.replaceState=function(){ _replace.apply(this, arguments); setTimeout(toTop,0); };
-    window.addEventListener('popstate', toTop);
-    window.addEventListener('load', toTop);
-  }catch(e){}
-})();`,
+                  try{
+                    if('scrollRestoration' in history){ history.scrollRestoration='manual'; }
+                    var toTop=function(){ try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch(e){} };
+                    var _push=history.pushState, _replace=history.replaceState;
+                    history.pushState=function(){ _push.apply(this, arguments); setTimeout(toTop,0); };
+                    history.replaceState=function(){ _replace.apply(this, arguments); setTimeout(toTop,0); };
+                    window.addEventListener('popstate', toTop);
+                    window.addEventListener('load', toTop);
+                  }catch(e){}
+                })();`,
               }}
             />
+
             <NextTopLoader
               showSpinner={false}
               color="#8030A2"
@@ -96,6 +121,7 @@ export default async function RootLayout({
               crawlSpeed={200}
               zIndex={2000}
             />
+
             <main className="page noHeaderPad">{children}</main>
             <BottomNavigation />
             <Footer />

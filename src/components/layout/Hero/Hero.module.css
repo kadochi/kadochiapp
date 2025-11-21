@@ -24,12 +24,12 @@
   content: "";
   position: absolute;
   inset: 0;
+  pointer-events: none;
   background: linear-gradient(
-    180deg,
-    var(--secondary-secondary-gradient) 0%,
-    var(--secondary-on-secondary-container) 100%
+    0deg,
+    rgba(54, 6, 74, 0.8) 0%,
+    rgba(96, 4, 135, 0.56) 100%
   );
-  opacity: 0.72;
   z-index: 0;
 }
 
