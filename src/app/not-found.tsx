@@ -1,6 +1,7 @@
 // app/not-found.tsx  (Server Component)
 import type { Metadata } from "next";
 import StateMessage from "@/components/layout/StateMessage/StateMessage";
+import Header from "@/components/layout/Header/Header";
 import Button from "@/components/ui/Button/Button";
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export const metadata: Metadata = {
 export default function NotFound() {
   return (
     <main className="page" dir="rtl">
+      <Header />
       <div className="layoutContainer">
         <StateMessage
           imageSrc="/images/illustration-404.png"

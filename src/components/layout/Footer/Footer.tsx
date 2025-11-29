@@ -183,7 +183,7 @@ export default function Footer() {
                 ["درباره ما", "/about"],
                 ["قوانین و مقررات", "/terms"],
                 ["حفظ حریم شخصی", "/privacy"],
-                ["همکاری", "/careers"],
+                ["سوالات متداول", "/faq"],
               ].map(([label, href]) => (
                 <li key={href}>
                   <Link href={href} className={s.link}>
