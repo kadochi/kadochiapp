@@ -31,7 +31,7 @@ async function getPublishedProducts(): Promise<WooProduct[]> {
         Authorization: `Basic ${auth}`,
         Accept: "application/json",
       },
-      cache: "no-store",
+      next: { revalidate: 3600 },
     });
 
     if (!res.ok) {
