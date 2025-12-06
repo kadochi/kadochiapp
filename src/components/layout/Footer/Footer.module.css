@@ -4,6 +4,7 @@
   color: var(--text-primary);
   border-top: 1px solid var(--surface-surface);
 }
+
 @media (max-width: 1024px) {
   .root {
     display: none;

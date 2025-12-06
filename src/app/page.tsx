@@ -107,8 +107,8 @@ export default async function WPLatestProductsPage() {
       <Divider type="spacer" />
       <section>
         <SectionHeader
-          title="محبوب‌ترین کادوها"
-          subtitle="محصولاتی که بیشتر هدیه داده شده‌اند"
+          title="جدیدترین کادوها"
+          subtitle="محصولاتی که به تازگی اضافه شده‌اند"
           leftSlot={
             <Button
               as="a"
@@ -129,7 +129,7 @@ export default async function WPLatestProductsPage() {
             </Button>
           }
         />
-        <ProductCarousel endpoint="/api/products" wpParams={popularParams} />
+        <ProductCarousel wpParams={latestParams} />
       </section>
       <Divider type="spacer" />
       <section>
@@ -161,8 +161,8 @@ export default async function WPLatestProductsPage() {
       <Divider type="spacer" />
       <section>
         <SectionHeader
-          title="جدیدترین کادوها"
-          subtitle="محصولاتی که به تازگی اضافه شده‌اند"
+          title="محبوب‌ترین کادوها"
+          subtitle="محصولاتی که بیشتر هدیه داده شده‌اند"
           leftSlot={
             <Button
               as="a"
@@ -183,7 +183,7 @@ export default async function WPLatestProductsPage() {
             </Button>
           }
         />
-        <ProductCarousel wpParams={latestParams} />
+        <ProductCarousel endpoint="/api/products" wpParams={popularParams} />
       </section>
       <Divider type="spacer" />
       <section>
