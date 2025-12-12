@@ -59,10 +59,9 @@ type StoreProduct = {
 
 type ViewProduct = { id: number; prices?: StoreProduct["prices"] };
 
-const SHIPPING_IRT = 120;
-// قیمت بسته‌بندی عادی هم قابل تنظیم باشد
+const SHIPPING_IRT = 89_000;
 const NORMAL_WRAP_IRT = 0;
-const GIFT_WRAP_IRT = 80_000;
+const GIFT_WRAP_IRT = 0;
 const TAX_RATE = 0.1;
 
 const toman = (n: number) => n.toLocaleString("fa-IR");

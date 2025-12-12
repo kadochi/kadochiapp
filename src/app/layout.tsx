@@ -6,7 +6,6 @@ import NextTopLoader from "nextjs-toploader";
 import BottomNavigation from "@/components/layout/BottomNavigation/BottomNavigation";
 import getInitialSession from "@/lib/auth/session";
 import Footer from "@/components/layout/Footer/Footer";
-import TopBanner from "@/components/layout/TopBanner/TopBanner";
 import Script from "next/script";
 import GATracker from "./ga-tracker";
 
@@ -122,7 +121,6 @@ export default async function RootLayout({
               crawlSpeed={200}
               zIndex={2000}
             />
-            <TopBanner />
             <main className="page noHeaderPad">{children}</main>
             <BottomNavigation />
             <Footer />
