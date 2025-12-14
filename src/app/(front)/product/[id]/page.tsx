@@ -54,9 +54,7 @@ export async function generateMetadata({
     };
   }
 
-  const title = product.name
-    ? `${product.name} | خرید کادو از کادوچی`
-    : "خرید کادو | کادوچی";
+  const title = product.name;
 
   const descSource =
     (product as any).shortDescriptionHtml ??

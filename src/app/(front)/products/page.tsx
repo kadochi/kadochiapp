@@ -135,7 +135,7 @@ export async function generateMetadata({
   if (categoryParam) {
     const cat = await getCategoryMeta(categoryParam);
     if (cat?.name) {
-      metaTitle = `لیست کادوهای ${cat.name}`;
+      metaTitle = `خرید کادو ${cat.name}`;
       const desc = stripHtml(cat.description);
       if (desc) {
         metaDescription = desc.slice(0, 155);
@@ -146,7 +146,7 @@ export async function generateMetadata({
   } else if (tagParam) {
     const tag = await getTagMeta(tagParam);
     if (tag?.name) {
-      metaTitle = `لیست کادوهای ${tag.name}`;
+      metaTitle = `خرید کادو برای ${tag.name}`;
       const desc = stripHtml(tag.description);
       if (desc) {
         metaDescription = desc.slice(0, 155);
