@@ -231,12 +231,24 @@ export default function Footer() {
           </div>
 
           <div className={s.enamad} aria-label="نمادها">
+            {/* Enamad */}
+            <a
+              referrerPolicy="origin"
+              target="_blank"
+              href="https://trustseal.enamad.ir/?id=4427&Code=zAoYDxOli5GGolDnRLIO"
+              className={s.badgeItem}
+            >
+              <img
+                referrerPolicy="origin"
+                src="https://trustseal.enamad.ir/logo.aspx?id=4427&Code=zAoYDxOli5GGolDnRLIO"
+                alt="نماد اعتماد الکترونیکی"
+                style={{ cursor: "pointer" }}
+              />
+              <span className={s.badgeTitle}>نماد اعتماد الکترونیکی</span>
+            </a>
+
+            {/* Other badges */}
             {[
-              [
-                "/images/enamad.png",
-                "نماد اعتماد الکترونیکی",
-                "https://trustseal.enamad.ir/?id=4427&code=",
-              ],
               [
                 "/images/eanjoman.png",
                 "اتحادیه کسب‌وکارهای مجازی",
@@ -245,7 +257,7 @@ export default function Footer() {
               [
                 "/images/brand.svg",
                 "برند محبوب ایرانی ۱۳۹۸",
-                "https://1398.irantopbrands.org/%D9%86%D8%AA%D8%A7%DB%8C%D8%AC_1398",
+                "https://1398.irantopbrands.org/%D9%86%D8%AA%D8%A7%DB%8C%D8%A7%D8%AC_1398",
               ],
             ].map(([src, alt, href], i) => (
               <a
