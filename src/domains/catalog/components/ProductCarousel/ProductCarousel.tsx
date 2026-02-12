@@ -1,5 +1,6 @@
 // Server Component
 import ProductCarouselClient from "./ProductCarousel.client";
+import { inferInStock } from "@/domains/catalog/utils/stock";
 
 const WP_BASE = process.env.WP_BASE_URL || "https://app.kadochi.com";
 
@@ -28,14 +29,6 @@ type Product = {
   inStock?: boolean;
   href?: string;
 };
-
-function inferInStock(p: Partial<StoreProduct>): boolean {
-  const st = String(p?.stock_status || "").toLowerCase();
-  if (st === "outofstock") return false;
-  if (p?.is_in_stock === false) return false;
-  if (p?.is_purchasable === false) return false;
-  return true;
-}
 
 function mapProducts(arr: StoreProduct[]): Product[] {
   return (arr || [])
