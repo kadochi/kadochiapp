@@ -19,6 +19,7 @@ type Props = {
   commentsCount?: number;
   reviewsCount?: number;
   ratingAvg?: number;
+  inStock?: boolean;
   inputUnit?: Unit;
 };
 
@@ -42,6 +43,7 @@ export default function ProductInfo({
   commentsCount,
   reviewsCount,
   ratingAvg = 0,
+  inStock = true,
   inputUnit = "rial",
 }: Props) {
   const displayAmount = toDisplayToman(amount, inputUnit) ?? 0;
@@ -68,7 +70,9 @@ export default function ProductInfo({
       </h1>
 
       <div className={s.priceWrap} aria-label="قیمت">
-        {hasDiscount ? (
+        {!inStock ? (
+          <span className={s.outOfStock}>ناموجود</span>
+        ) : hasDiscount ? (
           <DiscountPrice
             current={displayAmount}
             previous={Number(displayPrevious)}

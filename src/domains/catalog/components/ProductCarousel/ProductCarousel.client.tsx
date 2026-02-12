@@ -8,6 +8,7 @@ import s from "./ProductCarousel.module.css";
 
 import ProductCard from "@/domains/catalog/components/ProductCard/ProductCard";
 import ProductCardSkeleton from "@/domains/catalog/components/ProductCard/ProductCardSkeleton";
+import { inferInStock } from "@/domains/catalog/utils/stock";
 
 /* ------------------------- Types ------------------------- */
 type StoreProduct = {
@@ -56,14 +57,6 @@ function isStoreProductArray(arr: unknown): arr is StoreProduct[] {
         "name" in item
     )
   );
-}
-
-function inferInStock(p: Partial<StoreProduct>): boolean {
-  const st = String(p?.stock_status || "").toLowerCase();
-  if (st === "outofstock") return false;
-  if (p?.is_in_stock === false) return false;
-  if (p?.is_purchasable === false) return false;
-  return true;
 }
 
 function mapProducts(arr: StoreProduct[]): Product[] {

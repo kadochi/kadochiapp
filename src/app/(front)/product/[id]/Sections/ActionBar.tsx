@@ -16,6 +16,7 @@ type Props = {
   previous?: number | null;
   offPercent?: number | null;
   currencyLabel?: string;
+  inStock?: boolean;
 
   min?: number;
   max?: number;
@@ -30,6 +31,7 @@ export default function ActionBar({
   previous = null,
   offPercent = null,
   currencyLabel = "تومان",
+  inStock = true,
   min = 1,
   max = 9,
   initialQty = 0,
@@ -115,7 +117,11 @@ export default function ActionBar({
         </div>
 
         <div className={s.ctaCell}>
-          {showStepper ? (
+          {!inStock ? (
+            <span className={s.outOfStock} aria-label="ناموجود">
+              ناموجود
+            </span>
+          ) : showStepper ? (
             <InputStepper
               type="product"
               min={min}

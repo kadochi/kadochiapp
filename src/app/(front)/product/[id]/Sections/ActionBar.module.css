@@ -27,6 +27,19 @@
   width: 100%;
 }
 
+.outOfStock {
+  color: var(--surface-neutral-low-emphasis);
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-14);
+  line-height: var(--lh-label-14);
+  font-weight: var(--fw-regular);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: var(--space-12) var(--space-16);
+}
+
 @media (max-width: 360px) {
   .inner {
     grid-template-columns: 1fr 1fr;
