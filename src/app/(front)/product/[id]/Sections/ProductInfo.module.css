@@ -19,6 +19,13 @@
   justify-content: center;
 }
 
+.outOfStock {
+  color: var(--surface-neutral-low-emphasis);
+  font-family: var(--font-sans);
+  font-size: var(--fs-title-18);
+  font-weight: var(--fw-regular);
+}
+
 .metaRow {
   margin-top: var(--space-16);
   display: flex;

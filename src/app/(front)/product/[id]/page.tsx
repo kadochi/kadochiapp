@@ -151,6 +151,7 @@ export default async function ProductPage({ params }: { params: Params }) {
           commentsCount={commentsCount}
           reviewsCount={reviewsCount}
           ratingAvg={ratingAvg}
+          inStock={product.stock.inStock}
         />
 
         <Divider type="spacer" />
@@ -242,6 +243,7 @@ export default async function ProductPage({ params }: { params: Params }) {
           currencyLabel="تومان"
           min={1}
           max={9}
+          inStock={product.stock.inStock}
         />
       </section>
     </main>
