@@ -5,7 +5,7 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 import styles from "./Occasion.module.css";
 import OccasionCart from "./OccasionCart";
-import { toJalaali } from "jalaali-js";
+import { dayjs, parseOccasionDate, PERSIAN_MONTHS } from "@/lib/jalali";
 
 type OccasionItem = {
   title: string;
@@ -49,43 +49,25 @@ export default function OccasionCarouselClient({
         const today = new Date();
 
         const arr = Array.isArray(data) ? (data as WPOccasion[]) : [];
-        const persianMonths = [
-          "",
-          "فروردین",
-          "اردیبهشت",
-          "خرداد",
-          "تیر",
-          "مرداد",
-          "شهریور",
-          "مهر",
-          "آبان",
-          "آذر",
-          "دی",
-          "بهمن",
-          "اسفند",
-        ] as const;
 
         const mapped = arr
           .map((item) => {
             const acf = item.acf ?? {};
             const title = acf.title ?? "";
-            const gregorianDateStr = acf.occasion_date ?? "";
+            const gregorianDateStr = parseOccasionDate(acf.occasion_date);
             if (!gregorianDateStr) return null;
 
-            const [gy, gm, gd] = gregorianDateStr.split("-").map(Number);
-            if (!gy || !gm || !gd) return null;
-
-            const targetDate = new Date(gy, gm - 1, gd);
+            const targetDate = dayjs(gregorianDateStr).toDate();
             const diffTime = targetDate.getTime() - today.getTime();
             const remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             if (remainingDays < 0) return null;
 
-            const j = toJalaali(gy, gm, gd);
+            const j = dayjs(gregorianDateStr).calendar("jalali");
 
             return {
               title,
-              day: String(j.jd),
-              month: persianMonths[j.jm],
+              day: String(j.date()),
+              month: PERSIAN_MONTHS[j.month() + 1],
               remainingDays,
               sortKey: targetDate.getTime(),
             } as OccasionItem;
