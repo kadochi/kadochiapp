@@ -17,24 +17,7 @@ export interface InputStepperProps {
   disabled?: boolean;
 }
 
-const PlusIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden {...props}>
-    <path fill="currentColor" d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2h6z" />
-  </svg>
-);
-const MinusIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden {...props}>
-    <path fill="currentColor" d="M5 11h14v2H5z" />
-  </svg>
-);
-const TrashIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden {...props}>
-    <path
-      fill="currentColor"
-      d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9z"
-    />
-  </svg>
-);
+import { Plus, Minus, Trash2 } from "lucide-react";
 
 function cx(...parts: Array<string | false | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -72,7 +55,7 @@ export default function InputStepper({
       className={cx(
         s.root,
         type === "product" ? s.variantProduct : s.variantBasket,
-        className
+        className,
       )}
       role="group"
       aria-label={ariaLabel ?? "Stepper"}
@@ -86,7 +69,7 @@ export default function InputStepper({
         disabled={decDisabled}
         aria-label={showTrash ? "Remove" : "Decrement"}
       >
-        {showTrash ? <TrashIcon /> : <MinusIcon />}
+        {showTrash ? <Trash2 size={20} /> : <Minus size={20} />}
       </button>
 
       <div className={s.value} aria-live="polite" aria-atomic="true">
@@ -100,7 +83,7 @@ export default function InputStepper({
         disabled={incDisabled}
         aria-label="Increment"
       >
-        <PlusIcon />
+        <Plus size={20} />
       </button>
     </div>
   );

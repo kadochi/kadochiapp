@@ -26,24 +26,14 @@ import s from "./Checkout.module.css";
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 import {
-  DELIVERY_PARTS,
-  type DeliveryPartKey,
   formatDeliveryWindow,
+  buildDeliverySlots,
+  type DeliverySlot,
 } from "@/domains/checkout/delivery-slot";
 
 /* -------------------------------- Types & helpers -------------------------------- */
 
 type PackagingId = "normal" | "gift";
-
-type Slot = {
-  id: string;
-  dayLabel: string;
-  dateLabel: string;
-  part: DeliveryPartKey;
-  from: string;
-  to: string;
-  disabled?: boolean;
-};
 
 type StoreProduct = {
   id: number;
@@ -87,25 +77,6 @@ function useDebouncedEffect(fn: () => void, deps: any[], ms: number) {
   }, deps);
 }
 
-const faDay = new Intl.DateTimeFormat("fa-IR", { weekday: "long" });
-const faDate = new Intl.DateTimeFormat("fa-IR", {
-  day: "2-digit",
-  month: "long",
-});
-
-const addDays = (d: Date, n: number) => {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-};
-
-const isFriday = (d: Date) => d.getDay() === 5;
-
-const sameDay = (a: Date, b: Date) =>
-  a.getFullYear() === b.getFullYear() &&
-  a.getMonth() === b.getMonth() &&
-  a.getDate() === b.getDate();
-
 const priceFromWP = (p?: StoreProduct["prices"]) => {
   const raw = p?.sale_price ?? p?.price ?? p?.regular_price ?? "0";
   const n = Number(raw || 0);
@@ -119,7 +90,7 @@ type FetchWithTimeoutInit = RequestInit & { timeoutMs?: number };
 
 async function fetchWithTimeout(
   input: RequestInfo | URL,
-  init: FetchWithTimeoutInit = {}
+  init: FetchWithTimeoutInit = {},
 ) {
   const { timeoutMs = 15_000, signal, ...rest } = init;
   const controller = new AbortController();
@@ -152,7 +123,7 @@ async function fetchWithTimeout(
  */
 async function fetchProductsByIds(
   ids: string[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<StoreProduct[]> {
   if (!ids.length) return [];
   const qs = new URLSearchParams({
@@ -183,7 +154,7 @@ async function fetchProductsByIds(
       {
         cache: "no-store",
         signal,
-      }
+      },
     );
     if (r2.ok) {
       const data = (await r2.json().catch(() => [])) as unknown;
@@ -219,7 +190,7 @@ export default function CheckoutClient(props: {
   const { basket } = useBasket();
   const basketIds = useMemo(
     () => Object.keys(basket || {}).filter(Boolean),
-    [basket]
+    [basket],
   );
 
   const lineItems = useMemo(
@@ -228,7 +199,7 @@ export default function CheckoutClient(props: {
         product_id: Number(id),
         quantity: Math.max(1, basket[id] || 1),
       })),
-    [basketIds, basket]
+    [basketIds, basket],
   );
 
   /* Products for price calculation (Store API) */
@@ -289,7 +260,7 @@ export default function CheckoutClient(props: {
   const [senderFirst, setSenderFirst] = useState(props.initialFirstName || "");
   const [senderLast, setSenderLast] = useState(props.initialLastName || "");
   const [senderPhone, setSenderPhone] = useState(
-    normalizeDigits((props.phoneValue || "").trim())
+    normalizeDigits((props.phoneValue || "").trim()),
   );
 
   useEffect(() => {
@@ -325,7 +296,7 @@ export default function CheckoutClient(props: {
         setSavingProfile(false);
       }
     },
-    [senderPhone]
+    [senderPhone],
   );
 
   useDebouncedEffect(
@@ -334,7 +305,7 @@ export default function CheckoutClient(props: {
       void saveProfile(senderFirst, senderLast);
     },
     [senderFirst, senderLast, saveProfile],
-    600
+    600,
   );
   const onSenderBlur = () => void saveProfile(senderFirst, senderLast);
 
@@ -389,7 +360,7 @@ export default function CheckoutClient(props: {
             "fast-delivery",
             "ارسال سریع",
             "ارسال-سریع",
-          ].map((s) => s.toLowerCase().trim())
+          ].map((s) => s.toLowerCase().trim()),
         );
 
         const ok =
@@ -421,72 +392,23 @@ export default function CheckoutClient(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basketIds.join(",")]);
 
-  const [slots, setSlots] = useState<Slot[]>([]);
+  const [slots, setSlots] = useState<DeliverySlot[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState("");
 
   // Build 9 slots starting today (if fast) or tomorrow.
   useEffect(() => {
-    const now = new Date();
-    const startFromToday = allFast === true;
-    let dayCursor = startFromToday ? new Date(now) : addDays(now, 1);
-
-    const out: Slot[] = [];
-    for (let dayIdx = 0; out.length < 9 && dayIdx < 6; dayIdx++) {
-      if (isFriday(dayCursor)) {
-        dayCursor = addDays(dayCursor, 1);
-        continue;
-      }
-      for (const p of DELIVERY_PARTS) {
-        if (out.length >= 9) break;
-        let disabled = false;
-        if (sameDay(dayCursor, now)) {
-          const h = now.getHours();
-          disabled = h >= p.fromHour;
-        }
-        out.push({
-          id: `${dayCursor.toISOString().slice(0, 10)}_${p.key}`,
-          dayLabel: faDay.format(dayCursor),
-          dateLabel: faDate.format(dayCursor),
-          part: p.key,
-          from: p.fromLabel,
-          to: p.toLabel,
-          disabled,
-        });
-      }
-      dayCursor = addDays(dayCursor, 1);
-    }
-
-    while (out.length < 9) {
-      if (isFriday(dayCursor)) {
-        dayCursor = addDays(dayCursor, 1);
-        continue;
-      }
-      for (const p of DELIVERY_PARTS) {
-        if (out.length >= 9) break;
-        out.push({
-          id: `${dayCursor.toISOString().slice(0, 10)}_${p.key}`,
-          dayLabel: faDay.format(dayCursor),
-          dateLabel: faDate.format(dayCursor),
-          part: p.key,
-          from: p.fromLabel,
-          to: p.toLabel,
-          disabled: false,
-        });
-      }
-      dayCursor = addDays(dayCursor, 1);
-    }
-
+    const out = buildDeliverySlots(allFast);
     setSlots(out);
     const firstEnabled = out.find((s) => !s.disabled);
     setSelectedSlotId((prev) =>
       prev && out.some((s) => s.id === prev && !s.disabled)
         ? prev
-        : firstEnabled?.id || out[0]?.id || ""
+        : firstEnabled?.id || out[0]?.id || "",
     );
   }, [allFast]);
 
   const canNext1 = Boolean(
-    selectedSlotId && slots.some((s) => s.id === selectedSlotId && !s.disabled)
+    selectedSlotId && slots.some((s) => s.id === selectedSlotId && !s.disabled),
   );
 
   /* Totals (dynamic; driven by Store API prices + current basket) */
@@ -508,12 +430,12 @@ export default function CheckoutClient(props: {
     packId === "gift"
       ? GIFT_WRAP_IRT
       : packId === "normal"
-      ? NORMAL_WRAP_IRT
-      : 0;
+        ? NORMAL_WRAP_IRT
+        : 0;
 
   const totalIRT = Math.max(
     0,
-    subtotalIRT + taxIRT + shippingIRT + packagingIRT
+    subtotalIRT + taxIRT + shippingIRT + packagingIRT,
   );
 
   /* Step navigation */
@@ -689,7 +611,7 @@ export default function CheckoutClient(props: {
           cache: "no-store",
           credentials: "same-origin",
           body: JSON.stringify(orderBody),
-        }
+        },
       );
 
       const orderJson = (await createOrderRes.json().catch(() => ({}))) as any;
@@ -719,29 +641,29 @@ export default function CheckoutClient(props: {
           code === "invalid_amount"
             ? "مبلغ پرداخت نامعتبر است."
             : code === "missing_merchant_id"
-            ? "شناسه پذیرنده درگاه تنظیم نشده است."
-            : code === "invalid_callback_url"
-            ? "نشانی بازگشت از درگاه نامعتبر است."
-            : code === "upstream_timeout"
-            ? "اتصال به درگاه زمان‌بر شد. لطفاً دوباره تلاش کنید."
-            : code === "upstream_network"
-            ? "اتصال به درگاه برقرار نشد. اینترنت خود را بررسی کنید."
-            : "";
+              ? "شناسه پذیرنده درگاه تنظیم نشده است."
+              : code === "invalid_callback_url"
+                ? "نشانی بازگشت از درگاه نامعتبر است."
+                : code === "upstream_timeout"
+                  ? "اتصال به درگاه زمان‌بر شد. لطفاً دوباره تلاش کنید."
+                  : code === "upstream_network"
+                    ? "اتصال به درگاه برقرار نشد. اینترنت خود را بررسی کنید."
+                    : "";
         throw new Error(specific || "zarinpal_request_failed");
       }
 
       try {
         sessionStorage.setItem(
           "lastPayAmount",
-          String(payload.amounts.total_irt)
+          String(payload.amounts.total_irt),
         );
         sessionStorage.setItem("lastOrderId", String(orderId));
         // Also persist via short-lived cookie to survive edge cases on callback
         document.cookie = `kadochi_order_id=${encodeURIComponent(
-          String(orderId)
+          String(orderId),
         )}; Path=/; Max-Age=900; SameSite=Lax`;
         document.cookie = `kadochi_pay_amount=${encodeURIComponent(
-          String(payload.amounts.total_irt)
+          String(payload.amounts.total_irt),
         )}; Path=/; Max-Age=900; SameSite=Lax`;
       } catch {
         // sessionStorage may be unavailable; ignore.
@@ -754,9 +676,9 @@ export default function CheckoutClient(props: {
       const msg = aborted
         ? "فرایند طولانی شد. لطفاً دوباره تلاش کنید."
         : typeof e?.message === "string" &&
-          e.message !== "zarinpal_request_failed"
-        ? e.message
-        : "در ساخت سفارش یا اتصال به درگاه خطا رخ داد. لطفاً دوباره تلاش کنید.";
+            e.message !== "zarinpal_request_failed"
+          ? e.message
+          : "در ساخت سفارش یا اتصال به درگاه خطا رخ داد. لطفاً دوباره تلاش کنید.";
       setSubmitError(msg);
     } finally {
       if (!redirected) setSubmitting(false);
