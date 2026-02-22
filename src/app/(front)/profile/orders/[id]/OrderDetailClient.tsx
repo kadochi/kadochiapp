@@ -29,6 +29,7 @@ export type OrderDetailData = {
   receiver?: string;
   delivery_window?: string;
   address?: string;
+  postcard_message?: string;
   items?: { id: string | number; name?: string; image?: string }[];
   summary?: {
     subtotal?: number;
@@ -357,6 +358,23 @@ export default function OrderDetailClient({
           <div className={s.detailVal}>{data.address ?? "—"}</div>
         </div>
       </div>
+
+      {data.postcard_message ? (
+        <>
+          <Divider type="spacer" />
+          <SectionHeader
+            title="متن کارت پستال"
+            subtitle="پیام نوشته‌شده روی کارت کادو"
+          />
+          <div className={s.kvWrap}>
+            <div className={s.detailRow}>
+              <div className={s.detailVal} style={{ whiteSpace: "pre-wrap" }}>
+                {data.postcard_message}
+              </div>
+            </div>
+          </div>
+        </>
+      ) : null}
 
       <Divider type="spacer" />
 
