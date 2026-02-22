@@ -3,6 +3,7 @@ import OccasionsClient from "./OccasionsClient";
 import getInitialSession, { type Session } from "@/lib/auth/session";
 import { wordpressJson } from "@/services/wordpress";
 import type { WordPressOccasion } from "@/types/wordpress";
+import { parseOccasionDate } from "@/lib/jalali";
 
 export const metadata: Metadata = {
   title: "تقویم مناسبت‌ها",
@@ -24,14 +25,15 @@ export default async function OccasionsPage() {
         allowProxyFallback: true,
         timeoutMs: 6000,
         revalidate: 1800,
-      }
+        next: { tags: ["occasions"], revalidate: 1800 },
+      },
     );
 
     const payload = Array.isArray(result.data) ? result.data : [];
 
     const m: Record<string, string[]> = {};
     payload.forEach((it) => {
-      const d = it.acf?.occasion_date?.trim();
+      const d = parseOccasionDate(it.acf?.occasion_date);
       const t = it.acf?.title?.trim();
       const owner = it.acf?.user_id ?? null;
 
