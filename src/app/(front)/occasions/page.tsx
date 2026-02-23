@@ -18,33 +18,62 @@ export default async function OccasionsPage() {
 
   let map: Record<string, string[]> = {};
 
+  const fetchOpts = {
+    allowProxyFallback: true,
+    timeoutMs: 6000,
+    revalidate: 1800,
+    next: { tags: ["occasions"] as string[], revalidate: 1800 },
+  };
+
   try {
-    const result = await wordpressJson<WordPressOccasion[]>(
-      `/wp-json/wp/v2/occasion?acf_format=standard&per_page=100`,
-      {
-        allowProxyFallback: true,
-        timeoutMs: 6000,
-        revalidate: 1800,
-        next: { tags: ["occasions"], revalidate: 1800 },
-      },
+    const adminCall = wordpressJson<WordPressOccasion[]>(
+      `/wp-json/wp/v2/occasion?author=1&acf_format=standard&per_page=100`,
+      fetchOpts,
     );
 
-    const payload = Array.isArray(result.data) ? result.data : [];
+    const userCall =
+      userId != null
+        ? wordpressJson<WordPressOccasion[]>(
+            `/wp-json/wp/v2/occasion?author=${userId}&acf_format=standard&per_page=100`,
+            fetchOpts,
+          )
+        : null;
+
+    const [adminResult, userResult] = await Promise.all([
+      adminCall,
+      userCall ?? Promise.resolve(null),
+    ]);
+
+    const adminPayload = Array.isArray(adminResult.data)
+      ? adminResult.data
+      : [];
+    const userPayload = userResult
+      ? Array.isArray(userResult.data)
+        ? userResult.data
+        : []
+      : [];
 
     const m: Record<string, string[]> = {};
-    payload.forEach((it) => {
+
+    const isAdminOccasion = (it: WordPressOccasion) => {
+      const owner = it.acf?.user_id;
+      return owner == null || owner === "" || String(owner) === "1";
+    };
+
+    adminPayload.forEach((it) => {
+      if (!isAdminOccasion(it)) return;
       const d = parseOccasionDate(it.acf?.occasion_date);
       const t = it.acf?.title?.trim();
-      const owner = it.acf?.user_id ?? null;
-
-      const isPublic =
-        owner === null || owner === "" || typeof owner === "undefined";
-      const isMine = userId != null && String(owner) === String(userId);
-
       if (!d || !t) return;
-      if (!(isPublic || isMine)) return;
-
       (m[d] ||= []).push(t);
+    });
+
+    userPayload.forEach((it) => {
+      const d = parseOccasionDate(it.acf?.occasion_date);
+      const t = it.acf?.title?.trim();
+      if (!d || !t) return;
+      const existing = m[d] ?? [];
+      if (!existing.includes(t)) (m[d] ||= []).push(t);
     });
 
     map = m;

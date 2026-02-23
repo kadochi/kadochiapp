@@ -30,7 +30,6 @@ type DayRow = {
   offset: number;
 };
 
-
 export default function OccasionsClient({
   initialMap = {} as Record<string, string[]>,
   isLoggedInInitial = false,
@@ -55,7 +54,11 @@ export default function OccasionsClient({
 
   const tj = todayJalali();
   const [currentMonth, setCurrentMonth] = useState(() =>
-    dayjs().calendar("jalali").year(tj.jy).month(tj.jm - 1).date(1),
+    dayjs()
+      .calendar("jalali")
+      .year(tj.jy)
+      .month(tj.jm - 1)
+      .date(1),
   );
 
   const headerRef = useRef<HTMLDivElement | null>(null);
@@ -64,24 +67,43 @@ export default function OccasionsClient({
   useEffect(() => {
     if (Object.keys(initialMap).length) return;
     const userId = session?.userId ?? null;
-    const url = userId
-      ? `/api/wp/wp-json/wp/v2/occasion?acf_format=standard&per_page=100&author=${userId}`
-      : `/api/wp/wp-json/wp/v2/occasion?acf_format=standard&per_page=100`;
-    fetch(url, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: any[]) => {
+
+    const adminUrl =
+      "/api/wp/wp-json/wp/v2/occasion?author=1&acf_format=standard&per_page=100";
+    const userUrl = userId
+      ? `/api/wp/wp-json/wp/v2/occasion?author=${userId}&acf_format=standard&per_page=100`
+      : null;
+
+    const fetchOpts = { cache: "no-store" as const };
+
+    Promise.all([
+      fetch(adminUrl, fetchOpts).then((r) => (r.ok ? r.json() : [])),
+      userUrl
+        ? fetch(userUrl, fetchOpts).then((r) => (r.ok ? r.json() : []))
+        : Promise.resolve([]),
+    ])
+      .then(([adminData, userData]: [any[], any[]]) => {
         const m: Record<string, string[]> = {};
-        (Array.isArray(data) ? data : []).forEach((it: any) => {
+
+        const adminArr = Array.isArray(adminData) ? adminData : [];
+        adminArr.forEach((it: any) => {
+          const owner = it?.acf?.user_id;
+          if (owner != null && owner !== "" && String(owner) !== "1") return;
           const d = parseOccasionDate(it?.acf?.occasion_date);
           const t = it?.acf?.title?.trim();
-          const owner = it?.acf?.user_id ?? null;
-          const isPublic =
-            owner === null || owner === "" || typeof owner === "undefined";
-          const isMine = userId != null && String(owner) === String(userId);
           if (!d || !t) return;
-          if (!(isPublic || isMine)) return;
           (m[d] ||= []).push(t);
         });
+
+        const userArr = Array.isArray(userData) ? userData : [];
+        userArr.forEach((it: any) => {
+          const d = parseOccasionDate(it?.acf?.occasion_date);
+          const t = it?.acf?.title?.trim();
+          if (!d || !t) return;
+          const existing = m[d] ?? [];
+          if (!existing.includes(t)) (m[d] ||= []).push(t);
+        });
+
         setWpMap((prev) => {
           const merged = { ...m };
           for (const k of Object.keys(prev)) {
@@ -207,7 +229,11 @@ export default function OccasionsClient({
     const addedJm = jParts.month() + 1;
     if (addedJy !== jy || addedJm !== jm) {
       setCurrentMonth(
-        dayjs().calendar("jalali").year(addedJy).month(addedJm - 1).date(1),
+        dayjs()
+          .calendar("jalali")
+          .year(addedJy)
+          .month(addedJm - 1)
+          .date(1),
       );
     }
   };
