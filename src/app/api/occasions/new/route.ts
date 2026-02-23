@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
     const createRes = await wordpressFetch("/wp-json/wp/v2/occasion", {
       method: "POST",
-      body: JSON.stringify({ status: "publish", title }),
+      body: JSON.stringify({ status: "publish", title, author: session.userId }),
       cache: "no-store",
     });
 
