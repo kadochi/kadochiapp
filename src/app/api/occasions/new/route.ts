@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { getSessionFromCookies } from "@/lib/auth/session";
+import { wordpressFetch } from "@/services/wordpress";
 
 type Body = { title?: string; date?: string; repeatYearly?: boolean };
 
@@ -12,28 +14,22 @@ export async function POST(req: Request) {
 
     const { title, date, repeatYearly }: Body = await req
       .json()
-      .catch(() => ({} as Body));
+      .catch(() => ({}) as Body);
     if (!title || !date) {
       return NextResponse.json({ error: "Invalid input" }, { status: 400 });
     }
 
-    const createRes = await fetch(
-      `${
-        process.env.NEXT_PUBLIC_SITE_URL ? "" : ""
-      }/api/wp/wp-json/wp/v2/occasion`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "publish", title }),
-        cache: "no-store",
-      }
-    );
+    const createRes = await wordpressFetch("/wp-json/wp/v2/occasion", {
+      method: "POST",
+      body: JSON.stringify({ status: "publish", title, author: session.userId }),
+      cache: "no-store",
+    });
 
     if (!createRes.ok) {
       const t = await createRes.text().catch(() => "");
       return NextResponse.json(
         { error: "WP create failed", details: t || createRes.statusText },
-        { status: 502 }
+        { status: 502 },
       );
     }
 
@@ -43,9 +39,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No post id" }, { status: 502 });
     }
 
-    const acfRes = await fetch(`/api/wp/wp-json/acf/v3/occasion/${id}`, {
+    const acfRes = await wordpressFetch(`/wp-json/acf/v3/occasion/${id}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         fields: {
           title,
@@ -61,11 +56,13 @@ export async function POST(req: Request) {
       const t = await acfRes.text().catch(() => "");
       return NextResponse.json(
         { error: "ACF update failed", details: t || acfRes.statusText },
-        { status: 502 }
+        { status: 502 },
       );
     }
 
     const acfSaved = await acfRes.json().catch(() => ({}));
+    revalidatePath("/occasions");
+    revalidateTag("occasions", "max");
     return NextResponse.json({ ok: true, id, acf: acfSaved }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Unexpected error" }, { status: 500 });

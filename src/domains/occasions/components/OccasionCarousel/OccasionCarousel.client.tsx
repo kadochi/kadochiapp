@@ -5,7 +5,7 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 import styles from "./Occasion.module.css";
 import OccasionCart from "./OccasionCart";
-import { toJalaali } from "jalaali-js";
+import { dayjs, parseOccasionDate, PERSIAN_MONTHS } from "@/lib/jalali";
 
 type OccasionItem = {
   title: string;
@@ -13,12 +13,14 @@ type OccasionItem = {
   month: string;
   remainingDays: number;
   sortKey: number;
+  variant: "public" | "private";
 };
 
 type WPOccasion = {
   acf?: {
     title?: string;
     occasion_date?: string;
+    user_id?: number | string | null;
   };
 };
 
@@ -26,8 +28,10 @@ const SKELETON_COUNT = 6;
 
 export default function OccasionCarouselClient({
   items,
+  userId,
 }: {
   items?: OccasionItem[];
+  userId?: number | null;
 }) {
   const [occasions, setOccasions] = useState<OccasionItem[]>(items ?? []);
   const [loading, setLoading] = useState<boolean>(!items || items.length === 0);
@@ -38,60 +42,83 @@ export default function OccasionCarouselClient({
       return;
     }
 
-    fetch(
-      "https://app.kadochi.com/wp-json/wp/v2/occasion?acf_format=standard",
-      {
-        cache: "no-store",
-      }
-    )
-      .then((res) => res.json())
-      .then((data: unknown) => {
+    const fetchOpts = { cache: "no-store" as const };
+    const adminUrl =
+      "/api/wp/wp-json/wp/v2/occasion?author=1&acf_format=standard&per_page=100";
+    const userUrl = userId
+      ? `/api/wp/wp-json/wp/v2/occasion?author=${userId}&acf_format=standard&per_page=100`
+      : null;
+
+    Promise.all([
+      fetch(adminUrl, fetchOpts).then((r) => (r.ok ? r.json() : [])),
+      userUrl
+        ? fetch(userUrl, fetchOpts).then((r) => (r.ok ? r.json() : []))
+        : Promise.resolve([]),
+    ])
+      .then(([adminData, userData]: [unknown, unknown]) => {
         const today = new Date();
 
-        const arr = Array.isArray(data) ? (data as WPOccasion[]) : [];
-        const persianMonths = [
-          "",
-          "فروردین",
-          "اردیبهشت",
-          "خرداد",
-          "تیر",
-          "مرداد",
-          "شهریور",
-          "مهر",
-          "آبان",
-          "آذر",
-          "دی",
-          "بهمن",
-          "اسفند",
-        ] as const;
+        const adminArr = Array.isArray(adminData)
+          ? (adminData as WPOccasion[])
+          : [];
+        const userArr = Array.isArray(userData)
+          ? (userData as WPOccasion[])
+          : [];
 
-        const mapped = arr
-          .map((item) => {
-            const acf = item.acf ?? {};
-            const title = acf.title ?? "";
-            const gregorianDateStr = acf.occasion_date ?? "";
-            if (!gregorianDateStr) return null;
+        const filteredAdmin = adminArr.filter((it) => {
+          const owner = it.acf?.user_id;
+          return owner == null || owner === "" || String(owner) === "1";
+        });
 
-            const [gy, gm, gd] = gregorianDateStr.split("-").map(Number);
-            if (!gy || !gm || !gd) return null;
+        const mapToOccasion = (
+          item: WPOccasion,
+          variant: "public" | "private"
+        ): OccasionItem | null => {
+          const acf = item.acf ?? {};
+          const title = (acf.title ?? "").trim();
+          const gregorianDateStr = parseOccasionDate(acf.occasion_date);
+          if (!gregorianDateStr) return null;
 
-            const targetDate = new Date(gy, gm - 1, gd);
-            const diffTime = targetDate.getTime() - today.getTime();
-            const remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            if (remainingDays < 0) return null;
+          const targetDate = dayjs(gregorianDateStr).toDate();
+          const diffTime = targetDate.getTime() - today.getTime();
+          const remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (remainingDays < 0) return null;
 
-            const j = toJalaali(gy, gm, gd);
+          const j = dayjs(gregorianDateStr).calendar("jalali");
+          return {
+            title,
+            day: String(j.date()),
+            month: PERSIAN_MONTHS[j.month() + 1],
+            remainingDays,
+            sortKey: targetDate.getTime(),
+            variant,
+          };
+        };
 
-            return {
-              title,
-              day: String(j.jd),
-              month: persianMonths[j.jm],
-              remainingDays,
-              sortKey: targetDate.getTime(),
-            } as OccasionItem;
-          })
-          .filter((x): x is OccasionItem => x !== null)
-          .sort((a, b) => a.sortKey - b.sortKey);
+        const seen = new Set<string>();
+        const adminItems = filteredAdmin
+          .map((it) => mapToOccasion(it, "public"))
+          .filter((x): x is OccasionItem => x !== null);
+        const userItems = userArr
+          .map((it) => mapToOccasion(it, "private"))
+          .filter((x): x is OccasionItem => x !== null);
+
+        const mapped: OccasionItem[] = [];
+        for (const item of adminItems) {
+          const dedupeKey = `${item.title}|${item.sortKey}`;
+          if (!seen.has(dedupeKey)) {
+            seen.add(dedupeKey);
+            mapped.push(item);
+          }
+        }
+        for (const item of userItems) {
+          const dedupeKey = `${item.title}|${item.sortKey}`;
+          if (!seen.has(dedupeKey)) {
+            seen.add(dedupeKey);
+            mapped.push(item);
+          }
+        }
+        mapped.sort((a, b) => a.sortKey - b.sortKey);
 
         setOccasions(mapped);
       })
@@ -100,7 +127,7 @@ export default function OccasionCarouselClient({
         setOccasions([]);
       })
       .finally(() => setLoading(false));
-  }, [items]);
+  }, [items, userId]);
 
   return (
     <div className={styles.occasionDaysCarousel}>
@@ -171,6 +198,7 @@ export default function OccasionCarouselClient({
                   month={o.month}
                   title={o.title}
                   remainingDays={o.remainingDays}
+                  variant={o.variant}
                 />
               </SwiperSlide>
             ))}

@@ -1,32 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import BottomSheet from "@/components/ui/BottomSheet/BottomSheet";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
 import Input from "@/components/ui/Input/Input";
 import Button from "@/components/ui/Button/Button";
 import Checkbox from "@/components/ui/Checkbox/Checkbox";
-import { toGregorian, toJalaali } from "jalaali-js";
+import {
+  dayjs,
+  todayJalali,
+  toGregorianKey,
+  PERSIAN_MONTHS,
+  persianDigits,
+} from "@/lib/jalali";
 import s from "./OccasionSheet.module.css";
-
-const PERSIAN_MONTHS = [
-  "",
-  "فروردین",
-  "اردیبهشت",
-  "خرداد",
-  "تیر",
-  "مرداد",
-  "شهریور",
-  "مهر",
-  "آبان",
-  "آذر",
-  "دی",
-  "بهمن",
-  "اسفند",
-] as const;
-
-const persianDigits = (numStr: string) =>
-  numStr.replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
 
 type Props = {
   isOpen: boolean;
@@ -35,75 +22,67 @@ type Props = {
     title: string;
     date: string; // YYYY-MM-DD
     repeatYearly: boolean;
-  }) => void;
+  }) => Promise<void> | void;
 };
 
 export default function AddOccasionSheet({ isOpen, onClose, onSubmit }: Props) {
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-  const tj = toJalaali(
-    today.getFullYear(),
-    today.getMonth() + 1,
-    today.getDate()
+  const tj = todayJalali();
+  const [currentMonth, setCurrentMonth] = useState(() =>
+    dayjs().calendar("jalali").year(tj.jy).month(tj.jm - 1).date(1),
   );
-
   const [title, setTitle] = useState<string>("");
-  const [jy, setJy] = useState<number>(tj.jy);
-  const [jm, setJm] = useState<number>(tj.jm);
   const [selected, setSelected] = useState<{
     jy: number;
     jm: number;
     jd: number;
   } | null>(null);
   const [repeatYearly, setRepeatYearly] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const jy = currentMonth.year();
+  const jm = currentMonth.month() + 1;
 
   const gridDays = useMemo(() => {
     const days: number[] = [];
-    for (let d = 1; d <= 31; d++) {
-      const g = toGregorian(jy, jm, d);
-      const back = toJalaali(g.gy, g.gm, g.gd);
-      if (back.jy === jy && back.jm === jm && back.jd === d) days.push(d);
+    const count = currentMonth.daysInMonth();
+    for (let d = 1; d <= count; d++) {
+      days.push(d);
     }
     return days;
-  }, [jy, jm]);
+  }, [currentMonth]);
 
   const monthTitle = `${PERSIAN_MONTHS[jm]} ${persianDigits(String(jy))}`;
 
-  const goPrev = () => {
-    if (jm === 1) {
-      setJy((y) => y - 1);
-      setJm(12);
-    } else setJm((m) => m - 1);
-  };
-  const goNext = () => {
-    if (jm === 12) {
-      setJy((y) => y + 1);
-      setJm(1);
-    } else setJm((m) => m + 1);
-  };
+  const goPrev = () =>
+    setCurrentMonth((d) => d.subtract(1, "month").startOf("month"));
+
+  const goNext = () =>
+    setCurrentMonth((d) => d.add(1, "month").startOf("month"));
 
   const isSelected = (d: number) =>
     !!selected && selected.jy === jy && selected.jm === jm && selected.jd === d;
 
   const canSubmit = title.trim().length > 0 && !!selected;
 
-  const submit = () => {
-    if (!canSubmit) return;
-    const { gy, gm, gd } = toGregorian(
-      selected!.jy,
-      selected!.jm,
-      selected!.jd
-    );
-    const iso = `${gy}-${String(gm).padStart(2, "0")}-${String(gd).padStart(
-      2,
-      "0"
-    )}`;
-    onSubmit?.({ title: title.trim(), date: iso, repeatYearly });
-    onClose();
-  };
+  const submit = useCallback(async () => {
+    if (!canSubmit || isSubmitting || !selected) return;
+    const iso = toGregorianKey(selected.jy, selected.jm, selected.jd);
+    setIsSubmitting(true);
+    try {
+      await onSubmit?.({ title: title.trim(), date: iso, repeatYearly });
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [
+    canSubmit,
+    isSubmitting,
+    selected,
+    onSubmit,
+    onClose,
+    title,
+    repeatYearly,
+  ]);
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} ariaLabel="افزودن مناسبت">
@@ -210,9 +189,9 @@ export default function AddOccasionSheet({ isOpen, onClose, onSubmit }: Props) {
           style="filled"
           size="large"
           onClick={submit}
-          disabled={!canSubmit}
+          disabled={!canSubmit || isSubmitting}
         >
-          ثبت مناسبت
+          {isSubmitting ? "در حال ثبت..." : "ثبت مناسبت"}
         </Button>
       </div>
     </BottomSheet>

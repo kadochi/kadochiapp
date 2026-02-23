@@ -32,7 +32,9 @@ type CheckoutPayload = {
     packaging?: number;
   };
   delivery?: string | { slot_id?: string; label?: string } | null;
-  packaging?: { id?: "normal" | "gift"; title?: string; price?: number } | null;
+  packaging?:
+    | { id?: "normal" | "gift"; title?: string; price?: number; postcard_message?: string }
+    | null;
   payMethod: "online";
 };
 
@@ -334,12 +336,31 @@ export async function POST(req: NextRequest) {
               { key: "kadochi_delivery_slot_id", value: deliverySlotId },
             ]
           : []),
+        ...(body?.packaging?.postcard_message != null &&
+        String(body.packaging.postcard_message).trim() !== ""
+          ? [
+              {
+                key: "_kadochi_postcard_msg",
+                value: String(body.packaging.postcard_message).trim(),
+              },
+            ]
+          : []),
       ],
-      ...(deliveryLabel
+      ...(deliveryLabel ||
+      (body?.packaging?.postcard_message != null &&
+        String(body.packaging.postcard_message).trim() !== "")
         ? {
-            customer_note: `زمان ارسال: ${deliveryLabel}${
-              deliverySlotId ? `  (Slot ID: ${deliverySlotId})` : ""
-            }`,
+            customer_note: [
+              deliveryLabel &&
+                `زمان ارسال: ${deliveryLabel}${
+                  deliverySlotId ? `  (Slot ID: ${deliverySlotId})` : ""
+                }`,
+              body?.packaging?.postcard_message != null &&
+                String(body.packaging.postcard_message).trim() !== "" &&
+                `متن کارت پستال: ${String(body.packaging.postcard_message).trim()}`,
+            ]
+              .filter(Boolean)
+              .join("\n"),
           }
         : {}),
     };

@@ -664,6 +664,18 @@ export default function CheckoutClient(props: {
           },
           { key: "_kadochi_source", value: "web" },
         ],
+        ...(payload.delivery.label || payload.packaging.postcard_message
+          ? {
+              customer_note: [
+                payload.delivery.label &&
+                  `زمان ارسال: ${payload.delivery.label}`,
+                payload.packaging.postcard_message &&
+                  `متن کارت پستال: ${payload.packaging.postcard_message}`,
+              ]
+                .filter(Boolean)
+                .join("\n"),
+            }
+          : {}),
       };
 
       const createOrderRes = await fetchWithTimeout(

@@ -10,6 +10,7 @@ type Props = {
   month: string;
   title: string;
   remainingDays: number;
+  variant?: "public" | "private";
 };
 
 export default function OccasionCart({
@@ -17,24 +18,34 @@ export default function OccasionCart({
   month,
   title,
   remainingDays,
+  variant = "public",
 }: Props) {
   const isUrgent = remainingDays < 8;
+  const showRemainingDays = remainingDays > 0;
 
   return (
-    <div className={styles.occasionDayCard}>
+    <div
+      className={`${styles.occasionDayCard} ${
+        variant === "private" ? styles.occasionDayCardPrivate : ""
+      }`}
+      data-variant={variant}
+    >
       <div className={styles.occasionDay}>{day}</div>
       <div className={styles.occasionMonth}>{month}</div>
       <div className={styles.occasionTitle}>{title}</div>
 
-      <div
-        className={`${styles.occasionRemaining} ${
-          isUrgent ? styles.urgentRemaining : ""
-        }`}
-      >
-        {remainingDays} روز مانده
-      </div>
+      {showRemainingDays && (
+        <div
+          className={`${styles.occasionRemaining} ${
+            isUrgent ? styles.urgentRemaining : ""
+          }`}
+        >
+          {remainingDays} روز مانده
+        </div>
+      )}
 
       <Button
+        className={!showRemainingDays ? styles.occasionBtnNoRemaining : undefined}
         as={Link as any}
         href="/products"
         type="link"

@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toJalaali, toGregorian } from "jalaali-js";
 import { useRouter } from "next/navigation";
+import {
+  dayjs,
+  parseOccasionDate,
+  todayJalali,
+  toGregorianKey,
+  PERSIAN_MONTHS as MONTHS,
+  jsDayToFa,
+} from "@/lib/jalali";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
 import Button from "@/components/ui/Button/Button";
 import Divider from "@/components/ui/Divider/Divider";
@@ -22,34 +29,6 @@ type DayRow = {
   titles: string[];
   offset: number;
 };
-
-const MONTHS = [
-  "",
-  "فروردین",
-  "اردیبهشت",
-  "خرداد",
-  "تیر",
-  "مرداد",
-  "شهریور",
-  "مهر",
-  "آبان",
-  "آذر",
-  "دی",
-  "بهمن",
-  "اسفند",
-] as const;
-
-const WEEKDAYS_FA = [
-  "یکشنبه",
-  "دوشنبه",
-  "سه‌شنبه",
-  "چهارشنبه",
-  "پنجشنبه",
-  "جمعه",
-  "شنبه",
-] as const;
-
-const jsDayToFa = (jsDay: number) => WEEKDAYS_FA[jsDay];
 
 export default function OccasionsClient({
   initialMap = {} as Record<string, string[]>,
@@ -73,52 +52,107 @@ export default function OccasionsClient({
     return d;
   }, []);
 
-  const tj = toJalaali(
-    today.getFullYear(),
-    today.getMonth() + 1,
-    today.getDate()
+  const tj = todayJalali();
+  const [currentMonth, setCurrentMonth] = useState(() =>
+    dayjs()
+      .calendar("jalali")
+      .year(tj.jy)
+      .month(tj.jm - 1)
+      .date(1),
   );
-  const [jy, setJy] = useState<number>(tj.jy);
-  const [jm, setJm] = useState<number>(tj.jm);
 
   const headerRef = useRef<HTMLDivElement | null>(null);
   const [showFab, setShowFab] = useState(false);
 
   useEffect(() => {
     if (Object.keys(initialMap).length) return;
-    fetch("/api/wp/wp-json/wp/v2/occasion?acf_format=standard&per_page=100", {
-      cache: "no-store",
-    })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: any[]) => {
+    const userId = session?.userId ?? null;
+
+    const adminUrl =
+      "/api/wp/wp-json/wp/v2/occasion?author=1&acf_format=standard&per_page=100";
+    const userUrl = userId
+      ? `/api/wp/wp-json/wp/v2/occasion?author=${userId}&acf_format=standard&per_page=100`
+      : null;
+
+    const fetchOpts = { cache: "no-store" as const };
+
+    Promise.all([
+      fetch(adminUrl, fetchOpts).then((r) => (r.ok ? r.json() : [])),
+      userUrl
+        ? fetch(userUrl, fetchOpts).then((r) => (r.ok ? r.json() : []))
+        : Promise.resolve([]),
+    ])
+      .then(([adminData, userData]: [any[], any[]]) => {
         const m: Record<string, string[]> = {};
-        (Array.isArray(data) ? data : []).forEach((it: any) => {
-          const d = it?.acf?.occasion_date?.trim();
+
+        const adminArr = Array.isArray(adminData) ? adminData : [];
+        adminArr.forEach((it: any) => {
+          const owner = it?.acf?.user_id;
+          if (owner != null && owner !== "" && String(owner) !== "1") return;
+          const d = parseOccasionDate(it?.acf?.occasion_date);
           const t = it?.acf?.title?.trim();
           if (!d || !t) return;
           (m[d] ||= []).push(t);
         });
-        setWpMap(m);
+
+        const userArr = Array.isArray(userData) ? userData : [];
+        userArr.forEach((it: any) => {
+          const d = parseOccasionDate(it?.acf?.occasion_date);
+          const t = it?.acf?.title?.trim();
+          if (!d || !t) return;
+          const existing = m[d] ?? [];
+          if (!existing.includes(t)) (m[d] ||= []).push(t);
+        });
+
+        setWpMap((prev) => {
+          const merged = { ...m };
+          for (const k of Object.keys(prev)) {
+            const existing = merged[k] ?? [];
+            const fromPrev = prev[k] ?? [];
+            merged[k] = [...new Set([...existing, ...fromPrev])];
+          }
+          return merged;
+        });
       })
       .catch(() => {});
+  }, [initialMap, session?.userId]);
+
+  useEffect(() => {
+    if (Object.keys(initialMap).length === 0) return;
+    setWpMap((prev) => {
+      const merged: Record<string, string[]> = {};
+      const allKeys = new Set([
+        ...Object.keys(prev),
+        ...Object.keys(initialMap),
+      ]);
+      for (const k of allKeys) {
+        const fromPrev = prev[k] ?? [];
+        const fromInitial = initialMap[k] ?? [];
+        merged[k] = [...new Set([...fromPrev, ...fromInitial])];
+      }
+      return merged;
+    });
   }, [initialMap]);
+
+  const jy = currentMonth.year();
+  const jm = currentMonth.month() + 1;
 
   const rows: DayRow[] = useMemo(() => {
     const out: DayRow[] = [];
     const monthName = MONTHS[jm];
     const msDay = 24 * 60 * 60 * 1000;
+    const daysInMonth = currentMonth.daysInMonth();
 
-    for (let jd = 1; jd <= 31; jd++) {
-      const g = toGregorian(jy, jm, jd);
-      const back = toJalaali(g.gy, g.gm, g.gd);
-      if (back.jy !== jy || back.jm !== jm || back.jd !== jd) continue;
-
-      const gDate = new Date(g.gy, g.gm - 1, g.gd);
+    for (let jd = 1; jd <= daysInMonth; jd++) {
+      const key = toGregorianKey(jy, jm, jd);
+      const gDate = dayjs()
+        .calendar("jalali")
+        .year(jy)
+        .month(jm - 1)
+        .date(jd)
+        .toDate();
       gDate.setHours(0, 0, 0, 0);
 
-      const key = `${g.gy}-${String(g.gm).padStart(2, "0")}-${String(
-        g.gd
-      ).padStart(2, "0")}`;
       const titles = wpMap[key] ?? [];
 
       const diff = gDate.getTime() - today.getTime();
@@ -137,32 +171,20 @@ export default function OccasionsClient({
       });
     }
     return out;
-  }, [wpMap, jy, jm, today]);
+  }, [wpMap, currentMonth, jy, jm, today]);
 
   const goPrevMonth = () =>
-    setJm((prev) => {
-      if (prev === 1) {
-        setJy((y) => y - 1);
-        return 12;
-      }
-      return prev - 1;
-    });
+    setCurrentMonth((d) => d.subtract(1, "month").startOf("month"));
 
   const goNextMonth = () =>
-    setJm((prev) => {
-      if (prev === 12) {
-        setJy((y) => y + 1);
-        return 1;
-      }
-      return prev + 1;
-    });
+    setCurrentMonth((d) => d.add(1, "month").startOf("month"));
 
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
     const io = new IntersectionObserver(
       (entries) => setShowFab(!entries[0].isIntersecting),
-      { root: null, threshold: 0 }
+      { root: null, threshold: 0 },
     );
     io.observe(el);
     return () => io.disconnect();
@@ -181,21 +203,39 @@ export default function OccasionsClient({
     date: string;
     repeatYearly: boolean;
   }) => {
-    try {
-      const res = await fetch("/api/occasions/new", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
+    const res = await fetch("/api/occasions/new", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
 
-      if (!res.ok) throw new Error("failed");
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const msg = body?.error ?? "خطا در ثبت مناسبت";
+      alert(msg);
+      throw new Error(msg);
+    }
 
-      setWpMap((prev) => {
-        const m = { ...prev };
-        (m[data.date] ||= []).push(data.title);
-        return m;
-      });
-    } catch {}
+    setWpMap((prev) => {
+      const m = { ...prev };
+      (m[data.date] ||= []).push(data.title);
+      return m;
+    });
+
+    router.refresh();
+
+    const jParts = dayjs(data.date).calendar("jalali");
+    const addedJy = jParts.year();
+    const addedJm = jParts.month() + 1;
+    if (addedJy !== jy || addedJm !== jm) {
+      setCurrentMonth(
+        dayjs()
+          .calendar("jalali")
+          .year(addedJy)
+          .month(addedJm - 1)
+          .date(1),
+      );
+    }
   };
 
   return (

@@ -103,6 +103,7 @@ export type OrderDetail = {
   receiver?: string;
   delivery_window?: string;
   address?: string;
+  postcard_message?: string;
   items: Array<{ id: number | string; name?: string; image?: string | null }>;
   summary: {
     subtotal?: number;
@@ -284,10 +285,17 @@ function mapOrderDetailPayload(order: any): OrderDetail {
 
   const deliveryLabelMeta = String(getMeta("_kadochi_delivery") || "");
   const deliverySlotMeta = String(
-    getMeta("_kadochi_delivery_slot") || getMeta("_kadochi_slot_id") || ""
+    getMeta("_kadochi_delivery_slot") ||
+      getMeta("_kadochi_slot_id") ||
+      getMeta("_kadochi_delivery_slot_id") ||
+      ""
   );
   const deliveryWindow =
     deliveryLabelMeta || formatDeliveryWindow(deliverySlotMeta) || "";
+
+  const postcardMessage = String(
+    getMeta("_kadochi_postcard_msg") || ""
+  ).trim();
 
   const subtotal = Array.isArray(order?.line_items)
     ? order.line_items.reduce(
@@ -316,6 +324,7 @@ function mapOrderDetailPayload(order: any): OrderDetail {
     receiver: receiverName || undefined,
     delivery_window: deliveryWindow || undefined,
     address: address || undefined,
+    postcard_message: postcardMessage || undefined,
     items,
     summary: { subtotal, tax, shipping, service, total },
   };
