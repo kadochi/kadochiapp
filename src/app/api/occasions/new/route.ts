@@ -62,7 +62,7 @@ export async function POST(req: Request) {
 
     const acfSaved = await acfRes.json().catch(() => ({}));
     revalidatePath("/occasions");
-    revalidateTag("occasions");
+    revalidateTag("occasions", "max");
     return NextResponse.json({ ok: true, id, acf: acfSaved }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
