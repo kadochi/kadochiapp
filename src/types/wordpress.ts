@@ -134,6 +134,7 @@ export interface WooOrder extends WordPressBaseEntity {
 
 export interface WordPressOccasion {
   id?: number;
+  author?: number;
   acf?: {
     title?: string;
     occasion_date?: string;
