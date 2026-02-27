@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import OccasionsClient from "./OccasionsClient";
+import OccasionsClient, { type OccasionEntry } from "./OccasionsClient";
 import getInitialSession, { type Session } from "@/lib/auth/session";
 import { wordpressJson } from "@/services/wordpress";
 import type { WordPressOccasion } from "@/types/wordpress";
@@ -16,7 +16,7 @@ export default async function OccasionsPage() {
   const userId = session?.userId ?? null;
   const isLoggedIn = !!userId;
 
-  let map: Record<string, string[]> = {};
+  let map: Record<string, OccasionEntry[]> = {};
 
   const fetchOpts = {
     allowProxyFallback: true,
@@ -53,7 +53,7 @@ export default async function OccasionsPage() {
         : []
       : [];
 
-    const m: Record<string, string[]> = {};
+    const m: Record<string, OccasionEntry[]> = {};
 
     const isAdminOccasion = (it: WordPressOccasion) => {
       const owner = it.acf?.user_id;
@@ -65,7 +65,7 @@ export default async function OccasionsPage() {
       const d = parseOccasionDate(it.acf?.occasion_date);
       const t = it.acf?.title?.trim();
       if (!d || !t) return;
-      (m[d] ||= []).push(t);
+      (m[d] ||= []).push({ title: t, variant: "public" });
     });
 
     userPayload.forEach((it) => {
@@ -73,7 +73,8 @@ export default async function OccasionsPage() {
       const t = it.acf?.title?.trim();
       if (!d || !t) return;
       const existing = m[d] ?? [];
-      if (!existing.includes(t)) (m[d] ||= []).push(t);
+      if (!existing.some((e) => e.title === t))
+        (m[d] ||= []).push({ title: t, variant: "private", id: it.id });
     });
 
     map = m;

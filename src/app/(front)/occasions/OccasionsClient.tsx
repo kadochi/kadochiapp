@@ -12,34 +12,30 @@ import {
 } from "@/lib/jalali";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
 import Button from "@/components/ui/Button/Button";
-import Divider from "@/components/ui/Divider/Divider";
 import { useSession } from "@/domains/auth/session-context";
 import AddOccasionSheet from "./AddOccasionSheet";
+import OccasionRow, { type DayRow } from "./OccasionRow";
 import s from "./occasions.module.css";
 import Header from "@/components/layout/Header/Header";
 
-type DayRow = {
-  gDate: Date;
-  jYear: number;
-  jMonth: number;
-  jDay: number;
-  jMonthName: string;
-  weekDayFa: string;
-  key: string;
-  titles: string[];
-  offset: number;
+export type OccasionEntry = {
+  title: string;
+  variant: "public" | "private";
+  id?: number;
 };
 
 export default function OccasionsClient({
-  initialMap = {} as Record<string, string[]>,
+  initialMap = {} as Record<string, OccasionEntry[]>,
   isLoggedInInitial = false,
   signinHref = "/login?redirect=/occasions",
 }: {
-  initialMap?: Record<string, string[]>;
+  initialMap?: Record<string, OccasionEntry[]>;
   isLoggedInInitial?: boolean;
   signinHref?: string;
 }) {
-  const [wpMap, setWpMap] = useState<Record<string, string[]>>(initialMap);
+  const [wpMap, setWpMap] = useState<Record<string, OccasionEntry[]>>(
+    initialMap,
+  );
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const router = useRouter();
@@ -83,7 +79,7 @@ export default function OccasionsClient({
         : Promise.resolve([]),
     ])
       .then(([adminData, userData]: [any[], any[]]) => {
-        const m: Record<string, string[]> = {};
+        const m: Record<string, OccasionEntry[]> = {};
 
         const adminArr = Array.isArray(adminData) ? adminData : [];
         adminArr.forEach((it: any) => {
@@ -92,7 +88,7 @@ export default function OccasionsClient({
           const d = parseOccasionDate(it?.acf?.occasion_date);
           const t = it?.acf?.title?.trim();
           if (!d || !t) return;
-          (m[d] ||= []).push(t);
+          (m[d] ||= []).push({ title: t, variant: "public" });
         });
 
         const userArr = Array.isArray(userData) ? userData : [];
@@ -101,7 +97,8 @@ export default function OccasionsClient({
           const t = it?.acf?.title?.trim();
           if (!d || !t) return;
           const existing = m[d] ?? [];
-          if (!existing.includes(t)) (m[d] ||= []).push(t);
+          if (!existing.some((e) => e.title === t))
+            (m[d] ||= []).push({ title: t, variant: "private", id: it?.id });
         });
 
         setWpMap((prev) => {
@@ -109,7 +106,9 @@ export default function OccasionsClient({
           for (const k of Object.keys(prev)) {
             const existing = merged[k] ?? [];
             const fromPrev = prev[k] ?? [];
-            merged[k] = [...new Set([...existing, ...fromPrev])];
+            const seen = new Set(existing.map((e) => e.title));
+            const toAdd = fromPrev.filter((e) => !seen.has(e.title));
+            merged[k] = [...existing, ...toAdd];
           }
           return merged;
         });
@@ -120,7 +119,7 @@ export default function OccasionsClient({
   useEffect(() => {
     if (Object.keys(initialMap).length === 0) return;
     setWpMap((prev) => {
-      const merged: Record<string, string[]> = {};
+      const merged: Record<string, OccasionEntry[]> = {};
       const allKeys = new Set([
         ...Object.keys(prev),
         ...Object.keys(initialMap),
@@ -128,7 +127,9 @@ export default function OccasionsClient({
       for (const k of allKeys) {
         const fromPrev = prev[k] ?? [];
         const fromInitial = initialMap[k] ?? [];
-        merged[k] = [...new Set([...fromPrev, ...fromInitial])];
+        const seen = new Set(fromPrev.map((e) => e.title));
+        const toAdd = fromInitial.filter((e) => !seen.has(e.title));
+        merged[k] = [...fromPrev, ...toAdd];
       }
       return merged;
     });
@@ -153,7 +154,7 @@ export default function OccasionsClient({
         .toDate();
       gDate.setHours(0, 0, 0, 0);
 
-      const titles = wpMap[key] ?? [];
+      const occasions = wpMap[key] ?? [];
 
       const diff = gDate.getTime() - today.getTime();
       const offset = Math.max(0, Math.ceil(diff / msDay));
@@ -166,7 +167,7 @@ export default function OccasionsClient({
         jMonthName: monthName as unknown as string,
         weekDayFa: jsDayToFa(gDate.getDay()),
         key,
-        titles,
+        occasions,
         offset,
       });
     }
@@ -198,6 +199,25 @@ export default function OccasionsClient({
     setSheetOpen(true);
   };
 
+  const handleDelete = async (dateKey: string, occ: OccasionEntry) => {
+    if (occ.id == null) return;
+    const res = await fetch(`/api/occasions/${occ.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const msg = body?.error ?? "خطا در حذف مناسبت";
+      alert(msg);
+      return;
+    }
+    setWpMap((prev) => {
+      const m = { ...prev };
+      m[dateKey] = (m[dateKey] ?? []).filter(
+        (e) => e.id !== occ.id || e.title !== occ.title
+      );
+      return m;
+    });
+    router.refresh();
+  };
+
   const handleCreate = async (data: {
     title: string;
     date: string;
@@ -216,9 +236,16 @@ export default function OccasionsClient({
       throw new Error(msg);
     }
 
+    const body = await res.json().catch(() => ({}));
+    const createdId = body?.id;
+
     setWpMap((prev) => {
       const m = { ...prev };
-      (m[data.date] ||= []).push(data.title);
+      (m[data.date] ||= []).push({
+        title: data.title,
+        variant: "private",
+        id: createdId,
+      });
       return m;
     });
 
@@ -302,34 +329,12 @@ export default function OccasionsClient({
       <main className={s.main} dir="rtl">
         <div className={s.list} role="list">
           {rows.map((row, idx) => (
-            <div key={row.key}>
-              <div className={s.item} role="listitem">
-                <div className={s.dateCol}>
-                  <div className={s.weekday}>{row.weekDayFa}</div>
-                  <div className={s.dayBig}>{row.jDay}</div>
-                </div>
-
-                <div
-                  className={`${s.occasionsCol} ${
-                    row.titles.length ? s.hasOccasion : s.noOccasionRow
-                  }`}
-                >
-                  {row.titles.length ? (
-                    row.titles.map((t, i) => (
-                      <div key={i} className={s.occasionCard}>
-                        <span className={s.occTitle}>{t}</span>
-                        <span className={s.occRemain}>
-                          {row.offset} روز مانده
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className={s.noOccasion}>بدون مناسبت</div>
-                  )}
-                </div>
-              </div>
-              {idx !== rows.length - 1 && <Divider />}
-            </div>
+            <OccasionRow
+              key={row.key}
+              row={row}
+              showDivider={idx !== rows.length - 1}
+              onDelete={handleDelete}
+            />
           ))}
           <div className={s.listEndSpacer} aria-hidden="true" />
         </div>
