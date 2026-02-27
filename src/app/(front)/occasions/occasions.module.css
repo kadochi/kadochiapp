@@ -81,9 +81,51 @@
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
+  gap: 12px;
   padding: 8px 12px;
   background: var(--secondary-secondary-container);
   border-radius: var(--radius-s, 8px);
+}
+.occasionCardRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.occasionCardRight .occRemain {
+  margin-inline-start: 0;
+}
+.deleteBtn {
+  flex-shrink: 0;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--error-on-error-container);
+}
+.deleteBtn:hover:not(:disabled):not([aria-disabled="true"]):not(
+    [data-loading="true"]
+  ) {
+  background-color: color-mix(
+    in oklab,
+    var(--error-error-container) 92%,
+    var(--error-on-error-container)
+  ) !important;
+  background-image: none !important;
+}
+.deleteBtn:active:not(:disabled):not([aria-disabled="true"]):not(
+    [data-loading="true"]
+  ) {
+  background-color: color-mix(
+    in oklab,
+    var(--error-error-container) 85%,
+    var(--error-on-error-container)
+  ) !important;
+  background-image: none !important;
+}
+
+.occasionCard.occasionCardPrivate {
+  background-color: var(--primary-primary-container);
 }
 
 .occTitle {
@@ -104,6 +146,11 @@
   color: var(--surface-neutral-mid-emphasis);
   margin-inline-start: 12px;
   white-space: nowrap;
+}
+
+.occRemain.occRemainUrgent {
+  color: var(--error-error);
+  font-weight: var(--fw-bold);
 }
 
 .noOccasion {
