@@ -1,0 +1,32 @@
+{
+  "name": "kadochiapp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "dayjs": "^1.11.19",
+    "jalali-plugin-dayjs": "^1.1.4",
+    "jose": "^6.1.0",
+    "lottie-react": "^2.4.1",
+    "lucide-react": "^0.548.0",
+    "next": "^16.0.7",
+    "nextjs-toploader": "^3.9.17",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "swiper": "^12.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.0",
+    "typescript": "^5"
+  }
+}
