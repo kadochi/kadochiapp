@@ -43,54 +43,24 @@ cd kadochi
 
 ## Step 2 — Configure Frontend Environment
 
-Create `front/.env.local` with values pointed at your local WordPress instance:
+Copy the provided template and fill in your secrets:
 
 ```bash
-# Site
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
-COOKIE_DOMAIN=
-
-# WordPress / WooCommerce (local Docker)
-WP_BASE_URL=http://localhost:8080
-WOO_BASE_URL=http://localhost:8080
-
-# WordPress application password (create after WP setup)
-WP_APP_USER=api-kadochi
-WP_APP_PASS=your-app-password
-
-# WooCommerce REST API keys (create after WooCommerce setup)
-WOO_CONSUMER_KEY=ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-WOO_CONSUMER_SECRET=cs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-# Auth / security (use any random strings locally)
-KADOCHI_JWT_SECRET=local-dev-jwt-secret
-CSRF_SECRET=local-dev-csrf-secret
-REVALIDATE_SECRET=local-dev-revalidate-secret
-ALLOWED_ORIGINS=http://localhost:3000
-
-# Payment (Zarinpal sandbox)
-ZARINPAL_MERCHANT_ID=your-sandbox-merchant-id
-ZARINPAL_MODE=sandbox
-ZARINPAL_CALLBACK_URL=/checkout/zp-callback
-
-# SMS / OTP (optional for local testing)
-MELIPAYAMAK_OTP_URL=
-SMS_USERNAME=
-SMS_PASSWORD=
-OTP_CODE_TTL_SEC=180
-OTP_ATTEMPT_RATE_PER_HOUR=30
-
-# Analytics (optional)
-NEXT_PUBLIC_GA_ID=
+cp front/.env.example front/.env.local
 ```
 
-> **Note:** WooCommerce keys and the WordPress application password are created inside WordPress after the first setup (see Step 5).
+The defaults in `.env.example` already point `WP_BASE_URL` and `WOO_BASE_URL` to `http://localhost:8080`, which is correct when running Next.js **directly on the host** with `npm run dev`.
 
-If product images from WordPress do not load, add a local hostname to `front/next.config.ts` under `images.remotePatterns`:
+> **Docker networking note:** When Next.js runs _inside a container_ (via `docker-compose.local.yml`), `localhost` resolves to the container itself — it can never reach the `wordpress` service. The compose file automatically overrides `WP_BASE_URL` and `WOO_BASE_URL` to `http://wordpress` (the Docker service name) at startup, regardless of what is in `front/.env.local`. You do not need to change those two values manually.
 
-```ts
-{ protocol: "http", hostname: "localhost", port: "8080", pathname: "/**" },
-```
+Key variables you must fill in after the WordPress setup (Step 4):
+
+| Variable | Where to find it |
+| --- | --- |
+| `WP_APP_USER` / `WP_APP_PASS` | WP admin → Users → Profile → Application Passwords |
+| `WOO_CONSUMER_KEY` / `WOO_CONSUMER_SECRET` | WooCommerce → Settings → Advanced → REST API → Add key |
+
+> **Note:** WooCommerce keys and the WordPress application password are created inside WordPress after the first setup (see Step 4).
 
 ---
 
@@ -158,21 +128,35 @@ docker compose -f docker-compose.local.yml restart nextjs
 
 ## Recommended Workflow — Frontend with Hot Reload
 
-The `nextjs` service in `docker-compose.local.yml` builds and runs a **production** Next.js image (via `front/Dockerfile`). That is useful for integration testing, but it does not provide hot reload.
+The `nextjs` service in `docker-compose.local.yml` builds and runs a **production** Next.js image (via `front/Dockerfile`). That image is a static build — **file changes on disk have no effect until you rebuild**.
 
-For day-to-day frontend work, run backend services in Docker and start Next.js on the host:
+For day-to-day frontend work, run the backend services in Docker and start Next.js directly on your host machine:
 
 ```bash
-# Terminal 1 — backend only
+# Terminal 1 — backend only (WordPress, MySQL, Redis)
 docker compose -f docker-compose.local.yml up -d mysql redis wordpress
 
-# Terminal 2 — frontend dev server
+# Terminal 2 — frontend dev server with hot reload
 cd front
 npm install
 npm run dev
 ```
 
-The app will be available at **http://localhost:3000** with live reload, using the same `front/.env.local` file.
+The app will be available at **http://localhost:3000** and Next.js will automatically reload whenever you save a file — no rebuild needed.
+
+### Do I need to rebuild after a code change?
+
+| How you run the frontend | After a code change |
+| --- | --- |
+| `npm run dev` on host (recommended) | No — hot reload is automatic |
+| `docker compose … up -d` (full stack in Docker) | **Yes** — run `docker compose -f docker-compose.local.yml up -d --build nextjs` |
+
+### Applying environment variable changes
+
+Next.js bakes most env vars at **build time** (anything without `NEXT_PUBLIC_` prefix that is used in server components / API routes is read at runtime, but `NEXT_PUBLIC_` vars are inlined at build time). When you change `front/.env.local`:
+
+- **`npm run dev`**: restart the dev server (`Ctrl+C`, `npm run dev`).
+- **Docker**: rebuild the container: `docker compose -f docker-compose.local.yml up -d --build nextjs`.
 
 ---
 
@@ -239,7 +223,8 @@ docker compose -f docker-compose.local.yml down -v
 **Next.js cannot reach WordPress**
 
 - Confirm WordPress is up: `docker compose -f docker-compose.local.yml ps wordpress`
-- Check `WP_BASE_URL` and `WOO_BASE_URL` in `front/.env.local` are `http://localhost:8080`
+- If running `npm run dev` on the host: check that `WP_BASE_URL` and `WOO_BASE_URL` in `front/.env.local` are `http://localhost:8080`.
+- If running the full stack in Docker: the compose file overrides those to `http://wordpress` automatically. Check that the `wordpress` container is healthy and on the `web` network.
 - Ensure `ALLOWED_ORIGINS` includes `http://localhost:3000`
 
 **WordPress redirect loop or wrong URL**

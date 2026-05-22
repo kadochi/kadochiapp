@@ -97,23 +97,38 @@ chmod 600 letsencrypt/acme.json
 
 ---
 
-## Step 6 — Review Environment & Secrets
+## Step 6 — Configure Frontend Environment & Secrets
 
-Open `docker-compose.yml` and confirm the following values are set correctly:
+Copy the provided template and fill in all values:
+
+```bash
+cp front/.env.example front/.env.production
+```
+
+Edit `front/.env.production` and set at minimum:
+
+| Variable | Value |
+| --- | --- |
+| `WP_APP_USER` / `WP_APP_PASS` | WordPress Application Password (created in Step 8) |
+| `WOO_CONSUMER_KEY` / `WOO_CONSUMER_SECRET` | WooCommerce REST API keys (created in Step 8) |
+| `KADOCHI_JWT_SECRET` | Strong random string (`openssl rand -hex 32`) |
+| `CSRF_SECRET` | Strong random string |
+| `ZARINPAL_MERCHANT_ID` | Your live Zarinpal merchant ID |
+| `ZARINPAL_MODE` | `production` |
+| `ALLOWED_ORIGINS` | `https://kadochi.com,https://www.kadochi.com` |
+
+> **Docker networking:** `WP_BASE_URL`, `WOO_BASE_URL`, and `NEXT_PUBLIC_SITE_URL` are automatically overridden by `docker-compose.yml` to use Docker-internal hostnames (`http://wordpress` and `https://kadochi.com`). You do not need to set those in `front/.env.production`.
+
+Also review and change the database passwords in `docker-compose.yml`:
 
 ```yaml
-# Traefik — Let's Encrypt email
-- "--certificatesresolvers.myresolver.acme.email=admin@kadochi.com"
-
 # MySQL credentials
 MYSQL_PASSWORD: strongpassword        # change this
 MYSQL_ROOT_PASSWORD: rootpassword     # change this
 
-# WordPress DB password (must match MYSQL_PASSWORD)
+# WordPress DB password (must match MYSQL_PASSWORD above)
 WORDPRESS_DB_PASSWORD: strongpassword # change this
 ```
-
-> Use strong, unique passwords in production. Consider putting secrets in a `.env` file and referencing them with `${VAR_NAME}` in `docker-compose.yml`.
 
 ---
 
@@ -177,7 +192,15 @@ git pull
 docker compose up -d --build
 ```
 
-Only the containers with changed images will be recreated; others keep running.
+Only containers whose images have changed are recreated; others keep running.
+
+> **Always rebuild after frontend changes.** Next.js is compiled into a static production image — changes to `front/` only take effect after a new `docker compose up -d --build`. There is no hot reload in production.
+
+To apply new environment variable changes only (no code change):
+
+```bash
+docker compose up -d --force-recreate nextjs
+```
 
 ---
 
