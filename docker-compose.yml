@@ -42,8 +42,18 @@ services:
     container_name: kadochi-nextjs
     restart: unless-stopped
 
+    # Load all front secrets from front/.env.production.
+    # WP_BASE_URL and NEXT_PUBLIC_SITE_URL are always overridden here so that
+    # Next.js talks to WordPress via the internal Docker network — never over
+    # the public internet or through Traefik.
+    env_file:
+      - ./front/.env.production
+
     environment:
       NODE_ENV: production
+      WP_BASE_URL: http://wordpress
+      WOO_BASE_URL: http://wordpress
+      NEXT_PUBLIC_SITE_URL: https://kadochi.com
 
     labels:
       - "traefik.enable=true"
