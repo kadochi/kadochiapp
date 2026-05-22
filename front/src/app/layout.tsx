@@ -8,7 +8,6 @@ import getInitialSession from "@/lib/auth/session";
 import Footer from "@/components/layout/Footer/Footer";
 import Script from "next/script";
 import GATracker from "./ga-tracker";
-import { getWpPublicBaseUrl } from "@/config/wp";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
@@ -68,7 +67,7 @@ export default async function RootLayout({
           </>
         )}
 
-        <link rel="preconnect" href={getWpPublicBaseUrl()} crossOrigin="" />
+        <link rel="preconnect" href="https://app.kadochi.com" crossOrigin="" />
         <link
           rel="preload"
           href="/fonts/IRANSansXFaNum-Regular.woff2"
