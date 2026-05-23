@@ -86,6 +86,7 @@ services:
 
     volumes:
       - ./theme:/var/www/html/wp-content/themes/kadochi
+      - ./php/php.ini:/usr/local/etc/php/conf.d/php.ini:ro
       - wordpress_data:/var/www/html
 
     networks:

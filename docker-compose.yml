@@ -129,6 +129,9 @@ services:
       # Your custom theme
       - ./theme:/var/www/html/wp-content/themes/kadochi
 
+      # PHP upload limits (upload_max_filesize, post_max_size)
+      - ./php/php.ini:/usr/local/etc/php/conf.d/php.ini:ro
+
       # Persistent uploads/plugins
       - wordpress_data:/var/www/html
 
