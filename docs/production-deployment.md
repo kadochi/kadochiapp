@@ -233,6 +233,8 @@ docker compose down -v
 
 - Confirm ports 80 and 443 are open: `curl -I http://kadochi.com`
 - Check DNS has propagated: `dig kadochi.com +short`
+- If DNS points through a proxy/CDN, disable proxying during certificate issuance so Let's Encrypt reaches Traefik directly.
+- If Let's Encrypt reports `too many failed authorizations`, wait until the `retry after` time in Traefik logs before restarting Traefik or recreating routers.
 - Check Traefik logs: `docker compose logs traefik`
 - Make sure `letsencrypt/acme.json` has `chmod 600`
 

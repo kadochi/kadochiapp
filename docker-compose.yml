@@ -1,6 +1,6 @@
 services:
   traefik:
-    image: traefik:v3.0
+    image: traefik:v3.3
     container_name: kadochi-traefik
     restart: unless-stopped
     command:
@@ -17,6 +17,7 @@ services:
 
       # Let's Encrypt
       - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
       - "--certificatesresolvers.myresolver.acme.email=admin@kadochi.com"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
 
@@ -59,7 +60,7 @@ services:
       - "traefik.enable=true"
 
       # Main domain
-      - "traefik.http.routers.nextjs.rule=Host(`kadochi.com`,`www.kadochi.com`)"
+      - "traefik.http.routers.nextjs.rule=Host(`kadochi.com`) || Host(`www.kadochi.com`)"
       - "traefik.http.routers.nextjs.entrypoints=websecure"
       - "traefik.http.routers.nextjs.tls.certresolver=myresolver"
 
