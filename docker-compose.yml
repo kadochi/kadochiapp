@@ -88,7 +88,10 @@ services:
 
   # WordPress
   wordpress:
-    image: wordpress:php8.2-apache
+    build:
+      context: ./wordpress
+      dockerfile: Dockerfile
+    image: kadochi-wordpress:php8.2-apache
     container_name: kadochi-wordpress
     restart: unless-stopped
 
@@ -109,8 +112,8 @@ services:
         define('WP_CACHE', true);
 
     volumes:
-      # Your custom theme
-      - ./theme:/var/www/html/wp-content/themes/kadochi
+      # Custom theme (see wordpress/theme/)
+      - ./wordpress/theme:/var/www/html/wp-content/themes/kadochi
 
       # Persistent uploads/plugins
       - wordpress_data:/var/www/html

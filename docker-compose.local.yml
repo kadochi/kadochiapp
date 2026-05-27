@@ -62,7 +62,10 @@ services:
 
   # WordPress — http://localhost:8080
   wordpress:
-    image: wordpress:php8.2-apache
+    build:
+      context: ./wordpress
+      dockerfile: Dockerfile
+    image: kadochi-wordpress:php8.2-apache
     container_name: kadochi-wordpress
     restart: unless-stopped
 
@@ -85,8 +88,7 @@ services:
       - "8080:80"
 
     volumes:
-      - ./theme:/var/www/html/wp-content/themes/kadochi
-      - ./php/php.ini:/usr/local/etc/php/conf.d/php.ini:ro
+      - ./wordpress/theme:/var/www/html/wp-content/themes/kadochi
       - wordpress_data:/var/www/html
 
     networks:
