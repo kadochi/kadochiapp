@@ -175,13 +175,13 @@ These values come from `docker-compose.local.yml`. They are fine for local use o
 
 ## Custom Theme (Optional)
 
-WordPress mounts a local theme directory into the container:
+WordPress mounts the theme from `wordpress/theme/` into the container:
 
 ```yaml
-./theme:/var/www/html/wp-content/themes/kadochi
+./wordpress/theme:/var/www/html/wp-content/themes/kadochi
 ```
 
-Create a `theme/` folder at the repo root if you are developing the WordPress theme locally, then activate **Kadochi** under **Appearance → Themes** in wp-admin.
+Put theme files under `wordpress/theme/` and activate **Kadochi** under **Appearance → Themes** in wp-admin. PHP upload limits and the WordPress image build live in `wordpress/` (`Dockerfile`, `php.ini`).
 
 ---
 

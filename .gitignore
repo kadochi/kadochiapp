@@ -2,6 +2,9 @@
 .DS_Store
 Thumbs.db
 
+# Certificates
+/certs
+
 # Cursor
 .cursor
 
