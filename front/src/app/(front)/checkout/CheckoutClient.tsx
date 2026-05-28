@@ -30,6 +30,7 @@ import {
   type DeliveryPartKey,
   formatDeliveryWindow,
 } from "@/domains/checkout/delivery-slot";
+import { tryGetPublicWpBaseUrl } from "@/config/wp";
 
 /* -------------------------------- Types & helpers -------------------------------- */
 
@@ -175,11 +176,11 @@ async function fetchProductsByIds(
   }
 
   try {
-    const base =
-      (process.env.NEXT_PUBLIC_WP_BASE_URL as string) ||
-      "https://app.kadochi.com";
+    const base = tryGetPublicWpBaseUrl();
+    if (!base) return [];
+
     const r2 = await fetch(
-      `${base.replace(/\/$/, "")}/wp-json/wc/store/v1/products?${qs}`,
+      `${base}/wp-json/wc/store/v1/products?${qs}`,
       {
         cache: "no-store",
         signal,

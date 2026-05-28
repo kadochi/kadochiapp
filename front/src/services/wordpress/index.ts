@@ -7,6 +7,7 @@ import {
   UpstreamNetworkError,
   UpstreamTimeout,
 } from "@/services/http/errors";
+import { getWpBaseUrl } from "@/config/wp";
 import { retry } from "@/services/http/retry";
 
 export interface WordPressFetchOptions extends RequestInit {
@@ -49,14 +50,9 @@ const SITE_ORIGIN = (() => {
   return "http://localhost:3000";
 })();
 
-const WP_BASE = (() => {
-  const base =
-    process.env.WP_BASE_URL ||
-    process.env.NEXT_PUBLIC_WP_BASE_URL ||
-    process.env.WOO_BASE_URL ||
-    "https://app.kadochi.com";
-  return base.replace(/\/$/, "");
-})();
+function wpBase(): string {
+  return getWpBaseUrl();
+}
 
 const BASIC_USER =
   process.env.WP_APP_USER ||
@@ -81,7 +77,7 @@ export function buildWordPressURL(input: string | URL): URL {
   }
   const normalized = input.startsWith("/") ? input : `/${input}`;
   const sanitized = normalized.replace(/\/+/g, "/");
-  return new URL(sanitized, WP_BASE);
+  return new URL(sanitized, wpBase());
 }
 
 function createHeaders(init?: HeadersInit): Headers {

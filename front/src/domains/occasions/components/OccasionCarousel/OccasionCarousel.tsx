@@ -2,6 +2,7 @@
 import OccasionCarouselClient from "./OccasionCarousel.client";
 import { dayjs, parseOccasionDate, PERSIAN_MONTHS } from "@/lib/jalali";
 import getInitialSession from "@/lib/auth/session";
+import { wordpressFetch } from "@/services/wordpress";
 
 type OccasionItem = {
   title: string;
@@ -19,8 +20,6 @@ type WPOccasion = {
     user_id?: number | string | null;
   };
 };
-
-const WP_BASE = process.env.WP_BASE_URL || "https://app.kadochi.com";
 
 function mapOccasions(
   data: WPOccasion[],
@@ -57,18 +56,19 @@ export default async function OccasionCarousel() {
   const session = await getInitialSession();
   const userId = session?.userId ?? null;
 
-  const fetchOpts = { next: { revalidate: 1800 } } as const;
+  const fetchOpts = { revalidate: 1800 } as const;
 
   let mapped: OccasionItem[] = [];
   try {
-    const adminUrl = `${WP_BASE}/wp-json/wp/v2/occasion?author=1&acf_format=standard&per_page=100`;
-    const userUrl = userId
-      ? `${WP_BASE}/wp-json/wp/v2/occasion?author=${userId}&acf_format=standard&per_page=100`
+    const adminPath =
+      "/wp-json/wp/v2/occasion?author=1&acf_format=standard&per_page=100";
+    const userPath = userId
+      ? `/wp-json/wp/v2/occasion?author=${userId}&acf_format=standard&per_page=100`
       : null;
 
     const [adminRes, userRes] = await Promise.all([
-      fetch(adminUrl, fetchOpts),
-      userUrl ? fetch(userUrl, fetchOpts) : Promise.resolve(null),
+      wordpressFetch(adminPath, fetchOpts),
+      userPath ? wordpressFetch(userPath, fetchOpts) : Promise.resolve(null),
     ]);
 
     let adminData: WPOccasion[] = [];

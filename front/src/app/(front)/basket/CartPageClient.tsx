@@ -10,6 +10,7 @@ import StateMessage from "@/components/layout/StateMessage/StateMessage";
 
 import { useSession } from "@/domains/auth/session-context";
 import { useBasket } from "@/domains/basket/state/basket-context";
+import { tryGetPublicWpBaseUrl } from "@/config/wp";
 
 import s from "./cart.module.css";
 
@@ -55,11 +56,11 @@ async function fetchProductsByIds(ids: string[]): Promise<StoreProduct[]> {
   } catch {}
 
   try {
-    const WP_BASE =
-      (process.env.NEXT_PUBLIC_WP_BASE_URL as string) ||
-      "https://app.kadochi.com";
+    const WP_BASE = tryGetPublicWpBaseUrl();
+    if (!WP_BASE) return [];
+
     const r2 = await fetch(
-      `${WP_BASE.replace(/\/$/, "")}/wp-json/wc/store/v1/products?${qs}`,
+      `${WP_BASE}/wp-json/wc/store/v1/products?${qs}`,
       { cache: "no-store" },
     );
     if (r2.ok) {

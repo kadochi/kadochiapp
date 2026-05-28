@@ -1,6 +1,7 @@
 // src/app/api/reviews/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
+import { getWooBaseUrl } from "@/config/wp";
 import { getSessionFromCookies } from "@/lib/auth/session";
 
 let getCustomerById: ((id: number) => Promise<any>) | undefined;
@@ -24,13 +25,14 @@ try {
 } catch {}
 
 async function fallbackCreateReview(productId: number | string, payload: any) {
-  const base = process.env.WOO_BASE_URL || process.env.WP_BASE_URL;
+  const base = getWooBaseUrl();
+
   const key = process.env.WOO_CONSUMER_KEY;
   const sec = process.env.WOO_CONSUMER_SECRET;
-  if (!base || !key || !sec) throw new Error("Woo credentials are missing");
+  if (!key || !sec) throw new Error("Woo credentials are missing");
 
   const url =
-    `${base.replace(/\/$/, "")}/wp-json/wc/v3/products/reviews` +
+    `${base}/wp-json/wc/v3/products/reviews` +
     `?consumer_key=${encodeURIComponent(key)}` +
     `&consumer_secret=${encodeURIComponent(sec)}`;
 

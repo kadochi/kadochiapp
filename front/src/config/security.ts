@@ -1,7 +1,10 @@
+import { getWpProxyBaseUrl } from "@/config/wp";
+
 // Centralized security-related env reading
 export const Security = {
-  wpBaseUrl:
-    process.env.WP_BASE_URL || process.env.NEXT_PUBLIC_WP_BASE_URL || "",
+  get wpBaseUrl() {
+    return getWpProxyBaseUrl();
+  },
   allowedOrigins: (process.env.ALLOWED_ORIGINS || "")
     .split(",")
     .map((s) => s.trim())

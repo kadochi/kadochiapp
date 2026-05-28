@@ -14,6 +14,7 @@ import FiltersBar from "./sheets/FiltersBar.client";
 import ProductListClient from "@/domains/catalog/components/ProductList/ProductList.client";
 import s from "./products.module.css";
 import Header from "@/components/layout/Header/Header";
+import { wordpressFetch } from "@/services/wordpress";
 
 type Search = {
   q?: string;
@@ -35,26 +36,17 @@ type WPCategory = {
 };
 type WPTag = { id: number; name: string; description?: string | null };
 
-const WP_BASE =
-  process.env.WP_BASE_URL ||
-  process.env.NEXT_PUBLIC_WP_BASE_URL ||
-  "https://app.kadochi.com";
-
-const SITE_BASE =
-  (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") ||
-  WP_BASE.replace(/\/$/, "");
+const SITE_BASE = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
 
 /* ---- helpers ---- */
 
 const getCategoryMeta = cache(async (input: string) => {
   const isId = /^\d+$/.test(input);
-  const url = isId
-    ? `${WP_BASE}/wp-json/wp/v2/product_cat/${input}`
-    : `${WP_BASE}/wp-json/wp/v2/product_cat?slug=${encodeURIComponent(
-        input,
-      )}&per_page=1`;
+  const path = isId
+    ? `/wp-json/wp/v2/product_cat/${input}`
+    : `/wp-json/wp/v2/product_cat?slug=${encodeURIComponent(input)}&per_page=1`;
   try {
-    const r = await fetch(url, { next: { revalidate: 300 } });
+    const r = await wordpressFetch(path, { revalidate: 300 });
     if (!r.ok) return null;
     const js = isId ? await r.json() : (await r.json())?.[0];
     return js
@@ -71,13 +63,11 @@ const getCategoryMeta = cache(async (input: string) => {
 
 const getTagMeta = cache(async (input: string) => {
   const isId = /^\d+$/.test(input);
-  const url = isId
-    ? `${WP_BASE}/wp-json/wp/v2/product_tag/${input}`
-    : `${WP_BASE}/wp-json/wp/v2/product_tag?slug=${encodeURIComponent(
-        input,
-      )}&per_page=1`;
+  const path = isId
+    ? `/wp-json/wp/v2/product_tag/${input}`
+    : `/wp-json/wp/v2/product_tag?slug=${encodeURIComponent(input)}&per_page=1`;
   try {
-    const r = await fetch(url, { next: { revalidate: 300 } });
+    const r = await wordpressFetch(path, { revalidate: 300 });
     if (!r.ok) return null;
     const js = isId ? await r.json() : (await r.json())?.[0];
     return js
@@ -93,9 +83,9 @@ const getTagMeta = cache(async (input: string) => {
 });
 
 async function getAllCategoriesSSR() {
-  const r = await fetch(
-    `${WP_BASE}/wp-json/wp/v2/product_cat?per_page=100&_fields=id,name,slug`,
-    { next: { revalidate: 600 } },
+  const r = await wordpressFetch(
+    "/wp-json/wp/v2/product_cat?per_page=100&_fields=id,name,slug",
+    { revalidate: 600 },
   );
   if (!r.ok) return [];
   const arr = (await r.json()) as Array<{

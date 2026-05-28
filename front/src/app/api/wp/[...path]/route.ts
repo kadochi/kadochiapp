@@ -6,13 +6,12 @@ import {
   UpstreamNetworkError,
   UpstreamTimeout,
 } from "@/services/http/errors";
+import { getWpProxyBaseUrl } from "@/config/wp";
 import { retry } from "@/services/http/retry";
 
 export const runtime = "nodejs"; // force Node runtime (not edge)
 export const dynamic = "force-dynamic"; // don't cache the proxy itself
 
-const WP_BASE_URL =
-  process.env.WP_BASE_URL || process.env.NEXT_PUBLIC_WP_BASE_URL;
 const WP_APP_USER = process.env.WP_APP_USER;
 const WP_APP_PASS = process.env.WP_APP_PASS;
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
@@ -64,9 +63,9 @@ function isAuthRedirect(res: Response): boolean {
 }
 
 function targetURL(paramsPath: string[] | undefined, search: string): URL {
-  if (!WP_BASE_URL) throw new Error("WP_BASE_URL not configured");
+  const wpBase = getWpProxyBaseUrl();
   const path = (paramsPath ?? []).join("/").replace(/^\//, "");
-  const base = new URL(WP_BASE_URL);
+  const base = new URL(wpBase);
   const url = new URL(path, base);
   if (search) {
     const qs = search.startsWith("?") ? search.substring(1) : search;

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getWooBaseUrl } from "@/config/wp";
 import {
   getSessionFromCookies,
   setSession, // persist enriched fields back to cookie
@@ -23,13 +24,13 @@ try {
  */
 async function fallbackGetCustomerById(id: number) {
   try {
-    const base = process.env.WOO_BASE_URL || process.env.WP_BASE_URL;
+    const base = getWooBaseUrl();
     const key = process.env.WOO_CONSUMER_KEY;
     const sec = process.env.WOO_CONSUMER_SECRET;
-    if (!base || !key || !sec) return null;
+    if (!key || !sec) return null;
 
     const url =
-      `${base.replace(/\/$/, "")}/wp-json/wc/v3/customers/${id}` +
+      `${base}/wp-json/wc/v3/customers/${id}` +
       `?consumer_key=${encodeURIComponent(key)}` +
       `&consumer_secret=${encodeURIComponent(sec)}`;
 

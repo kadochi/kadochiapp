@@ -1,5 +1,6 @@
 // src/app/api/orders/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { wooFetch } from "@/lib/api/woo";
 import { getOrderDetailForSession } from "@/lib/api/orders";
 
 export const runtime = "nodejs";
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       set_paid: true,
     };
 
-    await fetch(`/api/wp/wp-json/wc/v3/orders/${orderId}`, {
+    await wooFetch(`/wp-json/wc/v3/orders/${orderId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       cache: "no-store",
