@@ -1,6 +1,15 @@
 // src/app/api/auth/otp/start/route.ts
 import { NextResponse } from "next/server";
 import { checkOtpRateLimit, setOtpCode } from "@/lib/otp/store";
+import {
+  isDevBypassPhone,
+  OTP_DEV_BYPASS_CODE,
+} from "@/app/api/auth/otp/_lib/dev-bypass";
+import {
+  createOtpLogger,
+  failResponse,
+  maskPhone,
+} from "@/app/api/auth/otp/_lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +18,7 @@ const MELIPAYAMAK_OTP_URL = process.env.MELIPAYAMAK_OTP_URL || "";
 
 const OTP_CODE_TTL_SEC = Number(process.env.OTP_CODE_TTL_SEC || 180);
 const OTP_ATTEMPT_RATE_PER_HOUR = Number(
-  process.env.OTP_ATTEMPT_RATE_PER_HOUR || 3
+  process.env.OTP_ATTEMPT_RATE_PER_HOUR || 3,
 );
 
 const onlyDigits = (s: string) => String(s || "").replace(/\D+/g, "");
@@ -38,114 +47,190 @@ function extractOtpFromResponseBody(text: string): string | null {
 }
 
 export async function POST(req: Request) {
-  const log = (msg: string, data?: unknown) =>
-    console.log(`[otp/start] ${msg}`, data ?? "");
+  const log = createOtpLogger("start");
 
   try {
     const body = (await req.json().catch(() => ({}))) as { phone?: string };
     const phone = onlyDigits(String(body?.phone ?? ""));
-    log("request", { body, phone });
+    log.info("request", { phone: maskPhone(phone) });
 
     if (!phone) {
-      log("response", { ok: false, error: "INVALID_PHONE", status: 400 });
-      return NextResponse.json(
-        { ok: false, error: "INVALID_PHONE" },
-        { status: 400 }
+      return failResponse(
+        log,
+        "INVALID_PHONE",
+        "Phone number is missing or invalid",
+        400,
       );
     }
-    if (!MELIPAYAMAK_OTP_URL) {
-      log("response", {
-        ok: false,
-        error: "MELIPAYAMAK_OTP_URL_NOT_SET",
-        status: 500,
-      });
-      return NextResponse.json(
-        { ok: false, error: "MELIPAYAMAK_OTP_URL_NOT_SET" },
-        { status: 500 }
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "0.0.0.0";
+
+    let allowed: boolean;
+    try {
+      allowed = await checkOtpRateLimit(
+        phone,
+        ip,
+        OTP_ATTEMPT_RATE_PER_HOUR,
+      );
+    } catch (cause) {
+      return failResponse(
+        log,
+        "REDIS_ERROR",
+        "Rate limit check failed",
+        503,
+        { ip, phone: maskPhone(phone) },
+        cause,
       );
     }
 
-    const ip =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "0.0.0.0";
-    const allowed = await checkOtpRateLimit(
-      phone,
+    log.info("rate_limit", {
       ip,
-      OTP_ATTEMPT_RATE_PER_HOUR,
-    );
-    log("rate limit", { ip, allowed, limitPerHour: OTP_ATTEMPT_RATE_PER_HOUR });
+      allowed,
+      limitPerHour: OTP_ATTEMPT_RATE_PER_HOUR,
+      phone: maskPhone(phone),
+    });
     if (!allowed) {
-      log("response", { ok: false, error: "RATE_LIMIT", status: 429 });
-      return NextResponse.json(
-        { ok: false, error: "RATE_LIMIT" },
-        { status: 429 }
+      return failResponse(
+        log,
+        "RATE_LIMIT",
+        "OTP attempt rate limit exceeded",
+        429,
+        { ip, phone: maskPhone(phone) },
+      );
+    }
+
+    if (isDevBypassPhone(phone)) {
+      log.info("dev_bypass", { phone: maskPhone(phone) });
+      try {
+        await setOtpCode(phone, OTP_DEV_BYPASS_CODE, OTP_CODE_TTL_SEC);
+      } catch (cause) {
+        return failResponse(
+          log,
+          "REDIS_ERROR",
+          "Failed to store OTP code",
+          503,
+          { phone: maskPhone(phone), ttlSec: OTP_CODE_TTL_SEC },
+          cause,
+        );
+      }
+      log.info("response", { ok: true, status: 200, ttlSec: OTP_CODE_TTL_SEC });
+      return NextResponse.json({
+        ok: true,
+        ttlSec: OTP_CODE_TTL_SEC,
+        requestId: log.requestId,
+      });
+    }
+
+    if (!MELIPAYAMAK_OTP_URL) {
+      return failResponse(
+        log,
+        "MELIPAYAMAK_OTP_URL_NOT_SET",
+        "MELIPAYAMAK_OTP_URL env var is not configured",
+        500,
       );
     }
 
     const melipayamakRequest = { to: phone };
-    log("melipayamak request", {
+    log.info("melipayamak_request", {
       endpoint: MELIPAYAMAK_OTP_URL,
       method: "POST",
-      body: melipayamakRequest,
+      phone: maskPhone(phone),
     });
 
-    const r = await fetch(MELIPAYAMAK_OTP_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store",
-      body: JSON.stringify(melipayamakRequest),
-    });
+    let r: Response;
+    try {
+      r = await fetch(MELIPAYAMAK_OTP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify(melipayamakRequest),
+      });
+    } catch (cause) {
+      return failResponse(
+        log,
+        "PROVIDER_NETWORK_ERROR",
+        "Melipayamak request failed",
+        502,
+        { endpoint: MELIPAYAMAK_OTP_URL, phone: maskPhone(phone) },
+        cause,
+      );
+    }
 
     const respText = await r.text().catch(() => "");
-    log("melipayamak response", {
+    log.info("melipayamak_response", {
       endpoint: MELIPAYAMAK_OTP_URL,
       status: r.status,
       ok: r.ok,
-      body: respText,
+      bodyLength: respText.length,
     });
 
     if (!r.ok) {
-      log("response", {
-        ok: false,
-        error: "OTP_SEND_FAILED",
-        status: 502,
-        detail: respText || r.status,
-      });
-      return NextResponse.json(
-        { ok: false, error: "OTP_SEND_FAILED", detail: respText || r.status },
-        { status: 502 }
+      return failResponse(
+        log,
+        "OTP_SEND_FAILED",
+        "Melipayamak returned a non-success status",
+        502,
+        {
+          endpoint: MELIPAYAMAK_OTP_URL,
+          phone: maskPhone(phone),
+          providerStatus: r.status,
+        },
+        undefined,
+        { detail: respText || String(r.status) },
       );
     }
 
     const providerCode = extractOtpFromResponseBody(respText);
-    log("extracted provider code", { providerCode });
+    log.info("provider_code_extracted", {
+      phone: maskPhone(phone),
+      extracted: !!providerCode,
+    });
     if (!providerCode) {
-      log("response", {
-        ok: false,
-        error: "PROVIDER_NO_CODE_IN_RESPONSE",
-        status: 500,
-      });
-      return NextResponse.json(
-        { ok: false, error: "PROVIDER_NO_CODE_IN_RESPONSE" },
-        { status: 500 }
+      return failResponse(
+        log,
+        "PROVIDER_NO_CODE_IN_RESPONSE",
+        "No OTP code found in Melipayamak response",
+        502,
+        {
+          endpoint: MELIPAYAMAK_OTP_URL,
+          phone: maskPhone(phone),
+          bodyPreview: respText.slice(0, 200),
+        },
       );
     }
 
-    await setOtpCode(phone, providerCode, OTP_CODE_TTL_SEC);
-    log("stored otp", {
-      phone,
-      code: providerCode,
+    try {
+      await setOtpCode(phone, providerCode, OTP_CODE_TTL_SEC);
+    } catch (cause) {
+      return failResponse(
+        log,
+        "REDIS_ERROR",
+        "Failed to store OTP code",
+        503,
+        { phone: maskPhone(phone), ttlSec: OTP_CODE_TTL_SEC },
+        cause,
+      );
+    }
+
+    log.info("otp_stored", {
+      phone: maskPhone(phone),
       ttlSec: OTP_CODE_TTL_SEC,
     });
 
-    const success = { ok: true, ttlSec: OTP_CODE_TTL_SEC };
-    log("response", { ...success, status: 200 });
-    return NextResponse.json(success);
-  } catch (e: any) {
-    const detail = String(e?.message || e);
-    console.log("[otp/start] error", { detail, error: e });
-    return NextResponse.json(
-      { ok: false, error: "SERVER_ERROR", detail },
-      { status: 500 }
+    log.info("response", { ok: true, status: 200, ttlSec: OTP_CODE_TTL_SEC });
+    return NextResponse.json({
+      ok: true,
+      ttlSec: OTP_CODE_TTL_SEC,
+      requestId: log.requestId,
+    });
+  } catch (cause) {
+    return failResponse(
+      log,
+      "SERVER_ERROR",
+      "Unhandled exception during OTP start",
+      500,
+      undefined,
+      cause,
     );
   }
 }

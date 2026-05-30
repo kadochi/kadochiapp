@@ -8,6 +8,18 @@ import {
   type WooCustomer,
 } from "@/lib/api/woo";
 import { deleteOtpCode, getOtpCode } from "@/lib/otp/store";
+import {
+  isBlockedTestCode,
+  isDevBypassLogin,
+} from "@/app/api/auth/otp/_lib/dev-bypass";
+import {
+  createOtpLogger,
+  failResponse,
+  maskCode,
+  maskPhone,
+  type OtpLogger,
+} from "@/app/api/auth/otp/_lib/logger";
+import { UpstreamAuthError } from "@/services/http/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,12 +28,9 @@ export const revalidate = 0;
 /** Normalize phone/code to digits only. */
 const onlyDigits = (s: string) => String(s || "").replace(/\D+/g, "");
 
-/** Block trivial test codes. */
-const BLOCKED_TEST_CODES = new Set(["0000", "1111", "1234", "2222", "9999"]);
-
 export async function POST(req: Request) {
-  const log = (msg: string, data?: unknown) =>
-    console.log(`[otp/verify] ${msg}`, data ?? "");
+  const log = createOtpLogger("verify");
+  let phone = "";
 
   try {
     const body = (await req.json().catch(() => ({}))) as {
@@ -29,42 +38,88 @@ export async function POST(req: Request) {
       code?: string;
     };
 
-    const phone = onlyDigits(String(body?.phone ?? ""));
+    phone = onlyDigits(String(body?.phone ?? ""));
     const code = onlyDigits(String(body?.code ?? ""));
-    log("request", { body, phone, code });
+    log.info("request", {
+      phone: maskPhone(phone),
+      codeLength: code.length,
+    });
 
-    // Basic validation (same as before)
-    if (!phone || code.length < 4 || BLOCKED_TEST_CODES.has(code)) {
-      log("response", { ok: false, error: "INVALID_OTP", status: 400 });
-      return NextResponse.json(
-        { ok: false, error: "INVALID_OTP" },
-        { status: 400 },
+    if (!phone || code.length < 4 || isBlockedTestCode(code, phone)) {
+      return failResponse(
+        log,
+        "INVALID_OTP",
+        "Phone or code is missing, too short, or blocked",
+        400,
+        { phone: maskPhone(phone), codeLength: code.length },
       );
     }
 
-    const storedCode = await getOtpCode(phone);
-    log("stored otp", { phone, storedCode });
-    if (!storedCode) {
-      log("response", { ok: false, error: "NO_OTP_FOR_PHONE", status: 400 });
-      return NextResponse.json(
-        { ok: false, error: "NO_OTP_FOR_PHONE" },
-        { status: 400 },
-      );
-    }
-    if (storedCode !== code) {
-      log("otp mismatch", { phone, submitted: code, stored: storedCode });
-      log("response", { ok: false, error: "INVALID_OTP", status: 400 });
-      return NextResponse.json(
-        { ok: false, error: "INVALID_OTP" },
-        { status: 400 },
-      );
+    const devBypass = isDevBypassLogin(phone, code);
+
+    if (devBypass) {
+      log.info("dev_bypass", { phone: maskPhone(phone) });
+    } else {
+      let storedCode: string | null;
+      try {
+        storedCode = await getOtpCode(phone);
+      } catch (cause) {
+        return failResponse(
+          log,
+          "REDIS_ERROR",
+          "Failed to read stored OTP",
+          503,
+          { phone: maskPhone(phone) },
+          cause,
+        );
+      }
+
+      log.info("stored_otp_lookup", {
+        phone: maskPhone(phone),
+        found: !!storedCode,
+      });
+      if (!storedCode) {
+        return failResponse(
+          log,
+          "NO_OTP_FOR_PHONE",
+          "No active OTP found for phone",
+          400,
+          { phone: maskPhone(phone) },
+        );
+      }
+      if (storedCode !== code) {
+        log.warn("otp_mismatch", {
+          phone: maskPhone(phone),
+          submitted: maskCode(code),
+          stored: maskCode(storedCode),
+        });
+        return failResponse(
+          log,
+          "INVALID_OTP",
+          "Submitted code does not match stored OTP",
+          400,
+          { phone: maskPhone(phone) },
+        );
+      }
+
+      try {
+        await deleteOtpCode(phone);
+      } catch (cause) {
+        return failResponse(
+          log,
+          "REDIS_ERROR",
+          "Failed to delete OTP after verification",
+          503,
+          { phone: maskPhone(phone) },
+          cause,
+        );
+      }
+
+      log.info("otp_deleted", { phone: maskPhone(phone) });
     }
 
-    log("otp matched", { phone, code });
-    await deleteOtpCode(phone);
-    log("deleted stored otp", { phone });
+    log.info("otp_matched", { phone: maskPhone(phone) });
 
-    // Ensure Woo customer by phone (create or update)
     const { id, firstName, lastName, displayName, normalizedPhone } =
       await ensureWooCustomerByPhone(phone, log);
 
@@ -74,20 +129,61 @@ export async function POST(req: Request) {
       lastName: lastName ?? null,
       name: displayName ?? null,
     };
-    log("setSession", { customerId: id, sessionPayload });
-    await setSession(id, sessionPayload);
-
-    log("response", { ok: true, status: 200, customerId: id });
-    return NextResponse.json({ ok: true });
-  } catch (e) {
-    console.log("[otp/verify] error", {
-      error: e,
-      message: e instanceof Error ? e.message : String(e),
+    log.info("set_session", {
+      customerId: id,
+      phone: maskPhone(normalizedPhone),
     });
-    return NextResponse.json(
-      { ok: false, error: "INVALID_OTP" },
-      { status: 400 },
+
+    try {
+      await setSession(id, sessionPayload);
+    } catch (cause) {
+      return failResponse(
+        log,
+        "SESSION_SET_FAILED",
+        "Failed to write session cookie",
+        500,
+        { customerId: id, phone: maskPhone(normalizedPhone) },
+        cause,
+      );
+    }
+
+    log.info("response", { ok: true, status: 200, customerId: id });
+    return NextResponse.json({ ok: true, requestId: log.requestId });
+  } catch (cause) {
+    if (cause instanceof OtpRouteError) {
+      return failResponse(
+        log,
+        cause.code,
+        cause.reason,
+        cause.status,
+        { phone: maskPhone(phone), ...cause.ctx },
+        cause.cause,
+      );
+    }
+    return failResponse(
+      log,
+      "SERVER_ERROR",
+      "Unhandled exception during OTP verify",
+      500,
+      { phone: maskPhone(phone) },
+      cause,
     );
+  }
+}
+
+class OtpRouteError extends Error {
+  constructor(
+    readonly code:
+      | "WOO_LOOKUP_FAILED"
+      | "WOO_CREATE_FAILED"
+      | "WOO_UPDATE_FAILED",
+    readonly reason: string,
+    readonly status: number,
+    readonly ctx?: Record<string, unknown>,
+    readonly cause?: unknown,
+  ) {
+    super(reason);
+    this.name = "OtpRouteError";
   }
 }
 
@@ -97,11 +193,9 @@ export async function POST(req: Request) {
  * - If exists but missing phone in billing, update it.
  * Returns normalized identity fields to feed into the session payload.
  */
-type OtpVerifyLog = (msg: string, data?: unknown) => void;
-
 async function ensureWooCustomerByPhone(
   phoneRaw: string,
-  log: OtpVerifyLog,
+  log: OtpLogger,
 ): Promise<{
   id: number;
   firstName?: string | null;
@@ -112,25 +206,36 @@ async function ensureWooCustomerByPhone(
   const digits = onlyDigits(phoneRaw);
 
   const findEndpoint = `/wp-json/wc/v3/customers?search=${encodeURIComponent(digits)}`;
-  log("woo findCustomers request", {
+  log.info("woo_find_customers_request", {
     endpoint: findEndpoint,
-    method: "GET",
-    params: { search: digits },
+    phone: maskPhone(digits),
   });
 
-  const list = await findCustomers({ search: digits }).catch((err) => {
-    log("woo findCustomers error", { endpoint: findEndpoint, error: err });
-    return [] as WooCustomer[];
-  });
-  log("woo findCustomers response", {
+  let list: WooCustomer[];
+  try {
+    list = await findCustomers({ search: digits });
+  } catch (cause) {
+    const reason =
+      cause instanceof UpstreamAuthError
+        ? "WooCommerce REST credentials rejected or lack customer read permission"
+        : "WooCommerce customer search failed";
+    throw new OtpRouteError(
+      "WOO_LOOKUP_FAILED",
+      reason,
+      502,
+      { endpoint: findEndpoint, phone: maskPhone(digits) },
+      cause,
+    );
+  }
+
+  log.info("woo_find_customers_response", {
     endpoint: findEndpoint,
     count: list?.length ?? 0,
-    customers: list,
+    customerIds: list?.map((c) => c.id) ?? [],
   });
 
   let c: WooCustomer | undefined = list?.[0];
 
-  // Create if not found
   if (!c) {
     const createEndpoint = "/wp-json/wc/v3/customers";
     const createBody = {
@@ -143,41 +248,53 @@ async function ensureWooCustomerByPhone(
         email: `${digits}@kadochi.local`,
       },
     };
-    log("woo createCustomer request", {
+    log.info("woo_create_customer_request", {
       endpoint: createEndpoint,
-      method: "POST",
-      body: createBody,
+      phone: maskPhone(digits),
     });
 
-    c = await createCustomer(createBody);
-    log("woo createCustomer response", {
+    try {
+      c = await createCustomer(createBody);
+    } catch (cause) {
+      throw new OtpRouteError(
+        "WOO_CREATE_FAILED",
+        "WooCommerce customer creation failed",
+        502,
+        { endpoint: createEndpoint, phone: maskPhone(digits) },
+        cause,
+      );
+    }
+
+    log.info("woo_create_customer_response", {
       endpoint: createEndpoint,
-      customer: c,
+      customerId: c.id,
     });
-  }
-  // Patch missing phone if needed
-  else if (!c.billing?.phone) {
+  } else if (!c.billing?.phone) {
     const updateEndpoint = `/wp-json/wc/v3/customers/${c.id}`;
     const updateBody = {
       billing: { ...(c.billing || {}), phone: digits },
     };
-    log("woo updateCustomer request", {
+    log.info("woo_update_customer_request", {
       endpoint: updateEndpoint,
-      method: "PUT",
-      body: updateBody,
+      customerId: c.id,
+      phone: maskPhone(digits),
     });
     try {
       c = await updateCustomer(c.id, updateBody);
-      log("woo updateCustomer response", {
+      log.info("woo_update_customer_response", {
         endpoint: updateEndpoint,
-        customer: c,
+        customerId: c.id,
       });
-    } catch (err) {
-      log("woo updateCustomer error", { endpoint: updateEndpoint, error: err });
-      // non-fatal
+    } catch (cause) {
+      log.warn("woo_update_customer_error", {
+        endpoint: updateEndpoint,
+        customerId: c.id,
+        cause: cause instanceof Error ? cause.message : String(cause),
+      });
+      // non-fatal: customer exists, phone patch is best-effort
     }
   } else {
-    log("woo customer found", { customerId: c.id, customer: c });
+    log.info("woo_customer_found", { customerId: c.id });
   }
 
   const first = c?.first_name?.trim() || c?.billing?.first_name?.trim() || null;

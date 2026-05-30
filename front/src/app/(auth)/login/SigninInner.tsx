@@ -8,6 +8,11 @@ import Checkbox from "@/components/ui/Checkbox/Checkbox";
 import Link from "next/link";
 import { apiStartOtp } from "@/lib/client/auth";
 import { normalizeDigits } from "@/lib/utils/normalizeDigits";
+import {
+  isLocalDevHost,
+  OTP_DEV_CODE_HINT,
+  OTP_DEV_PHONE_HINT,
+} from "@/lib/otp/dev-hint";
 
 type Props = {
   onSubmit: (phone: string) => void;
@@ -18,6 +23,8 @@ export default function SigninInner({ onSubmit, initialPhone = "" }: Props) {
   const [phone, setPhone] = useState(initialPhone);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const showDevHint = isLocalDevHost();
 
   async function handleSend() {
     setErr(null);
@@ -51,6 +58,13 @@ export default function SigninInner({ onSubmit, initialPhone = "" }: Props) {
           <p className={s.subtitle}>
             شماره موبایل خود را وارد کنید تا کد تایید برایتان ارسال شود.
           </p>
+          {showDevHint && (
+            <p className={s.subtitle}>
+              توسعه محلی: از شماره{" "}
+              <span dir="ltr">{OTP_DEV_PHONE_HINT}</span> و کد{" "}
+              <span dir="ltr">{OTP_DEV_CODE_HINT}</span> استفاده کنید.
+            </p>
+          )}
         </div>
 
         <div className={s.fieldWrap}>
