@@ -1,5 +1,6 @@
 // src/app/api/auth/otp/start/route.ts
 import { NextResponse } from "next/server";
+import { checkOtpRateLimit, setOtpCode } from "@/lib/otp/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,32 +12,7 @@ const OTP_ATTEMPT_RATE_PER_HOUR = Number(
   process.env.OTP_ATTEMPT_RATE_PER_HOUR || 3
 );
 
-type OtpRec = { code: string; exp: number };
-const OTP_STORE: Map<string, OtpRec> =
-  (globalThis as any).__KADOCHI_OTP_STORE__ || new Map();
-(globalThis as any).__KADOCHI_OTP_STORE__ = OTP_STORE;
-
-type RateRec = { hits: number; resetAt: number };
-const RATE_BY_PHONE: Map<string, RateRec> =
-  (globalThis as any).__KADOCHI_RATE_PHONE__ || new Map();
-const RATE_BY_IP: Map<string, RateRec> =
-  (globalThis as any).__KADOCHI_RATE_IP__ || new Map();
-(globalThis as any).__KADOCHI_RATE_PHONE__ = RATE_BY_PHONE;
-(globalThis as any).__KADOCHI_RATE_IP__ = RATE_BY_IP;
-
 const onlyDigits = (s: string) => String(s || "").replace(/\D+/g, "");
-const now = () => Date.now();
-function okRate(bucket: Map<string, RateRec>, key: string, limit: number) {
-  const hr = 60 * 60 * 1000;
-  const rec = bucket.get(key);
-  if (!rec || rec.resetAt < now()) {
-    bucket.set(key, { hits: 1, resetAt: now() + hr });
-    return true;
-  }
-  if (rec.hits >= limit) return false;
-  rec.hits += 1;
-  return true;
-}
 
 function extractOtpFromResponseBody(text: string): string | null {
   try {
@@ -62,16 +38,27 @@ function extractOtpFromResponseBody(text: string): string | null {
 }
 
 export async function POST(req: Request) {
+  const log = (msg: string, data?: unknown) =>
+    console.log(`[otp/start] ${msg}`, data ?? "");
+
   try {
     const body = (await req.json().catch(() => ({}))) as { phone?: string };
     const phone = onlyDigits(String(body?.phone ?? ""));
+    log("request", { body, phone });
+
     if (!phone) {
+      log("response", { ok: false, error: "INVALID_PHONE", status: 400 });
       return NextResponse.json(
         { ok: false, error: "INVALID_PHONE" },
         { status: 400 }
       );
     }
     if (!MELIPAYAMAK_OTP_URL) {
+      log("response", {
+        ok: false,
+        error: "MELIPAYAMAK_OTP_URL_NOT_SET",
+        status: 500,
+      });
       return NextResponse.json(
         { ok: false, error: "MELIPAYAMAK_OTP_URL_NOT_SET" },
         { status: 500 }
@@ -80,25 +67,49 @@ export async function POST(req: Request) {
 
     const ip =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "0.0.0.0";
-    if (
-      !okRate(RATE_BY_PHONE, phone, OTP_ATTEMPT_RATE_PER_HOUR) ||
-      !okRate(RATE_BY_IP, ip, OTP_ATTEMPT_RATE_PER_HOUR)
-    ) {
+    const allowed = await checkOtpRateLimit(
+      phone,
+      ip,
+      OTP_ATTEMPT_RATE_PER_HOUR,
+    );
+    log("rate limit", { ip, allowed, limitPerHour: OTP_ATTEMPT_RATE_PER_HOUR });
+    if (!allowed) {
+      log("response", { ok: false, error: "RATE_LIMIT", status: 429 });
       return NextResponse.json(
         { ok: false, error: "RATE_LIMIT" },
         { status: 429 }
       );
     }
 
+    const melipayamakRequest = { to: phone };
+    log("melipayamak request", {
+      endpoint: MELIPAYAMAK_OTP_URL,
+      method: "POST",
+      body: melipayamakRequest,
+    });
+
     const r = await fetch(MELIPAYAMAK_OTP_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       cache: "no-store",
-      body: JSON.stringify({ to: phone }),
+      body: JSON.stringify(melipayamakRequest),
     });
 
     const respText = await r.text().catch(() => "");
+    log("melipayamak response", {
+      endpoint: MELIPAYAMAK_OTP_URL,
+      status: r.status,
+      ok: r.ok,
+      body: respText,
+    });
+
     if (!r.ok) {
+      log("response", {
+        ok: false,
+        error: "OTP_SEND_FAILED",
+        status: 502,
+        detail: respText || r.status,
+      });
       return NextResponse.json(
         { ok: false, error: "OTP_SEND_FAILED", detail: respText || r.status },
         { status: 502 }
@@ -106,22 +117,34 @@ export async function POST(req: Request) {
     }
 
     const providerCode = extractOtpFromResponseBody(respText);
+    log("extracted provider code", { providerCode });
     if (!providerCode) {
+      log("response", {
+        ok: false,
+        error: "PROVIDER_NO_CODE_IN_RESPONSE",
+        status: 500,
+      });
       return NextResponse.json(
         { ok: false, error: "PROVIDER_NO_CODE_IN_RESPONSE" },
         { status: 500 }
       );
     }
 
-    OTP_STORE.set(phone, {
+    await setOtpCode(phone, providerCode, OTP_CODE_TTL_SEC);
+    log("stored otp", {
+      phone,
       code: providerCode,
-      exp: now() + OTP_CODE_TTL_SEC * 1000,
+      ttlSec: OTP_CODE_TTL_SEC,
     });
 
-    return NextResponse.json({ ok: true, ttlSec: OTP_CODE_TTL_SEC });
+    const success = { ok: true, ttlSec: OTP_CODE_TTL_SEC };
+    log("response", { ...success, status: 200 });
+    return NextResponse.json(success);
   } catch (e: any) {
+    const detail = String(e?.message || e);
+    console.log("[otp/start] error", { detail, error: e });
     return NextResponse.json(
-      { ok: false, error: "SERVER_ERROR", detail: String(e?.message || e) },
+      { ok: false, error: "SERVER_ERROR", detail },
       { status: 500 }
     );
   }
