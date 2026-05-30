@@ -23,9 +23,7 @@ export function getWooBaseUrl(): string {
 export function getWpProxyBaseUrl(): string {
   const url = process.env.WP_BASE_URL || process.env.NEXT_PUBLIC_WP_BASE_URL;
   if (!url) {
-    throw new Error(
-      "WP_BASE_URL or NEXT_PUBLIC_WP_BASE_URL is not configured",
-    );
+    throw new Error("WP_BASE_URL or NEXT_PUBLIC_WP_BASE_URL is not configured");
   }
   return trimTrailingSlash(url);
 }

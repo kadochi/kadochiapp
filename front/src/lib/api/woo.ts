@@ -64,13 +64,9 @@ export async function wooFetch(
 ): Promise<Response> {
   const url = makeWooUrl(path);
 
-  const touchesWoo = /\/wc\/v\d+\/|\/wp-json\/wc\/v\d+\//.test(url.pathname);
-  if (touchesWoo && CK && CS) {
-    if (!url.searchParams.has("consumer_key"))
-      url.searchParams.set("consumer_key", CK);
-    if (!url.searchParams.has("consumer_secret"))
-      url.searchParams.set("consumer_secret", CS);
-  }
+  // We rely on the Application Password (WP_APP_USER) injected via Basic Auth
+  // in wordpressFetch rather than consumer_key query params. WooCommerce rejects
+  // plain-text consumer_key query params over HTTP without an OAuth signature.
 
   const { revalidateSeconds, revalidate, ...rest } = init ?? {};
 
@@ -129,6 +125,11 @@ export async function getCustomerById(id: number): Promise<WooCustomer | null> {
 
 export async function findCustomers(params: { search?: string }) {
   if (DEV_FAKE) return [] as WooCustomer[];
+  if (!CK || !CS) {
+    throw new Error(
+      "WOO_CONSUMER_KEY and WOO_CONSUMER_SECRET are not configured",
+    );
+  }
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
   const path = `/wp-json/wc/v3/customers?${q.toString()}`;

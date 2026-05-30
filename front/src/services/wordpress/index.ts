@@ -7,7 +7,7 @@ import {
   UpstreamNetworkError,
   UpstreamTimeout,
 } from "@/services/http/errors";
-import { getWpBaseUrl } from "@/config/wp";
+import { getWpBaseUrl, tryGetPublicWpBaseUrl } from "@/config/wp";
 import { retry } from "@/services/http/retry";
 
 export interface WordPressFetchOptions extends RequestInit {
@@ -44,11 +44,23 @@ const DEFAULT_RETRIES = 2;
 const inflight = new Map<string, Promise<Response>>();
 const inflightJson = new Map<string, Promise<WordPressJsonResult<unknown>>>();
 
-const SITE_ORIGIN = (() => {
-  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL;
-  if (fromEnv) return fromEnv.replace(/\/$/, "");
-  return "http://localhost:3000";
-})();
+function siteOriginForProxy(): string {
+  const internal = process.env.INTERNAL_SITE_ORIGIN?.replace(/\/$/, "");
+  if (internal) return internal;
+
+  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  if (!fromEnv) return "http://127.0.0.1:3000";
+
+  try {
+    const u = new URL(fromEnv);
+    if (u.hostname === "localhost") {
+      u.hostname = "127.0.0.1";
+    }
+    return u.toString().replace(/\/$/, "");
+  } catch {
+    return fromEnv;
+  }
+}
 
 function wpBase(): string {
   return getWpBaseUrl();
@@ -130,6 +142,44 @@ function sanitizePathForProxy(url: URL): string {
   return `${path}${url.search}`;
 }
 
+/**
+ * Follow redirects from WordPress without leaving the Docker-internal host.
+ * When WP_HOME is localhost:8080 but server fetches use http://wordpress,
+ * canonical redirects often point at the public URL and break inside containers.
+ */
+function resolveUpstreamRedirect(location: string, requestUrl: URL): URL {
+  const next = buildWordPressURL(
+    location.startsWith("http://") || location.startsWith("https://")
+      ? location
+      : new URL(location, requestUrl).toString(),
+  );
+
+  const publicBase = tryGetPublicWpBaseUrl();
+  if (!publicBase) return next;
+
+  let internalBase: string;
+  try {
+    internalBase = wpBase();
+  } catch {
+    return next;
+  }
+
+  if (publicBase === internalBase) return next;
+
+  try {
+    const pub = new URL(publicBase);
+    const internal = new URL(internalBase);
+    if (next.host === pub.host) {
+      next.protocol = internal.protocol;
+      next.host = internal.host;
+    }
+  } catch {
+    return next;
+  }
+
+  return next;
+}
+
 async function fetchDirect(
   url: URL,
   init: RequestInit,
@@ -137,6 +187,7 @@ async function fetchDirect(
   redirectDepth = 0,
 ): Promise<Response> {
   const { timeout, signal } = composeSignal(init.signal, timeoutMs);
+
   try {
     const response = await fetch(url.toString(), {
       ...init,
@@ -161,7 +212,7 @@ async function fetchDirect(
           `Redirect without location for ${url.pathname}`,
         );
       }
-      const nextUrl = buildWordPressURL(location);
+      const nextUrl = resolveUpstreamRedirect(location, url);
       return fetchDirect(nextUrl, init, timeoutMs, redirectDepth + 1);
     }
 
@@ -177,6 +228,9 @@ async function fetchDirect(
   } catch (err) {
     if (err instanceof UpstreamTimeout) throw err;
     if (err instanceof CorsRedirectLoop) throw err;
+    if (err instanceof UpstreamAuthError) throw err;
+    if (err instanceof UpstreamBadResponse) throw err;
+    if (err instanceof UpstreamNetworkError) throw err;
     if (err instanceof Error && err.name === "AbortError") {
       throw new UpstreamTimeout();
     }
@@ -188,7 +242,10 @@ async function fetchDirect(
 }
 
 async function fetchViaProxy(url: URL, init: RequestInit, timeoutMs: number) {
-  const proxyUrl = new URL(`/api/wp${sanitizePathForProxy(url)}`, SITE_ORIGIN);
+  const proxyUrl = new URL(
+    `/api/wp${sanitizePathForProxy(url)}`,
+    siteOriginForProxy(),
+  );
   const { timeout, signal } = composeSignal(init.signal, timeoutMs);
   const proxyHeaders = new Headers(init.headers);
   proxyHeaders.set("X-Proxy-Hop", "wordpress-fetch");
@@ -208,6 +265,10 @@ async function fetchViaProxy(url: URL, init: RequestInit, timeoutMs: number) {
     return response;
   } catch (err) {
     if (err instanceof UpstreamTimeout) throw err;
+    if (err instanceof UpstreamAuthError) throw err;
+    if (err instanceof UpstreamBadResponse) throw err;
+    if (err instanceof CorsRedirectLoop) throw err;
+    if (err instanceof UpstreamNetworkError) throw err;
     if (err instanceof Error && err.name === "AbortError")
       throw new UpstreamTimeout();
     const message = err instanceof Error ? err.message : "proxy network error";
