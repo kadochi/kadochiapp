@@ -59,6 +59,7 @@ Key variables you must fill in after the WordPress setup (Step 4):
 | --- | --- |
 | `WP_APP_USER` / `WP_APP_PASS` | WP admin → Users → Profile → Application Passwords |
 | `WOO_CONSUMER_KEY` / `WOO_CONSUMER_SECRET` | WooCommerce → Settings → Advanced → REST API → Add key |
+| `REDIS_URL` | OTP login requires Redis — see hot-reload section below |
 
 > **Note:** WooCommerce keys and the WordPress application password are created inside WordPress after the first setup (see Step 4).
 
@@ -143,6 +144,8 @@ npm run dev
 ```
 
 The app will be available at **http://localhost:3000** and Next.js will automatically reload whenever you save a file — no rebuild needed.
+
+**OTP / Redis:** Phone login stores OTP codes and rate limits in Redis. When Next.js runs in Docker, `docker-compose.local.yml` sets `REDIS_URL=redis://redis:6379` automatically. When running `npm run dev` on the host, start Redis via Docker (`docker compose -f docker-compose.local.yml up -d redis`) and set `REDIS_URL=redis://localhost:6379` in `front/.env.local` — local compose exposes Redis on port 6379 for this workflow.
 
 ### Do I need to rebuild after a code change?
 
