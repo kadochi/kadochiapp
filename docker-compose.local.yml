@@ -7,6 +7,9 @@ services:
     container_name: kadochi-nextjs
     restart: unless-stopped
 
+    depends_on:
+      - redis
+
     # Load all front secrets from front/.env.local.
     # The environment block below always overrides WP_BASE_URL and NEXT_PUBLIC_SITE_URL
     # to use Docker-internal hostnames — "localhost" would resolve to the container
@@ -20,6 +23,7 @@ services:
       WOO_BASE_URL: http://wordpress
       NEXT_PUBLIC_WP_BASE_URL: http://localhost:8080
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      REDIS_URL: redis://redis:6379
 
     ports:
       - "3000:3000"
@@ -54,6 +58,9 @@ services:
     restart: unless-stopped
 
     command: redis-server --appendonly yes
+
+    ports:
+      - "6379:6379"
 
     volumes:
       - redis_data:/data
