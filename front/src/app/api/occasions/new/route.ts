@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { getSessionFromCookies } from "@/lib/auth/session";
 import { wordpressFetch } from "@/services/wordpress";
+import {
+  UpstreamAuthError,
+  UpstreamBadResponse,
+  UpstreamNetworkError,
+  UpstreamTimeout,
+} from "@/services/http/errors";
 
 type Body = { title?: string; date?: string; repeatYearly?: boolean };
 
@@ -21,7 +27,7 @@ export async function POST(req: Request) {
 
     const createRes = await wordpressFetch("/wp-json/wp/v2/occasion", {
       method: "POST",
-      body: JSON.stringify({ status: "publish", title, author: session.userId }),
+      body: JSON.stringify({ status: "publish", title }),
       cache: "no-store",
     });
 
@@ -64,7 +70,29 @@ export async function POST(req: Request) {
     revalidatePath("/occasions");
     revalidateTag("occasions", "max");
     return NextResponse.json({ ok: true, id, acf: acfSaved }, { status: 201 });
-  } catch {
+  } catch (error) {
+    console.error("[api/occasions/new] failed:", error);
+    if (error instanceof UpstreamAuthError) {
+      return NextResponse.json(
+        { error: "WordPress authentication failed" },
+        { status: 502 },
+      );
+    }
+    if (error instanceof UpstreamTimeout) {
+      return NextResponse.json(
+        { error: "WordPress request timed out" },
+        { status: 504 },
+      );
+    }
+    if (
+      error instanceof UpstreamBadResponse ||
+      error instanceof UpstreamNetworkError
+    ) {
+      return NextResponse.json(
+        { error: "WordPress request failed" },
+        { status: 502 },
+      );
+    }
     return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }
 }
