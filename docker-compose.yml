@@ -47,10 +47,10 @@ services:
 
     environment:
       NODE_ENV: production
-      # Internal Docker service name so server-side fetches stay on the
-      # private network and bypass Traefik entirely.
+      # Internal Docker service name for general WordPress/store requests.
       WP_BASE_URL: http://wordpress
-      WOO_BASE_URL: http://wordpress
+      # Woo REST v3 key auth must go over HTTPS in production.
+      WOO_BASE_URL: https://api.kadochi.com
       NEXT_PUBLIC_WP_BASE_URL: https://api.kadochi.com
       # Public site URL and cookie domain for production.
       NEXT_PUBLIC_SITE_URL: https://kadochi.com
