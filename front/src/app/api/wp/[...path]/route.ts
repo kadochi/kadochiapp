@@ -6,7 +6,7 @@ import {
   UpstreamNetworkError,
   UpstreamTimeout,
 } from "@/services/http/errors";
-import { getWpProxyBaseUrl } from "@/config/wp";
+import { getWooBaseUrl, getWpProxyBaseUrl } from "@/config/wp";
 import { retry } from "@/services/http/retry";
 
 export const runtime = "nodejs"; // force Node runtime (not edge)
@@ -14,6 +14,8 @@ export const dynamic = "force-dynamic"; // don't cache the proxy itself
 
 const WP_APP_USER = process.env.WP_APP_USER;
 const WP_APP_PASS = process.env.WP_APP_PASS;
+const WOO_CONSUMER_KEY = process.env.WOO_CONSUMER_KEY || "";
+const WOO_CONSUMER_SECRET = process.env.WOO_CONSUMER_SECRET || "";
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
   .map((s) => s.trim())
@@ -31,6 +33,18 @@ function buildAuthHeader(): Record<string, string> | undefined {
     );
     return { Authorization: `Basic ${token}` };
   }
+}
+
+function isWooRestV3Path(path: string[] | undefined): boolean {
+  return (path ?? []).join("/").replace(/\/+/g, "/").startsWith("wp-json/wc/v3/");
+}
+
+function buildWooAuthHeader(): Record<string, string> | undefined {
+  if (!WOO_CONSUMER_KEY || !WOO_CONSUMER_SECRET) return undefined;
+  const token = Buffer.from(
+    `${WOO_CONSUMER_KEY}:${WOO_CONSUMER_SECRET}`
+  ).toString("base64");
+  return { Authorization: `Basic ${token}` };
 }
 
 function corsHeaders(req: NextRequest): Record<string, string> {
@@ -63,13 +77,22 @@ function isAuthRedirect(res: Response): boolean {
 }
 
 function targetURL(paramsPath: string[] | undefined, search: string): URL {
-  const wpBase = getWpProxyBaseUrl();
+  const isWooRestV3 = isWooRestV3Path(paramsPath);
+  const wpBase = isWooRestV3 ? getWooBaseUrl() : getWpProxyBaseUrl();
   const path = (paramsPath ?? []).join("/").replace(/^\//, "");
   const base = new URL(wpBase);
   const url = new URL(path, base);
   if (search) {
     const qs = search.startsWith("?") ? search.substring(1) : search;
     qs && url.search ? (url.search += `&${qs}`) : (url.search = `?${qs}`);
+  }
+  if (isWooRestV3 && url.protocol !== "https:") {
+    if (WOO_CONSUMER_KEY && !url.searchParams.has("consumer_key")) {
+      url.searchParams.set("consumer_key", WOO_CONSUMER_KEY);
+    }
+    if (WOO_CONSUMER_SECRET && !url.searchParams.has("consumer_secret")) {
+      url.searchParams.set("consumer_secret", WOO_CONSUMER_SECRET);
+    }
   }
   return url;
 }
@@ -211,13 +234,18 @@ async function handle(
     const { path } = await ctx.params;
     const url = targetURL(path, req.nextUrl.search);
     const method = req.method.toUpperCase();
+    const isWooRestV3 = isWooRestV3Path(path);
+    const authHeader =
+      isWooRestV3 && url.protocol === "https:"
+        ? buildWooAuthHeader()
+        : buildAuthHeader();
 
     // Build upstream headers (do not forward user cookies to WP)
     const headers: Record<string, string> = {
       Accept: req.headers.get("accept") || "application/json",
       "Content-Type": req.headers.get("content-type") || "application/json",
       "X-From": "next-proxy",
-      ...(buildAuthHeader() || {}),
+      ...(authHeader || {}),
     };
 
     const ifNoneMatch = req.headers.get("if-none-match");
