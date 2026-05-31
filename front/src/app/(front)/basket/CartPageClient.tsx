@@ -161,17 +161,20 @@ export default function CartPageClient() {
     if (!ids.length) return;
 
     setSubmitting(true);
+    let redirected = false;
     try {
       if (!session) {
         const qp = new URLSearchParams({ next: "/checkout" });
         router.push(`/login?${qp.toString()}`);
+        redirected = true;
         return;
       }
       router.push("/checkout");
+      redirected = true;
     } catch {
       setSubmitError("خطایی رخ داد. دوباره تلاش کنید.");
     } finally {
-      setSubmitting(false);
+      if (!redirected) setSubmitting(false);
     }
   };
 
@@ -267,8 +270,9 @@ export default function CartPageClient() {
             className={s.cta}
             onClick={handleProceed}
             disabled={submitting || !ids.length}
+            loading={submitting}
           >
-            {submitting ? "در حال انتقال..." : "ادامه فرایند خرید"}
+            ادامه فرایند خرید
           </Button>
         </div>
       </div>

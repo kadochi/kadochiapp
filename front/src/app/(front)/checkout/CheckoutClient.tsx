@@ -177,13 +177,10 @@ async function fetchProductsByIds(
     const base = tryGetPublicWpBaseUrl();
     if (!base) return [];
 
-    const r2 = await fetch(
-      `${base}/wp-json/wc/store/v1/products?${qs}`,
-      {
-        cache: "no-store",
-        signal,
-      },
-    );
+    const r2 = await fetch(`${base}/wp-json/wc/store/v1/products?${qs}`, {
+      cache: "no-store",
+      signal,
+    });
     if (r2.ok) {
       const data = (await r2.json().catch(() => [])) as unknown;
       if (Array.isArray(data)) return data as StoreProduct[];
@@ -525,14 +522,15 @@ export default function CheckoutClient(props: {
   const [cardMessage, setCardMessage] = useState("");
 
   const buildPayload = () => ({
-    customer: {
-      id: props.userId,
-      sender_first_name: senderFirst.trim(),
-      sender_last_name: senderLast.trim(),
-      sender_phone: senderPhone,
-      receiver_is_sender: receiverIsMe,
-      receiver_name: recName.trim(),
-      receiver_phone: normalizeDigits(recPhone.trim()),
+    sender: {
+      firstName: senderFirst.trim(),
+      lastName: senderLast.trim(),
+      phone: senderPhone,
+    },
+    receiver: {
+      isSelf: receiverIsMe,
+      name: recName.trim(),
+      phone: normalizeDigits(recPhone.trim()),
       address: recAddress.trim(),
     },
     items: lineItems,
@@ -549,7 +547,6 @@ export default function CheckoutClient(props: {
       packaging_irt: packagingIRT,
       total_irt: totalIRT,
     },
-    meta: { source: "web" },
   });
 
   async function handlePay() {
@@ -571,111 +568,84 @@ export default function CheckoutClient(props: {
     let redirected = false;
 
     try {
-      const checkoutRes = await fetchWithTimeout("/api/checkout/start", {
+      const checkoutPayload = {
+        items: payload.items,
+        sender: {
+          firstName: payload.sender.firstName,
+          lastName: payload.sender.lastName,
+          phone: payload.sender.phone,
+        },
+        receiver: {
+          isSelf: payload.receiver.isSelf,
+          name: payload.receiver.name,
+          phone: payload.receiver.phone,
+          address: payload.receiver.address,
+        },
+        figures: {
+          subtotal: payload.amounts.subtotal_irt,
+          tax: payload.amounts.tax_irt,
+          discount: 0,
+          total: payload.amounts.total_irt,
+          shipping: payload.amounts.shipping_irt,
+          packaging: payload.amounts.packaging_irt,
+        },
+        delivery: {
+          slot_id: payload.delivery.slot_id,
+          label: payload.delivery.label,
+        },
+        packaging: {
+          id: payload.packaging.type,
+          postcard_message: payload.packaging.postcard_message,
+        },
+        payMethod: "online",
+      };
+
+      const res = await fetchWithTimeout("/api/checkout/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
         credentials: "same-origin",
-        body: JSON.stringify({
-          items: payload.items.map((li) => ({
-            product_id: li.product_id,
-            quantity: li.quantity,
-          })),
-          sender: {
-            firstName: payload.customer.sender_first_name,
-            lastName: payload.customer.sender_last_name,
-            phone: payload.customer.sender_phone,
-          },
-          receiver: {
-            isSelf: payload.customer.receiver_is_sender,
-            name: payload.customer.receiver_is_sender
-              ? `${payload.customer.sender_first_name} ${payload.customer.sender_last_name}`.trim()
-              : payload.customer.receiver_name,
-            phone: payload.customer.receiver_is_sender
-              ? payload.customer.sender_phone
-              : payload.customer.receiver_phone,
-            address: payload.customer.address,
-          },
-          figures: {
-            subtotal: payload.amounts.subtotal_irt,
-            tax: payload.amounts.tax_irt,
-            discount: 0,
-            shipping: payload.amounts.shipping_irt,
-            packaging: payload.amounts.packaging_irt,
-            total: payload.amounts.total_irt,
-          },
-          delivery: {
-            slot_id: payload.delivery.slot_id,
-            label: payload.delivery.label,
-          },
-          packaging: {
-            id: payload.packaging.type,
-            title:
-              payload.packaging.type === "gift"
-                ? "بسته‌بندی کادویی"
-                : "بسته‌بندی عادی",
-            price: payload.amounts.packaging_irt,
-            postcard_message: payload.packaging.postcard_message,
-          },
-          payMethod: "online",
-        }),
+        body: JSON.stringify(checkoutPayload),
       });
-      const checkoutJson = (await checkoutRes.json().catch(() => ({}))) as any;
-      if (!checkoutRes.ok || !checkoutJson?.ok || !checkoutJson?.redirectUrl) {
-        const code = checkoutJson?.error || "zarinpal_request_failed";
-        const specific =
-          code === "order_create_failed"
-            ? "در ساخت سفارش خطا رخ داد. لطفاً دوباره تلاش کنید."
-            : code === "upstream_bad_response"
-              ? "پاسخ فروشگاه نامعتبر بود. لطفاً دوباره تلاش کنید."
-              : code === "server_error"
-                ? "خطای سرور رخ داد. لطفاً دوباره تلاش کنید."
-                : code === "zarinpal_start_failed"
-                  ? "اتصال به درگاه پرداخت برقرار نشد."
-                  : "";
-        const paymentSpecific =
-          code === "invalid_amount"
-            ? "مبلغ پرداخت نامعتبر است."
-            : code === "missing_merchant_id"
-              ? "شناسه پذیرنده درگاه تنظیم نشده است."
-              : code === "invalid_callback_url"
-                ? "نشانی بازگشت از درگاه نامعتبر است."
-                : code === "upstream_timeout"
-                  ? "اتصال به درگاه زمان‌بر شد. لطفاً دوباره تلاش کنید."
-                  : code === "upstream_network"
-                    ? "اتصال به درگاه برقرار نشد. اینترنت خود را بررسی کنید."
-                    : "";
-        throw new Error(specific || paymentSpecific || "zarinpal_request_failed");
+
+      type CheckoutStartResponse = {
+        ok: boolean;
+        error?: string;
+        redirectUrl?: string;
+        orderId?: number;
+        amount?: number;
+      };
+      const data = (await res
+        .json()
+        .catch(() => ({}))) as CheckoutStartResponse;
+
+      if (!res.ok || !data?.ok || !data?.redirectUrl) {
+        throw new Error(data?.error || "checkout_start_failed");
       }
-      const orderId = checkoutJson.orderId as number;
 
       try {
-        sessionStorage.setItem(
-          "lastPayAmount",
-          String(payload.amounts.total_irt),
-        );
-        sessionStorage.setItem("lastOrderId", String(orderId));
-        // Also persist via short-lived cookie to survive edge cases on callback
+        sessionStorage.setItem("lastPayAmount", String(data.amount));
+        sessionStorage.setItem("lastOrderId", String(data.orderId));
         document.cookie = `kadochi_order_id=${encodeURIComponent(
-          String(orderId),
+          String(data.orderId),
         )}; Path=/; Max-Age=900; SameSite=Lax`;
         document.cookie = `kadochi_pay_amount=${encodeURIComponent(
-          String(payload.amounts.total_irt),
+          String(data.amount),
         )}; Path=/; Max-Age=900; SameSite=Lax`;
       } catch {
         // sessionStorage may be unavailable; ignore.
       }
 
-      window.location.href = String(checkoutJson.redirectUrl);
+      window.location.href = String(data.redirectUrl);
       redirected = true;
-    } catch (e: any) {
-      const aborted = e?.name === "AbortError";
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : undefined;
+      const aborted = err?.name === "AbortError";
       const msg = aborted
         ? "فرایند طولانی شد. لطفاً دوباره تلاش کنید."
-        : typeof e?.message === "string" &&
-            e.message !== "zarinpal_request_failed"
-          ? e.message
-          : "در ساخت سفارش یا اتصال به درگاه خطا رخ داد. لطفاً دوباره تلاش کنید.";
+        : err?.message === "checkout_start_failed"
+          ? "در ایجاد سفارش یا اتصال به درگاه خطا رخ داد. لطفاً دوباره تلاش کنید."
+          : err?.message || "خطا در اتصال به درگاه پرداخت.";
       setSubmitError(msg);
     } finally {
       if (!redirected) setSubmitting(false);

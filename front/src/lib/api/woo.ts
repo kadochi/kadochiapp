@@ -179,7 +179,7 @@ const getCustomerByIdCached = cache(
       };
     }
     const path = `/wp-json/wc/v3/customers/${id}`;
-    const r = await wooFetch(path, { method: "GET", revalidateSeconds: 120 });
+    const r = await wooFetch(path, { method: "GET" });
     if (r.status === 404) return null;
     if (!r.ok) throw new Error(`getCustomerById failed: ${r.status}`);
     return (await r.json()) as WooCustomer;
