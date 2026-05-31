@@ -7,6 +7,7 @@ import {
   UpstreamNetworkError,
   UpstreamTimeout,
 } from "@/services/http/errors";
+import { getWpBaseUrl, tryGetPublicWpBaseUrl } from "@/config/wp";
 import { retry } from "@/services/http/retry";
 
 export interface WordPressFetchOptions extends RequestInit {
@@ -22,6 +23,8 @@ export interface WordPressFetchOptions extends RequestInit {
   revalidate?: number;
   /** Pass through If-None-Match (ETag) header. */
   ifNoneMatch?: string;
+  /** Do not inject the WordPress Application Password Authorization header. */
+  skipWordPressAuth?: boolean;
 }
 
 export interface WordPressJsonOptions<T> extends WordPressFetchOptions {
@@ -43,20 +46,27 @@ const DEFAULT_RETRIES = 2;
 const inflight = new Map<string, Promise<Response>>();
 const inflightJson = new Map<string, Promise<WordPressJsonResult<unknown>>>();
 
-const SITE_ORIGIN = (() => {
-  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL;
-  if (fromEnv) return fromEnv.replace(/\/$/, "");
-  return "http://localhost:3000";
-})();
+function siteOriginForProxy(): string {
+  const internal = process.env.INTERNAL_SITE_ORIGIN?.replace(/\/$/, "");
+  if (internal) return internal;
 
-const WP_BASE = (() => {
-  const base =
-    process.env.WP_BASE_URL ||
-    process.env.NEXT_PUBLIC_WP_BASE_URL ||
-    process.env.WOO_BASE_URL ||
-    "https://app.kadochi.com";
-  return base.replace(/\/$/, "");
-})();
+  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  if (!fromEnv) return "http://127.0.0.1:3000";
+
+  try {
+    const u = new URL(fromEnv);
+    if (u.hostname === "localhost") {
+      u.hostname = "127.0.0.1";
+    }
+    return u.toString().replace(/\/$/, "");
+  } catch {
+    return fromEnv;
+  }
+}
+
+function wpBase(): string {
+  return getWpBaseUrl();
+}
 
 const BASIC_USER =
   process.env.WP_APP_USER ||
@@ -81,16 +91,18 @@ export function buildWordPressURL(input: string | URL): URL {
   }
   const normalized = input.startsWith("/") ? input : `/${input}`;
   const sanitized = normalized.replace(/\/+/g, "/");
-  return new URL(sanitized, WP_BASE);
+  return new URL(sanitized, wpBase());
 }
 
-function createHeaders(init?: HeadersInit): Headers {
+function createHeaders(init?: HeadersInit, skipWordPressAuth = false): Headers {
   const headers = new Headers(init);
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
   if (!headers.has("Content-Type"))
     headers.set("Content-Type", "application/json");
   const auth = buildBasicAuth();
-  if (auth && !headers.has("Authorization")) headers.set("Authorization", auth);
+  if (!skipWordPressAuth && auth && !headers.has("Authorization")) {
+    headers.set("Authorization", auth);
+  }
   headers.set(
     "User-Agent",
     headers.get("User-Agent") || "kadochi-app-proxy/1.0",
@@ -134,6 +146,44 @@ function sanitizePathForProxy(url: URL): string {
   return `${path}${url.search}`;
 }
 
+/**
+ * Follow redirects from WordPress without leaving the Docker-internal host.
+ * When WP_HOME is localhost:8080 but server fetches use http://wordpress,
+ * canonical redirects often point at the public URL and break inside containers.
+ */
+function resolveUpstreamRedirect(location: string, requestUrl: URL): URL {
+  const next = buildWordPressURL(
+    location.startsWith("http://") || location.startsWith("https://")
+      ? location
+      : new URL(location, requestUrl).toString(),
+  );
+
+  const publicBase = tryGetPublicWpBaseUrl();
+  if (!publicBase) return next;
+
+  let internalBase: string;
+  try {
+    internalBase = wpBase();
+  } catch {
+    return next;
+  }
+
+  if (publicBase === internalBase) return next;
+
+  try {
+    const pub = new URL(publicBase);
+    const internal = new URL(internalBase);
+    if (next.host === pub.host) {
+      next.protocol = internal.protocol;
+      next.host = internal.host;
+    }
+  } catch {
+    return next;
+  }
+
+  return next;
+}
+
 async function fetchDirect(
   url: URL,
   init: RequestInit,
@@ -141,6 +191,7 @@ async function fetchDirect(
   redirectDepth = 0,
 ): Promise<Response> {
   const { timeout, signal } = composeSignal(init.signal, timeoutMs);
+
   try {
     const response = await fetch(url.toString(), {
       ...init,
@@ -165,7 +216,7 @@ async function fetchDirect(
           `Redirect without location for ${url.pathname}`,
         );
       }
-      const nextUrl = buildWordPressURL(location);
+      const nextUrl = resolveUpstreamRedirect(location, url);
       return fetchDirect(nextUrl, init, timeoutMs, redirectDepth + 1);
     }
 
@@ -181,6 +232,9 @@ async function fetchDirect(
   } catch (err) {
     if (err instanceof UpstreamTimeout) throw err;
     if (err instanceof CorsRedirectLoop) throw err;
+    if (err instanceof UpstreamAuthError) throw err;
+    if (err instanceof UpstreamBadResponse) throw err;
+    if (err instanceof UpstreamNetworkError) throw err;
     if (err instanceof Error && err.name === "AbortError") {
       throw new UpstreamTimeout();
     }
@@ -192,7 +246,10 @@ async function fetchDirect(
 }
 
 async function fetchViaProxy(url: URL, init: RequestInit, timeoutMs: number) {
-  const proxyUrl = new URL(`/api/wp${sanitizePathForProxy(url)}`, SITE_ORIGIN);
+  const proxyUrl = new URL(
+    `/api/wp${sanitizePathForProxy(url)}`,
+    siteOriginForProxy(),
+  );
   const { timeout, signal } = composeSignal(init.signal, timeoutMs);
   const proxyHeaders = new Headers(init.headers);
   proxyHeaders.set("X-Proxy-Hop", "wordpress-fetch");
@@ -212,6 +269,10 @@ async function fetchViaProxy(url: URL, init: RequestInit, timeoutMs: number) {
     return response;
   } catch (err) {
     if (err instanceof UpstreamTimeout) throw err;
+    if (err instanceof UpstreamAuthError) throw err;
+    if (err instanceof UpstreamBadResponse) throw err;
+    if (err instanceof CorsRedirectLoop) throw err;
+    if (err instanceof UpstreamNetworkError) throw err;
     if (err instanceof Error && err.name === "AbortError")
       throw new UpstreamTimeout();
     const message = err instanceof Error ? err.message : "proxy network error";
@@ -260,7 +321,7 @@ export async function wordpressFetch(
   options: WordPressFetchOptions = {},
 ): Promise<Response> {
   const url = buildWordPressURL(input);
-  const headers = createHeaders(options.headers);
+  const headers = createHeaders(options.headers, options.skipWordPressAuth);
   if (options.ifNoneMatch) headers.set("If-None-Match", options.ifNoneMatch);
 
   const requestInit: RequestInit = {

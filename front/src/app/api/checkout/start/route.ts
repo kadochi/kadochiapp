@@ -2,14 +2,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookies } from "@/lib/auth/session";
 import {
-  UpstreamAuthError,
   UpstreamBadResponse,
   UpstreamNetworkError,
   UpstreamTimeout,
 } from "@/services/http/errors";
 import { requestPayment } from "@/services/payment/zarinpal";
-import { wooFetchJSON } from "@/lib/api/woo";
-import { wordpressFetch } from "@/services/wordpress";
+import { wooFetch, wooFetchJSON } from "@/lib/api/woo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,22 +112,6 @@ async function findCustomerIdByPhone(phone: string): Promise<number | null> {
   return null;
 }
 
-function buildConsumerAuthHeader() {
-  const ck =
-    process.env.WOO_CONSUMER_KEY ||
-    process.env.WC_CONSUMER_KEY ||
-    process.env.WOO_KEY ||
-    "";
-  const cs =
-    process.env.WOO_CONSUMER_SECRET ||
-    process.env.WC_CONSUMER_SECRET ||
-    process.env.WOO_SECRET ||
-    "";
-  if (!ck || !cs) return undefined;
-  const token = Buffer.from(`${ck}:${cs}`).toString("base64");
-  return `Basic ${token}`;
-}
-
 async function parseWooOrderResponse(res: Response): Promise<any> {
   const text = await res.text().catch(() => "");
   let json: any = null;
@@ -161,28 +143,15 @@ async function submitWooOrder(orderPayload: unknown): Promise<any> {
   const init = {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    allowProxyFallback: true,
     timeoutMs: 12_000,
     cache: "no-store" as const,
     body: JSON.stringify(orderPayload),
-  } satisfies Parameters<typeof wordpressFetch>[1];
+  } satisfies Parameters<typeof wooFetch>[1];
 
   try {
-    const res = await wordpressFetch("/wp-json/wc/v3/orders", init);
+    const res = await wooFetch("/wp-json/wc/v3/orders", init);
     return await parseWooOrderResponse(res);
   } catch (error) {
-    if (error instanceof UpstreamAuthError) {
-      const auth = buildConsumerAuthHeader();
-      if (auth) {
-        const headers = new Headers(init.headers);
-        headers.set("Authorization", auth);
-        const fallbackRes = await wordpressFetch("/wp-json/wc/v3/orders", {
-          ...init,
-          headers,
-        });
-        return await parseWooOrderResponse(fallbackRes);
-      }
-    }
     throw error;
   }
 }

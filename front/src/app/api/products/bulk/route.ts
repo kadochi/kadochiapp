@@ -1,20 +1,13 @@
 // src/app/api/products/bulk/route.ts
 import { NextResponse } from "next/server";
 
+import { wooFetch } from "@/lib/api/woo";
 import {
   UpstreamBadResponse,
   UpstreamNetworkError,
   UpstreamTimeout,
 } from "@/services/http/errors";
-import { wordpressFetch, wordpressJson } from "@/services/wordpress";
-
-const WP_BASE =
-  process.env.WP_BASE_URL ||
-  process.env.NEXT_PUBLIC_WP_BASE_URL ||
-  "https://app.kadochi.com";
-
-const CK = process.env.WOO_CONSUMER_KEY || "";
-const CS = process.env.WOO_CONSUMER_SECRET || "";
+import { wordpressJson } from "@/services/wordpress";
 
 /** Store-like shape expected by ProductCarouselClient.mapProducts */
 type StoreProduct = {
@@ -32,29 +25,24 @@ type StoreProduct = {
   stock_status?: "instock" | "outofstock" | "onbackorder" | string;
 };
 
-function makeUrl(path: string) {
-  const base = WP_BASE.replace(/\/+$/, "");
-  return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
-}
-
 /** Try wc/store/v1 first (supports include), else fallback wc/v3 per-id */
 async function fetchProductsByIds(ids: number[]): Promise<StoreProduct[]> {
   if (!ids.length) return [];
 
   // 1) Try Store API (aggregate)
   try {
-    const url = new URL(
-      makeUrl(
-        `/wp-json/wc/store/v1/products?per_page=${Math.max(ids.length, 1)}`,
-      ),
-    );
-    // @ts-ignore
-    url.searchParams.set("include", ids.join(","));
-    const result = await wordpressJson<any[]>(url, {
-      allowProxyFallback: true,
-      timeoutMs: 7000,
-      dedupeKey: `bulk-store:${ids.join(",")}`,
+    const qs = new URLSearchParams({
+      per_page: String(Math.max(ids.length, 1)),
+      include: ids.join(","),
     });
+    const result = (await wordpressJson(
+      `/wp-json/wc/store/v1/products?${qs.toString()}`,
+      {
+        allowProxyFallback: true,
+        timeoutMs: 7000,
+        dedupeKey: `bulk-store:${ids.join(",")}`,
+      }
+    )) as { data: any[] };
     const arr = Array.isArray(result.data) ? result.data : [];
     return arr.map((p) => ({
       id: Number(p.id),
@@ -87,22 +75,13 @@ async function fetchProductsByIds(ids: number[]): Promise<StoreProduct[]> {
   }
 
   // 2) Fallback: REST v3 per-id and map → Store-like
-  const qsAuth =
-    CK && CS
-      ? `?consumer_key=${encodeURIComponent(
-          CK,
-        )}&consumer_secret=${encodeURIComponent(CS)}`
-      : "";
   const results: StoreProduct[] = [];
   for (const id of ids) {
     try {
-      const r = await wordpressFetch(
-        makeUrl(`/wp-json/wc/v3/products/${id}${qsAuth}`),
-        {
-          allowProxyFallback: true,
-          timeoutMs: 7000,
-        },
-      );
+      const r = await wooFetch(`/wp-json/wc/v3/products/${id}`, {
+        allowProxyFallback: true,
+        timeoutMs: 7000,
+      });
       if (!r.ok) continue;
       const p = (await r.json()) as any;
       results.push({

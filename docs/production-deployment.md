@@ -117,7 +117,7 @@ Edit `front/.env.production` and set at minimum:
 | `ZARINPAL_MODE` | `production` |
 | `ALLOWED_ORIGINS` | `https://kadochi.com,https://www.kadochi.com` |
 
-> **Docker networking:** `WP_BASE_URL`, `WOO_BASE_URL`, and `NEXT_PUBLIC_SITE_URL` are automatically overridden by `docker-compose.yml` to use Docker-internal hostnames (`http://wordpress` and `https://kadochi.com`). You do not need to set those in `front/.env.production`.
+> **Docker networking:** `WP_BASE_URL`, `WOO_BASE_URL`, and `NEXT_PUBLIC_SITE_URL` are automatically overridden by `docker-compose.yml`. General WordPress/store requests use Docker-internal `http://wordpress`, while authenticated Woo REST v3 requests use `https://api.kadochi.com` because WooCommerce consumer-key Basic Auth must be made over HTTPS in production. You do not need to set those in `front/.env.production`.
 
 Also review and change the database passwords in `docker-compose.yml`:
 

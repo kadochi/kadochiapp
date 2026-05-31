@@ -7,6 +7,10 @@ services:
     container_name: kadochi-nextjs
     restart: unless-stopped
 
+    depends_on:
+      - redis
+      - wordpress
+
     # Load all front secrets from front/.env.local.
     # The environment block below always overrides WP_BASE_URL and NEXT_PUBLIC_SITE_URL
     # to use Docker-internal hostnames — "localhost" would resolve to the container
@@ -16,9 +20,17 @@ services:
 
     environment:
       NODE_ENV: development
+      # Docker sets HOSTNAME to the container id; Next binds to that IP only.
+      # Use 0.0.0.0 so loopback proxy fallback (localhost:3000) works inside the container.
+      HOSTNAME: "0.0.0.0"
+      OTP_DEV_BYPASS: "1"
+      OTP_DEV_PHONE: "09120000000"
+      NEXT_PUBLIC_OTP_DEV_PHONE: "09120000000"
       WP_BASE_URL: http://wordpress
       WOO_BASE_URL: http://wordpress
+      NEXT_PUBLIC_WP_BASE_URL: http://localhost:8080
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      REDIS_URL: redis://redis:6379
 
     ports:
       - "3000:3000"
@@ -54,6 +66,9 @@ services:
 
     command: redis-server --appendonly yes
 
+    ports:
+      - "6379:6379"
+
     volumes:
       - redis_data:/data
 
@@ -83,9 +98,23 @@ services:
         define('WP_REDIS_HOST', 'redis');
         define('WP_REDIS_PORT', 6379);
         define('WP_CACHE', true);
+        define('WP_HOME', 'http://localhost:8080');
+        define('WP_SITEURL', 'http://localhost:8080');
+        // Local only: WooCommerce v3 accepts query-string keys over HTTPS only.
+        // Internal Docker fetches use http://wordpress — treat key auth as secure.
+        if (isset($$_GET['consumer_key']) && isset($$_GET['consumer_secret'])) {
+          $$_SERVER['HTTPS'] = 'on';
+        }
 
     ports:
       - "8080:80"
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost/wp-json/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
     volumes:
       - ./wordpress/theme:/var/www/html/wp-content/themes/kadochi

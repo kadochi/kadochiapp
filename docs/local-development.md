@@ -55,10 +55,11 @@ The defaults in `.env.example` already point `WP_BASE_URL` and `WOO_BASE_URL` to
 
 Key variables you must fill in after the WordPress setup (Step 4):
 
-| Variable | Where to find it |
-| --- | --- |
-| `WP_APP_USER` / `WP_APP_PASS` | WP admin → Users → Profile → Application Passwords |
-| `WOO_CONSUMER_KEY` / `WOO_CONSUMER_SECRET` | WooCommerce → Settings → Advanced → REST API → Add key |
+| Variable                                   | Where to find it                                        |
+| ------------------------------------------ | ------------------------------------------------------- |
+| `WP_APP_USER` / `WP_APP_PASS`              | WP admin → Users → Profile → Application Passwords      |
+| `WOO_CONSUMER_KEY` / `WOO_CONSUMER_SECRET` | WooCommerce → Settings → Advanced → REST API → Add key  |
+| `REDIS_URL`                                | OTP login requires Redis — see hot-reload section below |
 
 > **Note:** WooCommerce keys and the WordPress application password are created inside WordPress after the first setup (see Step 4).
 
@@ -144,11 +145,15 @@ npm run dev
 
 The app will be available at **http://localhost:3000** and Next.js will automatically reload whenever you save a file — no rebuild needed.
 
+**OTP / Redis:** Phone login stores OTP codes and rate limits in Redis. When Next.js runs in Docker, `docker-compose.local.yml` sets `REDIS_URL=redis://redis:6379` automatically. When running `npm run dev` on the host, start Redis via Docker (`docker compose -f docker-compose.local.yml up -d redis`) and set `REDIS_URL=redis://localhost:6379` in `front/.env.local` — local compose exposes Redis on port 6379 for this workflow.
+
+**OTP dev bypass:** With `OTP_DEV_BYPASS=1` (enabled by default in local compose and `.env.example`), use the fake phone `09120000000` (override via `OTP_DEV_PHONE`). SMS is skipped for that number only and the fixed code `0000` is accepted. This only works when `NODE_ENV` is not `production`. Other numbers still go through Melipayamak if configured.
+
 ### Do I need to rebuild after a code change?
 
-| How you run the frontend | After a code change |
-| --- | --- |
-| `npm run dev` on host (recommended) | No — hot reload is automatic |
+| How you run the frontend                        | After a code change                                                             |
+| ----------------------------------------------- | ------------------------------------------------------------------------------- |
+| `npm run dev` on host (recommended)             | No — hot reload is automatic                                                    |
 | `docker compose … up -d` (full stack in Docker) | **Yes** — run `docker compose -f docker-compose.local.yml up -d --build nextjs` |
 
 ### Applying environment variable changes
@@ -259,6 +264,28 @@ docker compose -f docker-compose.local.yml down -v
 
 - Confirm WooCommerce REST keys and `WP_APP_PASS` are set in `front/.env.local`
 - Restart Next.js after updating env vars
+
+**OTP login fails (`WOO_LOOKUP_FAILED`, `fetch failed`) but products load**
+
+The product list uses the public **Woo Store API** (`/wp-json/wc/store/v1/products`). OTP verify uses **Woo REST v3** (`/wp-json/wc/v3/customers`) with `WOO_CONSUMER_KEY` / `WOO_CONSUMER_SECRET`. A working catalog does not prove v3 customer lookup works.
+
+When Next.js runs in Docker, server calls use `http://wordpress` while WordPress is configured for `http://localhost:8080`. Classic REST (v3) may redirect to the public URL; following that redirect inside the container causes `UpstreamNetworkError: fetch failed`. The app rewrites those redirects to the internal host automatically.
+
+`docker-compose.local.yml` sets `HOSTNAME=0.0.0.0` so the Next server listens on loopback as well as the container IP. Without that, server-side fallback to `http://localhost:3000/api/wp/...` fails even when the app is reachable from your browser on port 3000.
+
+Diagnose from inside the Next container:
+
+```bash
+docker exec kadochi-nextjs printenv WP_BASE_URL WOO_BASE_URL NEXT_PUBLIC_WP_BASE_URL
+docker exec kadochi-nextjs wget -S -O /dev/null \
+  'http://wordpress/wp-json/wc/store/v1/products?per_page=1' 2>&1 | head -15
+docker exec kadochi-nextjs sh -c \
+  'wget -S -O /dev/null "http://wordpress/wp-json/wc/v3/customers?search=09120000000&consumer_key=$WOO_CONSUMER_KEY&consumer_secret=$WOO_CONSUMER_SECRET" 2>&1' | head -20
+```
+
+- Store API should return **200**. v3 should return **200** or **401** (bad keys), not a redirect to `localhost:8080` followed by a connection error.
+- Ensure `WOO_CONSUMER_KEY` / `WOO_CONSUMER_SECRET` in `front/.env.local` are valid **Read/Write** keys with permission to list customers. A `401` / `woocommerce_rest_cannot_view` response means the keys must be recreated in WooCommerce → Settings → Advanced → REST API.
+- Rebuild after env changes: `docker compose -f docker-compose.local.yml up -d --build nextjs`
 
 ---
 

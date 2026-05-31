@@ -28,7 +28,7 @@ export async function apiVerifyOtp(phone: string, code: string, csrf?: string) {
 
 export async function apiLogout() {
   const res = await fetch("/api/auth/logout", {
-    method: "GET",
+    method: "POST",
     credentials: "include",
   });
   if (!res.ok) throw new Error("LOGOUT_FAILED");

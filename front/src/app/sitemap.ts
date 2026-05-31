@@ -1,5 +1,6 @@
 // src/app/sitemap.ts
 import type { MetadataRoute } from "next";
+import { getWooBaseUrl } from "@/config/wp";
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://kadochi.com";
@@ -12,11 +13,12 @@ type WooProduct = {
 
 async function getPublishedProducts(): Promise<WooProduct[]> {
   try {
-    const base = process.env.WOO_BASE_URL || process.env.WP_BASE_URL;
+    const base = getWooBaseUrl();
+
     const key = process.env.WOO_CONSUMER_KEY;
     const secret = process.env.WOO_CONSUMER_SECRET;
 
-    if (!base || !key || !secret) {
+    if (!key || !secret) {
       return [];
     }
 
@@ -35,14 +37,14 @@ async function getPublishedProducts(): Promise<WooProduct[]> {
     });
 
     if (!res.ok) {
-      console.error("Failed to fetch products for sitemap:", res.statusText);
       return [];
     }
 
     const data = (await res.json()) as WooProduct[];
     return Array.isArray(data) ? data : [];
-  } catch (err) {
-    console.error("Error while building product sitemap:", err);
+  } catch {
+    // Network and env differences (e.g. local build without WP) should not fail build.
+    // Return static sitemap entries and skip product URLs when upstream is unavailable.
     return [];
   }
 }
