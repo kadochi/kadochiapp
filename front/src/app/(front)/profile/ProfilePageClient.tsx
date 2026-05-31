@@ -102,8 +102,7 @@ export default function ProfilePageClient({
   const [displayName, setDisplayName] = useState<string>(computedTitle);
   useEffect(() => setDisplayName(computedTitle), [computedTitle]);
 
-  const onLogoutClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault();
+  const onLogoutClick = () => {
     (document.getElementById("logoutForm") as HTMLFormElement | null)?.submit();
   };
 
@@ -211,8 +210,8 @@ export default function ProfilePageClient({
               />
             </Link>
 
-            <Link
-              href="/api/auth/logout"
+            <button
+              type="button"
               className={`${s.item} ${s.danger}`}
               onClick={onLogoutClick}
             >
@@ -231,7 +230,7 @@ export default function ProfilePageClient({
                   />
                 }
               />
-            </Link>
+            </button>
 
             <form
               id="logoutForm"
