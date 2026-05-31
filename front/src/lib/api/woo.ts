@@ -58,22 +58,75 @@ function makeWooUrl(path: string): URL {
   return url;
 }
 
+function isWooRestV3(url: URL): boolean {
+  return url.pathname.replace(/\/+/g, "/").startsWith("/wp-json/wc/v3/");
+}
+
+function withWooRestAuthentication(url: URL, headers: Headers): boolean {
+  if (!isWooRestV3(url) || !CK || !CS) return false;
+
+  if (url.protocol === "https:") {
+    if (!headers.has("Authorization")) {
+      headers.set(
+        "Authorization",
+        `Basic ${Buffer.from(`${CK}:${CS}`).toString("base64")}`,
+      );
+    }
+    return true;
+  }
+
+  // WooCommerce only trusts REST key Basic Auth on SSL requests. Local Docker
+  // marks query-key requests as secure in wp-config, and production should use
+  // an HTTPS WOO_BASE_URL for authenticated Woo v3 calls.
+  if (!url.searchParams.has("consumer_key")) {
+    url.searchParams.set("consumer_key", CK);
+  }
+  if (!url.searchParams.has("consumer_secret")) {
+    url.searchParams.set("consumer_secret", CS);
+  }
+  return true;
+}
+
+function maskCredential(value: string): string {
+  if (!value) return "";
+  if (value.length <= 12) return `${value.slice(0, 3)}...`;
+  return `${value.slice(0, 8)}...${value.slice(-4)}`;
+}
+
+/** Resolve a Woo REST path to the full upstream URL (server-only). */
+export function resolveWooUrl(path: string): string {
+  return makeWooUrl(path).href;
+}
+
+/** Redacted snapshot of configured Woo REST credentials (server-only). */
+export function getWooCredentialSnapshot() {
+  return {
+    consumerKey: maskCredential(CK),
+    consumerSecret: maskCredential(CS),
+  };
+}
+
 export async function wooFetch(
   path: string,
   init?: WooFetchOpts,
 ): Promise<Response> {
   const url = makeWooUrl(path);
-
-  // We rely on the Application Password (WP_APP_USER) injected via Basic Auth
-  // in wordpressFetch rather than consumer_key query params. WooCommerce rejects
-  // plain-text consumer_key query params over HTTP without an OAuth signature.
-
-  const { revalidateSeconds, revalidate, ...rest } = init ?? {};
+  const {
+    revalidateSeconds,
+    revalidate,
+    headers: initHeaders,
+    skipWordPressAuth,
+    ...rest
+  } = init ?? {};
+  const headers = new Headers(initHeaders);
+  const usedWooAuth = withWooRestAuthentication(url, headers);
 
   return wordpressFetch(url, {
     allowProxyFallback: true,
     timeoutMs: rest.timeoutMs ?? 7000,
     revalidate: revalidate ?? revalidateSeconds,
+    skipWordPressAuth: skipWordPressAuth ?? usedWooAuth,
+    headers,
     ...rest,
   });
 }
@@ -82,10 +135,24 @@ export async function wooFetchJSON<T>(
   path: string,
   init?: WooFetchOpts,
 ): Promise<T> {
-  const { data, notModified } = await wordpressJson<T>(makeWooUrl(path), {
+  const url = makeWooUrl(path);
+  const {
+    revalidateSeconds,
+    revalidate,
+    headers: initHeaders,
+    skipWordPressAuth,
+    ...rest
+  } = init ?? {};
+  const headers = new Headers(initHeaders);
+  const usedWooAuth = withWooRestAuthentication(url, headers);
+
+  const { data, notModified } = await wordpressJson<T>(url, {
     allowProxyFallback: true,
-    timeoutMs: init?.timeoutMs ?? 8000,
-    ...init,
+    timeoutMs: rest.timeoutMs ?? 8000,
+    revalidate: revalidate ?? revalidateSeconds,
+    skipWordPressAuth: skipWordPressAuth ?? usedWooAuth,
+    headers,
+    ...rest,
   });
   if (notModified) {
     throw new Error(`wooFetchJSON received 304 for ${path}`);

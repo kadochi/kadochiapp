@@ -23,6 +23,8 @@ export interface WordPressFetchOptions extends RequestInit {
   revalidate?: number;
   /** Pass through If-None-Match (ETag) header. */
   ifNoneMatch?: string;
+  /** Do not inject the WordPress Application Password Authorization header. */
+  skipWordPressAuth?: boolean;
 }
 
 export interface WordPressJsonOptions<T> extends WordPressFetchOptions {
@@ -92,13 +94,15 @@ export function buildWordPressURL(input: string | URL): URL {
   return new URL(sanitized, wpBase());
 }
 
-function createHeaders(init?: HeadersInit): Headers {
+function createHeaders(init?: HeadersInit, skipWordPressAuth = false): Headers {
   const headers = new Headers(init);
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
   if (!headers.has("Content-Type"))
     headers.set("Content-Type", "application/json");
   const auth = buildBasicAuth();
-  if (auth && !headers.has("Authorization")) headers.set("Authorization", auth);
+  if (!skipWordPressAuth && auth && !headers.has("Authorization")) {
+    headers.set("Authorization", auth);
+  }
   headers.set(
     "User-Agent",
     headers.get("User-Agent") || "kadochi-app-proxy/1.0",
@@ -317,7 +321,7 @@ export async function wordpressFetch(
   options: WordPressFetchOptions = {},
 ): Promise<Response> {
   const url = buildWordPressURL(input);
-  const headers = createHeaders(options.headers);
+  const headers = createHeaders(options.headers, options.skipWordPressAuth);
   if (options.ifNoneMatch) headers.set("If-None-Match", options.ifNoneMatch);
 
   const requestInit: RequestInit = {
