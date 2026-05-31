@@ -1,10 +1,15 @@
 // src/app/api/auth/otp/verify/route.ts
 import { NextResponse } from "next/server";
-import { setSession } from "@/lib/auth/session";
+import {
+  applySessionCookie,
+  buildSessionCookie,
+} from "@/lib/auth/session";
 import {
   findCustomers,
   createCustomer,
   updateCustomer,
+  getWooCredentialSnapshot,
+  resolveWooUrl,
   type WooCustomer,
 } from "@/lib/api/woo";
 import { deleteOtpCode, getOtpCode } from "@/lib/otp/store";
@@ -134,21 +139,28 @@ export async function POST(req: Request) {
       phone: maskPhone(normalizedPhone),
     });
 
+    let sessionCookie;
     try {
-      await setSession(id, sessionPayload);
+      sessionCookie = await buildSessionCookie(id, sessionPayload);
     } catch (cause) {
       return failResponse(
         log,
         "SESSION_SET_FAILED",
-        "Failed to write session cookie",
+        "Failed to build session cookie",
         500,
         { customerId: id, phone: maskPhone(normalizedPhone) },
         cause,
       );
     }
 
+    const response = NextResponse.json({
+      ok: true,
+      requestId: log.requestId,
+    });
+    applySessionCookie(response, sessionCookie);
+
     log.info("response", { ok: true, status: 200, customerId: id });
-    return NextResponse.json({ ok: true, requestId: log.requestId });
+    return response;
   } catch (cause) {
     if (cause instanceof OtpRouteError) {
       return failResponse(
@@ -204,10 +216,18 @@ async function ensureWooCustomerByPhone(
   normalizedPhone: string;
 }> {
   const digits = onlyDigits(phoneRaw);
+  const wooKeys = getWooCredentialSnapshot();
 
-  const findEndpoint = `/wp-json/wc/v3/customers?search=${encodeURIComponent(digits)}`;
+  const findPath = `/wp-json/wc/v3/customers?search=${encodeURIComponent(digits)}`;
+  const findEndpoint = resolveWooUrl(findPath);
+  log.info("woo_config", {
+    consumerKey: wooKeys.consumerKey,
+    consumerSecret: wooKeys.consumerSecret,
+  });
   log.info("woo_find_customers_request", {
     endpoint: findEndpoint,
+    consumerKey: wooKeys.consumerKey,
+    consumerSecret: wooKeys.consumerSecret,
     phone: maskPhone(digits),
   });
 
@@ -223,7 +243,12 @@ async function ensureWooCustomerByPhone(
       "WOO_LOOKUP_FAILED",
       reason,
       502,
-      { endpoint: findEndpoint, phone: maskPhone(digits) },
+      {
+        endpoint: findEndpoint,
+        consumerKey: wooKeys.consumerKey,
+        consumerSecret: wooKeys.consumerSecret,
+        phone: maskPhone(digits),
+      },
       cause,
     );
   }
@@ -237,7 +262,8 @@ async function ensureWooCustomerByPhone(
   let c: WooCustomer | undefined = list?.[0];
 
   if (!c) {
-    const createEndpoint = "/wp-json/wc/v3/customers";
+    const createPath = "/wp-json/wc/v3/customers";
+    const createEndpoint = resolveWooUrl(createPath);
     const createBody = {
       username: digits,
       email: `${digits}@kadochi.local`,
@@ -250,6 +276,8 @@ async function ensureWooCustomerByPhone(
     };
     log.info("woo_create_customer_request", {
       endpoint: createEndpoint,
+      consumerKey: wooKeys.consumerKey,
+      consumerSecret: wooKeys.consumerSecret,
       phone: maskPhone(digits),
     });
 
@@ -260,7 +288,12 @@ async function ensureWooCustomerByPhone(
         "WOO_CREATE_FAILED",
         "WooCommerce customer creation failed",
         502,
-        { endpoint: createEndpoint, phone: maskPhone(digits) },
+        {
+          endpoint: createEndpoint,
+          consumerKey: wooKeys.consumerKey,
+          consumerSecret: wooKeys.consumerSecret,
+          phone: maskPhone(digits),
+        },
         cause,
       );
     }
@@ -270,12 +303,15 @@ async function ensureWooCustomerByPhone(
       customerId: c.id,
     });
   } else if (!c.billing?.phone) {
-    const updateEndpoint = `/wp-json/wc/v3/customers/${c.id}`;
+    const updatePath = `/wp-json/wc/v3/customers/${c.id}`;
+    const updateEndpoint = resolveWooUrl(updatePath);
     const updateBody = {
       billing: { ...(c.billing || {}), phone: digits },
     };
     log.info("woo_update_customer_request", {
       endpoint: updateEndpoint,
+      consumerKey: wooKeys.consumerKey,
+      consumerSecret: wooKeys.consumerSecret,
       customerId: c.id,
       phone: maskPhone(digits),
     });
