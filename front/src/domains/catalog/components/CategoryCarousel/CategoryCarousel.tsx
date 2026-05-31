@@ -1,4 +1,5 @@
 import CategoryCarouselClient from "./CategoryCarouselClient";
+import { wooFetch } from "@/lib/api/woo";
 
 type WCCategory = {
   id: number;
@@ -16,11 +17,6 @@ type Card = {
   image?: string;
 };
 
-const WP_BASE =
-  process.env.WP_BASE_URL ||
-  process.env.NEXT_PUBLIC_WP_BASE_URL ||
-  "https://app.kadochi.com";
-
 function isUncategorized(c: Pick<WCCategory, "slug" | "name">) {
   const n = (c.name || "").trim();
   const s = (c.slug || "").trim().toLowerCase();
@@ -28,9 +24,11 @@ function isUncategorized(c: Pick<WCCategory, "slug" | "name">) {
 }
 
 async function fetchCategories(): Promise<Card[]> {
-  const url = `${WP_BASE}/wp-json/wc/store/v1/products/categories?per_page=50`;
   try {
-    const r = await fetch(url, { next: { revalidate: 300 } });
+    const r = await wooFetch(
+      "/wp-json/wc/store/v1/products/categories?per_page=50",
+      { revalidate: 300 },
+    );
     if (!r.ok) return [];
 
     const json = (await r.json()) as unknown;

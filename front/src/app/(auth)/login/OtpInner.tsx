@@ -32,6 +32,7 @@ export default function OtpInner({
   ];
 
   const hiddenFullInputRef = useRef<HTMLInputElement>(null);
+  const verifyInFlightRef = useRef(false);
 
   const router = useRouter();
   const sp = useSearchParams();
@@ -89,13 +90,13 @@ export default function OtpInner({
 
   useEffect(() => {
     const joined = code.join("");
-    if (joined.length === 4 && !loading) {
+    if (joined.length === 4 && !verifyInFlightRef.current) {
       const t = setTimeout(() => {
         handleVerify();
       }, 0);
       return () => clearTimeout(t);
     }
-  }, [code, loading]);
+  }, [code]);
 
   async function handleVerify() {
     const joined = code.join("");
@@ -103,7 +104,9 @@ export default function OtpInner({
       setErr("کد تایید ۴ رقمی را وارد کنید.");
       return;
     }
+    if (verifyInFlightRef.current) return;
 
+    verifyInFlightRef.current = true;
     try {
       setLoading(true);
       await apiVerifyOtp(phone, joined);
@@ -115,6 +118,7 @@ export default function OtpInner({
 
       router.replace(nextUrl);
     } catch {
+      verifyInFlightRef.current = false;
       setErr("کد نادرست است یا منقضی شده است.");
       const empty = ["", "", "", ""];
       setCode(empty);

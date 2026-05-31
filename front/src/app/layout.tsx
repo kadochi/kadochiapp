@@ -67,7 +67,7 @@ export default async function RootLayout({
           </>
         )}
 
-        <link rel="preconnect" href="https://app.kadochi.com" crossOrigin="" />
+        <link rel="preconnect" href="https://api.kadochi.com" crossOrigin="" />
         <link
           rel="preload"
           href="/fonts/IRANSansXFaNum-Regular.woff2"

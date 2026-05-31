@@ -82,9 +82,7 @@ export default function CategoryCarouselClient({
 
     (async () => {
       try {
-        const res = await fetch(
-          "/wp-json/wc/store/v1/product-categories?per_page=50"
-        );
+        const res = await fetch("/api/store/categories?per_page=50");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: any[] = await res.json();
 

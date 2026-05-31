@@ -94,11 +94,6 @@ export async function GET(req: Request) {
       orderby: "include",
     });
 
-    const WP_BASE =
-      process.env.WP_BASE_URL ||
-      process.env.NEXT_PUBLIC_WP_BASE_URL ||
-      "https://app.kadochi.com";
-
     // Coalesce duplicate in-flight requests
     const key = `include:${qs.toString()}`;
     const cachedEntry = lruPeek<WooStoreProduct[]>(key);
@@ -111,7 +106,7 @@ export async function GET(req: Request) {
     const p = (async () => {
       try {
         const result = await wordpressJson<WooStoreProduct[]>(
-          `${WP_BASE}/wp-json/wc/store/v1/products?${qs.toString()}`,
+          `/wp-json/wc/store/v1/products?${qs.toString()}`,
           {
             timeoutMs: INCLUDE_TIMEOUT_MS,
             allowProxyFallback: true,

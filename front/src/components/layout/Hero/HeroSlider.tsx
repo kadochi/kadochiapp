@@ -6,6 +6,7 @@ import { Autoplay, Pagination } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/pagination";
 
+import { tryGetPublicWpBaseUrl } from "@/config/wp";
 import Banner from "./Hero";
 import s from "./Hero.module.css";
 
@@ -17,35 +18,58 @@ type BannerData = {
   backgroundImage: string;
 };
 
+const HERO_PATH = "/wp-json/wp/v2/hero?acf_format=standard";
+
+async function fetchHeroBanners(signal: AbortSignal): Promise<BannerData[]> {
+  try {
+    const r = await fetch(`/api/wp${HERO_PATH}`, { signal, cache: "no-store" });
+    if (r.ok) {
+      const data = await r.json();
+      if (Array.isArray(data)) return formatBanners(data);
+    }
+  } catch {
+    // fall through to direct fetch
+  }
+
+  const base = tryGetPublicWpBaseUrl();
+  if (!base) return [];
+
+  try {
+    const r2 = await fetch(`${base}${HERO_PATH}`, { signal, cache: "no-store" });
+    if (!r2.ok) return [];
+    const data = await r2.json();
+    return Array.isArray(data) ? formatBanners(data) : [];
+  } catch {
+    return [];
+  }
+}
+
+function formatBanners(data: any[]): BannerData[] {
+  return data
+    .map((item: any) => {
+      const acf = item?.acf || {};
+      const bg =
+        typeof acf?.background_image === "string"
+          ? acf.background_image
+          : acf?.background_image?.url || "";
+      return {
+        title: acf.title || "",
+        subtitle: acf.subtitle || "",
+        ctaText: acf.cta_text || "",
+        ctaLink: acf.cta_link || "#",
+        backgroundImage: bg,
+      };
+    })
+    .filter((b) => b.title && b.backgroundImage);
+}
+
 export default function HeroSlider() {
   const [banners, setBanners] = useState<BannerData[]>([]);
 
   useEffect(() => {
     const ctl = new AbortController();
-    fetch("https://app.kadochi.com/wp-json/wp/v2/hero?acf_format=standard", {
-      signal: ctl.signal,
-    })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        if (!Array.isArray(data)) return;
-        const formatted: BannerData[] = data
-          .map((item: any) => {
-            const acf = item?.acf || {};
-            const bg =
-              typeof acf?.background_image === "string"
-                ? acf.background_image
-                : acf?.background_image?.url || "";
-            return {
-              title: acf.title || "",
-              subtitle: acf.subtitle || "",
-              ctaText: acf.cta_text || "",
-              ctaLink: acf.cta_link || "#",
-              backgroundImage: bg,
-            };
-          })
-          .filter((b) => b.title && b.backgroundImage);
-        setBanners(formatted);
-      })
+    fetchHeroBanners(ctl.signal)
+      .then(setBanners)
       .catch(() => {});
     return () => ctl.abort();
   }, []);

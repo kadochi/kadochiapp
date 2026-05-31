@@ -4,17 +4,11 @@
 import "server-only";
 import { cache } from "react";
 import { getSessionFromCookies } from "@/lib/auth/session";
+import { getWooBaseUrl } from "@/config/wp";
 import { wooFetch } from "@/lib/api/woo";
 import { formatDeliveryWindow } from "@/domains/checkout/delivery-slot";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
-const WP_BASE =
-  process.env.WOO_BASE_URL ||
-  process.env.WP_BASE_URL ||
-  process.env.NEXT_PUBLIC_WP_BASE_URL ||
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  "https://app.kadochi.com";
 
 const ORDER_DETAIL_FIELDS = [
   "id",
@@ -154,7 +148,7 @@ function mapStatus(raw?: RawWooStatus): OrderStatus {
 function absolutize(url?: string | null): string | null {
   if (!url) return null;
   try {
-    const base = new URL(WP_BASE);
+    const base = new URL(getWooBaseUrl());
     const full = new URL(url, base);
     if (full.protocol === "http:") full.protocol = "https:";
     return full.toString();

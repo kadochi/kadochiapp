@@ -1,6 +1,7 @@
 // src/lib/auth/session.ts
 import "server-only";
 import { cookies, headers } from "next/headers";
+import type { NextResponse } from "next/server";
 import crypto from "crypto";
 
 /* ---------------------------------------------------------------------
@@ -21,9 +22,22 @@ export type Session = {
 const DEFAULT_COOKIE_NAME = "kadochi_session";
 const ALT_COOKIE_NAMES = ["kd_s", "session", DEFAULT_COOKIE_NAME];
 
-const SECURE = process.env.NODE_ENV === "production";
+function resolveCookieSecure(): boolean {
+  const raw = (process.env.COOKIE_SECURE || "").trim().toLowerCase();
+  if (raw === "1" || raw === "true") return true;
+  if (raw === "0" || raw === "false") return false;
+  return process.env.NODE_ENV === "production";
+}
+
+const SECURE = resolveCookieSecure();
 const COOKIE_LIFETIME_SEC = 60 * 60 * 24 * 30; // 30 days
 const JWT_SECRET = (process.env.KADOCHI_JWT_SECRET || "").trim();
+
+export type SessionCookie = {
+  name: string;
+  value: string;
+  options: ReturnType<typeof baseCookieOpts>;
+};
 
 /* ---------------------------------------------------------------------
  * Tiny JWT (HS256) – no external deps
@@ -163,6 +177,73 @@ export async function getSessionFromCookies(): Promise<Session> {
   return { userId: null };
 }
 
+async function resolveSessionCookieName(): Promise<string> {
+  const jar = await cookies();
+
+  for (const n of ALT_COOKIE_NAMES) {
+    if (jar.get(n)?.value) return n;
+  }
+
+  const getAll = (jar as any)?.getAll?.bind(jar);
+  const all: Array<{ name: string; value: string }> = getAll ? getAll() : [];
+  for (const c of all) {
+    if (tryParseAnySession(c.value)) return c.name;
+  }
+
+  return DEFAULT_COOKIE_NAME;
+}
+
+/**
+ * Build the session cookie payload for Route Handlers.
+ * Attach it to the outgoing NextResponse — cookies().set() alone is not
+ * always propagated to the browser in self-hosted / Docker deployments.
+ */
+export async function buildSessionCookie(
+  userId: number,
+  extras?: {
+    name?: string | null;
+    phone?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    roles?: string[];
+    maxAgeSec?: number;
+  },
+): Promise<SessionCookie> {
+  const domain = await resolveCookieDomain();
+  const maxAge = extras?.maxAgeSec ?? COOKIE_LIFETIME_SEC;
+  const targetName = await resolveSessionCookieName();
+
+  const payload = {
+    uid: userId,
+    name: extras?.name ?? null,
+    phone: extras?.phone ?? null,
+    firstName: extras?.firstName ?? null,
+    lastName: extras?.lastName ?? null,
+    roles: Array.isArray(extras?.roles) ? extras!.roles : [],
+  };
+
+  const value = JWT_SECRET
+    ? jwtSignHS256(payload, JWT_SECRET)
+    : encodeURIComponent(JSON.stringify(payload));
+
+  return {
+    name: targetName,
+    value,
+    options: baseCookieOpts(maxAge, domain),
+  };
+}
+
+/** Attach session cookie to a Route Handler response (required for Set-Cookie). */
+export function applySessionCookie(
+  response: NextResponse,
+  cookie: SessionCookie,
+): void {
+  response.cookies.set(cookie.name, cookie.value, cookie.options);
+  for (const n of ALT_COOKIE_NAMES) {
+    if (n !== cookie.name) response.cookies.delete(n);
+  }
+}
+
 /**
  * Set session cookie (legacy signature preserved):
  *   setSession(userId, { name?, phone?, firstName?, lastName?, roles?, maxAgeSec? })
@@ -178,57 +259,21 @@ export async function setSession(
     lastName?: string | null;
     roles?: string[];
     maxAgeSec?: number; // optional override; defaults to 30 days
-  }
+  },
 ): Promise<void> {
+  const cookie = await buildSessionCookie(userId, extras);
   const jar = await cookies();
   const domain = await resolveCookieDomain();
-  const maxAge = extras?.maxAgeSec ?? COOKIE_LIFETIME_SEC;
-
-  const payload = {
-    uid: userId,
-    name: extras?.name ?? null,
-    phone: extras?.phone ?? null,
-    firstName: extras?.firstName ?? null,
-    lastName: extras?.lastName ?? null,
-    roles: Array.isArray(extras?.roles) ? extras!.roles : [],
-  };
-
-  // Keep existing cookie name if present; else fallback to default
-  let targetName: string | null = null;
-  for (const n of ALT_COOKIE_NAMES) {
-    if (jar.get(n)?.value) {
-      targetName = n;
-      break;
-    }
-  }
-  if (!targetName) {
-    const getAll = (jar as any)?.getAll?.bind(jar);
-    const all: Array<{ name: string; value: string }> = getAll ? getAll() : [];
-    for (const c of all) {
-      if (tryParseAnySession(c.value)) {
-        targetName = c.name;
-        break;
-      }
-    }
-  }
-  if (!targetName) targetName = DEFAULT_COOKIE_NAME;
 
   const setFn = (jar as any)?.set;
   if (typeof setFn === "function") {
-    if (JWT_SECRET) {
-      const token = jwtSignHS256(payload, JWT_SECRET);
-      setFn.call(jar, targetName, token, baseCookieOpts(maxAge, domain));
-    } else {
-      const raw = encodeURIComponent(JSON.stringify(payload));
-      setFn.call(jar, targetName, raw, baseCookieOpts(maxAge, domain));
-    }
+    setFn.call(jar, cookie.name, cookie.value, cookie.options);
   }
 
-  // Clean up other known names to avoid duplicates
   const delFn = (jar as any)?.delete;
   if (typeof delFn === "function") {
     for (const n of ALT_COOKIE_NAMES) {
-      if (n !== targetName)
+      if (n !== cookie.name)
         delFn.call(jar, n, baseCookieOpts(undefined, domain));
     }
   }

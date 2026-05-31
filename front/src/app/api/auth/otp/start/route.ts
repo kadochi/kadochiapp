@@ -1,5 +1,15 @@
 // src/app/api/auth/otp/start/route.ts
 import { NextResponse } from "next/server";
+import { checkOtpRateLimit, setOtpCode } from "@/lib/otp/store";
+import {
+  isDevBypassPhone,
+  OTP_DEV_BYPASS_CODE,
+} from "@/app/api/auth/otp/_lib/dev-bypass";
+import {
+  createOtpLogger,
+  failResponse,
+  maskPhone,
+} from "@/app/api/auth/otp/_lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,35 +18,10 @@ const MELIPAYAMAK_OTP_URL = process.env.MELIPAYAMAK_OTP_URL || "";
 
 const OTP_CODE_TTL_SEC = Number(process.env.OTP_CODE_TTL_SEC || 180);
 const OTP_ATTEMPT_RATE_PER_HOUR = Number(
-  process.env.OTP_ATTEMPT_RATE_PER_HOUR || 3
+  process.env.OTP_ATTEMPT_RATE_PER_HOUR || 3,
 );
 
-type OtpRec = { code: string; exp: number };
-const OTP_STORE: Map<string, OtpRec> =
-  (globalThis as any).__KADOCHI_OTP_STORE__ || new Map();
-(globalThis as any).__KADOCHI_OTP_STORE__ = OTP_STORE;
-
-type RateRec = { hits: number; resetAt: number };
-const RATE_BY_PHONE: Map<string, RateRec> =
-  (globalThis as any).__KADOCHI_RATE_PHONE__ || new Map();
-const RATE_BY_IP: Map<string, RateRec> =
-  (globalThis as any).__KADOCHI_RATE_IP__ || new Map();
-(globalThis as any).__KADOCHI_RATE_PHONE__ = RATE_BY_PHONE;
-(globalThis as any).__KADOCHI_RATE_IP__ = RATE_BY_IP;
-
 const onlyDigits = (s: string) => String(s || "").replace(/\D+/g, "");
-const now = () => Date.now();
-function okRate(bucket: Map<string, RateRec>, key: string, limit: number) {
-  const hr = 60 * 60 * 1000;
-  const rec = bucket.get(key);
-  if (!rec || rec.resetAt < now()) {
-    bucket.set(key, { hits: 1, resetAt: now() + hr });
-    return true;
-  }
-  if (rec.hits >= limit) return false;
-  rec.hits += 1;
-  return true;
-}
 
 function extractOtpFromResponseBody(text: string): string | null {
   try {
@@ -62,67 +47,190 @@ function extractOtpFromResponseBody(text: string): string | null {
 }
 
 export async function POST(req: Request) {
+  const log = createOtpLogger("start");
+
   try {
     const body = (await req.json().catch(() => ({}))) as { phone?: string };
     const phone = onlyDigits(String(body?.phone ?? ""));
-    if (!phone) {
-      return NextResponse.json(
-        { ok: false, error: "INVALID_PHONE" },
-        { status: 400 }
-      );
-    }
-    if (!MELIPAYAMAK_OTP_URL) {
-      return NextResponse.json(
-        { ok: false, error: "MELIPAYAMAK_OTP_URL_NOT_SET" },
-        { status: 500 }
-      );
-    }
+    log.info("request", { phone: maskPhone(phone) });
 
+    if (!phone) {
+      return failResponse(
+        log,
+        "INVALID_PHONE",
+        "Phone number is missing or invalid",
+        400,
+      );
+    }
     const ip =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "0.0.0.0";
-    if (
-      !okRate(RATE_BY_PHONE, phone, OTP_ATTEMPT_RATE_PER_HOUR) ||
-      !okRate(RATE_BY_IP, ip, OTP_ATTEMPT_RATE_PER_HOUR)
-    ) {
-      return NextResponse.json(
-        { ok: false, error: "RATE_LIMIT" },
-        { status: 429 }
+
+    let allowed: boolean;
+    try {
+      allowed = await checkOtpRateLimit(
+        phone,
+        ip,
+        OTP_ATTEMPT_RATE_PER_HOUR,
+      );
+    } catch (cause) {
+      return failResponse(
+        log,
+        "REDIS_ERROR",
+        "Rate limit check failed",
+        503,
+        { ip, phone: maskPhone(phone) },
+        cause,
       );
     }
 
-    const r = await fetch(MELIPAYAMAK_OTP_URL, {
+    log.info("rate_limit", {
+      ip,
+      allowed,
+      limitPerHour: OTP_ATTEMPT_RATE_PER_HOUR,
+      phone: maskPhone(phone),
+    });
+    if (!allowed) {
+      return failResponse(
+        log,
+        "RATE_LIMIT",
+        "OTP attempt rate limit exceeded",
+        429,
+        { ip, phone: maskPhone(phone) },
+      );
+    }
+
+    if (isDevBypassPhone(phone)) {
+      log.info("dev_bypass", { phone: maskPhone(phone) });
+      try {
+        await setOtpCode(phone, OTP_DEV_BYPASS_CODE, OTP_CODE_TTL_SEC);
+      } catch (cause) {
+        return failResponse(
+          log,
+          "REDIS_ERROR",
+          "Failed to store OTP code",
+          503,
+          { phone: maskPhone(phone), ttlSec: OTP_CODE_TTL_SEC },
+          cause,
+        );
+      }
+      log.info("response", { ok: true, status: 200, ttlSec: OTP_CODE_TTL_SEC });
+      return NextResponse.json({
+        ok: true,
+        ttlSec: OTP_CODE_TTL_SEC,
+        requestId: log.requestId,
+      });
+    }
+
+    if (!MELIPAYAMAK_OTP_URL) {
+      return failResponse(
+        log,
+        "MELIPAYAMAK_OTP_URL_NOT_SET",
+        "MELIPAYAMAK_OTP_URL env var is not configured",
+        500,
+      );
+    }
+
+    const melipayamakRequest = { to: phone };
+    log.info("melipayamak_request", {
+      endpoint: MELIPAYAMAK_OTP_URL,
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store",
-      body: JSON.stringify({ to: phone }),
+      phone: maskPhone(phone),
     });
 
+    let r: Response;
+    try {
+      r = await fetch(MELIPAYAMAK_OTP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify(melipayamakRequest),
+      });
+    } catch (cause) {
+      return failResponse(
+        log,
+        "PROVIDER_NETWORK_ERROR",
+        "Melipayamak request failed",
+        502,
+        { endpoint: MELIPAYAMAK_OTP_URL, phone: maskPhone(phone) },
+        cause,
+      );
+    }
+
     const respText = await r.text().catch(() => "");
+    log.info("melipayamak_response", {
+      endpoint: MELIPAYAMAK_OTP_URL,
+      status: r.status,
+      ok: r.ok,
+      bodyLength: respText.length,
+    });
+
     if (!r.ok) {
-      return NextResponse.json(
-        { ok: false, error: "OTP_SEND_FAILED", detail: respText || r.status },
-        { status: 502 }
+      return failResponse(
+        log,
+        "OTP_SEND_FAILED",
+        "Melipayamak returned a non-success status",
+        502,
+        {
+          endpoint: MELIPAYAMAK_OTP_URL,
+          phone: maskPhone(phone),
+          providerStatus: r.status,
+        },
+        undefined,
+        { detail: respText || String(r.status) },
       );
     }
 
     const providerCode = extractOtpFromResponseBody(respText);
+    log.info("provider_code_extracted", {
+      phone: maskPhone(phone),
+      extracted: !!providerCode,
+    });
     if (!providerCode) {
-      return NextResponse.json(
-        { ok: false, error: "PROVIDER_NO_CODE_IN_RESPONSE" },
-        { status: 500 }
+      return failResponse(
+        log,
+        "PROVIDER_NO_CODE_IN_RESPONSE",
+        "No OTP code found in Melipayamak response",
+        502,
+        {
+          endpoint: MELIPAYAMAK_OTP_URL,
+          phone: maskPhone(phone),
+          bodyPreview: respText.slice(0, 200),
+        },
       );
     }
 
-    OTP_STORE.set(phone, {
-      code: providerCode,
-      exp: now() + OTP_CODE_TTL_SEC * 1000,
+    try {
+      await setOtpCode(phone, providerCode, OTP_CODE_TTL_SEC);
+    } catch (cause) {
+      return failResponse(
+        log,
+        "REDIS_ERROR",
+        "Failed to store OTP code",
+        503,
+        { phone: maskPhone(phone), ttlSec: OTP_CODE_TTL_SEC },
+        cause,
+      );
+    }
+
+    log.info("otp_stored", {
+      phone: maskPhone(phone),
+      ttlSec: OTP_CODE_TTL_SEC,
     });
 
-    return NextResponse.json({ ok: true, ttlSec: OTP_CODE_TTL_SEC });
-  } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: "SERVER_ERROR", detail: String(e?.message || e) },
-      { status: 500 }
+    log.info("response", { ok: true, status: 200, ttlSec: OTP_CODE_TTL_SEC });
+    return NextResponse.json({
+      ok: true,
+      ttlSec: OTP_CODE_TTL_SEC,
+      requestId: log.requestId,
+    });
+  } catch (cause) {
+    return failResponse(
+      log,
+      "SERVER_ERROR",
+      "Unhandled exception during OTP start",
+      500,
+      undefined,
+      cause,
     );
   }
 }

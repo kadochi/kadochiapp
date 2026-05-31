@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 
+import { getWooBaseUrl } from "@/config/wp";
 import {
   wordpressFetch,
   wordpressJson,
@@ -35,13 +36,6 @@ export interface PagedResult<T> {
 /* ============================================================================
  * Config (kept)
  * ==========================================================================*/
-const WP_BASE =
-  process.env.WOO_BASE_URL ||
-  process.env.WP_BASE_URL ||
-  process.env.NEXT_PUBLIC_WP_BASE_URL ||
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  "https://app.kadochi.com";
-
 const CK = process.env.WOO_CONSUMER_KEY || "";
 const CS = process.env.WOO_CONSUMER_SECRET || "";
 
@@ -56,7 +50,7 @@ type WooFetchOpts = WordPressFetchOptions & {
 };
 
 function makeWooUrl(path: string): URL {
-  const base = WP_BASE.replace(/\/+$/, "");
+  const base = getWooBaseUrl();
   const url =
     path.startsWith("http://") || path.startsWith("https://")
       ? new URL(path)
@@ -64,26 +58,75 @@ function makeWooUrl(path: string): URL {
   return url;
 }
 
+function isWooRestV3(url: URL): boolean {
+  return url.pathname.replace(/\/+/g, "/").startsWith("/wp-json/wc/v3/");
+}
+
+function withWooRestAuthentication(url: URL, headers: Headers): boolean {
+  if (!isWooRestV3(url) || !CK || !CS) return false;
+
+  if (url.protocol === "https:") {
+    if (!headers.has("Authorization")) {
+      headers.set(
+        "Authorization",
+        `Basic ${Buffer.from(`${CK}:${CS}`).toString("base64")}`,
+      );
+    }
+    return true;
+  }
+
+  // WooCommerce only trusts REST key Basic Auth on SSL requests. Local Docker
+  // marks query-key requests as secure in wp-config, and production should use
+  // an HTTPS WOO_BASE_URL for authenticated Woo v3 calls.
+  if (!url.searchParams.has("consumer_key")) {
+    url.searchParams.set("consumer_key", CK);
+  }
+  if (!url.searchParams.has("consumer_secret")) {
+    url.searchParams.set("consumer_secret", CS);
+  }
+  return true;
+}
+
+function maskCredential(value: string): string {
+  if (!value) return "";
+  if (value.length <= 12) return `${value.slice(0, 3)}...`;
+  return `${value.slice(0, 8)}...${value.slice(-4)}`;
+}
+
+/** Resolve a Woo REST path to the full upstream URL (server-only). */
+export function resolveWooUrl(path: string): string {
+  return makeWooUrl(path).href;
+}
+
+/** Redacted snapshot of configured Woo REST credentials (server-only). */
+export function getWooCredentialSnapshot() {
+  return {
+    consumerKey: maskCredential(CK),
+    consumerSecret: maskCredential(CS),
+  };
+}
+
 export async function wooFetch(
   path: string,
   init?: WooFetchOpts,
 ): Promise<Response> {
   const url = makeWooUrl(path);
-
-  const touchesWoo = /\/wc\/v\d+\/|\/wp-json\/wc\/v\d+\//.test(url.pathname);
-  if (touchesWoo && CK && CS) {
-    if (!url.searchParams.has("consumer_key"))
-      url.searchParams.set("consumer_key", CK);
-    if (!url.searchParams.has("consumer_secret"))
-      url.searchParams.set("consumer_secret", CS);
-  }
-
-  const { revalidateSeconds, revalidate, ...rest } = init ?? {};
+  const {
+    revalidateSeconds,
+    revalidate,
+    headers: initHeaders,
+    skipWordPressAuth,
+    ...rest
+  } = init ?? {};
+  const headers = new Headers(initHeaders);
+  const usedWooAuth = withWooRestAuthentication(url, headers);
 
   return wordpressFetch(url, {
     allowProxyFallback: true,
     timeoutMs: rest.timeoutMs ?? 7000,
     revalidate: revalidate ?? revalidateSeconds,
+    skipWordPressAuth: skipWordPressAuth ?? usedWooAuth,
+    headers,
     ...rest,
   });
 }
@@ -92,10 +135,24 @@ export async function wooFetchJSON<T>(
   path: string,
   init?: WooFetchOpts,
 ): Promise<T> {
-  const { data, notModified } = await wordpressJson<T>(makeWooUrl(path), {
+  const url = makeWooUrl(path);
+  const {
+    revalidateSeconds,
+    revalidate,
+    headers: initHeaders,
+    skipWordPressAuth,
+    ...rest
+  } = init ?? {};
+  const headers = new Headers(initHeaders);
+  const usedWooAuth = withWooRestAuthentication(url, headers);
+
+  const { data, notModified } = await wordpressJson<T>(url, {
     allowProxyFallback: true,
-    timeoutMs: init?.timeoutMs ?? 8000,
-    ...init,
+    timeoutMs: rest.timeoutMs ?? 8000,
+    revalidate: revalidate ?? revalidateSeconds,
+    skipWordPressAuth: skipWordPressAuth ?? usedWooAuth,
+    headers,
+    ...rest,
   });
   if (notModified) {
     throw new Error(`wooFetchJSON received 304 for ${path}`);
@@ -122,7 +179,7 @@ const getCustomerByIdCached = cache(
       };
     }
     const path = `/wp-json/wc/v3/customers/${id}`;
-    const r = await wooFetch(path, { method: "GET", revalidateSeconds: 120 });
+    const r = await wooFetch(path, { method: "GET" });
     if (r.status === 404) return null;
     if (!r.ok) throw new Error(`getCustomerById failed: ${r.status}`);
     return (await r.json()) as WooCustomer;
@@ -135,6 +192,11 @@ export async function getCustomerById(id: number): Promise<WooCustomer | null> {
 
 export async function findCustomers(params: { search?: string }) {
   if (DEV_FAKE) return [] as WooCustomer[];
+  if (!CK || !CS) {
+    throw new Error(
+      "WOO_CONSUMER_KEY and WOO_CONSUMER_SECRET are not configured",
+    );
+  }
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
   const path = `/wp-json/wc/v3/customers?${q.toString()}`;
@@ -823,8 +885,8 @@ const _resolveProductIdBySlug = cache(async function _resolveProductIdBySlug(
   } catch {}
 
   try {
-    const r = await fetch(
-      `${WP_BASE}/wp-json/wp/v2/product?slug=${encodeURIComponent(
+    const r = await wordpressFetch(
+      `/wp-json/wp/v2/product?slug=${encodeURIComponent(
         clean,
       )}&_fields=id,slug`,
       { cache: "no-store" },
@@ -840,25 +902,19 @@ const _resolveProductIdBySlug = cache(async function _resolveProductIdBySlug(
 const fetchProductComments = cache(async function fetchProductComments(
   productId: number,
 ): Promise<ProductComment[]> {
-  const base = WP_BASE.replace(/\/$/, "");
-  const ck = process.env.WOO_CONSUMER_KEY || "";
-  const cs = process.env.WOO_CONSUMER_SECRET || "";
-
   try {
-    const url =
-      `${base}/wp-json/wc/v3/products/reviews` +
-      `?product=${encodeURIComponent(String(productId))}` +
-      `&status=approved&per_page=20` +
-      (ck && cs
-        ? `&consumer_key=${encodeURIComponent(
-            ck,
-          )}&consumer_secret=${encodeURIComponent(cs)}`
-        : "");
-
-    const r = await fetch(url, {
-      cache: "force-cache",
-      next: { revalidate: 120 },
+    const qs = new URLSearchParams({
+      product: String(productId),
+      status: "approved",
+      per_page: "20",
     });
+    const r = await wooFetch(
+      `/wp-json/wc/v3/products/reviews?${qs.toString()}`,
+      {
+        cache: "force-cache",
+        revalidate: 120,
+      },
+    );
     if (r.ok) {
       const arr = (await r.json()) as Array<{
         id: number;
@@ -885,11 +941,11 @@ const fetchProductComments = cache(async function fetchProductComments(
   }
 
   try {
-    const r2 = await fetch(
-      `${base}/wp-json/wp/v2/comments?post=${productId}&per_page=20&_fields=id,author_name,author_avatar_urls,date,content`,
+    const r2 = await wordpressFetch(
+      `/wp-json/wp/v2/comments?post=${productId}&per_page=20&_fields=id,author_name,author_avatar_urls,date,content`,
       {
         cache: "force-cache",
-        next: { revalidate: 120 },
+        revalidate: 120,
       },
     );
     if (r2.ok) {
@@ -1152,8 +1208,8 @@ function mapWcProductToDetail(id: number, p: WooProductV3): ProductDetail {
 
 const fetchProductDetailFromStore = cache(async (id: number) => {
   try {
-    const r = await fetch(
-      `${WP_BASE}/wp-json/wc/store/v1/products/${id}?_fields=${[
+    const r = await wooFetch(
+      `/wp-json/wc/store/v1/products/${id}?_fields=${[
         "id",
         "name",
         "description",
@@ -1172,7 +1228,7 @@ const fetchProductDetailFromStore = cache(async (id: number) => {
       ].join(",")}`,
       {
         cache: "force-cache",
-        next: { revalidate: 300 },
+        revalidate: 300,
       },
     );
     if (!r.ok) return null;
@@ -1260,28 +1316,16 @@ export async function createProductReview(
     status?: "approved" | "hold" | "spam" | "trash" | "unspam" | "untrash";
   },
 ) {
-  const base = process.env.WOO_BASE_URL || process.env.WP_BASE_URL;
-  const key = process.env.WOO_CONSUMER_KEY;
-  const sec = process.env.WOO_CONSUMER_SECRET;
-  if (!base || !key || !sec) {
-    throw new Error("Woo credentials are missing");
-  }
-
-  const url =
-    `${base.replace(/\/$/, "")}/wp-json/wc/v3/products/reviews` +
-    `?consumer_key=${encodeURIComponent(key)}` +
-    `&consumer_secret=${encodeURIComponent(sec)}`;
-
   const body = {
     product_id: Number(productId),
     review: payload.review,
     reviewer: payload.reviewer || "Kadochi User",
     reviewer_email: payload.reviewer_email ?? undefined,
     rating: Math.max(1, Math.min(5, Number(payload.rating) || 0)),
-    status: payload.status || "hold", // keep pending by default; adjust if you auto-approve
+    status: payload.status || "hold",
   };
 
-  const r = await fetch(url, {
+  const r = await wooFetch(`/wp-json/wc/v3/products/reviews`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(body),

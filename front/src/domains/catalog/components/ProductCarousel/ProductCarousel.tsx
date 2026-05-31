@@ -1,8 +1,7 @@
 // Server Component
 import ProductCarouselClient from "./ProductCarousel.client";
 import { inferInStock } from "@/domains/catalog/utils/stock";
-
-const WP_BASE = process.env.WP_BASE_URL || "https://app.kadochi.com";
+import { wooFetch } from "@/lib/api/woo";
 
 type StoreProduct = {
   id: number;
@@ -77,10 +76,11 @@ async function fetchFromWP(
   });
   if (!qs.has("per_page")) qs.set("per_page", "8");
 
-  const url = `${WP_BASE}/wp-json/wc/store/v1/products?${qs.toString()}`;
-
   try {
-    const r = await fetch(url, { next: { revalidate: 60 } });
+    const r = await wooFetch(
+      `/wp-json/wc/store/v1/products?${qs.toString()}`,
+      { revalidate: 60 },
+    );
     if (!r.ok) return [];
     const json = await r.json();
     return Array.isArray(json) ? json : [];
@@ -120,9 +120,7 @@ export default async function ProductCarousel({
       .filter((n) => Number.isFinite(n) && n > 0);
 
     const promises = numericIds.map((id) =>
-      fetch(`${WP_BASE}/wp-json/wc/store/v1/products/${id}`, {
-        next: { revalidate: 60 },
-      })
+      wooFetch(`/wp-json/wc/store/v1/products/${id}`, { revalidate: 60 })
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null),
     );

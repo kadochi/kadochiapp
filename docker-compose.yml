@@ -35,8 +35,27 @@ services:
     container_name: kadochi-nextjs
     restart: unless-stopped
 
+    depends_on:
+      - redis
+
+    # Load all secrets from the production env file.
+    # The environment block below overrides URL values to use Docker-internal
+    # hostnames — the public URLs in .env.production would route through
+    # Traefik/external DNS and never reach the wordpress container directly.
+    env_file:
+      - ./front/.env.production
+
     environment:
       NODE_ENV: production
+      # Internal Docker service name for general WordPress/store requests.
+      WP_BASE_URL: http://wordpress
+      # Woo REST v3 key auth must go over HTTPS in production.
+      WOO_BASE_URL: https://api.kadochi.com
+      NEXT_PUBLIC_WP_BASE_URL: https://api.kadochi.com
+      # Public site URL and cookie domain for production.
+      NEXT_PUBLIC_SITE_URL: https://kadochi.com
+      COOKIE_DOMAIN: .kadochi.com
+      REDIS_URL: redis://redis:6379
 
     labels:
       - "traefik.enable=true"
@@ -110,6 +129,8 @@ services:
         define('WP_REDIS_HOST', 'redis');
         define('WP_REDIS_PORT', 6379);
         define('WP_CACHE', true);
+        define('WP_HOME', 'https://api.kadochi.com');
+        define('WP_SITEURL', 'https://api.kadochi.com');
 
     volumes:
       # Custom theme (see wordpress/theme/)
