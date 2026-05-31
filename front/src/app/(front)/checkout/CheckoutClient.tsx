@@ -114,8 +114,6 @@ const priceFromWP = (p?: StoreProduct["prices"]) => {
 };
 
 const irrToIrt = (irr: number) => Math.round(Math.max(0, irr) / 10);
-const irtToIrrStr = (irt: number) => String(Math.max(0, Math.round(irt * 10)));
-
 type FetchWithTimeoutInit = RequestInit & { timeoutMs?: number };
 
 async function fetchWithTimeout(
@@ -573,150 +571,69 @@ export default function CheckoutClient(props: {
     let redirected = false;
 
     try {
-      // 1) Create Woo order (pending) via hardened proxy.
-      const receiverMeta = payload.customer.receiver_is_sender
-        ? `${payload.customer.sender_first_name} ${payload.customer.sender_last_name}`.trim()
-        : payload.customer.receiver_name;
-
-      const orderBody = {
-        status: "pending",
-        set_paid: false,
-        payment_method: "zarinpal",
-        payment_method_title: "Zarinpal",
-        customer_id: props.userId || 0,
-        billing: {
-          first_name: payload.customer.sender_first_name,
-          last_name: payload.customer.sender_last_name,
-          phone: payload.customer.sender_phone,
-        },
-        shipping: {
-          first_name: payload.customer.receiver_is_sender
-            ? payload.customer.sender_first_name
-            : (payload.customer.receiver_name || "").split(" ")[0] || "",
-          last_name: payload.customer.receiver_is_sender
-            ? payload.customer.sender_last_name
-            : (payload.customer.receiver_name || "")
-                .split(" ")
-                .slice(1)
-                .join(" ") || "",
-          phone: payload.customer.receiver_is_sender
-            ? payload.customer.sender_phone
-            : payload.customer.receiver_phone,
-          address_1: payload.customer.address,
-          city: "Tehran",
-          country: "IR",
-        },
-        line_items: payload.items.map((li) => ({
-          product_id: li.product_id,
-          quantity: li.quantity,
-        })),
-        shipping_lines: payload.amounts.shipping_irt
-          ? [
-              {
-                method_id: "flat_rate",
-                method_title: "هزینه ارسال",
-                total: irtToIrrStr(payload.amounts.shipping_irt),
-              },
-            ]
-          : [],
-        // هر دو نوع بسته‌بندی اگر مبلغ داشته باشند، به عنوان fee ثبت می‌شوند
-        fee_lines: payload.amounts.packaging_irt
-          ? [
-              {
-                name:
-                  payload.packaging.type === "gift"
-                    ? "بسته‌بندی کادویی"
-                    : "بسته‌بندی عادی",
-                total: irtToIrrStr(payload.amounts.packaging_irt),
-              },
-            ]
-          : [],
-        meta_data: [
-          {
-            key: "_kadochi_subtotal_irt",
-            value: String(payload.amounts.subtotal_irt),
-          },
-          { key: "_kadochi_tax_irt", value: String(payload.amounts.tax_irt) },
-          {
-            key: "_kadochi_total_irt",
-            value: String(payload.amounts.total_irt),
-          },
-          { key: "_kadochi_slot_id", value: payload.delivery.slot_id },
-          {
-            key: "_kadochi_fast_delivery",
-            value: String(payload.delivery.fast_delivery),
-          },
-          { key: "_kadochi_packaging", value: payload.packaging.type },
-          {
-            key: "_kadochi_postcard_msg",
-            value: payload.packaging.postcard_message,
-          },
-          {
-            key: "_kadochi_delivery",
-            value: payload.delivery.label,
-          },
-          {
-            key: "_kadochi_delivery_slot",
-            value: payload.delivery.slot_id,
-          },
-          {
-            key: "_kadochi_receiver_name",
-            value: receiverMeta || "",
-          },
-          { key: "_kadochi_source", value: "web" },
-        ],
-        ...(payload.delivery.label || payload.packaging.postcard_message
-          ? {
-              customer_note: [
-                payload.delivery.label &&
-                  `زمان ارسال: ${payload.delivery.label}`,
-                payload.packaging.postcard_message &&
-                  `متن کارت پستال: ${payload.packaging.postcard_message}`,
-              ]
-                .filter(Boolean)
-                .join("\n"),
-            }
-          : {}),
-      };
-
-      const createOrderRes = await fetchWithTimeout(
-        "/api/wp/wp-json/wc/v3/orders",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          cache: "no-store",
-          credentials: "same-origin",
-          body: JSON.stringify(orderBody),
-        },
-      );
-
-      const orderJson = (await createOrderRes.json().catch(() => ({}))) as any;
-      if (!createOrderRes.ok || !orderJson?.id) {
-        throw new Error("order_create_failed");
-      }
-      const orderId = orderJson.id as number;
-
-      // 2) Start Zarinpal with orderId and final totals (IRT).
-      const zr = await fetchWithTimeout("/api/pay/start", {
+      const checkoutRes = await fetchWithTimeout("/api/checkout/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
         credentials: "same-origin",
         body: JSON.stringify({
-          amount: payload.amounts.total_irt,
-          description: `پرداخت سفارش ${orderId}`,
-          mobile: payload.customer.sender_phone,
-          orderId,
-          currency: "IRT",
+          items: payload.items.map((li) => ({
+            product_id: li.product_id,
+            quantity: li.quantity,
+          })),
+          sender: {
+            firstName: payload.customer.sender_first_name,
+            lastName: payload.customer.sender_last_name,
+            phone: payload.customer.sender_phone,
+          },
+          receiver: {
+            isSelf: payload.customer.receiver_is_sender,
+            name: payload.customer.receiver_is_sender
+              ? `${payload.customer.sender_first_name} ${payload.customer.sender_last_name}`.trim()
+              : payload.customer.receiver_name,
+            phone: payload.customer.receiver_is_sender
+              ? payload.customer.sender_phone
+              : payload.customer.receiver_phone,
+            address: payload.customer.address,
+          },
+          figures: {
+            subtotal: payload.amounts.subtotal_irt,
+            tax: payload.amounts.tax_irt,
+            discount: 0,
+            shipping: payload.amounts.shipping_irt,
+            packaging: payload.amounts.packaging_irt,
+            total: payload.amounts.total_irt,
+          },
+          delivery: {
+            slot_id: payload.delivery.slot_id,
+            label: payload.delivery.label,
+          },
+          packaging: {
+            id: payload.packaging.type,
+            title:
+              payload.packaging.type === "gift"
+                ? "بسته‌بندی کادویی"
+                : "بسته‌بندی عادی",
+            price: payload.amounts.packaging_irt,
+            postcard_message: payload.packaging.postcard_message,
+          },
+          payMethod: "online",
         }),
       });
-      const zd = (await zr.json().catch(() => ({}))) as any;
-      if (!zr.ok || !zd?.ok || !zd?.url) {
-        const code = zd?.error || "zarinpal_request_failed";
+      const checkoutJson = (await checkoutRes.json().catch(() => ({}))) as any;
+      if (!checkoutRes.ok || !checkoutJson?.ok || !checkoutJson?.redirectUrl) {
+        const code = checkoutJson?.error || "zarinpal_request_failed";
         const specific =
+          code === "order_create_failed"
+            ? "در ساخت سفارش خطا رخ داد. لطفاً دوباره تلاش کنید."
+            : code === "upstream_bad_response"
+              ? "پاسخ فروشگاه نامعتبر بود. لطفاً دوباره تلاش کنید."
+              : code === "server_error"
+                ? "خطای سرور رخ داد. لطفاً دوباره تلاش کنید."
+                : code === "zarinpal_start_failed"
+                  ? "اتصال به درگاه پرداخت برقرار نشد."
+                  : "";
+        const paymentSpecific =
           code === "invalid_amount"
             ? "مبلغ پرداخت نامعتبر است."
             : code === "missing_merchant_id"
@@ -728,8 +645,9 @@ export default function CheckoutClient(props: {
                   : code === "upstream_network"
                     ? "اتصال به درگاه برقرار نشد. اینترنت خود را بررسی کنید."
                     : "";
-        throw new Error(specific || "zarinpal_request_failed");
+        throw new Error(specific || paymentSpecific || "zarinpal_request_failed");
       }
+      const orderId = checkoutJson.orderId as number;
 
       try {
         sessionStorage.setItem(
@@ -748,7 +666,7 @@ export default function CheckoutClient(props: {
         // sessionStorage may be unavailable; ignore.
       }
 
-      window.location.href = String(zd.url);
+      window.location.href = String(checkoutJson.redirectUrl);
       redirected = true;
     } catch (e: any) {
       const aborted = e?.name === "AbortError";
