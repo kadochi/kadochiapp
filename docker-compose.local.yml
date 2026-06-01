@@ -110,7 +110,8 @@ services:
       - "8080:80"
 
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost/wp-json/ >/dev/null || exit 1"]
+      test:
+        ["CMD-SHELL", "curl -sf http://localhost/wp-json/ >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
