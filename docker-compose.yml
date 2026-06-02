@@ -49,13 +49,16 @@ services:
       NODE_ENV: production
       # Internal Docker service name for general WordPress/store requests.
       WP_BASE_URL: http://wordpress
-      # Woo REST v3 key auth must go over HTTPS in production.
+      # Woo REST v3 uses the public HTTPS origin; this matches the verified
+      # customer lookup/auth path and avoids internal HTTP auth quirks.
       WOO_BASE_URL: https://api.kadochi.com
       NEXT_PUBLIC_WP_BASE_URL: https://api.kadochi.com
       # Public site URL and cookie domain for production.
       NEXT_PUBLIC_SITE_URL: https://kadochi.com
       COOKIE_DOMAIN: .kadochi.com
       REDIS_URL: redis://redis:6379
+      # Live payments unless front/.env.production explicitly sets sandbox.
+      ZARINPAL_MODE: production
 
     labels:
       - "traefik.enable=true"

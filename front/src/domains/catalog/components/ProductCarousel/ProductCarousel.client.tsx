@@ -54,7 +54,7 @@ function isStoreProductArray(arr: unknown): arr is StoreProduct[] {
         typeof item === "object" &&
         item !== null &&
         "id" in item &&
-        "name" in item
+        "name" in item,
     )
   );
 }
@@ -66,7 +66,7 @@ function mapProducts(arr: StoreProduct[]): Product[] {
       const sale = Number(p.prices?.sale_price ?? NaN);
       const regular = Number(p.prices?.regular_price ?? NaN);
       const base = Number(
-        p.prices?.sale_price ?? p.prices?.price ?? p.prices?.regular_price ?? 0
+        p.prices?.sale_price ?? p.prices?.price ?? p.prices?.regular_price ?? 0,
       );
 
       const inStock = inferInStock(p);
@@ -167,7 +167,7 @@ export default function ProductCarouselClient({
           }
 
           const url = `/api/products/bulk?ids=${encodeURIComponent(
-            ids.join(",")
+            ids.join(","),
           )}`;
           const r = await fetch(url, { signal: controller.signal });
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -246,27 +246,27 @@ export default function ProductCarouselClient({
             slidesOffsetAfter: 16,
           },
           320: {
-            slidesPerView: 2.4,
+            slidesPerView: 1.4,
             slidesOffsetBefore: 16,
             slidesOffsetAfter: 16,
           },
           540: {
-            slidesPerView: 3.4,
+            slidesPerView: 2.4,
             slidesOffsetBefore: 16,
             slidesOffsetAfter: 16,
           },
           700: {
-            slidesPerView: 4.4,
+            slidesPerView: 2.4,
             slidesOffsetBefore: 16,
             slidesOffsetAfter: 16,
           },
           860: {
-            slidesPerView: 5.4,
+            slidesPerView: 3.4,
             slidesOffsetBefore: 16,
             slidesOffsetAfter: 16,
           },
           1024: {
-            slidesPerView: 6,
+            slidesPerView: 4,
             allowTouchMove: false,
             slidesOffsetBefore: 0,
             slidesOffsetAfter: 0,
