@@ -95,7 +95,15 @@ export default function ZarinpalCallback() {
       const Authority = params.get("Authority") || "";
       const Status = params.get("Status") || "";
 
+      console.log(
+        "[zp-callback] callback received Authority=",
+        Authority,
+        "Status=",
+        Status,
+      );
+
       if (Status !== "OK" || !Authority) {
+        console.warn("[zp-callback] cancelled by user or invalid status");
         if (!cancelled) router.replace("/checkout/failure?reason=cancelled");
         return;
       }
@@ -125,24 +133,49 @@ export default function ZarinpalCallback() {
         amount = cookieAmount;
       }
 
+      console.log(
+        "[zp-callback] resolved orderId=",
+        orderId,
+        "amount=",
+        amount,
+        "sources: storedAmount=",
+        storedAmount,
+        "cookieAmount=",
+        cookieAmount,
+        "qsOrder=",
+        qsOrder,
+      );
+
       if (!orderId) {
+        console.error("[zp-callback] orderId missing, cannot verify");
         if (!cancelled)
           router.replace("/checkout/failure?reason=order-missing");
         return;
       }
 
       if (!amount) {
+        console.log("[zp-callback] amount missing, fetching from Woo order");
         const derived = await fetchOrderTotalIrt(orderId);
         if (cancelled) return;
         amount = derived;
+        console.log("[zp-callback] derived amount from Woo=", amount);
       }
 
       if (!amount) {
+        console.error("[zp-callback] no amount available for verification");
         if (!cancelled)
           router.replace("/checkout/failure?reason=verify-failed");
         return;
       }
 
+      console.log(
+        "[zp-callback] verifying payment with /api/pay/verify authority=",
+        Authority,
+        "amount=",
+        amount,
+        "orderId=",
+        orderId,
+      );
       const verifyRes = await verifyPaymentOnServer({
         Authority,
         amount,
@@ -150,7 +183,17 @@ export default function ZarinpalCallback() {
       });
       if (cancelled) return;
 
+      console.log(
+        "[zp-callback] verify result ok=",
+        verifyRes?.ok,
+        "paid=",
+        verifyRes?.paid,
+        "ref_id=",
+        verifyRes?.ref_id,
+      );
+
       if (!verifyRes?.ok || !verifyRes?.paid) {
+        console.error("[zp-callback] payment verification failed");
         if (!cancelled)
           router.replace("/checkout/failure?reason=verify-failed");
         return;

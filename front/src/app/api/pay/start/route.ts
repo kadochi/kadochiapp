@@ -103,6 +103,10 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as StartBody;
     const callbackUrl = resolveCallbackUrl(req);
 
+    console.log(
+      `[pay/start] request amount=${body.amount} currency=${body.currency} orderId=${body.orderId} description=${body.description} callbackUrl=${callbackUrl} mobile=${body.mobile ? body.mobile.slice(0, 4) + "***" : "N/A"}`
+    );
+
     const result = await requestPayment(
       {
         amount: body.amount,
@@ -116,6 +120,10 @@ export async function POST(req: NextRequest) {
       { timeoutMs: 8_000 }
     );
 
+    console.log(
+      `[pay/start] success authority=${result.authority} paymentUrl=${result.url} code=${result.code}`
+    );
+
     return noStore(
       NextResponse.json({
         ok: true,
@@ -124,6 +132,9 @@ export async function POST(req: NextRequest) {
       })
     );
   } catch (error) {
+    console.error(
+      `[pay/start] failed error=${error instanceof Error ? error.message : String(error)}`
+    );
     return mapError(error);
   }
 }

@@ -30,9 +30,12 @@ type CheckoutPayload = {
     packaging?: number;
   };
   delivery?: string | { slot_id?: string; label?: string } | null;
-  packaging?:
-    | { id?: "normal" | "gift"; title?: string; price?: number; postcard_message?: string }
-    | null;
+  packaging?: {
+    id?: "normal" | "gift";
+    title?: string;
+    price?: number;
+    postcard_message?: string;
+  } | null;
   payMethod: "online";
 };
 
@@ -60,7 +63,8 @@ function resolveCallbackUrl(req: NextRequest) {
   try {
     return `${new URL(req.url).origin}/checkout/zp-callback`;
   } catch {
-    const fallback = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const fallback =
+      process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
     return `${fallback.replace(/\/$/, "")}/checkout/zp-callback`;
   }
 }
@@ -99,13 +103,13 @@ async function findCustomerIdByPhone(phone: string): Promise<number | null> {
 
   const searchHits = await fetchCustomers(searchParams);
   const directMatch = searchHits.find(
-    (c) => onlyDigits(c?.billing?.phone || "") === norm
+    (c) => onlyDigits(c?.billing?.phone || "") === norm,
   );
   if (directMatch?.id) return Number(directMatch.id);
 
   const fallbackHits = await fetchCustomers(fallbackParams);
   const fallbackMatch = fallbackHits.find(
-    (c) => onlyDigits(c?.billing?.phone || "") === norm
+    (c) => onlyDigits(c?.billing?.phone || "") === norm,
   );
   if (fallbackMatch?.id) return Number(fallbackMatch.id);
 
@@ -126,7 +130,7 @@ async function parseWooOrderResponse(res: Response): Promise<any> {
   if (!res.ok || !json || typeof json !== "object") {
     const err = new UpstreamBadResponse(
       502,
-      "order_create_failed"
+      "order_create_failed",
     ) as UpstreamBadResponse & {
       detail?: unknown;
       upstreamStatus?: number;
@@ -148,10 +152,22 @@ async function submitWooOrder(orderPayload: unknown): Promise<any> {
     body: JSON.stringify(orderPayload),
   } satisfies Parameters<typeof wooFetch>[1];
 
+  const wooUrl = "/wp-json/wc/v3/orders";
+  console.log(
+    `[checkout/start/submitWooOrder] POST ${wooUrl} payload=${JSON.stringify({ ...(orderPayload as any), meta_data: "(present)", line_items: `(${((orderPayload as any)?.line_items || []).length} items)` })}`
+  );
+
   try {
-    const res = await wooFetch("/wp-json/wc/v3/orders", init);
-    return await parseWooOrderResponse(res);
+    const res = await wooFetch(wooUrl, init);
+    const parsed = await parseWooOrderResponse(res);
+    console.log(
+      `[checkout/start/submitWooOrder] success orderId=${parsed?.id} status=${res.status}`
+    );
+    return parsed;
   } catch (error) {
+    console.error(
+      `[checkout/start/submitWooOrder] failed error=${error instanceof Error ? error.message : String(error)}`
+    );
     throw error;
   }
 }
@@ -167,57 +183,64 @@ function paymentErrorResponse(error: unknown) {
     return noStore(
       NextResponse.json(
         { ok: false, error: "upstream_timeout" },
-        { status: error.status }
-      )
+        { status: error.status },
+      ),
     );
   }
   if (error instanceof UpstreamNetworkError) {
     return noStore(
       NextResponse.json(
         { ok: false, error: "upstream_network" },
-        { status: error.status }
-      )
+        { status: error.status },
+      ),
     );
   }
   if (error instanceof UpstreamBadResponse) {
     if (error.status === 400 && error.message === "invalid_amount") {
       return noStore(
-        NextResponse.json({ ok: false, error: "invalid_amount" }, { status: 400 })
+        NextResponse.json(
+          { ok: false, error: "invalid_amount" },
+          { status: 400 },
+        ),
       );
     }
     if (error.status === 500 && error.message === "missing_merchant_id") {
       return noStore(
         NextResponse.json(
           { ok: false, error: "missing_merchant_id" },
-          { status: 500 }
-        )
+          { status: 500 },
+        ),
       );
     }
     const status = error.status >= 400 ? error.status : 502;
     return noStore(
       NextResponse.json(
         { ok: false, error: "zarinpal_start_failed", status },
-        { status }
-      )
+        { status },
+      ),
     );
   }
   const detail = error instanceof Error ? error.message : String(error);
   return noStore(
     NextResponse.json(
       { ok: false, error: "server_error", detail },
-      { status: 500 }
-    )
+      { status: 500 },
+    ),
   );
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const sess = await getSessionFromCookies().catch(() => ({} as any));
+    const sess = await getSessionFromCookies().catch(() => ({}) as any);
     const sessPhone = (sess?.phone || sess?.mobile || "").toString();
     const sessUserId = typeof sess?.userId === "number" ? sess.userId : null;
 
     const body = (await req.json()) as CheckoutPayload;
     const email = safeEmail(body?.sender?.email);
+
+    console.log(
+      `[checkout/start] request items=${(body?.items || []).length} total=${body?.figures?.total} senderPhone=${(body?.sender?.phone || sessPhone).slice(0, 4)}*** delivery=${typeof body?.delivery === "object" ? (body.delivery as any)?.slot_id : body?.delivery}`
+    );
 
     let customer_id: number | null =
       typeof sessUserId === "number" && Number.isFinite(sessUserId)
@@ -228,11 +251,11 @@ export async function POST(req: NextRequest) {
 
     const shippingIRT = Math.max(
       0,
-      Math.round(Number(body?.figures?.shipping ?? 0))
+      Math.round(Number(body?.figures?.shipping ?? 0)),
     );
     const packagingIRT = Math.max(
       0,
-      Math.round(Number(body?.figures?.packaging ?? 0))
+      Math.round(Number(body?.figures?.packaging ?? 0)),
     );
     const taxIRT = Math.max(0, Math.round(Number(body?.figures?.tax ?? 0)));
 
@@ -247,7 +270,7 @@ export async function POST(req: NextRequest) {
     } else if (body?.delivery && typeof body.delivery === "object") {
       deliverySlotId = String((body.delivery as any).slot_id || "");
       deliveryLabel = String(
-        (body.delivery as any).label || deliverySlotId || ""
+        (body.delivery as any).label || deliverySlotId || "",
       );
     }
 
@@ -257,7 +280,7 @@ export async function POST(req: NextRequest) {
       (packId === "gift" ? "بسته‌بندی کادویی" : "بسته‌بندی عادی");
     const packPriceIRT = Math.max(
       0,
-      Math.round(Number(body?.packaging?.price ?? packagingIRT))
+      Math.round(Number(body?.packaging?.price ?? packagingIRT)),
     );
 
     const orderPayload: any = {
@@ -394,9 +417,12 @@ export async function POST(req: NextRequest) {
       ) {
         const detail = (error as UpstreamBadResponse & { detail?: unknown })
           .detail;
-        const upstreamStatus = (
-          error as UpstreamBadResponse & { upstreamStatus?: number }
-        ).upstreamStatus ?? 502;
+        const upstreamStatus =
+          (error as UpstreamBadResponse & { upstreamStatus?: number })
+            .upstreamStatus ?? 502;
+        console.error(
+          `[checkout/start] order_create_failed status=${upstreamStatus} detail=${JSON.stringify(detail)}`
+        );
         return noStore(
           NextResponse.json(
             {
@@ -405,8 +431,8 @@ export async function POST(req: NextRequest) {
               status: upstreamStatus,
               detail,
             },
-            { status: 502 }
-          )
+            { status: 502 },
+          ),
         );
       }
       throw error;
@@ -415,6 +441,11 @@ export async function POST(req: NextRequest) {
     const orderId = json?.id;
     const amountIRT = Math.max(0, Math.round(Number(body.figures.total) || 0));
     const mobileDigits = onlyDigits(body?.sender?.phone || sessPhone);
+    const callbackUrl = resolveCallbackUrl(req);
+
+    console.log(
+      `[checkout/start] wooOrderCreated orderId=${orderId} amountIRT=${amountIRT} callbackUrl=${callbackUrl}`
+    );
 
     try {
       const payment = await requestPayment(
@@ -425,9 +456,13 @@ export async function POST(req: NextRequest) {
           mobile: mobileDigits,
           email: email || "",
           orderId,
-          callbackUrl: resolveCallbackUrl(req),
+          callbackUrl,
         },
-        { timeoutMs: 8_000 }
+        { timeoutMs: 8_000 },
+      );
+
+      console.log(
+        `[checkout/start] paymentInitiated orderId=${orderId} authority=${payment.authority} redirectUrl=${payment.url} code=${payment.code}`
       );
 
       return noStore(
@@ -436,41 +471,47 @@ export async function POST(req: NextRequest) {
           redirectUrl: payment.url,
           orderId,
           amount: amountIRT,
-        })
+        }),
       );
     } catch (error) {
+      console.error(
+        `[checkout/start] paymentInitFailed orderId=${orderId} error=${error instanceof Error ? error.message : String(error)}`
+      );
       return paymentErrorResponse(error);
     }
   } catch (e) {
+    console.error(
+      `[checkout/start] unhandled error=${e instanceof Error ? e.message : String(e)}`
+    );
     if (e instanceof UpstreamTimeout) {
       return noStore(
         NextResponse.json(
           { ok: false, error: "upstream_timeout" },
-          { status: e.status }
-        )
+          { status: e.status },
+        ),
       );
     }
     if (e instanceof UpstreamNetworkError) {
       return noStore(
         NextResponse.json(
           { ok: false, error: "upstream_network" },
-          { status: e.status }
-        )
+          { status: e.status },
+        ),
       );
     }
     if (e instanceof UpstreamBadResponse) {
       return noStore(
         NextResponse.json(
           { ok: false, error: "upstream_bad_response" },
-          { status: 502 }
-        )
+          { status: 502 },
+        ),
       );
     }
     return noStore(
       NextResponse.json(
         { ok: false, error: "server_error", detail: String(e) },
-        { status: 500 }
-      )
+        { status: 500 },
+      ),
     );
   }
 }

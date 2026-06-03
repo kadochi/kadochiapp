@@ -138,6 +138,13 @@ async function callZarinpal<T>(
         timeoutMs,
         signal
       );
+      const maskedPayload = {
+        ...payload,
+        merchant_id: ((payload as any)?.merchant_id || "").slice(0, 6) + "...",
+      };
+      console.log(
+        `[zarinpal/call] attempt=${attempt} endpoint=${endpoint} payload=${JSON.stringify(maskedPayload)}`
+      );
       try {
         const response = await fetch(endpoint, {
           method: "POST",
@@ -157,6 +164,10 @@ async function callZarinpal<T>(
           }
         }
 
+        console.log(
+          `[zarinpal/call] endpoint=${endpoint} status=${response.status} response=${JSON.stringify(json)}`
+        );
+
         if (!response.ok) {
           if (response.status >= 500) {
             throw new UpstreamBadResponse(response.status, "zarinpal_5xx");
@@ -170,6 +181,9 @@ async function callZarinpal<T>(
 
         return json;
       } catch (err) {
+        console.error(
+          `[zarinpal/call] endpoint=${endpoint} error=${err instanceof Error ? err.message : String(err)}`
+        );
         if (err instanceof UpstreamTimeout) throw err;
         if (err instanceof UpstreamBadResponse) throw err;
         if (err instanceof Error && err.name === "AbortError") {
@@ -271,14 +285,22 @@ export async function requestPayment(
   if (!data?.authority) {
     const errors = response?.errors || [];
     const message = errors?.[0]?.message ?? "zarinpal_missing_authority";
+    console.error(
+      `[zarinpal/requestPayment] no authority in response endpoint=${request} response=${JSON.stringify(response)}`
+    );
     throw new UpstreamBadResponse(502, message);
   }
 
   const code = Number(data.code ?? 100) || 100;
+  const gatewayUrl = `${startPay}${data.authority}`;
+
+  console.log(
+    `[zarinpal/requestPayment] success authority=${data.authority} gatewayUrl=${gatewayUrl} code=${code}`
+  );
 
   return {
     authority: data.authority,
-    url: `${startPay}${data.authority}`,
+    url: gatewayUrl,
     code,
   };
 }
@@ -312,6 +334,10 @@ export async function verifyPayment(
 
   const code = Number(data.code ?? 0) || 0;
   const paid = code === 100 || code === 101;
+
+  console.log(
+    `[zarinpal/verifyPayment] endpoint=${verify} authority=${authority} amount=${amount} code=${code} paid=${paid} ref_id=${data.ref_id} card_pan=${data.card_pan}`
+  );
 
   return {
     code,

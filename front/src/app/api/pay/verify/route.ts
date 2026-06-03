@@ -82,7 +82,14 @@ export async function POST(req: NextRequest) {
     const orderIdRaw = body?.orderId;
     const orderId = orderIdRaw ? String(orderIdRaw).trim() : "";
 
+    console.log(
+      `[pay/verify] request authority=${authority} amount=${amount} orderId=${orderId} currency=${body?.currency}`
+    );
+
     if (!authority || !Number.isFinite(amount) || amount <= 0) {
+      console.warn(
+        `[pay/verify] invalid_input authority="${authority}" amount=${amount}`
+      );
       return noStore(
         NextResponse.json(
           { ok: false, error: "invalid_input" },
@@ -100,7 +107,13 @@ export async function POST(req: NextRequest) {
       { timeoutMs: 8_000 }
     );
 
+    console.log(
+      `[pay/verify] verifyResult paid=${result.paid} code=${result.code} ref_id=${result.ref_id} card_pan=${result.card_pan}`
+    );
+
     if (result.paid && orderId) {
+      const wooUrl = `/wp-json/wc/v3/orders/${orderId}`;
+      console.log(`[pay/verify] updating Woo order ${wooUrl}`);
       try {
         const meta: Array<{ key: string; value: string }> = [];
 
@@ -126,7 +139,7 @@ export async function POST(req: NextRequest) {
           updatePayload.meta_data = meta;
         }
 
-        const res = await wordpressFetch(`/wp-json/wc/v3/orders/${orderId}`, {
+        const res = await wordpressFetch(wooUrl, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           cache: "no-store",
@@ -137,13 +150,17 @@ export async function POST(req: NextRequest) {
         if (!res.ok) {
           const txt = await res.text().catch(() => "");
           console.error(
-            "[api/pay/verify] failed to update Woo order",
-            res.status,
-            txt
+            `[pay/verify] failed to update Woo order status=${res.status} body=${txt}`
+          );
+        } else {
+          console.log(
+            `[pay/verify] Woo order ${orderId} updated successfully set_paid=true status=on-hold`
           );
         }
       } catch (e) {
-        console.error("[api/pay/verify] Woo update error", e);
+        console.error(
+          `[pay/verify] Woo update error orderId=${orderId} error=${e instanceof Error ? e.message : String(e)}`
+        );
       }
     }
 
@@ -158,6 +175,9 @@ export async function POST(req: NextRequest) {
       })
     );
   } catch (error) {
+    console.error(
+      `[pay/verify] unexpected error=${error instanceof Error ? error.message : String(error)}`
+    );
     return mapError(error);
   }
 }

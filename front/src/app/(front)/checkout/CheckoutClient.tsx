@@ -600,6 +600,13 @@ export default function CheckoutClient(props: {
         payMethod: "online",
       };
 
+      console.log(
+        "[CheckoutClient/handlePay] submitting order items=",
+        checkoutPayload.items.length,
+        "total=",
+        checkoutPayload.figures.total,
+      );
+
       const res = await fetchWithTimeout("/api/checkout/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -619,6 +626,17 @@ export default function CheckoutClient(props: {
         .json()
         .catch(() => ({}))) as CheckoutStartResponse;
 
+      console.log(
+        "[CheckoutClient/handlePay] response status=",
+        res.status,
+        "ok=",
+        data?.ok,
+        "orderId=",
+        data?.orderId,
+        "redirectUrl=",
+        data?.redirectUrl,
+      );
+
       if (!res.ok || !data?.ok || !data?.redirectUrl) {
         throw new Error(data?.error || "checkout_start_failed");
       }
@@ -636,11 +654,16 @@ export default function CheckoutClient(props: {
         // sessionStorage may be unavailable; ignore.
       }
 
+      console.log(
+        "[CheckoutClient/handlePay] redirecting to Zarinpal gateway:",
+        data.redirectUrl,
+      );
       window.location.href = String(data.redirectUrl);
       redirected = true;
     } catch (e: unknown) {
       const err = e instanceof Error ? e : undefined;
       const aborted = err?.name === "AbortError";
+      console.error("[CheckoutClient/handlePay] error:", err?.message || e);
       const msg = aborted
         ? "فرایند طولانی شد. لطفاً دوباره تلاش کنید."
         : err?.message === "checkout_start_failed"
