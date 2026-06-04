@@ -42,9 +42,17 @@ export class CorsRedirectLoop extends Error {
 export class UpstreamNetworkError extends Error {
   readonly code = "UPSTREAM_NETWORK" as const;
   readonly status = 502;
-  constructor(message = "A network error occurred talking to upstream") {
+  readonly syscallCode?: string;
+  readonly details?: Record<string, unknown>;
+
+  constructor(
+    message = "A network error occurred talking to upstream",
+    options?: { syscallCode?: string; details?: Record<string, unknown> },
+  ) {
     super(message);
     this.name = "UpstreamNetworkError";
+    this.syscallCode = options?.syscallCode;
+    this.details = options?.details;
   }
 }
 

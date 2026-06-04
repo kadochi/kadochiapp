@@ -117,7 +117,17 @@ Edit `front/.env.production` and set at minimum:
 | `ZARINPAL_MODE` | `production` |
 | `ALLOWED_ORIGINS` | `https://kadochi.com,https://www.kadochi.com` |
 
-> **Docker networking:** `WP_BASE_URL`, `WOO_BASE_URL`, and `NEXT_PUBLIC_SITE_URL` are automatically overridden by `docker-compose.yml`. General WordPress/store requests use Docker-internal `http://wordpress`, while authenticated Woo REST v3 requests use `https://api.kadochi.com` because WooCommerce consumer-key Basic Auth must be made over HTTPS in production. You do not need to set those in `front/.env.production`.
+> **Docker networking:** `docker-compose.yml` overrides server-side bases to `http://wordpress` for both `WP_BASE_URL` and `WOO_BASE_URL`, so Next.js never hairpins through public `https://api.kadochi.com` for orders, customers, or v3 reviews. Browsers still use `NEXT_PUBLIC_WP_BASE_URL=https://api.kadochi.com`. WordPress `WORDPRESS_CONFIG_EXTRA` treats Woo query-key auth as HTTPS on internal HTTP (same as local). `INTERNAL_SITE_ORIGIN=http://127.0.0.1:3000` keeps `/api/wp` fallback in-container. You do not need to set those URL vars in `front/.env.production`.
+>
+> **Compose PHP snippets:** In `WORDPRESS_CONFIG_EXTRA`, write `$$_GET` and `$$_SERVER` (not single `$`). Docker Compose interpolates `$VAR`; a bare `$_GET` breaks `wp-config.php` and returns HTTP 500 for every REST request.
+
+After deploy, verify upstream paths from the host:
+
+```bash
+sh scripts/verify-woo-upstream.sh
+```
+
+Expect internal `http://wordpress` to be stable; the public loop may still show intermittent failures (that path is no longer used by the app). Optional: set `LOG_UPSTREAM_DEBUG=1` on `nextjs` to log full fetch error stacks.
 
 Also review and change the database passwords in `docker-compose.yml`:
 

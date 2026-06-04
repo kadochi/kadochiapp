@@ -6,8 +6,11 @@ import {
   UpstreamNetworkError,
   UpstreamTimeout,
 } from "@/services/http/errors";
-import { requestPayment } from "@/services/payment/zarinpal";
-import { wooFetch, wooFetchJSON } from "@/lib/api/woo";
+import {
+  getZarinpalCallbackUrl,
+  requestPayment,
+} from "@/services/payment/zarinpal";
+import { resolveWooUrl, wooFetch, wooFetchJSON } from "@/lib/api/woo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,28 +48,6 @@ function onlyDigits(s?: string) {
 function safeEmail(e?: string) {
   const s = (e || "").trim();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : undefined;
-}
-
-function isBadCallback(u?: string | null) {
-  if (!u) return true;
-  try {
-    const host = new URL(u).hostname;
-    return !host || /your\.site/i.test(host);
-  } catch {
-    return true;
-  }
-}
-
-function resolveCallbackUrl(req: NextRequest) {
-  const envCb = process.env.ZARINPAL_CALLBACK_URL || "";
-  if (!isBadCallback(envCb)) return envCb;
-  try {
-    return `${new URL(req.url).origin}/checkout/zp-callback`;
-  } catch {
-    const fallback =
-      process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-    return `${fallback.replace(/\/$/, "")}/checkout/zp-callback`;
-  }
 }
 
 async function findCustomerIdByPhone(phone: string): Promise<number | null> {
@@ -153,8 +134,9 @@ async function submitWooOrder(orderPayload: unknown): Promise<any> {
   } satisfies Parameters<typeof wooFetch>[1];
 
   const wooUrl = "/wp-json/wc/v3/orders";
+  const wooTarget = resolveWooUrl(wooUrl);
   console.log(
-    `[checkout/start/submitWooOrder] POST ${wooUrl} payload=${JSON.stringify({ ...(orderPayload as any), meta_data: "(present)", line_items: `(${((orderPayload as any)?.line_items || []).length} items)` })}`
+    `[checkout/start/submitWooOrder] POST ${wooTarget} payload=${JSON.stringify({ ...(orderPayload as any), meta_data: "(present)", line_items: `(${((orderPayload as any)?.line_items || []).length} items)` })}`
   );
 
   try {
@@ -165,8 +147,13 @@ async function submitWooOrder(orderPayload: unknown): Promise<any> {
     );
     return parsed;
   } catch (error) {
+    const extra =
+      error instanceof UpstreamNetworkError
+        ? { syscallCode: error.syscallCode, details: error.details }
+        : {};
     console.error(
-      `[checkout/start/submitWooOrder] failed error=${error instanceof Error ? error.message : String(error)}`
+      `[checkout/start/submitWooOrder] failed target=${wooTarget} error=${error instanceof Error ? error.message : String(error)}`,
+      extra,
     );
     throw error;
   }
@@ -209,6 +196,22 @@ function paymentErrorResponse(error: unknown) {
         NextResponse.json(
           { ok: false, error: "missing_merchant_id" },
           { status: 500 },
+        ),
+      );
+    }
+    if (error.status === 500 && error.message === "missing_callback_url") {
+      return noStore(
+        NextResponse.json(
+          { ok: false, error: "missing_callback_url" },
+          { status: 500 },
+        ),
+      );
+    }
+    if (error.status === 400 && error.message === "invalid_callback_url") {
+      return noStore(
+        NextResponse.json(
+          { ok: false, error: "invalid_callback_url" },
+          { status: 400 },
         ),
       );
     }
@@ -441,7 +444,7 @@ export async function POST(req: NextRequest) {
     const orderId = json?.id;
     const amountIRT = Math.max(0, Math.round(Number(body.figures.total) || 0));
     const mobileDigits = onlyDigits(body?.sender?.phone || sessPhone);
-    const callbackUrl = resolveCallbackUrl(req);
+    const callbackUrl = getZarinpalCallbackUrl();
 
     console.log(
       `[checkout/start] wooOrderCreated orderId=${orderId} amountIRT=${amountIRT} callbackUrl=${callbackUrl}`

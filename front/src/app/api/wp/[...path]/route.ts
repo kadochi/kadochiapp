@@ -7,6 +7,7 @@ import {
   UpstreamTimeout,
 } from "@/services/http/errors";
 import { getWooBaseUrl, getWpProxyBaseUrl } from "@/config/wp";
+import { toUpstreamNetworkError } from "@/services/http/serialize-fetch-error";
 import { retry } from "@/services/http/retry";
 
 export const runtime = "nodejs"; // force Node runtime (not edge)
@@ -208,9 +209,15 @@ async function fetchUpstream(
           throw new UpstreamTimeout();
         }
         if (err instanceof UpstreamTimeout) throw err;
-        const message =
-          err instanceof Error ? err.message : "proxy_fetch_failed";
-        throw new UpstreamNetworkError(message);
+        throw toUpstreamNetworkError(
+          err,
+          {
+            url: url.toString(),
+            method: (init.method || "GET").toUpperCase(),
+            timeoutMs: DEFAULT_TIMEOUT_MS,
+          },
+          "[api/wp/fetchUpstream]",
+        );
       } finally {
         clearTimeout(timeout);
       }

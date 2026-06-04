@@ -8,6 +8,7 @@ import {
   UpstreamTimeout,
 } from "@/services/http/errors";
 import { getWpBaseUrl, tryGetPublicWpBaseUrl } from "@/config/wp";
+import { toUpstreamNetworkError } from "@/services/http/serialize-fetch-error";
 import { retry } from "@/services/http/retry";
 
 export interface WordPressFetchOptions extends RequestInit {
@@ -238,8 +239,12 @@ async function fetchDirect(
     if (err instanceof Error && err.name === "AbortError") {
       throw new UpstreamTimeout();
     }
-    const message = err instanceof Error ? err.message : "network error";
-    throw new UpstreamNetworkError(message);
+    throw toUpstreamNetworkError(err, {
+      url: url.toString(),
+      method: (init.method || "GET").toUpperCase(),
+      redirectDepth,
+      timeoutMs,
+    }, "[wordpress/fetchDirect]");
   } finally {
     clearTimeout(timeout);
   }
@@ -275,8 +280,12 @@ async function fetchViaProxy(url: URL, init: RequestInit, timeoutMs: number) {
     if (err instanceof UpstreamNetworkError) throw err;
     if (err instanceof Error && err.name === "AbortError")
       throw new UpstreamTimeout();
-    const message = err instanceof Error ? err.message : "proxy network error";
-    throw new UpstreamNetworkError(message);
+    throw toUpstreamNetworkError(err, {
+      url: proxyUrl.toString(),
+      method: (init.method || "GET").toUpperCase(),
+      timeoutMs,
+      via: "proxy",
+    }, "[wordpress/fetchViaProxy]");
   } finally {
     clearTimeout(timeout);
   }

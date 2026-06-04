@@ -5,6 +5,7 @@ import {
   UpstreamNetworkError,
   UpstreamTimeout,
 } from "@/services/http/errors";
+import { toUpstreamNetworkError } from "@/services/http/serialize-fetch-error";
 import { retry } from "@/services/http/retry";
 
 interface BaseZarinpalResponse<T> {
@@ -181,16 +182,17 @@ async function callZarinpal<T>(
 
         return json;
       } catch (err) {
-        console.error(
-          `[zarinpal/call] endpoint=${endpoint} error=${err instanceof Error ? err.message : String(err)}`
-        );
         if (err instanceof UpstreamTimeout) throw err;
         if (err instanceof UpstreamBadResponse) throw err;
+        if (err instanceof UpstreamNetworkError) throw err;
         if (err instanceof Error && err.name === "AbortError") {
           throw new UpstreamTimeout("zarinpal_timeout");
         }
-        const message = err instanceof Error ? err.message : "zarinpal_network";
-        throw new UpstreamNetworkError(message);
+        throw toUpstreamNetworkError(
+          err,
+          { endpoint },
+          "[zarinpal/call]",
+        );
       } finally {
         cleanup();
       }
@@ -224,16 +226,34 @@ function cleanMobile(mobile?: string | null) {
   return (mobile || "").replace(/\D+/g, "");
 }
 
-function sanitizeCallbackUrl(callbackUrl: string): string {
+function assertAbsoluteCallbackUrl(callbackUrl: string): void {
   try {
     const url = new URL(callbackUrl);
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      throw new Error("invalid");
+    }
     if (!url.hostname || /your\.site/i.test(url.hostname)) {
       throw new Error("invalid");
     }
-    return url.toString();
   } catch {
     throw new UpstreamBadResponse(400, "invalid_callback_url");
   }
+}
+
+/** Exact `ZARINPAL_CALLBACK_URL` from env (trimmed only); never joined with origin or site base. */
+export function getZarinpalCallbackUrl(): string {
+  const callbackUrl = (process.env.ZARINPAL_CALLBACK_URL || "").trim();
+  if (!callbackUrl) {
+    throw new UpstreamBadResponse(500, "missing_callback_url");
+  }
+  assertAbsoluteCallbackUrl(callbackUrl);
+  return callbackUrl;
+}
+
+function sanitizeCallbackUrl(callbackUrl: string): string {
+  const trimmed = callbackUrl.trim();
+  assertAbsoluteCallbackUrl(trimmed);
+  return trimmed;
 }
 
 export async function requestPayment(

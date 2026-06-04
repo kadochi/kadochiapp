@@ -5,7 +5,10 @@ import {
   UpstreamNetworkError,
   UpstreamTimeout,
 } from "@/services/http/errors";
-import { requestPayment } from "@/services/payment/zarinpal";
+import {
+  getZarinpalCallbackUrl,
+  requestPayment,
+} from "@/services/payment/zarinpal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,23 +21,6 @@ type StartBody = {
   orderId?: string | number;
   currency?: "IRT" | "IRR";
 };
-
-function isBadCallback(u?: string | null) {
-  if (!u) return true;
-  try {
-    const host = new URL(u).hostname;
-    return !host || /your\.site/i.test(host);
-  } catch {
-    return true;
-  }
-}
-
-function resolveCallbackUrl(req: NextRequest) {
-  const envCb = process.env.ZARINPAL_CALLBACK_URL || "";
-  if (!isBadCallback(envCb)) return envCb;
-  const origin = new URL(req.url).origin;
-  return `${origin}/checkout/zp-callback`;
-}
 
 function noStore<T>(response: NextResponse<T>) {
   response.headers.set("Cache-Control", "no-store");
@@ -72,6 +58,14 @@ function mapError(error: unknown) {
         )
       );
     }
+    if (error.status === 500 && error.message === "missing_callback_url") {
+      return noStore(
+        NextResponse.json(
+          { ok: false, error: "missing_callback_url" },
+          { status: 500 }
+        )
+      );
+    }
     if (error.status === 400 && error.message === "invalid_callback_url") {
       return noStore(
         NextResponse.json(
@@ -101,7 +95,7 @@ function mapError(error: unknown) {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json().catch(() => ({}))) as StartBody;
-    const callbackUrl = resolveCallbackUrl(req);
+    const callbackUrl = getZarinpalCallbackUrl();
 
     console.log(
       `[pay/start] request amount=${body.amount} currency=${body.currency} orderId=${body.orderId} description=${body.description} callbackUrl=${callbackUrl} mobile=${body.mobile ? body.mobile.slice(0, 4) + "***" : "N/A"}`

@@ -47,14 +47,16 @@ services:
 
     environment:
       NODE_ENV: production
-      # Internal Docker service name for general WordPress/store requests.
+      # Bind on all interfaces so INTERNAL_SITE_ORIGIN loopback proxy works.
+      HOSTNAME: "0.0.0.0"
+      # Internal Docker service names — avoid public DNS/TLS hairpin from nextjs.
       WP_BASE_URL: http://wordpress
-      # Woo REST v3 uses the public HTTPS origin; this matches the verified
-      # customer lookup/auth path and avoids internal HTTP auth quirks.
-      WOO_BASE_URL: https://api.kadochi.com
+      WOO_BASE_URL: http://wordpress
       NEXT_PUBLIC_WP_BASE_URL: https://api.kadochi.com
       # Public site URL and cookie domain for production.
       NEXT_PUBLIC_SITE_URL: https://kadochi.com
+      # Server-side /api/wp fallback stays in-container (not https://kadochi.com).
+      INTERNAL_SITE_ORIGIN: http://127.0.0.1:3000
       COOKIE_DOMAIN: .kadochi.com
       REDIS_URL: redis://redis:6379
       # Live payments unless front/.env.production explicitly sets sandbox.
@@ -134,6 +136,11 @@ services:
         define('WP_CACHE', true);
         define('WP_HOME', 'https://api.kadochi.com');
         define('WP_SITEURL', 'https://api.kadochi.com');
+        // Internal Docker HTTP: Woo query-key auth must be treated as HTTPS.
+        // Use $$ so Compose does not eat $_GET / $_SERVER (see docker-compose.local.yml).
+        if (!empty($$_GET['consumer_key']) && !empty($$_GET['consumer_secret'])) {
+          $$_SERVER['HTTPS'] = 'on';
+        }
 
     volumes:
       # Custom theme (see wordpress/theme/)
