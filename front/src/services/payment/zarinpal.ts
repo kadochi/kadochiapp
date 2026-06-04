@@ -1,5 +1,6 @@
 import "server-only";
 
+import ZarinPal from "zarinpal-node-sdk";
 import {
   UpstreamBadResponse,
   UpstreamNetworkError,
@@ -8,22 +9,9 @@ import {
 import { toUpstreamNetworkError } from "@/services/http/serialize-fetch-error";
 import { retry } from "@/services/http/retry";
 
-interface BaseZarinpalResponse<T> {
+interface ZarinpalApiResponse<T> {
   data?: T | null;
   errors?: Array<{ code?: number; message?: string | null }> | null;
-}
-
-interface RequestPayload {
-  merchant_id: string;
-  amount: number;
-  callback_url: string;
-  description: string;
-  metadata?: {
-    order_id?: string;
-    email?: string;
-    mobile?: string;
-  };
-  currency?: "IRT" | "IRR";
 }
 
 interface RequestResponseData {
@@ -31,13 +19,6 @@ interface RequestResponseData {
   authority?: string;
   fee_type?: string;
   fee?: number;
-}
-
-interface VerifyPayload {
-  merchant_id: string;
-  authority: string;
-  amount: number;
-  currency?: "IRT" | "IRR";
 }
 
 interface VerifyResponseData {
@@ -71,33 +52,36 @@ interface CallOptions {
 const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_RETRIES = 3;
 
-function resolveBaseUrls() {
+let cachedClient: ZarinPal | null = null;
+let cachedClientKey = "";
+
+function resolveSandbox(): boolean {
   const mode = (process.env.ZARINPAL_MODE || "").toLowerCase().trim();
-  const isProd = process.env.NODE_ENV === "production";
+  if (mode === "sandbox") return true;
+  if (mode === "production") return false;
+  return process.env.NODE_ENV !== "production";
+}
 
-  const sandbox = mode === "sandbox" || (!mode && !isProd);
-
-  return {
-    request: sandbox
-      ? "https://sandbox.zarinpal.com/pg/v4/payment/request.json"
-      : "https://api.zarinpal.com/pg/v4/payment/request.json",
-    verify: sandbox
-      ? "https://sandbox.zarinpal.com/pg/v4/payment/verify.json"
-      : "https://api.zarinpal.com/pg/v4/payment/verify.json",
-    startPay: sandbox
-      ? "https://sandbox.zarinpal.com/pg/StartPay/"
-      : "https://www.zarinpal.com/pg/StartPay/",
-  } as const;
+function getZarinpalClient(): ZarinPal {
+  const merchantId = ensureMerchantId();
+  const sandbox = resolveSandbox();
+  const key = `${merchantId}:${sandbox}`;
+  if (cachedClient && cachedClientKey === key) {
+    return cachedClient;
+  }
+  cachedClient = new ZarinPal({ merchantId, sandbox });
+  cachedClientKey = key;
+  return cachedClient;
 }
 
 function createTimeoutController(
   timeoutMs: number,
-  upstream?: AbortSignal | null | undefined
+  upstream?: AbortSignal | null | undefined,
 ) {
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(new Error("timeout")),
-    timeoutMs
+    timeoutMs,
   );
 
   if (upstream) {
@@ -124,75 +108,97 @@ function createTimeoutController(
   } as const;
 }
 
-async function callZarinpal<T>(
-  endpoint: string,
-  payload: object,
+function runWithAbortSignal<T>(
+  promise: Promise<T>,
+  signal: AbortSignal,
+): Promise<T> {
+  if (signal.aborted) {
+    return Promise.reject(new UpstreamTimeout("zarinpal_timeout"));
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(new UpstreamTimeout("zarinpal_timeout"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
+function mapSdkError(err: unknown, operation: string): never {
+  if (err instanceof UpstreamTimeout) throw err;
+  if (err instanceof UpstreamBadResponse) throw err;
+  if (err instanceof UpstreamNetworkError) throw err;
+
+  if (err instanceof Error && err.name === "AbortError") {
+    throw new UpstreamTimeout("zarinpal_timeout");
+  }
+
+  const responseException = err as {
+    getStatusCode?: () => number;
+    message?: string;
+  };
+  if (typeof responseException?.getStatusCode === "function") {
+    const status = responseException.getStatusCode();
+    throw new UpstreamBadResponse(
+      status >= 400 ? status : 502,
+      responseException.message || "zarinpal_error",
+    );
+  }
+
+  const axiosErr = err as {
+    isAxiosError?: boolean;
+    response?: { status?: number; data?: unknown };
+    code?: string;
+    message?: string;
+  };
+  if (axiosErr?.isAxiosError) {
+    const status = axiosErr.response?.status;
+    if (status && status >= 500) {
+      throw new UpstreamBadResponse(status, "zarinpal_5xx");
+    }
+    if (status && status >= 400) {
+      throw new UpstreamBadResponse(status, "zarinpal_bad_status");
+    }
+    throw toUpstreamNetworkError(err, { operation }, "[zarinpal/sdk]");
+  }
+
+  if (err instanceof Error) {
+    const msg = err.message;
+    if (/invalid|must be/i.test(msg)) {
+      throw new UpstreamBadResponse(400, "zarinpal_validation_error");
+    }
+  }
+
+  throw toUpstreamNetworkError(err, { operation }, "[zarinpal/sdk]");
+}
+
+async function withZarinpalRetry<T>(
+  operation: string,
+  fn: (attempt: number) => Promise<T>,
   {
     timeoutMs = DEFAULT_TIMEOUT_MS,
     retries = DEFAULT_RETRIES,
     signal,
-  }: CallOptions = {}
-): Promise<BaseZarinpalResponse<T>> {
+  }: CallOptions = {},
+): Promise<T> {
   return retry(
     async (attempt) => {
       const { signal: timeoutSignal, cleanup } = createTimeoutController(
         timeoutMs,
-        signal
+        signal,
       );
-      const maskedPayload = {
-        ...payload,
-        merchant_id: ((payload as any)?.merchant_id || "").slice(0, 6) + "...",
-      };
-      console.log(
-        `[zarinpal/call] attempt=${attempt} endpoint=${endpoint} payload=${JSON.stringify(maskedPayload)}`
-      );
+      console.log(`[zarinpal/sdk] attempt=${attempt} operation=${operation}`);
       try {
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          cache: "no-store",
-          signal: timeoutSignal,
-        });
-
-        const text = await response.text().catch(() => "");
-        let json: BaseZarinpalResponse<T> | null = null;
-        if (text) {
-          try {
-            json = JSON.parse(text) as BaseZarinpalResponse<T>;
-          } catch {
-            json = null;
-          }
-        }
-
-        console.log(
-          `[zarinpal/call] endpoint=${endpoint} status=${response.status} response=${JSON.stringify(json)}`
-        );
-
-        if (!response.ok) {
-          if (response.status >= 500) {
-            throw new UpstreamBadResponse(response.status, "zarinpal_5xx");
-          }
-          throw new UpstreamBadResponse(response.status, "zarinpal_bad_status");
-        }
-
-        if (!json) {
-          throw new UpstreamBadResponse(502, "zarinpal_invalid_json");
-        }
-
-        return json;
+        return await runWithAbortSignal(fn(attempt), timeoutSignal);
       } catch (err) {
-        if (err instanceof UpstreamTimeout) throw err;
-        if (err instanceof UpstreamBadResponse) throw err;
-        if (err instanceof UpstreamNetworkError) throw err;
-        if (err instanceof Error && err.name === "AbortError") {
-          throw new UpstreamTimeout("zarinpal_timeout");
-        }
-        throw toUpstreamNetworkError(
-          err,
-          { endpoint },
-          "[zarinpal/call]",
-        );
+        mapSdkError(err, operation);
       } finally {
         cleanup();
       }
@@ -210,7 +216,7 @@ async function callZarinpal<T>(
         }
         return false;
       },
-    }
+    },
   );
 }
 
@@ -224,6 +230,27 @@ function ensureMerchantId(): string {
 
 function cleanMobile(mobile?: string | null) {
   return (mobile || "").replace(/\D+/g, "");
+}
+
+/** Mobile in 09xxxxxxxxx form for SDK validation; omitted if not valid. */
+function toSdkMobile(mobile?: string | null): string | undefined {
+  const digits = cleanMobile(mobile);
+  if (!digits) return undefined;
+
+  let normalized = digits;
+  if (digits.length === 12 && digits.startsWith("98")) {
+    normalized = `0${digits.slice(2)}`;
+  } else if (digits.length === 10 && digits.startsWith("9")) {
+    normalized = `0${digits}`;
+  }
+
+  return /^09[0-9]{9}$/.test(normalized) ? normalized : undefined;
+}
+
+function toSdkEmail(email?: string | null): string | undefined {
+  const trimmed = (email || "").trim();
+  if (!trimmed) return undefined;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ? trimmed : undefined;
 }
 
 function assertAbsoluteCallbackUrl(callbackUrl: string): void {
@@ -250,10 +277,24 @@ export function getZarinpalCallbackUrl(): string {
   return callbackUrl;
 }
 
+/** Callback URL with `order` query param so the gateway return survives lost session/cookies. */
+export function getZarinpalCallbackUrlForOrder(
+  orderId: string | number,
+): string {
+  const url = new URL(getZarinpalCallbackUrl());
+  url.searchParams.set("order", String(orderId));
+  return url.toString();
+}
+
 function sanitizeCallbackUrl(callbackUrl: string): string {
   const trimmed = callbackUrl.trim();
   assertAbsoluteCallbackUrl(trimmed);
   return trimmed;
+}
+
+/** ZarinPal defaults to IRR when currency is omitted; app amounts are IRT unless IRR. */
+function resolveZarinpalCurrency(currency?: "IRT" | "IRR"): "IRT" | "IRR" {
+  return currency === "IRR" ? "IRR" : "IRT";
 }
 
 export async function requestPayment(
@@ -266,9 +307,9 @@ export async function requestPayment(
     currency?: "IRT" | "IRR";
     callbackUrl: string;
   },
-  options?: CallOptions
+  options?: CallOptions,
 ): Promise<RequestPaymentResult> {
-  const merchant_id = ensureMerchantId();
+  ensureMerchantId();
   const amount = Math.max(0, Math.floor(Number(input.amount || 0)));
   if (!amount) {
     throw new UpstreamBadResponse(400, "invalid_amount");
@@ -277,45 +318,49 @@ export async function requestPayment(
   const callback_url = sanitizeCallbackUrl(input.callbackUrl);
   const description =
     input.description || `پرداخت سفارش ${input.orderId ?? ""}`;
+  const mobile = toSdkMobile(input.mobile);
+  const email = toSdkEmail(input.email);
+  const currency = resolveZarinpalCurrency(input.currency);
 
-  const metadata: RequestPayload["metadata"] = {
-    order_id: input.orderId ? String(input.orderId) : undefined,
-    email: input.email || undefined,
-    mobile: cleanMobile(input.mobile) || undefined,
-  };
-
-  const payload: RequestPayload = {
-    merchant_id,
-    amount,
-    callback_url,
-    description,
-    metadata,
-    currency: input.currency === "IRR" ? "IRR" : "IRT",
-  };
-
-  const { request, startPay } = resolveBaseUrls();
-
-  const response = await callZarinpal<RequestResponseData>(
-    request,
-    payload,
-    options
+  const response = await withZarinpalRetry(
+    "payments.request",
+    async () => {
+      const zarinpal = getZarinpalClient();
+      return zarinpal.request(
+        "POST",
+        "/pg/v4/payment/request.json",
+        {
+          amount,
+          callback_url,
+          description,
+          mobile,
+          email,
+          currency,
+          metadata: {
+            order_id: input.orderId ? String(input.orderId) : undefined,
+          },
+        },
+      ) as Promise<ZarinpalApiResponse<RequestResponseData>>;
+    },
+    options,
   );
-  const data = response?.data;
 
+  const data = response?.data;
   if (!data?.authority) {
     const errors = response?.errors || [];
     const message = errors?.[0]?.message ?? "zarinpal_missing_authority";
     console.error(
-      `[zarinpal/requestPayment] no authority in response endpoint=${request} response=${JSON.stringify(response)}`
+      `[zarinpal/requestPayment] no authority in response response=${JSON.stringify(response)}`,
     );
     throw new UpstreamBadResponse(502, message);
   }
 
+  const zarinpal = getZarinpalClient();
   const code = Number(data.code ?? 100) || 100;
-  const gatewayUrl = `${startPay}${data.authority}`;
+  const gatewayUrl = zarinpal.payments.getRedirectUrl(data.authority);
 
   console.log(
-    `[zarinpal/requestPayment] success authority=${data.authority} gatewayUrl=${gatewayUrl} code=${code}`
+    `[zarinpal/requestPayment] success authority=${data.authority} gatewayUrl=${gatewayUrl} code=${code}`,
   );
 
   return {
@@ -327,9 +372,9 @@ export async function requestPayment(
 
 export async function verifyPayment(
   input: { authority: string; amount: number; currency?: "IRT" | "IRR" },
-  options?: CallOptions
+  options?: CallOptions,
 ): Promise<VerifyPaymentResult> {
-  const merchant_id = ensureMerchantId();
+  ensureMerchantId();
   const authority = String(input.authority || "").trim();
   const amount = Math.max(0, Math.floor(Number(input.amount || 0)));
 
@@ -337,26 +382,27 @@ export async function verifyPayment(
     throw new UpstreamBadResponse(400, "invalid_input");
   }
 
-  const payload: VerifyPayload = {
-    merchant_id,
-    authority,
-    amount,
-    currency: input.currency === "IRR" ? "IRR" : "IRT",
-  };
+  const currency = resolveZarinpalCurrency(input.currency);
 
-  const { verify } = resolveBaseUrls();
-  const response = await callZarinpal<VerifyResponseData>(
-    verify,
-    payload,
-    options
+  const response = await withZarinpalRetry(
+    "payments.verify",
+    async () => {
+      const zarinpal = getZarinpalClient();
+      return zarinpal.request("POST", "/pg/v4/payment/verify.json", {
+        authority,
+        amount,
+        currency,
+      }) as Promise<ZarinpalApiResponse<VerifyResponseData>>;
+    },
+    options,
   );
-  const data = response?.data ?? {};
 
+  const data = response?.data ?? {};
   const code = Number(data.code ?? 0) || 0;
   const paid = code === 100 || code === 101;
 
   console.log(
-    `[zarinpal/verifyPayment] endpoint=${verify} authority=${authority} amount=${amount} code=${code} paid=${paid} ref_id=${data.ref_id} card_pan=${data.card_pan}`
+    `[zarinpal/verifyPayment] authority=${authority} amount=${amount} code=${code} paid=${paid} ref_id=${data.ref_id} card_pan=${data.card_pan}`,
   );
 
   return {

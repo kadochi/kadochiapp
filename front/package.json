@@ -20,7 +20,8 @@
     "nextjs-toploader": "^3.9.17",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "swiper": "^12.0.3"
+    "swiper": "^12.0.3",
+    "zarinpal-node-sdk": "^2.2.0"
   },
   "devDependencies": {
     "@types/node": "^20",

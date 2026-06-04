@@ -1,4 +1,5 @@
 // src/app/api/checkout/start/route.ts
+import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookies } from "@/lib/auth/session";
 import {
@@ -7,7 +8,7 @@ import {
   UpstreamTimeout,
 } from "@/services/http/errors";
 import {
-  getZarinpalCallbackUrl,
+  getZarinpalCallbackUrlForOrder,
   requestPayment,
 } from "@/services/payment/zarinpal";
 import { resolveWooUrl, wooFetch, wooFetchJSON } from "@/lib/api/woo";
@@ -165,6 +166,13 @@ function noStore<T>(response: NextResponse<T>) {
   return response;
 }
 
+async function resolvePayCookieDomain(): Promise<string | undefined> {
+  const want = (process.env.COOKIE_DOMAIN || "").trim();
+  if (!want) return undefined;
+  const host = ((await headers()).get("host") || "").toLowerCase();
+  return host.endsWith(want.toLowerCase()) ? want : undefined;
+}
+
 function paymentErrorResponse(error: unknown) {
   if (error instanceof UpstreamTimeout) {
     return noStore(
@@ -286,6 +294,8 @@ export async function POST(req: NextRequest) {
       Math.round(Number(body?.packaging?.price ?? packagingIRT)),
     );
 
+    const amountIRT = Math.max(0, Math.round(Number(body.figures.total) || 0));
+
     const orderPayload: any = {
       payment_method: "zarinpal",
       payment_method_title: "Zarinpal",
@@ -317,6 +327,10 @@ export async function POST(req: NextRequest) {
         { key: "_kadochi_packaging", value: packId },
         { key: "_kadochi_packaging_title", value: packTitle },
         { key: "_kadochi_packaging_irt", value: String(packPriceIRT) },
+        {
+          key: "_kadochi_zarinpal_amount_irt",
+          value: String(amountIRT),
+        },
 
         ...(deliveryLabel
           ? [
@@ -442,9 +456,8 @@ export async function POST(req: NextRequest) {
     }
 
     const orderId = json?.id;
-    const amountIRT = Math.max(0, Math.round(Number(body.figures.total) || 0));
     const mobileDigits = onlyDigits(body?.sender?.phone || sessPhone);
-    const callbackUrl = getZarinpalCallbackUrl();
+    const callbackUrl = getZarinpalCallbackUrlForOrder(orderId);
 
     console.log(
       `[checkout/start] wooOrderCreated orderId=${orderId} amountIRT=${amountIRT} callbackUrl=${callbackUrl}`
@@ -468,7 +481,7 @@ export async function POST(req: NextRequest) {
         `[checkout/start] paymentInitiated orderId=${orderId} authority=${payment.authority} redirectUrl=${payment.url} code=${payment.code}`
       );
 
-      return noStore(
+      const response = noStore(
         NextResponse.json({
           ok: true,
           redirectUrl: payment.url,
@@ -476,6 +489,18 @@ export async function POST(req: NextRequest) {
           amount: amountIRT,
         }),
       );
+
+      const cookieDomain = await resolvePayCookieDomain();
+      const cookieOpts = {
+        path: "/",
+        maxAge: 900,
+        sameSite: "lax" as const,
+        ...(cookieDomain ? { domain: cookieDomain } : {}),
+      };
+      response.cookies.set("kadochi_order_id", String(orderId), cookieOpts);
+      response.cookies.set("kadochi_pay_amount", String(amountIRT), cookieOpts);
+
+      return response;
     } catch (error) {
       console.error(
         `[checkout/start] paymentInitFailed orderId=${orderId} error=${error instanceof Error ? error.message : String(error)}`

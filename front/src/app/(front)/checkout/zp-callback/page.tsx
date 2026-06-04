@@ -125,7 +125,7 @@ export default function ZarinpalCallback() {
 
       const qsOrder = params.get("order") || "";
 
-      let orderId = (storedOrderId || qsOrder || cookieOrder).trim();
+      let orderId = (qsOrder || storedOrderId || cookieOrder).trim();
       let amount =
         Number.isFinite(storedAmount) && storedAmount > 0 ? storedAmount : 0;
 
@@ -154,18 +154,15 @@ export default function ZarinpalCallback() {
       }
 
       if (!amount) {
-        console.log("[zp-callback] amount missing, fetching from Woo order");
+        console.log(
+          "[zp-callback] amount missing locally; server will resolve from Woo order meta",
+        );
         const derived = await fetchOrderTotalIrt(orderId);
         if (cancelled) return;
-        amount = derived;
-        console.log("[zp-callback] derived amount from Woo=", amount);
-      }
-
-      if (!amount) {
-        console.error("[zp-callback] no amount available for verification");
-        if (!cancelled)
-          router.replace("/checkout/failure?reason=verify-failed");
-        return;
+        if (derived > 0) {
+          amount = derived;
+          console.log("[zp-callback] derived amount from Woo=", amount);
+        }
       }
 
       console.log(
@@ -178,7 +175,7 @@ export default function ZarinpalCallback() {
       );
       const verifyRes = await verifyPaymentOnServer({
         Authority,
-        amount,
+        amount: amount > 0 ? amount : 0,
         orderId,
       });
       if (cancelled) return;
