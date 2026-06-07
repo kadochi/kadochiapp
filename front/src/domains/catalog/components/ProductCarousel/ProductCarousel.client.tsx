@@ -266,7 +266,7 @@ export default function ProductCarouselClient({
             slidesOffsetAfter: 16,
           },
           1024: {
-            slidesPerView: 4,
+            slidesPerView: 5,
             allowTouchMove: false,
             slidesOffsetBefore: 0,
             slidesOffsetAfter: 0,

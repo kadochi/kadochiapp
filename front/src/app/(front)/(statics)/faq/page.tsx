@@ -1,8 +1,29 @@
+import type { Metadata } from "next";
 import Header from "@/components/layout/Header/Header";
 import StaticPage, {
   PageTitle,
 } from "@/components/layout/StaticPage/StaticPage";
 import Accordion from "@/components/ui/Accordion/Accordion";
+
+export const metadata: Metadata = {
+  title: "کادوچی | سوالات متداول",
+  description:
+    "پاسخ سوالات متداول درباره ثبت سفارش، زمان ارسال، ارسال هدیه برای دیگران و شرایط لغو سفارش در کادوچی.",
+  alternates: {
+    canonical: "/faq",
+  },
+  openGraph: {
+    title: "کادوچی | سوالات متداول",
+    description:
+      "راهنمای سریع خرید از کادوچی؛ نحوه ثبت سفارش، ارسال و لغو سفارش در سوالات متداول.",
+    url: "/faq",
+  },
+  twitter: {
+    title: "کادوچی | سوالات متداول",
+    description:
+      "سوالات پرتکرار درباره خرید، ارسال و لغو سفارش در فروشگاه کادوچی.",
+  },
+};
 
 export default function FaqPage() {
   return (

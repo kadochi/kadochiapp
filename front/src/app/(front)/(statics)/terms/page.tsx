@@ -1,9 +1,30 @@
+import type { Metadata } from "next";
 import Header from "@/components/layout/Header/Header";
 import StaticPage, {
   PageTitle,
   Paragraph,
   SectionHeader,
 } from "@/components/layout/StaticPage/StaticPage";
+
+export const metadata: Metadata = {
+  title: "کادوچی | قوانین و مقررات",
+  description:
+    "قوانین و مقررات استفاده از خدمات کادوچی؛ شامل عضویت، ثبت سفارش، کیفیت محصولات، لغو سفارش و حفاظت از اطلاعات کاربران.",
+  alternates: {
+    canonical: "/terms",
+  },
+  openGraph: {
+    title: "کادوچی | قوانین و مقررات",
+    description:
+      "مقررات ثبت سفارش، ارسال هدیه، لغو و بازگشت وجه و سایر شرایط استفاده از فروشگاه کادوچی.",
+    url: "/terms",
+  },
+  twitter: {
+    title: "کادوچی | قوانین و مقررات",
+    description:
+      "قوانین خرید و ثبت سفارش در کادوچی؛ حقوق مصرف‌کننده و تعهدات فروشگاه.",
+  },
+};
 
 export default function TermsPage() {
   return (

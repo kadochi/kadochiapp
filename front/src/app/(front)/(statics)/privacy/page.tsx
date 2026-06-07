@@ -1,8 +1,29 @@
+import type { Metadata } from "next";
 import Header from "@/components/layout/Header/Header";
 import StaticPage, {
   PageTitle,
   Paragraph,
 } from "@/components/layout/StaticPage/StaticPage";
+
+export const metadata: Metadata = {
+  title: "کادوچی | حفظ حریم شخصی",
+  description:
+    "سیاست حفظ حریم شخصی کادوچی؛ نحوه جمع‌آوری، استفاده و محافظت از اطلاعات کاربران و حقوق شما در مدیریت داده‌های شخصی.",
+  alternates: {
+    canonical: "/privacy",
+  },
+  openGraph: {
+    title: "کادوچی | حفظ حریم شخصی",
+    description:
+      "اطلاعات شخصی شما در کادوچی محفوظ است. سیاست‌های حریم خصوصی و نحوه استفاده از داده‌ها را بخوانید.",
+    url: "/privacy",
+  },
+  twitter: {
+    title: "کادوچی | حفظ حریم شخصی",
+    description:
+      "سیاست حریم خصوصی کادوچی؛ شفافیت در جمع‌آوری و محافظت از اطلاعات کاربران.",
+  },
+};
 
 export default function PrivacyPage() {
   return (

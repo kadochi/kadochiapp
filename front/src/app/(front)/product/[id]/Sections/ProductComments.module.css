@@ -20,7 +20,7 @@
   font-family: var(--font-sans);
   font-size: var(--fs-label-14);
   line-height: var(--lh-label-14);
-  color: var(--surface-neutral-mid-emphasis);
+  color: #475569;
 }
 
 .item {
@@ -51,7 +51,7 @@
   font-size: var(--fs-label-14);
   line-height: var(--lh-label-14);
   font-weight: var(--fw-bold);
-  color: var(--surface-neutral-high-emphasis);
+  color: #475569;
 }
 
 .date {
@@ -59,7 +59,7 @@
   font-size: var(--fs-label-12);
   line-height: var(--lh-label-12);
   font-weight: var(--fw-regular);
-  color: var(--surface-neutral-mid-emphasis);
+  color: #475569;
 }
 
 .rating {
@@ -77,7 +77,7 @@
   font-size: var(--fs-label-14);
   line-height: var(--lh-label-14);
   font-weight: var(--fw-bold);
-  color: var(--surface-neutral-high-emphasis);
+  color: #475569;
 }
 
 .text {
@@ -86,7 +86,7 @@
   font-size: var(--fs-label-14);
   line-height: var(--lh-label-14);
   font-weight: var(--fw-regular);
-  color: var(--surface-neutral-mid-emphasis);
+  color: #475569;
   white-space: pre-wrap;
   direction: rtl;
 }
