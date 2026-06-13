@@ -335,11 +335,11 @@ export default function OrdersPageClient({
           />
         ) : null}
 
-        {!loading && !err && filtered.length === 0 && orders.length > 0 ? (
+        {!loading && !err && orders.length === 0 ? (
           <StateMessage
             imageSrc="/images/order-list-empty.png"
-            title="لیست خالی است!"
-            subtitle="در حال حاضر هیچ سفارشی در این وضعیت ندارید."
+            title="هنوز سفارشی ثبت نکرده‌اید"
+            subtitle="پس از ثبت اولین سفارش، آن‌ها را در این بخش مشاهده خواهید کرد."
           />
         ) : null}
 
