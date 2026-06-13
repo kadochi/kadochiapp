@@ -61,7 +61,7 @@ type StoreProduct = {
 type ViewProduct = { id: number; prices?: StoreProduct["prices"] };
 
 //const SHIPPING_IRT = 89_000;
-const SHIPPING_IRT = 0;
+const SHIPPING_IRT = 150_000;
 const NORMAL_WRAP_IRT = 0;
 const GIFT_WRAP_IRT = 0;
 const TAX_RATE = 0.1;
