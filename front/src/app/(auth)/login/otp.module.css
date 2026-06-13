@@ -80,6 +80,18 @@
   width: 100%;
 }
 
+.supportLink {
+  font-family: var(--font-sans);
+  font-size: var(--fs-label-12);
+  line-height: var(--lh-label-12);
+  color: var(--information-information);
+  text-align: right;
+  width: 100%;
+  margin-top: var(--space-4);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .otpInput {
   width: 100%;
   height: 56px;

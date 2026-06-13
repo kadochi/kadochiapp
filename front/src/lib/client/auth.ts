@@ -5,7 +5,10 @@ export async function apiStartOtp(phone: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone }),
   });
-  if (!res.ok) throw new Error("OTP_START_FAILED");
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error || "OTP_START_FAILED");
+  }
   return (await res.json()) as { ok: boolean; ttlSec?: number };
 }
 

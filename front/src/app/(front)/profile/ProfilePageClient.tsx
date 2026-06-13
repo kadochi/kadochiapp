@@ -134,7 +134,7 @@ export default function ProfilePageClient({
 
           {/* Single-item menu using SectionHeader (no extra page header) */}
           <div className={s.menu}>
-            <Link href="/support" className={s.item}>
+            <Link href="/contact" className={s.item}>
               <SectionHeader
                 className={s.sectionHeader}
                 as="h3"

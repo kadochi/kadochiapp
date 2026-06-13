@@ -6,6 +6,7 @@ import s from "./otp.module.css";
 import Button from "@/components/ui/Button/Button";
 import { apiVerifyOtp, apiStartOtp } from "@/lib/client/auth";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
 import { normalizeDigits } from "@/lib/utils/normalizeDigits";
 import { useSession } from "@/domains/auth/session-context";
@@ -253,7 +254,14 @@ export default function OtpInner({
               />
             ))}
           </div>
-          {err && <div className={s.errorMsg}>{err}</div>}
+          {err && (
+            <>
+              <div className={s.errorMsg}>{err}</div>
+              <Link href="/contact" className={s.supportLink}>
+                پشتیبانی کادوچی
+              </Link>
+            </>
+          )}
         </div>
 
         <div className={s.fieldWrap}>
