@@ -205,10 +205,10 @@ export default function Footer() {
 
           <div className={s.socials} aria-label="شبکه‌های اجتماعی">
             {[
-              ["Instagram", "social-instagram.svg", "https://instagram.com"],
-              ["Telegram", "social-telegram.svg", "https://t.me"],
-              ["LinkedIn", "social-linkedin.svg", "https://linkedin.com"],
-              ["X", "social-twitter.svg", "https://twitter.com"],
+              ["Instagram", "social-instagram.svg", "https://www.instagram.com/kadochicom/"],
+              ["Telegram", "social-telegram.svg", "https://t.me/kadochi_giftshop"],
+              ["LinkedIn", "social-linkedin.svg", "https://www.linkedin.com/company/kadochi"],
+              ["X", "social-twitter.svg", "https://x.com/kadochicom"],
             ].map(([name, icon, href]) => (
               <a
                 key={name}
