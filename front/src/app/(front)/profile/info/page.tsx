@@ -7,7 +7,7 @@ import InfoForm from "./InfoForm";
 import s from "./info.module.css";
 
 export const metadata: Metadata = {
-  title: "کادوچی | اطلاعات حساب کاربری",
+  title: "اطلاعات حساب کاربری",
   description: "مشاهده و ویرایش اطلاعات حساب کاربری شما در کادوچی",
 };
 

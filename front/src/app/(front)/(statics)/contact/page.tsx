@@ -7,20 +7,20 @@ import StaticPage, {
 } from "@/components/layout/StaticPage/StaticPage";
 
 export const metadata: Metadata = {
-  title: "کادوچی | تماس با ما",
+  title: "تماس با ما",
   description:
     "راه‌های ارتباط با کادوچی؛ شماره تماس ۰۲۱ ۸۸۴۵۵۵۵۴، ایمیل info@kadochi.com و آدرس دفتر در تهران، خیابان شریعتی.",
   alternates: {
     canonical: "/contact",
   },
   openGraph: {
-    title: "کادوچی | تماس با ما",
+    title: "تماس با ما | کادوچی",
     description:
       "برای پشتیبانی و سوالات با کادوچی تماس بگیرید؛ تلفن، ایمیل و آدرس دفتر مرکزی.",
     url: "/contact",
   },
   twitter: {
-    title: "کادوچی | تماس با ما",
+    title: "تماس با ما | کادوچی",
     description:
       "اطلاعات تماس کادوچی؛ پشتیبانی تلفنی، ایمیل و آدرس دفتر در تهران.",
   },

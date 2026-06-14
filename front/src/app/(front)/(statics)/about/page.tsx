@@ -7,20 +7,20 @@ import StaticPage, {
 } from "@/components/layout/StaticPage/StaticPage";
 
 export const metadata: Metadata = {
-  title: "کادوچی | درباره ما",
+  title: "درباره ما",
   description:
     "آشنایی با کادوچی؛ برند تخصصی هدیه، گل و محصولات مناسبتی از سال ۱۳۹۱ با هدف ساده‌سازی انتخاب و ارسال هدیه با بسته‌بندی شیک.",
   alternates: {
     canonical: "/about",
   },
   openGraph: {
-    title: "کادوچی | درباره ما",
+    title: "درباره ما | کادوچی",
     description:
       "کادوچی از سال ۱۳۹۱ همراه شما در انتخاب و ارسال هدیه، گل و محصولات مناسبتی با تجربه‌ای سریع و لذت‌بخش.",
     url: "/about",
   },
   twitter: {
-    title: "کادوچی | درباره ما",
+    title: "درباره ما | کادوچی",
     description:
       "با کادوچی بیشتر آشنا شوید؛ فروشگاه تخصصی هدیه و گل با ارسال سریع و بسته‌بندی اختصاصی.",
   },

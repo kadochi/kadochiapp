@@ -6,20 +6,20 @@ import StaticPage, {
 } from "@/components/layout/StaticPage/StaticPage";
 
 export const metadata: Metadata = {
-  title: "کادوچی | حفظ حریم شخصی",
+  title: "حفظ حریم شخصی",
   description:
     "سیاست حفظ حریم شخصی کادوچی؛ نحوه جمع‌آوری، استفاده و محافظت از اطلاعات کاربران و حقوق شما در مدیریت داده‌های شخصی.",
   alternates: {
     canonical: "/privacy",
   },
   openGraph: {
-    title: "کادوچی | حفظ حریم شخصی",
+    title: "حفظ حریم شخصی | کادوچی",
     description:
       "اطلاعات شخصی شما در کادوچی محفوظ است. سیاست‌های حریم خصوصی و نحوه استفاده از داده‌ها را بخوانید.",
     url: "/privacy",
   },
   twitter: {
-    title: "کادوچی | حفظ حریم شخصی",
+    title: "حفظ حریم شخصی | کادوچی",
     description:
       "سیاست حریم خصوصی کادوچی؛ شفافیت در جمع‌آوری و محافظت از اطلاعات کاربران.",
   },

@@ -7,20 +7,20 @@ import StaticPage, {
 } from "@/components/layout/StaticPage/StaticPage";
 
 export const metadata: Metadata = {
-  title: "کادوچی | قوانین و مقررات",
+  title: "قوانین و مقررات",
   description:
     "قوانین و مقررات استفاده از خدمات کادوچی؛ شامل عضویت، ثبت سفارش، کیفیت محصولات، لغو سفارش و حفاظت از اطلاعات کاربران.",
   alternates: {
     canonical: "/terms",
   },
   openGraph: {
-    title: "کادوچی | قوانین و مقررات",
+    title: "قوانین و مقررات | کادوچی",
     description:
       "مقررات ثبت سفارش، ارسال هدیه، لغو و بازگشت وجه و سایر شرایط استفاده از فروشگاه کادوچی.",
     url: "/terms",
   },
   twitter: {
-    title: "کادوچی | قوانین و مقررات",
+    title: "قوانین و مقررات | کادوچی",
     description:
       "قوانین خرید و ثبت سفارش در کادوچی؛ حقوق مصرف‌کننده و تعهدات فروشگاه.",
   },
