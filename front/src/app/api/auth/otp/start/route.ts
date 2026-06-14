@@ -1,7 +1,6 @@
 // src/app/api/auth/otp/start/route.ts
 import { NextResponse } from "next/server";
-import { randomInt } from "node:crypto";
-import { checkOtpRateLimit, setOtpCode, deleteOtpCode } from "@/lib/otp/store";
+import { checkOtpRateLimit, setOtpCode } from "@/lib/otp/store";
 import {
   isDevBypassPhone,
   OTP_DEV_BYPASS_CODE,
@@ -24,8 +23,27 @@ const OTP_ATTEMPT_RATE_PER_HOUR = Number(
 
 const onlyDigits = (s: string) => String(s || "").replace(/\D+/g, "");
 
-function generateOtpCode(): string {
-  return String(randomInt(100000, 999999));
+function extractOtpFromResponseBody(text: string): string | null {
+  try {
+    const j = JSON.parse(text);
+    const cand =
+      j?.code ?? j?.otp ?? j?.data?.otp ?? j?.data?.code ?? j?.result?.code;
+    if (typeof cand === "string") {
+      const m = cand.match(/\b(\d{4,6})\b/);
+      if (m) return m[1];
+    }
+    if (typeof cand === "number") {
+      const s = String(cand);
+      if (/^\d{4,6}$/.test(s)) return s;
+    }
+    const flat = JSON.stringify(j);
+    const m2 = flat.match(/\b(\d{4,6})\b/);
+    if (m2) return m2[1];
+  } catch {
+    const m = text.match(/\b(\d{4,6})\b/);
+    if (m) return m[1];
+  }
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -112,28 +130,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const generatedCode = generateOtpCode();
-    log.info("code_generated", { phone: maskPhone(phone) });
-
-    try {
-      await setOtpCode(phone, generatedCode, OTP_CODE_TTL_SEC);
-    } catch (cause) {
-      return failResponse(
-        log,
-        "REDIS_ERROR",
-        "Failed to store OTP code",
-        503,
-        { phone: maskPhone(phone), ttlSec: OTP_CODE_TTL_SEC },
-        cause,
-      );
-    }
-
-    log.info("otp_stored", {
-      phone: maskPhone(phone),
-      ttlSec: OTP_CODE_TTL_SEC,
-    });
-
-    const melipayamakRequest = { to: phone, code: Number(generatedCode) };
+    const melipayamakRequest = { to: phone };
     log.info("melipayamak_request", {
       endpoint: MELIPAYAMAK_OTP_URL,
       method: "POST",
@@ -149,7 +146,6 @@ export async function POST(req: Request) {
         body: JSON.stringify(melipayamakRequest),
       });
     } catch (cause) {
-      await deleteOtpCode(phone).catch(() => {});
       return failResponse(
         log,
         "PROVIDER_NETWORK_ERROR",
@@ -169,7 +165,6 @@ export async function POST(req: Request) {
     });
 
     if (!r.ok) {
-      await deleteOtpCode(phone).catch(() => {});
       return failResponse(
         log,
         "OTP_SEND_FAILED",
@@ -184,6 +179,43 @@ export async function POST(req: Request) {
         { detail: respText || String(r.status) },
       );
     }
+
+    const providerCode = extractOtpFromResponseBody(respText);
+    log.info("provider_code_extracted", {
+      phone: maskPhone(phone),
+      extracted: !!providerCode,
+    });
+    if (!providerCode) {
+      return failResponse(
+        log,
+        "PROVIDER_NO_CODE_IN_RESPONSE",
+        "No OTP code found in Melipayamak response",
+        502,
+        {
+          endpoint: MELIPAYAMAK_OTP_URL,
+          phone: maskPhone(phone),
+          bodyPreview: respText.slice(0, 200),
+        },
+      );
+    }
+
+    try {
+      await setOtpCode(phone, providerCode, OTP_CODE_TTL_SEC);
+    } catch (cause) {
+      return failResponse(
+        log,
+        "REDIS_ERROR",
+        "Failed to store OTP code",
+        503,
+        { phone: maskPhone(phone), ttlSec: OTP_CODE_TTL_SEC },
+        cause,
+      );
+    }
+
+    log.info("otp_stored", {
+      phone: maskPhone(phone),
+      ttlSec: OTP_CODE_TTL_SEC,
+    });
 
     log.info("response", { ok: true, status: 200, ttlSec: OTP_CODE_TTL_SEC });
     return NextResponse.json({
