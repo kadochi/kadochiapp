@@ -60,35 +60,37 @@ export default async function OccasionCarousel() {
 
   let mapped: OccasionItem[] = [];
   try {
-    const adminPath =
+    const path =
       "/wp-json/wp/v2/occasion?author=1&acf_format=standard&per_page=100";
-    const userPath = userId
-      ? `/wp-json/wp/v2/occasion?author=${userId}&acf_format=standard&per_page=100`
-      : null;
 
-    const [adminRes, userRes] = await Promise.all([
-      wordpressFetch(adminPath, fetchOpts),
-      userPath ? wordpressFetch(userPath, fetchOpts) : Promise.resolve(null),
-    ]);
+    const res = await wordpressFetch(path, fetchOpts);
 
-    let adminData: WPOccasion[] = [];
-    if (adminRes.ok) {
-      const json = await adminRes.json();
-      adminData = (Array.isArray(json) ? json : []).filter((it: WPOccasion) => {
-        const owner = it.acf?.user_id;
-        return owner == null || owner === "" || String(owner) === "1";
-      });
-    }
-
-    let userData: WPOccasion[] = [];
-    if (userRes?.ok) {
-      const json = await userRes.json();
-      userData = Array.isArray(json) ? json : [];
+    let allData: WPOccasion[] = [];
+    if (res.ok) {
+      const json = await res.json();
+      allData = Array.isArray(json) ? json : [];
     }
 
     const now = new Date();
-    const adminItems = mapOccasions(adminData, "public", now);
-    const userItems = mapOccasions(userData, "private", now);
+    const adminItems = mapOccasions(
+      allData.filter((it) => {
+        const owner = it.acf?.user_id;
+        return owner == null || owner === "" || String(owner) === "1";
+      }),
+      "public",
+      now,
+    );
+
+    const userItems = userId
+      ? mapOccasions(
+          allData.filter((it) => {
+            const owner = it.acf?.user_id;
+            return String(owner) === String(userId);
+          }),
+          "private",
+          now,
+        )
+      : [];
 
     const seen = new Set<string>();
     mapped = [];

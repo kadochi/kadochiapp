@@ -64,41 +64,34 @@ export default function OccasionsClient({
     if (Object.keys(initialMap).length) return;
     const userId = session?.userId ?? null;
 
-    const adminUrl =
+    const url =
       "/api/wp/wp-json/wp/v2/occasion?author=1&acf_format=standard&per_page=100";
-    const userUrl = userId
-      ? `/api/wp/wp-json/wp/v2/occasion?author=${userId}&acf_format=standard&per_page=100`
-      : null;
 
-    const fetchOpts = { cache: "no-store" as const };
-
-    Promise.all([
-      fetch(adminUrl, fetchOpts).then((r) => (r.ok ? r.json() : [])),
-      userUrl
-        ? fetch(userUrl, fetchOpts).then((r) => (r.ok ? r.json() : []))
-        : Promise.resolve([]),
-    ])
-      .then(([adminData, userData]: [any[], any[]]) => {
+    fetch(url, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: any[]) => {
+        const arr = Array.isArray(data) ? data : [];
         const m: Record<string, OccasionEntry[]> = {};
 
-        const adminArr = Array.isArray(adminData) ? adminData : [];
-        adminArr.forEach((it: any) => {
+        arr.forEach((it: any) => {
           const owner = it?.acf?.user_id;
-          if (owner != null && owner !== "" && String(owner) !== "1") return;
-          const d = parseOccasionDate(it?.acf?.occasion_date);
-          const t = it?.acf?.title?.trim();
-          if (!d || !t) return;
-          (m[d] ||= []).push({ title: t, variant: "public" });
-        });
+          const isPublic = owner == null || owner === "" || String(owner) === "1";
+          const isUserOwned = userId != null && String(owner) === String(userId);
 
-        const userArr = Array.isArray(userData) ? userData : [];
-        userArr.forEach((it: any) => {
+          if (!isPublic && !isUserOwned) return;
+
           const d = parseOccasionDate(it?.acf?.occasion_date);
           const t = it?.acf?.title?.trim();
           if (!d || !t) return;
+
           const existing = m[d] ?? [];
-          if (!existing.some((e) => e.title === t))
-            (m[d] ||= []).push({ title: t, variant: "private", id: it?.id });
+          if (isUserOwned && existing.some((e) => e.title === t)) return;
+
+          (m[d] ||= []).push({
+            title: t,
+            variant: isPublic ? "public" : "private",
+            id: isUserOwned ? it?.id : undefined,
+          });
         });
 
         setWpMap((prev) => {

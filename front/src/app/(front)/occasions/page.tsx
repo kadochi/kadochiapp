@@ -26,55 +26,34 @@ export default async function OccasionsPage() {
   };
 
   try {
-    const adminCall = wordpressJson<WordPressOccasion[]>(
+    const result = await wordpressJson<WordPressOccasion[]>(
       `/wp-json/wp/v2/occasion?author=1&acf_format=standard&per_page=100`,
       fetchOpts,
     );
 
-    const userCall =
-      userId != null
-        ? wordpressJson<WordPressOccasion[]>(
-            `/wp-json/wp/v2/occasion?author=${userId}&acf_format=standard&per_page=100`,
-            fetchOpts,
-          )
-        : null;
-
-    const [adminResult, userResult] = await Promise.all([
-      adminCall,
-      userCall ?? Promise.resolve(null),
-    ]);
-
-    const adminPayload = Array.isArray(adminResult.data)
-      ? adminResult.data
-      : [];
-    const userPayload = userResult
-      ? Array.isArray(userResult.data)
-        ? userResult.data
-        : []
-      : [];
+    const payload = Array.isArray(result.data) ? result.data : [];
 
     const m: Record<string, OccasionEntry[]> = {};
 
-    const isAdminOccasion = (it: WordPressOccasion) => {
+    payload.forEach((it) => {
       const owner = it.acf?.user_id;
-      return owner == null || owner === "" || String(owner) === "1";
-    };
+      const isPublic = owner == null || owner === "" || String(owner) === "1";
+      const isUserOwned = userId != null && String(owner) === String(userId);
 
-    adminPayload.forEach((it) => {
-      if (!isAdminOccasion(it)) return;
+      if (!isPublic && !isUserOwned) return;
+
       const d = parseOccasionDate(it.acf?.occasion_date);
       const t = it.acf?.title?.trim();
       if (!d || !t) return;
-      (m[d] ||= []).push({ title: t, variant: "public" });
-    });
 
-    userPayload.forEach((it) => {
-      const d = parseOccasionDate(it.acf?.occasion_date);
-      const t = it.acf?.title?.trim();
-      if (!d || !t) return;
       const existing = m[d] ?? [];
-      if (!existing.some((e) => e.title === t))
-        (m[d] ||= []).push({ title: t, variant: "private", id: it.id });
+      if (isUserOwned && existing.some((e) => e.title === t)) return;
+
+      (m[d] ||= []).push({
+        title: t,
+        variant: isPublic ? "public" : "private",
+        id: isUserOwned ? it.id : undefined,
+      });
     });
 
     map = m;

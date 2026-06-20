@@ -19,7 +19,7 @@ export async function DELETE(_req: Request, ctx: RouteParams) {
     }
 
     const getRes = await wordpressFetch(
-      `/wp-json/wp/v2/occasion/${occasionId}`,
+      `/wp-json/wp/v2/occasion/${occasionId}?acf_format=standard`,
       { cache: "no-store" }
     );
 
@@ -35,8 +35,8 @@ export async function DELETE(_req: Request, ctx: RouteParams) {
     }
 
     const occasion = await getRes.json();
-    const author = occasion?.author;
-    if (author != null && Number(author) !== session.userId) {
+    const owner = occasion?.acf?.user_id;
+    if (owner != null && owner !== "" && String(owner) !== String(session.userId)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
