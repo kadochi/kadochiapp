@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getWooBaseUrl } from "@/config/wp";
 import {
   getSessionFromCookies,
-  setSession, // persist enriched fields back to cookie
+  buildSessionCookie,
+  applySessionCookie,
 } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
@@ -75,6 +76,7 @@ export async function GET() {
   let first: string | null = base.firstName ?? null;
   let last: string | null = base.lastName ?? null;
   let phone: string | null = base.phone ?? null;
+  let enrichedCookie: Awaited<ReturnType<typeof buildSessionCookie>> | null = null;
 
   // Enrich from Woo only when needed (avoids extra calls)
   if ((!first && !last) || !phone) {
@@ -93,14 +95,19 @@ export async function GET() {
           null;
         phone = (c?.billing?.phone || phone || null)?.trim() || null;
 
-        // Persist enriched fields to the cookie (name is intentionally null;
-        // we don't want it to override the display priority).
-        await setSession(base.userId, {
-          firstName: first,
-          lastName: last,
-          phone,
-          name: null,
-        });
+        // Persist enriched fields via the response Set-Cookie header.
+        // buildSessionCookie + applySessionCookie reliably propagates cookies
+        // in self-hosted / Docker deployments where cookies().set() may not.
+        try {
+          enrichedCookie = await buildSessionCookie(base.userId, {
+            firstName: first,
+            lastName: last,
+            phone,
+            name: null,
+          });
+        } catch {
+          // Non-fatal: cookie re-write is best-effort; existing cookie still works.
+        }
       }
     } catch {
       // Swallow enrichment errors; the page can still render with cookie data.
@@ -111,7 +118,7 @@ export async function GET() {
   const displayName = buildDisplayName(first, last, phone);
 
   // Return the normalized session shape (keep `name: null` by design)
-  return NextResponse.json(
+  const response = NextResponse.json(
     {
       session: {
         userId: base.userId,
@@ -124,4 +131,10 @@ export async function GET() {
     },
     { headers: noStore }
   );
+
+  if (enrichedCookie) {
+    applySessionCookie(response, enrichedCookie);
+  }
+
+  return response;
 }
