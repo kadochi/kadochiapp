@@ -17,12 +17,9 @@ import AddOccasionSheet from "./AddOccasionSheet";
 import OccasionRow, { type DayRow } from "./OccasionRow";
 import s from "./occasions.module.css";
 import Header from "@/components/layout/Header/Header";
+import type { OccasionEntry } from "@/lib/occasions/types";
 
-export type OccasionEntry = {
-  title: string;
-  variant: "public" | "private";
-  id?: number;
-};
+export type { OccasionEntry };
 
 export default function OccasionsClient({
   initialMap = {} as Record<string, OccasionEntry[]>,
@@ -64,16 +61,25 @@ export default function OccasionsClient({
     if (Object.keys(initialMap).length) return;
     const userId = session?.userId ?? null;
 
-    const url =
+    const adminUrl =
       "/api/wp/wp-json/wp/v2/occasion?author=1&acf_format=standard&per_page=100";
+    const userUrl = userId
+      ? `/api/wp/wp-json/wp/v2/occasion?author=${userId}&acf_format=standard&per_page=100`
+      : null;
 
-    fetch(url, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: any[]) => {
-        const arr = Array.isArray(data) ? data : [];
+    const fetchOpts = { cache: "no-store" as const };
+
+    Promise.all([
+      fetch(adminUrl, fetchOpts).then((r) => (r.ok ? r.json() : [])),
+      userUrl
+        ? fetch(userUrl, fetchOpts).then((r) => (r.ok ? r.json() : []))
+        : Promise.resolve([]),
+    ])
+      .then(([adminData, userData]: [any[], any[]]) => {
         const m: Record<string, OccasionEntry[]> = {};
 
-        arr.forEach((it: any) => {
+        const adminArr = Array.isArray(adminData) ? adminData : [];
+        adminArr.forEach((it: any) => {
           const owner = it?.acf?.user_id;
           const isPublic = owner == null || owner === "" || String(owner) === "1";
           const isUserOwned = userId != null && String(owner) === String(userId);
@@ -92,6 +98,18 @@ export default function OccasionsClient({
             variant: isPublic ? "public" : "private",
             id: isUserOwned ? it?.id : undefined,
           });
+        });
+
+        const userArr = Array.isArray(userData) ? userData : [];
+        userArr.forEach((it: any) => {
+          const d = parseOccasionDate(it?.acf?.occasion_date);
+          const t = it?.acf?.title?.trim();
+          if (!d || !t) return;
+
+          const existing = m[d] ?? [];
+          if (existing.some((e) => e.title === t)) return;
+
+          (m[d] ||= []).push({ title: t, variant: "private", id: it?.id });
         });
 
         setWpMap((prev) => {
@@ -224,7 +242,9 @@ export default function OccasionsClient({
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      const msg = body?.error ?? "خطا در ثبت مناسبت";
+      const msg = body?.details
+        ? `${body.error ?? "خطا در ثبت مناسبت"}: ${body.details}`
+        : (body?.error ?? "خطا در ثبت مناسبت");
       alert(msg);
       throw new Error(msg);
     }

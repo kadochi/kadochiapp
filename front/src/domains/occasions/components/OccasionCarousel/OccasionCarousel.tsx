@@ -60,20 +60,27 @@ export default async function OccasionCarousel() {
 
   let mapped: OccasionItem[] = [];
   try {
-    const path =
+    const adminPath =
       "/wp-json/wp/v2/occasion?author=1&acf_format=standard&per_page=100";
+    const userPath = userId
+      ? `/wp-json/wp/v2/occasion?author=${userId}&acf_format=standard&per_page=100`
+      : null;
 
-    const res = await wordpressFetch(path, fetchOpts);
+    const [adminRes, userRes] = await Promise.all([
+      wordpressFetch(adminPath, fetchOpts),
+      userPath ? wordpressFetch(userPath, fetchOpts) : Promise.resolve(null),
+    ]);
 
-    let allData: WPOccasion[] = [];
-    if (res.ok) {
-      const json = await res.json();
-      allData = Array.isArray(json) ? json : [];
-    }
+    const adminJson = adminRes.ok ? await adminRes.json() : [];
+    const userJson = userRes?.ok ? await userRes.json() : [];
+
+    const adminData: WPOccasion[] = Array.isArray(adminJson) ? adminJson : [];
+    const userData: WPOccasion[] = Array.isArray(userJson) ? userJson : [];
 
     const now = new Date();
+
     const adminItems = mapOccasions(
-      allData.filter((it) => {
+      adminData.filter((it) => {
         const owner = it.acf?.user_id;
         return owner == null || owner === "" || String(owner) === "1";
       }),
@@ -81,9 +88,10 @@ export default async function OccasionCarousel() {
       now,
     );
 
-    const userItems = userId
+    // Private items from admin feed (created after author=1 fix, identified by ACF user_id)
+    const adminPrivateItems = userId
       ? mapOccasions(
-          allData.filter((it) => {
+          adminData.filter((it) => {
             const owner = it.acf?.user_id;
             return String(owner) === String(userId);
           }),
@@ -91,6 +99,9 @@ export default async function OccasionCarousel() {
           now,
         )
       : [];
+
+    // Private items from user's own author feed (created before author=1 fix)
+    const userItems = mapOccasions(userData, "private", now);
 
     const seen = new Set<string>();
     mapped = [];
@@ -101,7 +112,7 @@ export default async function OccasionCarousel() {
         mapped.push(item);
       }
     }
-    for (const item of userItems) {
+    for (const item of [...adminPrivateItems, ...userItems]) {
       const dedupeKey = `${item.title}|${item.sortKey}`;
       if (!seen.has(dedupeKey)) {
         seen.add(dedupeKey);
