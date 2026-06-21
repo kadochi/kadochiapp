@@ -244,6 +244,17 @@ export function applySessionCookie(
   }
 }
 
+/** Clear session cookies on a Route Handler response (required in Docker). */
+export async function applyClearSessionCookies(
+  response: NextResponse,
+): Promise<void> {
+  const domain = await resolveCookieDomain();
+  const opts = baseCookieOpts(undefined, domain);
+  for (const n of ALT_COOKIE_NAMES) {
+    response.cookies.delete({ name: n, ...opts });
+  }
+}
+
 /**
  * Set session cookie (legacy signature preserved):
  *   setSession(userId, { name?, phone?, firstName?, lastName?, roles?, maxAgeSec? })
