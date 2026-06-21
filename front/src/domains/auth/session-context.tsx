@@ -33,7 +33,7 @@ export function SessionProvider({
       const r = await fetch("/api/auth/session", {
         method: "GET",
         cache: "no-store",
-        credentials: "same-origin",
+        credentials: "include",
         headers: { Accept: "application/json" },
       });
       const json = await r.json().catch(() => ({} as any));

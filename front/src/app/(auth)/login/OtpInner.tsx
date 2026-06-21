@@ -111,13 +111,22 @@ export default function OtpInner({
     try {
       setLoading(true);
       await apiVerifyOtp(phone, joined);
-      await refreshSession();
+
+      const sess = await refreshSession();
 
       try {
         localStorage.setItem("kadochi:session:broadcast", String(Date.now()));
       } catch {}
 
-      router.replace(nextUrl);
+      if (sess?.userId) {
+        // Normal path: cookie landed; do a full navigation so the RSC page
+        // re-renders server-side with the fresh cookie.
+        window.location.assign(nextUrl);
+      } else {
+        // Cookie was set server-side but the client fetch returned null —
+        // most likely a transient race. A hard reload picks up the cookie.
+        window.location.replace(nextUrl);
+      }
     } catch {
       verifyInFlightRef.current = false;
       setErr("کد نادرست است یا منقضی شده است.");
