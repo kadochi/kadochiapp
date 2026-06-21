@@ -265,6 +265,14 @@ docker compose -f docker-compose.local.yml down -v
 - Confirm WooCommerce REST keys and `WP_APP_PASS` are set in `front/.env.local`
 - Restart Next.js after updating env vars
 
+**OTP verify returns `{ok: true}` but profile page still shows "وارد حساب کاربری شوید"**
+
+The browser rejected the session cookie because it carried the `Secure` flag over plain HTTP. This happens when the Next.js Docker image was built with `NODE_ENV=production` (which Next.js inlines at build time) and `COOKIE_SECURE` was not explicitly set.
+
+`docker-compose.local.yml` already sets `COOKIE_SECURE=false` to prevent this. If you are running Next.js outside Docker (e.g. `npm run dev` on the host), make sure `front/.env.local` contains `COOKIE_SECURE=false`.
+
+To confirm: open DevTools → Network → find the POST to `/api/auth/otp/verify` → inspect the response `Set-Cookie` header. On local HTTP it must **not** contain the word `Secure`. Then check DevTools → Application → Cookies → `http://localhost:3000` for a `kadochi_session` entry.
+
 **OTP login fails (`WOO_LOOKUP_FAILED`, `fetch failed`) but products load**
 
 The product list uses the public **Woo Store API** (`/wp-json/wc/store/v1/products`). OTP verify uses **Woo REST v3** (`/wp-json/wc/v3/customers`) with `WOO_CONSUMER_KEY` / `WOO_CONSUMER_SECRET`. A working catalog does not prove v3 customer lookup works.
