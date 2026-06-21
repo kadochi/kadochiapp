@@ -22,14 +22,6 @@ export type Session = {
 const DEFAULT_COOKIE_NAME = "kadochi_session";
 const ALT_COOKIE_NAMES = ["kd_s", "session", DEFAULT_COOKIE_NAME];
 
-function resolveCookieSecure(): boolean {
-  const raw = (process.env.COOKIE_SECURE || "").trim().toLowerCase();
-  if (raw === "1" || raw === "true") return true;
-  if (raw === "0" || raw === "false") return false;
-  return process.env.NODE_ENV === "production";
-}
-
-const SECURE = resolveCookieSecure();
 const COOKIE_LIFETIME_SEC = 60 * 60 * 24 * 30; // 30 days
 const JWT_SECRET = (process.env.KADOCHI_JWT_SECRET || "").trim();
 
@@ -84,7 +76,40 @@ function jwtVerifyHS256<T = any>(token: string, secret: string): T | null {
  *   failures when browser refuses to set cookie on mismatched domain).
  * - In RSC, cookies() is read-only; do set/clear only in Route Handlers
  *   or Server Actions.
+ * - secure flag is resolved at request time (never at build time) so that
+ *   local Docker builds served over plain HTTP correctly omit Secure.
  * -------------------------------------------------------------------*/
+
+/**
+ * Resolve whether Set-Cookie should include Secure at request time.
+ *
+ * Priority:
+ *  1. Explicit COOKIE_SECURE env ("true"/"1" or "false"/"0") — always wins.
+ *  2. x-forwarded-proto / x-forwarded-ssl headers set by Traefik or Nginx.
+ *  3. Host-based fallback: localhost/127.0.0.1/::1 → false, everything else → true.
+ *
+ * Using headers() means this runs per-request, so NODE_ENV being inlined
+ * as "production" at build time in Docker has no effect.
+ */
+async function resolveCookieSecure(): Promise<boolean> {
+  const raw = (process.env.COOKIE_SECURE || "").trim().toLowerCase();
+  if (raw === "1" || raw === "true") return true;
+  if (raw === "0" || raw === "false") return false;
+
+  try {
+    const hdrs = await headers();
+    const proto = hdrs.get("x-forwarded-proto");
+    const ssl = hdrs.get("x-forwarded-ssl");
+    if (proto === "https" || ssl === "on") return true;
+    if (proto === "http" || ssl === "off") return false;
+
+    const host = (hdrs.get("host") || "").toLowerCase().split(":")[0];
+    return host !== "localhost" && host !== "127.0.0.1" && host !== "::1";
+  } catch {
+    return false;
+  }
+}
+
 async function resolveCookieDomain(): Promise<string | undefined> {
   const want = (process.env.COOKIE_DOMAIN || "").trim().toLowerCase();
   if (!want) return undefined;
@@ -92,12 +117,12 @@ async function resolveCookieDomain(): Promise<string | undefined> {
   return host.endsWith(want) ? want : undefined;
 }
 
-function baseCookieOpts(maxAgeSec?: number, domain?: string) {
+function baseCookieOpts(secure: boolean, maxAgeSec?: number, domain?: string) {
   return {
     httpOnly: true,
     sameSite: "lax" as const,
     path: "/",
-    secure: SECURE,
+    secure,
     ...(domain ? { domain } : {}),
     ...(typeof maxAgeSec === "number" ? { maxAge: maxAgeSec } : {}),
   };
@@ -209,7 +234,10 @@ export async function buildSessionCookie(
     maxAgeSec?: number;
   },
 ): Promise<SessionCookie> {
-  const domain = await resolveCookieDomain();
+  const [domain, secure] = await Promise.all([
+    resolveCookieDomain(),
+    resolveCookieSecure(),
+  ]);
   const maxAge = extras?.maxAgeSec ?? COOKIE_LIFETIME_SEC;
   const targetName = await resolveSessionCookieName();
 
@@ -229,7 +257,7 @@ export async function buildSessionCookie(
   return {
     name: targetName,
     value,
-    options: baseCookieOpts(maxAge, domain),
+    options: baseCookieOpts(secure, maxAge, domain),
   };
 }
 
@@ -248,8 +276,11 @@ export function applySessionCookie(
 export async function applyClearSessionCookies(
   response: NextResponse,
 ): Promise<void> {
-  const domain = await resolveCookieDomain();
-  const opts = baseCookieOpts(undefined, domain);
+  const [domain, secure] = await Promise.all([
+    resolveCookieDomain(),
+    resolveCookieSecure(),
+  ]);
+  const opts = baseCookieOpts(secure, undefined, domain);
   for (const n of ALT_COOKIE_NAMES) {
     response.cookies.delete({ name: n, ...opts });
   }
@@ -274,7 +305,10 @@ export async function setSession(
 ): Promise<void> {
   const cookie = await buildSessionCookie(userId, extras);
   const jar = await cookies();
-  const domain = await resolveCookieDomain();
+  const [domain, secure] = await Promise.all([
+    resolveCookieDomain(),
+    resolveCookieSecure(),
+  ]);
 
   const setFn = (jar as any)?.set;
   if (typeof setFn === "function") {
@@ -285,7 +319,7 @@ export async function setSession(
   if (typeof delFn === "function") {
     for (const n of ALT_COOKIE_NAMES) {
       if (n !== cookie.name)
-        delFn.call(jar, n, baseCookieOpts(undefined, domain));
+        delFn.call(jar, n, baseCookieOpts(secure, undefined, domain));
     }
   }
 }
@@ -293,11 +327,14 @@ export async function setSession(
 /** Clear all known session cookie names. */
 export async function clearSession(): Promise<void> {
   const jar = await cookies();
-  const domain = await resolveCookieDomain();
+  const [domain, secure] = await Promise.all([
+    resolveCookieDomain(),
+    resolveCookieSecure(),
+  ]);
   const delFn = (jar as any)?.delete;
   if (typeof delFn === "function") {
     for (const n of ALT_COOKIE_NAMES)
-      delFn.call(jar, n, baseCookieOpts(undefined, domain));
+      delFn.call(jar, n, baseCookieOpts(secure, undefined, domain));
   }
 }
 
