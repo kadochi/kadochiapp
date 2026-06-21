@@ -1,10 +1,7 @@
 // src/app/api/auth/otp/start/route.ts
 import { NextResponse } from "next/server";
 import { checkOtpRateLimit, setOtpCode } from "@/lib/otp/store";
-import {
-  isDevBypassPhone,
-  OTP_DEV_BYPASS_CODE,
-} from "@/app/api/auth/otp/_lib/dev-bypass";
+import { isDevBypassPhone } from "@/app/api/auth/otp/_lib/dev-bypass";
 import {
   createOtpLogger,
   failResponse,
@@ -65,6 +62,17 @@ export async function POST(req: Request) {
     const ip =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "0.0.0.0";
 
+    if (isDevBypassPhone(phone)) {
+      // Skip rate limit and Redis entirely — verify also skips them for this phone.
+      log.info("dev_bypass", { phone: maskPhone(phone) });
+      log.info("response", { ok: true, status: 200, ttlSec: OTP_CODE_TTL_SEC });
+      return NextResponse.json({
+        ok: true,
+        ttlSec: OTP_CODE_TTL_SEC,
+        requestId: log.requestId,
+      });
+    }
+
     let allowed: boolean;
     try {
       allowed = await checkOtpRateLimit(
@@ -97,28 +105,6 @@ export async function POST(req: Request) {
         429,
         { ip, phone: maskPhone(phone) },
       );
-    }
-
-    if (isDevBypassPhone(phone)) {
-      log.info("dev_bypass", { phone: maskPhone(phone) });
-      try {
-        await setOtpCode(phone, OTP_DEV_BYPASS_CODE, OTP_CODE_TTL_SEC);
-      } catch (cause) {
-        return failResponse(
-          log,
-          "REDIS_ERROR",
-          "Failed to store OTP code",
-          503,
-          { phone: maskPhone(phone), ttlSec: OTP_CODE_TTL_SEC },
-          cause,
-        );
-      }
-      log.info("response", { ok: true, status: 200, ttlSec: OTP_CODE_TTL_SEC });
-      return NextResponse.json({
-        ok: true,
-        ttlSec: OTP_CODE_TTL_SEC,
-        requestId: log.requestId,
-      });
     }
 
     if (!MELIPAYAMAK_OTP_URL) {

@@ -11,12 +11,18 @@ export function getOtpDevPhone(): string {
   return onlyDigits(process.env.OTP_DEV_PHONE || OTP_DEV_PHONE_DEFAULT);
 }
 
-/** True when SMS can be skipped and the dev phone + 0000 are accepted. */
+/**
+ * True when SMS can be skipped and the dev phone + 0000 are accepted.
+ *
+ * NOTE: Do not gate on `process.env.NODE_ENV` here. Next.js inlines NODE_ENV
+ * as "production" at build time in route handlers, so that check would always
+ * evaluate to false when running the Docker production image locally — even
+ * when docker-compose.local.yml sets NODE_ENV=development at runtime.
+ * Use the explicit runtime flag OTP_DEV_BYPASS instead; production compose
+ * does not set it, so the bypass is off in production by default.
+ */
 export function isOtpDevBypassEnabled(): boolean {
-  return (
-    process.env.NODE_ENV !== "production" &&
-    process.env.OTP_DEV_BYPASS === "1"
-  );
+  return process.env.OTP_DEV_BYPASS === "1";
 }
 
 /** True when bypass is on and the submitted phone is the configured dev phone. */
