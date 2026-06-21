@@ -100,4 +100,12 @@ export function jsDayToFa(jsDay: number): string {
   return WEEKDAYS_FA[jsDay] ?? "";
 }
 
+/**
+ * Converts a YYYY-MM-DD ISO date string to ACF's Ymd write format (e.g. "20260404").
+ * ACF date fields require Ymd on write even though they may return either format on read.
+ */
+export function toAcfOccasionDate(iso: string): string {
+  return iso.replace(/-/g, "");
+}
+
 export { dayjs };
