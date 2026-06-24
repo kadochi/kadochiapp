@@ -8,11 +8,10 @@ import Button from "@/components/ui/Button/Button";
 import InputStepper from "@/components/ui/InputStepper/InputStepper";
 import StateMessage from "@/components/layout/StateMessage/StateMessage";
 
-import { useSession } from "@/domains/auth/session-context";
-import { useBasket } from "@/domains/basket/state/basket-context";
+import { useSession } from "@/modules/auth/context/session-context";
+import { useBasket } from "@/modules/basket";
 import { tryGetPublicWpBaseUrl } from "@/config/wp";
-
-import s from "./cart.module.css";
+import { cn } from "@/lib/cn";
 
 type StoreProduct = {
   id: number;
@@ -184,12 +183,16 @@ export default function CartPageClient() {
   );
 
   if (!hydrated || (ids.length > 0 && items.length === 0)) {
-    return <div className={s.loadingCenter}>در حال به روزرسانی سبد خرید</div>;
+    return (
+      <div className="grid min-h-[50vh] place-items-center text-surface-neutral-mid">
+        در حال به روزرسانی سبد خرید
+      </div>
+    );
   }
 
   if (!ids.length) {
     return (
-      <div className={s.empty}>
+      <div className="grid place-items-center gap-3 px-4 py-12 text-surface-neutral-mid">
         <StateMessage
           imageSrc="/images/empty-basket.png"
           imageAlt="سبد خالی"
@@ -202,7 +205,6 @@ export default function CartPageClient() {
               type="tertiary"
               style="outline"
               size="medium"
-              className={s.emptyBtn}
             >
               مشاهده محصولات
             </Button>
@@ -214,10 +216,13 @@ export default function CartPageClient() {
 
   return (
     <>
-      <div className={s.listWrap}>
-        <ul className={s.list}>
+      <div className="mx-auto max-w-[580px] px-4 pb-[148px]">
+        <ul className={cn("m-0 list-none gap-3 p-0", "grid")}>
           {lines.map((line) => (
-            <li key={line.id} className={s.item}>
+            <li
+              key={line.id}
+              className="flex flex-row-reverse items-center gap-2 rounded-2xl border-b border-border-low bg-surface-background py-3"
+            >
               <InputStepper
                 type="basket"
                 min={0}
@@ -233,32 +238,40 @@ export default function CartPageClient() {
                 }}
               />
 
-              <div className={s.meta}>
-                <div className={s.title}>{line.title}</div>
-                <div className={s.price}>
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="font-bold text-surface-neutral-high">{line.title}</div>
+                <div className="text-surface-neutral-high">
                   {Math.round(line.price / 10).toLocaleString("fa-IR")}
-                  <span className={s.currency}> تومان</span>
+                  <span className="ms-1 opacity-80"> تومان</span>
                 </div>
               </div>
 
-              <img src={line.image} alt={line.title} className={s.thumb} />
+              <img
+                src={line.image}
+                alt={line.title}
+                className="h-16 w-16 self-center rounded-xl object-cover bg-surface-background"
+              />
             </li>
           ))}
         </ul>
       </div>
 
-      <div className={s.bottomBar} role="region" aria-label="جمع سبد">
-        <div className={s.rowTop}>
-          <div className={s.totalLabel}>جمع کل</div>
-          <div className={s.totalVal}>
+      <div
+        className="fixed inset-x-0 bottom-0 z-[200] mx-auto border-t border-border-mid bg-surface-background px-4 pb-8 pt-4"
+        role="region"
+        aria-label="جمع سبد"
+      >
+        <div className="mx-auto mb-3 flex max-w-[580px] items-baseline justify-between">
+          <div className="text-surface-neutral-mid">جمع کل</div>
+          <div className="font-bold text-surface-neutral-high">
             {Math.round(subtotalIrr / 10).toLocaleString("fa-IR")}
-            <span className={s.currency}> تومان</span>
+            <span className="ms-1 opacity-80"> تومان</span>
           </div>
         </div>
 
-        <div className={s.rowCta}>
+        <div className="mx-auto block max-w-[580px]">
           {submitError ? (
-            <div className={s.errorMsg} role="alert">
+            <div className="text-center text-error" role="alert">
               {submitError}
             </div>
           ) : null}
@@ -267,7 +280,7 @@ export default function CartPageClient() {
             type="primary"
             style="filled"
             size="large"
-            className={s.cta}
+            className="w-full"
             onClick={handleProceed}
             disabled={submitting || !ids.length}
             loading={submitting}

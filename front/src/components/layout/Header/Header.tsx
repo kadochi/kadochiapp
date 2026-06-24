@@ -5,8 +5,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import SideMenu from "@/components/layout/SideMenu/SideMenu";
-import { useBasket } from "@/domains/basket/state/basket-context";
-import { useSession } from "@/domains/auth/session-context";
+import { useBasket } from "@/modules/basket";
+import { useSession } from "@/modules/auth/context/session-context";
 import Button from "@/components/ui/Button/Button";
 
 // استایل‌های هر دو ورژن بدون تغییر

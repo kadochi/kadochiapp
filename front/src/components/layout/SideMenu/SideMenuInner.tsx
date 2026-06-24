@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import s from "./SideMenu.module.css";
-import { useSession } from "@/domains/auth";
+import { useSession } from "@/modules/auth";
 
 type MenuItem = { label: string; href: string; icon: string };
 type User = {

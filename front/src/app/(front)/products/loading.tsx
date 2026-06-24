@@ -1,4 +1,4 @@
-import ProductCardSkeleton from "@/domains/catalog/components/ProductCard/ProductCardSkeleton";
+import { ProductCardSkeleton } from "@/modules/catalog";
 import s from "./products.module.css";
 import Header from "@/components/layout/Header/Header";
 

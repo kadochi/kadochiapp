@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getWooBaseUrl } from "@/config/wp";
-import { getSessionFromCookies } from "@/lib/auth/session";
+import { getSessionFromCookies } from "@/modules/auth/services/session";
 
 let getCustomerById: ((id: number) => Promise<any>) | undefined;
 let createProductReview:

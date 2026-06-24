@@ -1,6 +1,79 @@
-/* globals.css */
+@import "tailwindcss";
 
 @import "./tokens.css";
+
+@theme {
+  --font-sans: "IRANSansXFaNum", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial;
+
+  --font-weight-light: 300;
+  --font-weight-regular: 400;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  --color-surface-background: #ffffff;
+  --color-surface-neutral-high: #010101;
+  --color-surface-neutral-low: #757575;
+  --color-surface-neutral-mid: #4e4e52;
+  --color-surface-surface: #f5f5f5;
+  --color-surface-surface-dim: #eaeaea;
+  --color-surface-surface-soft: #fafafa;
+
+  --color-primary: #00874d;
+  --color-primary-on: #ffffff;
+  --color-primary-container: #e7fff4;
+  --color-primary-gradient: #00ca73;
+  --color-primary-on-container: #174933;
+
+  --color-secondary: #600487;
+  --color-secondary-on: #ffffff;
+  --color-secondary-container: #f8e9ff;
+  --color-secondary-gradient: #8030a2;
+  --color-secondary-on-container: #36064a;
+
+  --color-border-error: #e81616;
+  --color-border-high: #cbcbcb;
+  --color-border-low: #eaeaea;
+  --color-border-mid: #e0e0e0;
+
+  --color-disable: #cbcbcb;
+  --color-disable-container: #f5f5f5;
+  --color-disable-on: #757575;
+  --color-disable-on-container: #757575;
+
+  --color-success: #12870e;
+  --color-success-on: #ffffff;
+  --color-success-container: #e1f9e0;
+  --color-success-on-container: #085705;
+
+  --color-error: #c62222;
+  --color-error-container: #ffe4e4;
+  --color-error-on: #ffffff;
+  --color-error-on-container: #860000;
+
+  --color-information: #0076dc;
+  --color-information-container: #f0f2ff;
+  --color-information-on: #ffffff;
+  --color-information-on-container: #004c8e;
+
+  --color-warning: #f04c00;
+  --color-warning-container: #fff4ed;
+  --color-warning-on: #ffffff;
+  --color-warning-on-container: #c64204;
+
+  --color-text-primary: var(--color-surface-neutral-high);
+  --color-text-secondary: var(--color-surface-neutral-mid);
+
+  --radius-none: 0rem;
+  --radius-xxs: 0.25rem;
+  --radius-xs: 0.375rem;
+  --radius-s: 0.5rem;
+  --radius-m: 0.75rem;
+  --radius-l: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-xxl: 2rem;
+  --radius-rounded: 62.4375rem;
+}
 
 :root {
   --bottom-nav-safe: 0px;

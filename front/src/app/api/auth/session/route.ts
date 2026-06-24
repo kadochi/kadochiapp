@@ -4,7 +4,7 @@ import {
   getSessionFromCookies,
   buildSessionCookie,
   applySessionCookie,
-} from "@/lib/auth/session";
+} from "@/modules/auth/services/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

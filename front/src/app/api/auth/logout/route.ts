@@ -1,6 +1,6 @@
 // src/app/api/auth/logout/route.ts
 import { NextResponse } from "next/server";
-import { applyClearSessionCookies, clearSession } from "@/lib/auth/session";
+import { applyClearSessionCookies, clearSession } from "@/modules/auth/services/session";
 import { getPublicSiteOrigin } from "@/lib/server/public-origin";
 
 export const runtime = "nodejs";

@@ -21,15 +21,15 @@ import ProgressStepper, {
 } from "@/components/ui/ProgressStepper/ProgressStepper";
 import Radio from "@/components/ui/Radio/Radio";
 import { normalizeDigits } from "@/lib/utils/normalizeDigits";
-import { useBasket } from "@/domains/basket/state/basket-context";
-import s from "./Checkout.module.css";
+import { useBasket } from "@/modules/basket/context/basket-context";
+import { cn } from "@/lib/cn";
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 import {
   DELIVERY_PARTS,
   type DeliveryPartKey,
   formatDeliveryWindow,
-} from "@/domains/checkout/delivery-slot";
+} from "@/modules/checkout/utils/delivery-slot";
 import { tryGetPublicWpBaseUrl } from "@/config/wp";
 
 /* -------------------------------- Types & helpers -------------------------------- */
@@ -681,7 +681,7 @@ export default function CheckoutClient(props: {
   return (
     <div>
       {/* Stepper */}
-      <div className={s.stepper}>
+      <div className={cn("px-4 my-3")}>
         <ProgressStepper steps={steps} showIndex={false} />
       </div>
 
@@ -693,12 +693,12 @@ export default function CheckoutClient(props: {
             subtitle="اطلاعات فرستنده سفارش"
             labelSlot={
               savingProfile ? (
-                <span className={s.savingHint} aria-live="polite"></span>
+                <span aria-live="polite"></span>
               ) : null
             }
           />
-          <section className={s.section} aria-labelledby="sender">
-            <div className={s.grid2}>
+          <section className={cn("mb-4 px-4 pb-2 pt-4")} aria-labelledby="sender">
+            <div className={cn("grid grid-cols-2 gap-4 max-sm:grid-cols-1")}>
               <Input
                 label="نام"
                 value={senderFirst}
@@ -714,7 +714,7 @@ export default function CheckoutClient(props: {
                 required
               />
             </div>
-            <div className={s.mt12}>
+            <div className={cn("mt-3")}>
               <Input
                 label="شماره موبایل"
                 value={senderPhone}
@@ -738,13 +738,12 @@ export default function CheckoutClient(props: {
                 label="گیرنده خودم هستم"
                 checked={receiverIsMe}
                 onChange={setReceiverIsMe}
-                className={s.headerCheck}
               />
             }
           />
-          <section className={s.section} aria-labelledby="receiver">
+          <section className={cn("mb-4 px-4 pb-2 pt-4")} aria-labelledby="receiver">
             {!receiverIsMe && (
-              <div className={s.grid2}>
+              <div className={cn("grid grid-cols-2 gap-4 max-sm:grid-cols-1")}>
                 <Input
                   label="نام و نام خانوادگی گیرنده"
                   value={recName}
@@ -770,8 +769,8 @@ export default function CheckoutClient(props: {
             title="آدرس دریافت سفارش"
             subtitle="نشانی که کادو به آن ارسال می‌شود."
           />
-          <section className={s.section} aria-labelledby="address">
-            <div className={s.mt12}>
+          <section className={cn("mb-4 px-4 pb-2 pt-4")} aria-labelledby="address">
+            <div className={cn("mt-3")}>
               <Input
                 label="انتخاب شهر"
                 value="تهران"
@@ -783,7 +782,7 @@ export default function CheckoutClient(props: {
                 message="در حال حاضر کادوچی فقط در شهر تهران فعال است."
               />
             </div>
-            <div className={s.mt12}>
+            <div className={cn("mt-3")}>
               <TextArea
                 label="آدرس گیرنده"
                 rows={4}
@@ -797,8 +796,8 @@ export default function CheckoutClient(props: {
             </div>
           </section>
 
-          <div className={s.nav}>
-            <div className={s.navRow}>
+          <div className={cn("fixed left-0 right-0 bottom-0 p-4 pb-8 bg-white border-t border-border-mid z-[9999]")}>
+            <div className={cn("max-w-[580px] mx-auto")}>
               <Button
                 as="button"
                 type="primary"
@@ -823,10 +822,10 @@ export default function CheckoutClient(props: {
             title="انتخاب زمان دریافت"
             subtitle="بازه زمانی تحویل را انتخاب کنید."
           />
-          <section className={s.sectionTight} aria-labelledby="delivery">
+          <section className={cn("mb-4 pb-4")} aria-labelledby="delivery">
             <Swiper
               dir="rtl"
-              className={s.slotSwiper}
+              className={cn("pb-0")}
               slidesPerView={3.2}
               spaceBetween={16}
               slidesOffsetBefore={16}
@@ -840,21 +839,23 @@ export default function CheckoutClient(props: {
                 const selected = selectedSlotId === sl.id;
                 const disabled = !!sl.disabled;
                 return (
-                  <SwiperSlide key={sl.id} className={s.slotSlide}>
+                  <SwiperSlide key={sl.id} className={cn("w-[148px] shrink-0")}>
                     <button
                       type="button"
-                      className={`${s.slotCard} ${
-                        selected ? s.slotCardSelected : ""
-                      } ${disabled ? s.slotDisabled : ""}`}
+                      className={cn(
+                        "w-full h-[140px] grid grid-rows-[auto_auto_auto_auto] place-items-center border border-border-high rounded-lg bg-white p-3 cursor-pointer transition-[border-color,box-shadow,background-color,opacity] duration-150",
+                        selected && "border-2 border-secondary shadow-[0_0_0_4px_var(--secondary-secondary-container)]",
+                        disabled && "opacity-45 cursor-not-allowed pointer-events-none border border-disable bg-disable-container",
+                      )}
                       onClick={() => !disabled && setSelectedSlotId(sl.id)}
                       aria-pressed={selected}
                       aria-disabled={disabled || undefined}
                       disabled={disabled}
                     >
-                      <div className={s.slotDay}>{sl.dayLabel}</div>
-                      <div className={s.slotDate}>{sl.dateLabel}</div>
-                      <div className={s.slotPart}>{sl.part}</div>
-                      <div className={s.slotRange}>
+                      <div className={cn("text-sm text-text-secondary")}>{sl.dayLabel}</div>
+                      <div className={cn("mt-1 text-base text-text-primary font-bold")}>{sl.dateLabel}</div>
+                      <div className={cn("mt-1 text-sm text-text-primary font-bold")}>{sl.part}</div>
+                      <div className={cn("mt-0.5 text-sm text-text-secondary")}>
                         {sl.from} الی {sl.to}
                       </div>
                     </button>
@@ -870,17 +871,18 @@ export default function CheckoutClient(props: {
             title="انتخاب نوع بسته‌بندی"
             subtitle="بسته‌بندی سفارش خود را انتخاب کنید"
           />
-          <section className={s.section} aria-labelledby="pack">
-            <div className={s.packGrid}>
+          <section className={cn("mb-4 px-4 pb-2 pt-4")} aria-labelledby="pack">
+            <div className={cn("grid grid-cols-2 gap-4 max-sm:grid-cols-1")}>
               {(["gift", "normal"] as PackagingId[]).map((id) => {
                 const active = id === packId;
                 return (
                   <button
                     key={id}
                     type="button"
-                    className={`${s.packCard} ${
-                      active ? s.packCardActive : ""
-                    }`}
+                    className={cn(
+                      "grid grid-rows-[max-content] justify-items-center text-center gap-2 p-4 border border-border-high rounded-lg bg-white cursor-pointer transition-[border-color,background-color] duration-150",
+                      active && "border-2 border-secondary shadow-[0_0_0_4px_var(--secondary-secondary-container)]",
+                    )}
                     onClick={() => setPackId(id)}
                     aria-pressed={active}
                   >
@@ -891,12 +893,12 @@ export default function CheckoutClient(props: {
                           : "/images/normal-pack.png"
                       }
                       alt=""
-                      className={s.packImg}
+                      className={cn("w-14 h-14 object-contain")}
                     />
-                    <div className={s.packTitle}>
+                    <div className={cn("text-base font-bold text-text-primary")}>
                       {id === "gift" ? "بسته‌بندی کادویی" : "بسته‌بندی عادی"}
                     </div>
-                    <div className={s.packDesc}>
+                    <div className={cn("text-sm text-text-secondary")}>
                       {id === "gift"
                         ? "کاغذ کادو، روبان، پوشال و کارت"
                         : "جعبه مقوایی پستی"}
@@ -913,7 +915,7 @@ export default function CheckoutClient(props: {
             title="متن کارت پستال"
             subtitle="یک پیام کوتاه برای قرار گرفتن داخل کادو"
           />
-          <section className={s.section} aria-labelledby="postcard">
+          <section className={cn("mb-4 px-4 pb-2 pt-4")} aria-labelledby="postcard">
             <TextArea
               label="متن کارت پستال"
               rows={4}
@@ -925,16 +927,15 @@ export default function CheckoutClient(props: {
             />
           </section>
 
-          <div className={s.navTwo}>
+          <div className={cn("fixed left-0 right-0 bottom-0 p-4 pb-8 bg-white border-t border-border-mid z-[9999] grid grid-cols-[1fr_auto] gap-3 max-w-[580px] mx-auto")}>
             <Button
               as="button"
               size="large"
               type="primary"
               style="filled"
-              // NEW: prevent moving to payment step until pricing is resolved.
               disabled={!canNext1 || pricingLoading || !pricingReady}
               onClick={goNext}
-              className={s.nextBtn}
+              className={cn("w-auto")}
               fullWidth
             >
               {pricingLoading ? "در حال محاسبه مبلغ سفارش…" : "مرحله بعد"}
@@ -945,7 +946,7 @@ export default function CheckoutClient(props: {
               style="outline"
               onClick={goPrev}
               size="large"
-              className={s.backBtn}
+              className={cn("w-[106px]")}
             >
               مرحله قبل
             </Button>
@@ -958,17 +959,17 @@ export default function CheckoutClient(props: {
       {step === 2 && (
         <>
           <SectionHeader title="شیوه پرداخت" />
-          <section className={s.section}>
+          <section className={cn("mb-4 px-4 pb-2 pt-4")}>
             <button
               type="button"
-              className={`${s.payCard} ${s.payCardActive}`}
+              className={cn("w-full border border-border-high rounded-lg bg-white p-4 cursor-default border-2 border-secondary shadow-[0_0_0_4px_var(--secondary-secondary-container)]")}
               aria-pressed
             >
-              <div className={s.payCardInner}>
+              <div className={cn("grid grid-cols-[auto_1fr] items-start gap-4 rtl")}>
                 <Radio name="pay-method" defaultChecked />
                 <div>
-                  <div className={s.payTitle}>پرداخت آنلاین</div>
-                  <div className={s.paySubtitle}>
+                  <div className={cn("text-sm font-bold text-text-primary text-right")}>پرداخت آنلاین</div>
+                  <div className={cn("mt-1 text-xs font-normal text-text-secondary text-right")}>
                     از طریق درگاه پرداخت الکترونیک
                   </div>
                 </div>
@@ -978,42 +979,42 @@ export default function CheckoutClient(props: {
 
           <Divider type="spacer" />
 
-          <div className={s.sectionHeaderOnly}>
+          <div className={cn("p-0")}>
             <SectionHeader
               title="جزئیات پرداخت"
               subtitle="مشخصات هزینه‌های سفارش"
             />
           </div>
-          <div className={s.kvWrap}>
-            <div className={s.detailRow}>
-              <div className={s.detailKey}>جمع سفارش‌ها</div>
-              <div className={s.detailVal}>{toman(subtotalIRT)} تومان</div>
+          <div className={cn("px-4 pb-4")}>
+            <div className={cn("flex items-center justify-between px-4 py-4 bg-transparent")}>
+              <div className={cn("text-right text-sm font-normal text-text-primary")}>جمع سفارش‌ها</div>
+              <div className={cn("text-left text-sm font-normal text-text-primary")}>{toman(subtotalIRT)} تومان</div>
             </div>
             <Divider />
-            <div className={s.detailRow}>
-              <div className={s.detailKey}>۱۰٪ مالیات بر ارزش افزوده</div>
-              <div className={s.detailVal}>{toman(taxIRT)} تومان</div>
+            <div className={cn("flex items-center justify-between px-4 py-4 bg-transparent")}>
+              <div className={cn("text-right text-sm font-normal text-text-primary")}>۱۰٪ مالیات بر ارزش افزوده</div>
+              <div className={cn("text-left text-sm font-normal text-text-primary")}>{toman(taxIRT)} تومان</div>
             </div>
             <Divider />
-            <div className={s.detailRow}>
-              <div className={s.detailKey}>هزینه ارسال</div>
-              <div className={s.detailVal}>{toman(shippingIRT)} تومان</div>
+            <div className={cn("flex items-center justify-between px-4 py-4 bg-transparent")}>
+              <div className={cn("text-right text-sm font-normal text-text-primary")}>هزینه ارسال</div>
+              <div className={cn("text-left text-sm font-normal text-text-primary")}>{toman(shippingIRT)} تومان</div>
             </div>
             <Divider />
-            <div className={s.detailRow}>
-              <div className={s.detailKey}>هزینه بسته‌بندی و خدمات</div>
-              <div className={s.detailVal}>{toman(packagingIRT)} تومان</div>
+            <div className={cn("flex items-center justify-between px-4 py-4 bg-transparent")}>
+              <div className={cn("text-right text-sm font-normal text-text-primary")}>هزینه بسته‌بندی و خدمات</div>
+              <div className={cn("text-left text-sm font-normal text-text-primary")}>{toman(packagingIRT)} تومان</div>
             </div>
             <Divider />
-            <div className={s.detailRow}>
-              <div className={s.detailKey}>جمع کل</div>
-              <div className={s.detailValBold}>{toman(totalIRT)} تومان</div>
+            <div className={cn("flex items-center justify-between px-4 py-4 bg-transparent")}>
+              <div className={cn("text-right text-sm font-normal text-text-primary")}>جمع کل</div>
+              <div className={cn("text-left text-lg font-bold text-text-primary")}>{toman(totalIRT)} تومان</div>
             </div>
           </div>
 
-          <div className={s.navPay}>
-            {submitError ? <div className={s.error}>{submitError}</div> : null}
-            <div className={s.payRow}>
+          <div className={cn("fixed left-0 right-0 bottom-0 p-4 pb-8 bg-white border-t border-border-mid z-[9999]")}>
+            {submitError ? <div className={cn("text-error mb-3")}>{submitError}</div> : null}
+            <div className={cn("grid grid-cols-[1fr_auto] gap-3 max-w-[580px] mx-auto")}>
               <Button
                 as="button"
                 type="primary"
@@ -1022,7 +1023,7 @@ export default function CheckoutClient(props: {
                 onClick={handlePay}
                 disabled={submitting}
                 loading={submitting}
-                className={s.nextBtn}
+                className={cn("w-auto")}
                 fullWidth
               >
                 {submitting ? "در حال انتقال…" : "پرداخت"}
@@ -1033,7 +1034,7 @@ export default function CheckoutClient(props: {
                 style="outline"
                 size="large"
                 onClick={goPrev}
-                className={s.backBtn}
+                className={cn("w-[106px]")}
               >
                 مرحله قبل
               </Button>

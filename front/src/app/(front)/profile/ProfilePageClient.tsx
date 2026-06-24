@@ -10,7 +10,7 @@ import Button from "@/components/ui/Button/Button";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
 import StateMessage from "@/components/layout/StateMessage/StateMessage";
 import Avatar from "@/components/ui/Avatar/Avatar";
-import { useSession } from "@/domains/auth/session-context";
+import { useSession } from "@/modules/auth/context/session-context";
 
 import s from "./profile.module.css";
 

@@ -1,12 +1,8 @@
 "use client";
 
 import React from "react";
-import clsx from "clsx";
+import { cn } from "@/lib/cn";
 
-/**
- * Generic skeleton loader component
- * Use to render placeholder blocks during data loading.
- */
 export default function Skeleton({
   className,
   style,
@@ -16,10 +12,7 @@ export default function Skeleton({
 }) {
   return (
     <div
-      className={clsx(
-        "animate-pulse bg-neutral-200 dark:bg-neutral-700 rounded-md",
-        className
-      )}
+      className={cn("animate-pulse rounded-md bg-neutral-200 dark:bg-neutral-700", className)}
       style={style}
     />
   );

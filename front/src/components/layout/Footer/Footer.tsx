@@ -5,13 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import s from "./Footer.module.css";
-
-type StoreCategory = {
-  id: number;
-  name: string;
-  slug: string;
-  image?: { src?: string | null } | null;
-};
+import { fetchStoreCategories } from "@/modules/catalog/services/api";
+import type { StoreCategory } from "@/modules/catalog/types";
 
 // Routes where footer should be hidden
 const HIDDEN_ROUTES: (string | RegExp)[] = [
@@ -49,11 +44,7 @@ export default function Footer() {
     if (hide) return;
     let cancelled = false;
 
-    // Fetch via same-origin proxy to avoid CORS
-    const url = `/api/store/categories?per_page=100&hide_empty=true`;
-
-    fetch(url, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : []))
+    fetchStoreCategories({ per_page: 100, hide_empty: true })
       .then((data: StoreCategory[]) => {
         if (cancelled) return;
         const filtered = (data || []).filter((c) => {

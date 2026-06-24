@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath, revalidateTag } from "next/cache";
-import { getSessionFromCookies } from "@/lib/auth/session";
+import { getSessionFromCookies } from "@/modules/auth/services/session";
 import { wordpressFetch } from "@/services/wordpress";
 
 type RouteParams = { params: Promise<{ id: string }> };

@@ -2,7 +2,7 @@
 import "server-only";
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import ImageGallery from "@/domains/catalog/components/ImageGallery/ImageGallery";
+import { ImageGallery, ProductCarousel, stripHtml } from "@/modules/catalog";
 import ProductInfo from "./Sections/ProductInfo";
 import { getProductDetail } from "@/lib/api/woo";
 import Divider from "@/components/ui/Divider/Divider";
@@ -15,7 +15,6 @@ import ProductComments from "./Sections/ProductComments";
 import ActionBar from "./Sections/ActionBar";
 import Label from "@/components/ui/Label/Label";
 import Button from "@/components/ui/Button/Button";
-import ProductCarousel from "@/domains/catalog/components/ProductCarousel/ProductCarousel";
 import Breadcrumb from "@/components/ui/Breadcrumb/Breadcrumb";
 import Header from "@/components/layout/Header/Header";
 
@@ -26,14 +25,6 @@ type Params = { id: string };
 async function resolveParams(p: Params | Promise<Params>): Promise<Params> {
   const maybe = p as any;
   return typeof maybe?.then === "function" ? await maybe : (p as Params);
-}
-
-function stripHtml(input?: string | null) {
-  if (!input) return "";
-  return input
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 export async function generateMetadata({

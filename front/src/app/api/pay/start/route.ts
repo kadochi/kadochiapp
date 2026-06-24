@@ -8,7 +8,7 @@ import {
 import {
   getZarinpalCallbackUrl,
   requestPayment,
-} from "@/services/payment/zarinpal";
+} from "@/modules/checkout/services/payment";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

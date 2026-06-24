@@ -3,7 +3,6 @@ import Header from "@/components/layout/Header/Header";
 import Link from "next/link";
 import Button from "@/components/ui/Button/Button";
 import StateMessage from "@/components/layout/StateMessage/StateMessage";
-import s from "../success/success.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +24,8 @@ export default async function FailurePage({
   return (
     <div>
       <Header variant="internal" title="پرداخت ناموفق" backUrl="/checkout" />
-      <div className={s.page} dir="rtl">
-        <main className={s.wrap}>
+      <div className="relative mx-auto bg-white mb-32" dir="rtl">
+        <main className="px-6 max-w-[580px] mx-auto text-center">
           <StateMessage
             imageSrc="/images/illustration-failed.png"
             imageAlt="پرداخت ناموفق"
@@ -35,14 +34,10 @@ export default async function FailurePage({
           />
         </main>
 
-        <div className={s.ctaBar} role="region" aria-label="CTA">
-          <div className={s.ctaBtn}>
+        <div className="fixed left-0 right-0 bottom-0 p-4 pb-8 bg-white border-t border-border-mid grid z-[9999]" role="region" aria-label="CTA">
+          <div className="w-full max-w-[580px] mx-auto">
             <div
-              style={{
-                display: "grid",
-                gap: 12,
-                gridTemplateColumns: "1fr 1fr",
-              }}
+              className="grid gap-3 grid-cols-2"
             >
               <Link href="/checkout">
                 <Button type="primary" style="filled" fullWidth>

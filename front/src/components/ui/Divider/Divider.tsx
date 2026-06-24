@@ -1,35 +1,35 @@
 "use client";
 
 import React from "react";
-import s from "./Divider.module.css";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/cn";
 
-type DividerType = "divider" | "spacer";
-type DividerVariant = "full-width" | "with-padding";
+const dividerVariants = cva("m-0 w-full border-none p-0", {
+  variants: {
+    type: {
+      divider: "h-px bg-border-low",
+      spacer: "h-2 bg-surface lg:h-4 lg:bg-surface-background",
+    },
+    variant: {
+      "full-width": "",
+      "with-padding": "mx-4 w-[calc(100%-2rem)]",
+    },
+  },
+  defaultVariants: {
+    type: "divider",
+    variant: "full-width",
+  },
+});
 
-interface Props {
-  type?: DividerType;
-  variant?: DividerVariant;
+interface Props
+  extends VariantProps<typeof dividerVariants> {
   className?: string;
 }
 
-function cx(...a: Array<string | false | undefined>) {
-  return a.filter(Boolean).join(" ");
-}
-
-export default function Divider({
-  type = "divider",
-  variant = "full-width",
-  className,
-}: Props) {
+export default function Divider({ type, variant, className }: Props) {
   return (
     <div
-      className={cx(
-        s.root,
-        type === "divider" && s.divider,
-        type === "spacer" && s.spacer,
-        variant === "with-padding" && s.withPadding,
-        className
-      )}
+      className={cn(dividerVariants({ type, variant }), className)}
       aria-hidden="true"
     />
   );

@@ -6,7 +6,7 @@ import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
 import Button from "@/components/ui/Button/Button";
 import TextArea from "@/components/ui/TextArea/TextArea";
 import Link from "next/link";
-import { useOptionalSession } from "@/domains/auth/session-context";
+import { useOptionalSession } from "@/modules/auth/context/session-context";
 import { Star } from "lucide-react";
 
 type Props = {

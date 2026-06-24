@@ -4,7 +4,7 @@ import "@/styles/globals.css";
 import Providers from "./providers";
 import NextTopLoader from "nextjs-toploader";
 import BottomNavigation from "@/components/layout/BottomNavigation/BottomNavigation";
-import getInitialSession from "@/lib/auth/session";
+import { getInitialSession } from "@/modules/auth/services/session";
 import Footer from "@/components/layout/Footer/Footer";
 import Script from "next/script";
 import GATracker from "./ga-tracker";

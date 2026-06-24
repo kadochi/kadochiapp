@@ -1,6 +1,6 @@
 // src/app/api/auth/otp/start/route.ts
 import { NextResponse } from "next/server";
-import { checkOtpRateLimit, setOtpCode } from "@/lib/otp/store";
+import { checkOtpRateLimit, setOtpCode } from "@/modules/auth/services/otp.server";
 import { isDevBypassPhone } from "@/app/api/auth/otp/_lib/dev-bypass";
 import {
   createOtpLogger,

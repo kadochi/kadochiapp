@@ -3,10 +3,10 @@
 
 import "server-only";
 import { cache } from "react";
-import { getSessionFromCookies } from "@/lib/auth/session";
+import { getSessionFromCookies } from "@/modules/auth/services/session";
 import { getWooBaseUrl } from "@/config/wp";
 import { wooFetch } from "@/lib/api/woo";
-import { formatDeliveryWindow } from "@/domains/checkout/delivery-slot";
+import { formatDeliveryWindow } from "@/modules/checkout/utils/delivery-slot";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

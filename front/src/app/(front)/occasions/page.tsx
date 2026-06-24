@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import OccasionsClient from "./OccasionsClient";
-import getInitialSession, { type Session } from "@/lib/auth/session";
-import { fetchOccasionsMap } from "@/lib/occasions/fetch-occasions-map";
-import type { OccasionEntry } from "@/lib/occasions/types";
+import { getInitialSession } from "@/modules/auth/services/session";
+import type { Session } from "@/modules/auth/types";
+import { fetchOccasionsMap } from "@/modules/occasions/services/occasions";
+import type { OccasionEntry } from "@/modules/occasions/types";
 
 export const metadata: Metadata = {
   title: "تقویم مناسبت‌ها",

@@ -1,19 +1,25 @@
 "use client";
 
 import React from "react";
-import { SessionProvider } from "@/domains/auth/session-context";
-import { BasketProvider } from "@/domains/basket/state/basket-context";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { SessionProvider } from "@/modules/auth/context/session-context";
+import { BasketProvider } from "@/modules/basket";
+import { getQueryClient } from "@/lib/api/query-client";
 
 export default function Providers({
   children,
   initialSession,
 }: {
   children: React.ReactNode;
-  initialSession?: import("@/domains/auth/models/session").Session | null;
+  initialSession?: import("@/modules/auth/types").Session | null;
 }) {
+  const queryClient = getQueryClient();
+
   return (
-    <SessionProvider initialSession={initialSession ?? null}>
-      <BasketProvider>{children}</BasketProvider>
-    </SessionProvider>
+    <QueryClientProvider client={queryClient}>
+      <SessionProvider initialSession={initialSession ?? null}>
+        <BasketProvider>{children}</BasketProvider>
+      </SessionProvider>
+    </QueryClientProvider>
   );
 }

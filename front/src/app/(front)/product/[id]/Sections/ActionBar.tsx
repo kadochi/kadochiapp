@@ -8,7 +8,7 @@ import Button from "@/components/ui/Button/Button";
 import InputStepper from "@/components/ui/InputStepper/InputStepper";
 import NormalPrice from "@/components/layout/Price/Normal/NormalPrice";
 import DiscountPrice from "@/components/layout/Price/Discount/DiscountPrice";
-import { useBasket } from "@/domains/basket/state/basket-context";
+import { useBasket } from "@/modules/basket";
 
 type Props = {
   productId: string | number;

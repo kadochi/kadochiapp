@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button/Button";
-import { useSession } from "@/domains/auth/session-context";
+import { useSession } from "@/modules/auth/context/session-context";
 import s from "./info.module.css";
 
 /** Client Component: User info form with refreshSession sync */

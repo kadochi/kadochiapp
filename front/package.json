@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.101.1",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.19",
     "ioredis": "^5.11.0",
@@ -21,15 +23,26 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "swiper": "^12.0.3",
-    "zarinpal-node-sdk": "^2.2.0"
+    "tailwind-merge": "^3.6.0",
+    "zarinpal-node-sdk": "^2.2.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@emnapi/core": "1.11.1",
+    "@emnapi/runtime": "1.11.1",
+    "@tailwindcss/postcss": "^4.3.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.3",
     "baseline-browser-mapping": "^2.10.32",
     "eslint": "^9",
     "eslint-config-next": "16.0.0",
-    "typescript": "^5"
+    "msw": "^2.14.6",
+    "tailwindcss": "^4.3.1",
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   }
 }

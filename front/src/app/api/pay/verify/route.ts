@@ -6,7 +6,7 @@ import {
   UpstreamNetworkError,
   UpstreamTimeout,
 } from "@/services/http/errors";
-import { verifyPayment } from "@/services/payment/zarinpal";
+import { verifyPayment } from "@/modules/checkout/services/payment";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

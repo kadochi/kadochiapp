@@ -1,6 +1,6 @@
 // src/app/api/profile/update/route.ts
 import { NextResponse } from "next/server";
-import { getSessionFromCookies, setSession } from "@/lib/auth/session";
+import { getSessionFromCookies, setSession } from "@/modules/auth/services/session";
 import { updateCustomer, type WooCustomer } from "@/lib/api/woo";
 
 export const runtime = "nodejs";

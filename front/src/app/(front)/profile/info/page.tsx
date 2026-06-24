@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { getSessionFromCookies } from "@/lib/auth/session";
+import { getSessionFromCookies } from "@/modules/auth/services/session";
 import { getCustomerById } from "@/lib/api/woo";
 import Header from "@/components/layout/Header/Header";
 import InfoForm from "./InfoForm";

@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
 import Header from "@/components/layout/Header/Header";
-import { getSessionFromCookies } from "@/lib/auth/session";
+import { getSessionFromCookies } from "@/modules/auth/services/session";
 import { getCustomerById } from "@/lib/api/woo";
 import CheckoutClient from "./CheckoutClient";
-import s from "./Checkout.module.css";
 import type { Metadata } from "next";
 
 export const runtime = "nodejs";
@@ -32,7 +31,7 @@ export default async function CheckoutPage() {
   return (
     <div>
       <Header variant="internal" title="تکمیل اطلاعات" backUrl="/basket" />
-      <main className={s.container} dir="rtl">
+      <main className="max-w-[580px] mx-auto" dir="rtl">
         <CheckoutClient
           initialFirstName={initialFirstName}
           initialLastName={initialLastName}

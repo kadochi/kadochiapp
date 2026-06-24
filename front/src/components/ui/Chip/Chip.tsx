@@ -1,27 +1,37 @@
 "use client";
 
 import React from "react";
-import s from "./Chip.module.css";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/cn";
 
-export type ChipState = "default" | "active" | "disable";
+const chipVariants = cva(
+  "inline-flex items-center justify-center font-sans font-normal text-label-16 leading-label-16 py-1.5 px-2 gap-1 rounded-rounded border border-solid whitespace-nowrap no-underline cursor-pointer box-border",
+  {
+    variants: {
+      state: {
+        default: "bg-surface-soft text-surface-neutral-high border-border-high",
+        active:
+          "bg-secondary-container text-surface-neutral-high border-secondary-on-container",
+        disable:
+          "bg-disable-container text-disable-on border-disable cursor-not-allowed",
+      },
+    },
+    defaultVariants: {
+      state: "default",
+    },
+  }
+);
 
-type Props = {
-  state?: ChipState;
+interface Props extends VariantProps<typeof chipVariants> {
   leadingIcon?: React.ReactNode;
   leadingBadge?: number;
   trailingIcon?: React.ReactNode;
   children?: React.ReactNode;
-
   as?: "button" | "a" | "span";
   href?: string;
   className?: string;
-
   onClick?: React.MouseEventHandler;
   onClear?: React.MouseEventHandler;
-};
-
-function cx(...p: Array<string | false | undefined>) {
-  return p.filter(Boolean).join(" ");
 }
 
 export default function Chip({
@@ -35,18 +45,15 @@ export default function Chip({
   className,
   onClick,
   onClear,
-  ...rest
 }: Props) {
   const isDisabled = state === "disable";
-  const cls = cx(s.root, s[`state_${state}`], className);
+  const cls = cn(chipVariants({ state }), className);
 
-  const showBadge =
-    (state === "active" && typeof leadingBadge === "number") ||
-    (state === "disable" && typeof leadingBadge === "number");
+  const showBadge = typeof leadingBadge === "number";
 
   const trailing = trailingIcon ? (
     <span
-      className={cx(s.icon, s.trailing)}
+      className="inline-flex items-center justify-center w-4 h-4 leading-none"
       onClick={(e) => {
         if (!onClear) return;
         e.stopPropagation();
@@ -63,48 +70,44 @@ export default function Chip({
   const inner = (
     <>
       {leadingIcon && (
-        <span className={cx(s.icon, s.leading)}>{leadingIcon}</span>
+        <span className="inline-flex items-center justify-center w-4 h-4 leading-none ms-0.5">
+          {leadingIcon}
+        </span>
       )}
-
-      <span className={s.label}>{children}</span>
-
+      <span>{children}</span>
       {showBadge && (
-        <span className={s.badge} aria-label={`count ${leadingBadge}`}>
+        <span
+          className={cn(
+            "inline-flex items-center justify-center w-5 h-5 rounded-rounded text-xs leading-none",
+            state === "disable"
+              ? "bg-disable text-disable-on-container"
+              : "bg-secondary text-secondary-on"
+          )}
+          aria-label={`count ${leadingBadge}`}
+        >
           {leadingBadge}
         </span>
       )}
-
       {trailing}
     </>
   );
 
   if (As === "a" && href) {
     return (
-      <a
-        href={href}
-        className={cls}
-        aria-disabled={isDisabled || undefined}
-        {...rest}
-      >
+      <a href={href} className={cls} aria-disabled={isDisabled || undefined}>
         {inner}
       </a>
     );
   }
   if (As === "span") {
     return (
-      <span className={cls} aria-disabled={isDisabled || undefined} {...rest}>
+      <span className={cls} aria-disabled={isDisabled || undefined}>
         {inner}
       </span>
     );
   }
   return (
-    <button
-      type="button"
-      className={cls}
-      disabled={isDisabled}
-      onClick={onClick}
-      {...rest}
-    >
+    <button type="button" className={cls} disabled={isDisabled} onClick={onClick}>
       {inner}
     </button>
   );

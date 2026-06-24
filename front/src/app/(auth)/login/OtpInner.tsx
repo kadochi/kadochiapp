@@ -1,15 +1,14 @@
-// src/app/auth/login/OtpInner.tsx
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import s from "./otp.module.css";
+import { cn } from "@/lib/cn";
 import Button from "@/components/ui/Button/Button";
-import { apiVerifyOtp, apiStartOtp } from "@/lib/client/auth";
+import { apiVerifyOtp, apiStartOtp } from "@/modules/auth/services/otp";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { normalizeDigits } from "@/lib/utils/normalizeDigits";
-import { useSession } from "@/domains/auth/session-context";
+import { useSession } from "@/modules/auth/context/session-context";
 
 export default function OtpInner({
   phone,
@@ -119,12 +118,8 @@ export default function OtpInner({
       } catch {}
 
       if (sess?.userId) {
-        // Normal path: cookie landed; do a full navigation so the RSC page
-        // re-renders server-side with the fresh cookie.
         window.location.assign(nextUrl);
       } else {
-        // Cookie was set server-side but the client fetch returned null —
-        // most likely a transient race. A hard reload picks up the cookie.
         window.location.replace(nextUrl);
       }
     } catch {
@@ -159,7 +154,6 @@ export default function OtpInner({
     }
   }
 
-  // WebOTP
   useEffect(() => {
     let aborter: AbortController | null = null;
 
@@ -195,7 +189,7 @@ export default function OtpInner({
   }, []);
 
   return (
-    <section className={s.page}>
+    <section className={cn("bg-surface-background max-w-[580px] mx-auto")}>
       <input
         ref={hiddenFullInputRef}
         autoComplete="one-time-code"
@@ -216,40 +210,43 @@ export default function OtpInner({
       />
 
       <form
-        className={s.form}
+        className={cn("grid gap-8 pt-20")}
         autoComplete="one-time-code"
         onSubmit={(e) => {
           e.preventDefault();
           handleVerify();
         }}
       >
-        <div className={s.head}>
-          <h1 className={s.title}>کد تایید را وارد کنید</h1>
-          <p className={s.subtitle}>
+        <div className={cn("mt-20 px-6 grid gap-2")}>
+          <h1 className={cn("mb-3 font-sans text-title-18 leading-title-18 font-bold text-text-primary")}>کد تایید را وارد کنید</h1>
+          <p className={cn("m-0 font-sans text-body-16 leading-body-16 text-text-secondary")}>
             کد تایید یکبار مصرف ارسال شده به شماره <span>{phone}</span> را وارد
             کنید.
           </p>
-          <div className={s.editlink} onClick={onBack}>
+          <div className={cn("font-sans text-sm leading-4 font-bold text-information mt-2 cursor-pointer inline-flex items-center gap-2")} onClick={onBack}>
             <Image
               src="/icons/edit.svg"
               alt=""
               aria-hidden="true"
               width={24}
               height={24}
-              className={s.editIcon}
+              className={cn("size-6")}
             />
             <span>ویرایش شماره موبایل</span>
           </div>
         </div>
 
-        <div className={s.fieldWrap}>
-          <label className={s.label}>کد تایید</label>
-          <div className={s.otpGroup} dir="ltr">
+        <div className={cn("px-6 grid justify-items-start gap-2 mx-auto")}>
+          <label className={cn("block mb-2 font-sans text-xs leading-[0.875rem] font-normal text-text-secondary text-right w-full")}>کد تایید</label>
+          <div className={cn("flex justify-start gap-3 self-start max-w-[clamp(320px,100%,360px)]")} dir="ltr">
             {code.map((v, i) => (
               <input
                 key={i}
                 ref={inputs[i]}
-                className={`${s.otpInput} ${err ? s.inputError : ""}`}
+                className={cn(
+                  "w-full h-14 border border-solid border-border-low rounded-l text-center font-sans text-title-16 leading-title-16 font-bold text-text-primary bg-surface-background outline-none focus:border-primary focus:outline-none focus:ring-2 focus:ring-[var(--primary-primary-gradient)]",
+                  err && "border-error"
+                )}
                 inputMode="numeric"
                 pattern="[0-9]*"
                 maxLength={1}
@@ -265,45 +262,45 @@ export default function OtpInner({
           </div>
           {err && (
             <>
-              <div className={s.errorMsg}>{err}</div>
-              <Link href="/contact" className={s.supportLink}>
+              <div className={cn("mt-[6px] text-error font-sans text-xs leading-[0.875rem] text-right w-full")}>{err}</div>
+              <Link href="/contact" className={cn("font-sans text-sm leading-4 text-information text-right w-full mt-1 underline cursor-pointer")}>
                 پشتیبانی کادوچی
               </Link>
             </>
           )}
         </div>
 
-        <div className={s.fieldWrap}>
+        <div className={cn("px-6 grid justify-items-start gap-2 mx-auto")}>
           {secondsLeft > 0 ? (
-            <p className={s.subtitle}>
+            <p className={cn("m-0 font-sans text-body-16 leading-body-16 text-text-secondary")}>
               امکان ارسال مجدد تا {secondsLeft} ثانیه دیگر
             </p>
           ) : resendCount < 3 ? (
-            <div className={s.resendlink} onClick={handleResend}>
+            <div className={cn("font-sans text-sm leading-4 font-bold text-surface-neutral-high mt-2 cursor-pointer inline-flex items-center gap-2")} onClick={handleResend}>
               <Image
                 src="/icons/refresh.svg"
                 alt="resend"
                 aria-hidden="true"
                 width={24}
                 height={24}
-                className={s.resendIcon}
+                className={cn("size-6")}
               />
               <span>ارسال مجدد کد</span>
             </div>
           ) : (
-            <p className={s.errorMsg}>
+            <p className={cn("text-error font-sans text-xs leading-[0.875rem]")}>
               حداکثر ۳ بار در ساعت می‌توانید کد دریافت کنید.
             </p>
           )}
         </div>
 
-        <div className={s.ctaBar}>
-          <div className={s.ctaBtn}>
+        <div className={cn("fixed inset-x-0 bottom-0 p-4 pb-8 bg-surface-background border-t border-border-mid grid")}>
+          <div className={cn("w-full max-w-[580px] mx-auto")}>
             <Button
               type="primary"
               style="filled"
               size="large"
-              className={s.cta}
+              className={cn("w-full")}
               onClick={handleVerify}
               loading={loading}
               disabled={loading}

@@ -5,9 +5,9 @@ import { useEffect, useMemo, useRef } from "react";
 import Lottie from "lottie-react";
 import Button from "@/components/ui/Button/Button";
 import StateMessage from "@/components/layout/StateMessage/StateMessage";
-import { useBasket } from "@/domains/basket/state/basket-context";
+import { useBasket } from "@/modules/basket/context/basket-context";
 import ConfettiAnim from "@/assets/Celebration.json";
-import s from "./success.module.css";
+import { cn } from "@/lib/cn";
 
 type Props = {
   orderId: string;
@@ -66,8 +66,8 @@ export default function SuccessClient({
   }, [updateQuantity]);
 
   return (
-    <div className={s.page} dir="rtl">
-      <div className={s.confettiWrap} aria-hidden>
+    <div className={cn("relative mx-auto bg-white mb-32")} dir="rtl">
+      <div className={cn("fixed inset-0 h-full w-full pointer-events-none z-[2000]")} aria-hidden>
         <Lottie
           animationData={ConfettiAnim}
           loop
@@ -76,7 +76,7 @@ export default function SuccessClient({
         />
       </div>
 
-      <main className={s.wrap}>
+      <main className={cn("px-6 max-w-[580px] mx-auto text-center")}>
         <StateMessage
           imageSrc="/images/success-illustration.png"
           imageAlt=""
@@ -84,46 +84,44 @@ export default function SuccessClient({
           subtitle="می‌توانید وضعیت سفارش را در بخش سفارش‌های من دنبال کنید."
         />
 
-        <div className={s.infoList} role="list">
-          {/* Paid amount (IRT) */}
-          <div className={s.infoRow} role="listitem">
-            <span className={s.infoKey}>مبلغ پرداخت‌شده</span>
-            <span className={s.infoVal}>{toman(paidIRT)} تومان</span>
+        <div className={cn("mt-6")} role="list">
+          <div className={cn("grid grid-cols-[1fr_auto] items-center gap-3 text-start px-4")} role="listitem">
+            <span className={cn("justify-self-start text-base text-text-secondary")}>مبلغ پرداخت‌شده</span>
+            <span className={cn("justify-self-end text-base text-text-primary font-bold")}>{toman(paidIRT)} تومان</span>
           </div>
 
-          <div className={s.sep} aria-hidden />
+          <div className={cn("border-t border-dashed border-border-low mx-4 my-4")} aria-hidden />
 
-          <div className={s.infoRow} role="listitem">
-            <span className={s.infoKey}>شماره سفارش</span>
-            <span className={s.infoVal}>{orderId ? `#${orderId}` : "—"}</span>
+          <div className={cn("grid grid-cols-[1fr_auto] items-center gap-3 text-start px-4")} role="listitem">
+            <span className={cn("justify-self-start text-base text-text-secondary")}>شماره سفارش</span>
+            <span className={cn("justify-self-end text-base text-text-primary font-bold")}>{orderId ? `#${orderId}` : "—"}</span>
           </div>
 
-          <div className={s.sep} aria-hidden />
+          <div className={cn("border-t border-dashed border-border-low mx-4 my-4")} aria-hidden />
 
-          <div className={s.infoRow} role="listitem">
-            <span className={s.infoKey}>تاریخ سفارش</span>
-            <span className={s.infoVal}>{orderDateText}</span>
+          <div className={cn("grid grid-cols-[1fr_auto] items-center gap-3 text-start px-4")} role="listitem">
+            <span className={cn("justify-self-start text-base text-text-secondary")}>تاریخ سفارش</span>
+            <span className={cn("justify-self-end text-base text-text-primary font-bold")}>{orderDateText}</span>
           </div>
 
-          <div className={s.sep} aria-hidden />
+          <div className={cn("border-t border-dashed border-border-low mx-4 my-4")} aria-hidden />
 
-          <div className={s.infoRow} role="listitem">
-            <span className={s.infoKey}>گیرنده</span>
-            <span className={s.infoVal}>{receiverName?.trim() || "—"}</span>
+          <div className={cn("grid grid-cols-[1fr_auto] items-center gap-3 text-start px-4")} role="listitem">
+            <span className={cn("justify-self-start text-base text-text-secondary")}>گیرنده</span>
+            <span className={cn("justify-self-end text-base text-text-primary font-bold")}>{receiverName?.trim() || "—"}</span>
           </div>
 
-          <div className={s.sep} aria-hidden />
+          <div className={cn("border-t border-dashed border-border-low mx-4 my-4")} aria-hidden />
 
-          <div className={s.infoRow} role="listitem">
-            <span className={s.infoKey}>روز و ساعت تحویل</span>
-            <span className={s.infoVal}>{delivery?.trim() || "—"}</span>
+          <div className={cn("grid grid-cols-[1fr_auto] items-center gap-3 text-start px-4")} role="listitem">
+            <span className={cn("justify-self-start text-base text-text-secondary")}>روز و ساعت تحویل</span>
+            <span className={cn("justify-self-end text-base text-text-primary font-bold")}>{delivery?.trim() || "—"}</span>
           </div>
         </div>
       </main>
 
-      {/* Bottom action bar */}
-      <div className={s.ctaBar} role="region" aria-label="CTA">
-        <div className={s.ctaBtn}>
+      <div className={cn("fixed left-0 right-0 bottom-0 p-4 pb-8 bg-white border-t border-border-mid grid z-[9999]")} role="region" aria-label="CTA">
+        <div className={cn("w-full max-w-[580px] mx-auto")}>
           <Link href="/profile/orders">
             <Button type="primary" size="large" style="filled" fullWidth>
               مشاهده سفارش‌های من

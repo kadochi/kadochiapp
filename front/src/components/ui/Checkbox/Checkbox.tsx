@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import s from "./Checkbox.module.css";
+import { cn } from "@/lib/cn";
 
 type Props = {
   checked?: boolean;
@@ -15,18 +15,9 @@ type Props = {
 };
 
 export default function Checkbox({
-  checked,
-  defaultChecked,
-  disabled,
-  label,
-  id,
-  name,
-  onChange,
-  className,
+  checked, defaultChecked, disabled, label, id, name, onChange, className,
 }: Props) {
-  // Uncontrolled internal state (used only when `checked` prop is NOT provided)
   const [internal, setInternal] = React.useState<boolean>(!!defaultChecked);
-
   const isControlled = typeof checked === "boolean";
   const isChecked = isControlled ? !!checked : internal;
   const inputId = id ?? React.useId();
@@ -36,48 +27,28 @@ export default function Checkbox({
     onChange?.(e.target.checked);
   }
 
-  // Build input props to avoid passing both `checked` and `defaultChecked`
-  const inputProps: React.InputHTMLAttributes<HTMLInputElement> = {
-    id: inputId,
-    name,
-    type: "checkbox",
-    className: s.input,
-    disabled,
-    onChange: handleChange,
-    ...(isControlled
-      ? { checked: isChecked, readOnly: !onChange } // controlled
-      : { defaultChecked: !!defaultChecked }), // uncontrolled
-  };
-
   return (
-    <label className={`${s.wrapper} ${className ?? ""}`} htmlFor={inputId}>
+    <label className={cn("inline-flex items-center gap-3 cursor-pointer select-none", className)} htmlFor={inputId}>
       <span
-        className={`${s.control} ${isChecked ? s.checked : ""} ${
-          disabled ? s.disabled : ""
-        }`}
+        className={cn(
+          "inline-grid place-items-center w-6 h-6 shrink-0 rounded-s box-border border-[1.5px] border-solid transition-all duration-120",
+          isChecked ? "bg-secondary-container border-secondary text-secondary-on-container" : "bg-surface-background border-border-high text-transparent",
+          disabled ? "bg-disable-container border-disable text-disable-on" : ""
+        )}
         aria-hidden
       >
-        {/* check glyph */}
-        <svg
-          className={s.icon}
-          viewBox="0 0 24 24"
-          aria-hidden
-          focusable="false"
-        >
-          <path
-            d="M20 6L9 17l-5-5"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+        <svg className="w-4 h-4 block" viewBox="0 0 24 24" aria-hidden focusable="false">
+          <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </span>
-
-      {label ? <span className={s.label}>{label}</span> : null}
-
-      <input {...inputProps} />
+      {label ? <span className="text-label-12 leading-label-12 text-surface-neutral-high">{label}</span> : null}
+      <input
+        id={inputId} name={name} type="checkbox"
+        className="absolute opacity-0 pointer-events-none w-px h-px"
+        disabled={disabled}
+        onChange={handleChange}
+        {...(isControlled ? { checked: isChecked, readOnly: !onChange } : { defaultChecked: !!defaultChecked })}
+      />
     </label>
   );
 }

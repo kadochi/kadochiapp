@@ -1,18 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import s from "./signin.module.css";
+import { cn } from "@/lib/cn";
 import Button from "@/components/ui/Button/Button";
 import Input from "@/components/ui/Input/Input";
 import Checkbox from "@/components/ui/Checkbox/Checkbox";
 import Link from "next/link";
-import { apiStartOtp } from "@/lib/client/auth";
+import { apiStartOtp } from "@/modules/auth/services/otp";
 import { normalizeDigits } from "@/lib/utils/normalizeDigits";
 import {
   isLocalDevHost,
   OTP_DEV_CODE_HINT,
   OTP_DEV_PHONE_HINT,
-} from "@/lib/otp/dev-hint";
+} from "@/modules/auth/services/otp";
 
 type Props = {
   onSubmit: (phone: string) => void;
@@ -45,21 +45,21 @@ export default function SigninInner({ onSubmit, initialPhone = "" }: Props) {
   }
 
   return (
-    <section className={s.page}>
+    <section className={cn("bg-surface-background max-w-[580px] mx-auto")}>
       <form
-        className={s.form}
+        className={cn("grid gap-8 pt-20 pb-[120px]")}
         onSubmit={(e) => {
           e.preventDefault();
           handleSend();
         }}
       >
-        <div className={s.head}>
-          <h1 className={s.title}>ورود / عضویت</h1>
-          <p className={s.subtitle}>
+        <div className={cn("mt-20 px-6 grid gap-2")}>
+          <h1 className={cn("mb-3 font-sans text-title-18 leading-title-18 font-bold text-text-primary")}>ورود / عضویت</h1>
+          <p className={cn("m-0 font-sans text-body-16 leading-body-16 text-text-secondary")}>
             شماره موبایل خود را وارد کنید تا کد تایید برایتان ارسال شود.
           </p>
           {showDevHint && (
-            <p className={s.subtitle}>
+            <p className={cn("m-0 font-sans text-body-16 leading-body-16 text-text-secondary")}>
               توسعه محلی: از شماره{" "}
               <span dir="ltr">{OTP_DEV_PHONE_HINT}</span> و کد{" "}
               <span dir="ltr">{OTP_DEV_CODE_HINT}</span> استفاده کنید.
@@ -67,7 +67,7 @@ export default function SigninInner({ onSubmit, initialPhone = "" }: Props) {
           )}
         </div>
 
-        <div className={s.fieldWrap}>
+        <div className={cn("px-6")}>
           <Input
             dir="ltr"
             showLabel
@@ -86,19 +86,18 @@ export default function SigninInner({ onSubmit, initialPhone = "" }: Props) {
           />
         </div>
 
-        {/* Terms row (checked, non-toggleable) */}
-        <div className={s.termsRow}>
+        <div className={cn("px-6 -mt-2 mb-2")}>
           <Checkbox
             checked
             name="accept_terms"
             label={
-              <span className={s.termsText}>
+              <span className={cn("font-sans text-label-12 leading-label-12 text-text-secondary")}>
                 ورود و عضویت در کادوچی به منزله‌ی مطالعه و پذیرش{" "}
-                <Link href="/terms" className={s.link}>
+                <Link href="/terms" className={cn("text-secondary font-bold no-underline")}>
                   قوانین و مقررات
                 </Link>{" "}
                 و{" "}
-                <Link href="/privacy" className={s.link}>
+                <Link href="/privacy" className={cn("text-secondary font-bold no-underline")}>
                   حفظ حریم شخصی‌
                 </Link>{" "}
                 می‌باشد.
@@ -108,13 +107,13 @@ export default function SigninInner({ onSubmit, initialPhone = "" }: Props) {
           />
         </div>
 
-        <div className={s.ctaBar}>
-          <div className={s.ctaBtn}>
+        <div className={cn("fixed inset-x-0 bottom-0 p-4 pb-8 bg-surface-background border-t border-border-mid grid")}>
+          <div className={cn("w-full max-w-[580px] mx-auto")}>
             <Button
               type="primary"
               style="filled"
               size="large"
-              className={s.ctaBtn}
+              className={cn("w-full max-w-[580px] mx-auto")}
               onClick={handleSend}
               loading={loading}
               disabled={loading}

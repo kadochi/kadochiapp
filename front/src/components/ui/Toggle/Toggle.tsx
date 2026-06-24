@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import s from "./Toggle.module.css";
+import { cn } from "@/lib/cn";
 
 export type ToggleProps = {
   checked?: boolean;
@@ -13,24 +13,9 @@ export type ToggleProps = {
   className?: string;
 };
 
-function cx(...parts: Array<string | false | undefined>) {
-  return parts.filter(Boolean).join(" ");
-}
-
 export default function Toggle(props: ToggleProps) {
-  const {
-    checked: controlled,
-    defaultChecked,
-    onChange,
-    disabled,
-    label,
-    id,
-    className,
-  } = props;
-
-  const [uncontrolled, setUncontrolled] = React.useState<boolean>(
-    !!defaultChecked
-  );
+  const { checked: controlled, defaultChecked, onChange, disabled, label, id, className } = props;
+  const [uncontrolled, setUncontrolled] = React.useState<boolean>(!!defaultChecked);
   const isControlled = controlled !== undefined;
   const checked = isControlled ? !!controlled : uncontrolled;
 
@@ -40,11 +25,11 @@ export default function Toggle(props: ToggleProps) {
   }
 
   return (
-    <label className={cx(s.wrapper, className)}>
+    <label className={cn("inline-flex items-center gap-3 cursor-pointer select-none", className)}>
       <input
         id={id}
         type="checkbox"
-        className={s.input}
+        className="absolute opacity-0 pointer-events-none"
         role="switch"
         aria-checked={checked}
         checked={checked}
@@ -52,18 +37,28 @@ export default function Toggle(props: ToggleProps) {
         disabled={disabled}
       />
       <span
-        className={cx(
-          s.track,
-          checked ? s.on : s.off,
-          checked && s.checked,
-          disabled && s.disabled
+        className={cn(
+          "relative inline-flex items-center w-14 h-8 rounded-rounded overflow-hidden transition-colors duration-120 ease-out",
+          checked
+            ? "bg-secondary text-secondary"
+            : "bg-surface text-border-high [box-shadow:inset_0_0_0_1.5px_var(--border-border-high-emphasis),0_0_0_2px_color-mix(in_oklab,var(--secondary-secondary)_10%,transparent)]",
+          disabled && "bg-disable-container text-disable cursor-not-allowed [box-shadow:inset_0_0_0_1.5px_var(--disable-disable)]"
         )}
         aria-hidden
       >
-        <span className={s.thumb} />
+        <span
+          className={cn(
+            "absolute w-6 h-6 rounded-rounded top-1 transition-all duration-120 ease-out",
+            checked
+              ? "left-1 right-auto bg-secondary-on"
+              : "right-1 left-auto bg-disable",
+            disabled && "bg-disable"
+          )}
+        />
       </span>
-
-      {label ? <span className={s.label}>{label}</span> : null}
+      {label ? (
+        <span className="text-label-12 leading-label-12 text-surface-neutral-high">{label}</span>
+      ) : null}
     </label>
   );
 }

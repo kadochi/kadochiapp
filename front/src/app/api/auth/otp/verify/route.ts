@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import {
   applySessionCookie,
   buildSessionCookie,
-} from "@/lib/auth/session";
+} from "@/modules/auth/services/session";
 import {
   findCustomers,
   createCustomer,
@@ -12,7 +12,7 @@ import {
   resolveWooUrl,
   type WooCustomer,
 } from "@/lib/api/woo";
-import { deleteOtpCode, getOtpCode } from "@/lib/otp/store";
+import { deleteOtpCode, getOtpCode } from "@/modules/auth/services/otp.server";
 import {
   isBlockedTestCode,
   isDevBypassLogin,

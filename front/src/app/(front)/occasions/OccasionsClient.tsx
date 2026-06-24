@@ -12,12 +12,12 @@ import {
 } from "@/lib/jalali";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
 import Button from "@/components/ui/Button/Button";
-import { useSession } from "@/domains/auth/session-context";
+import { useSession } from "@/modules/auth/context/session-context";
 import AddOccasionSheet from "./AddOccasionSheet";
 import OccasionRow, { type DayRow } from "./OccasionRow";
 import s from "./occasions.module.css";
 import Header from "@/components/layout/Header/Header";
-import type { OccasionEntry } from "@/lib/occasions/types";
+import type { OccasionEntry } from "@/modules/occasions/types";
 
 export type { OccasionEntry };
 

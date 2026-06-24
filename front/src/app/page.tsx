@@ -4,11 +4,10 @@ import ServicesNav from "@/components/layout/Services/ServicesNav";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
 import Button from "@/components/ui/Button/Button";
 import Divider from "@/components/ui/Divider/Divider";
-import ProductCarousel from "@/domains/catalog/components/ProductCarousel/ProductCarousel";
-import CategoryCarousel from "@/domains/catalog/components/CategoryCarousel/CategoryCarousel";
-import OccasionCarousel from "@/domains/occasions/components/OccasionCarousel/OccasionCarousel";
-import OccasionLabel from "@/domains/occasions/components/OccasionLabel/OccasionLabel";
-import AboutSection from "@/domains/statics/components/AboutSection/AboutSection";
+import { ProductCarousel, CategoryCarousel } from "@/modules/catalog";
+import OccasionCarousel from "@/modules/occasions/components/OccasionCarousel/OccasionCarousel";
+import OccasionLabel from "@/modules/occasions/components/OccasionLabel/OccasionLabel";
+import { AboutSection } from "@/modules/statics";
 import Label from "@/components/ui/Label/Label";
 import Header from "@/components/layout/Header/Header";
 

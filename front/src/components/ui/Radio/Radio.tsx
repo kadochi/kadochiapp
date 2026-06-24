@@ -1,10 +1,9 @@
 "use client";
 
 import React from "react";
-import s from "./Radio.module.css";
+import { cn } from "@/lib/cn";
 
 type Props = {
-  /** Use either checked (controlled) OR defaultChecked (uncontrolled init) */
   checked?: boolean;
   defaultChecked?: boolean;
   disabled?: boolean;
@@ -17,17 +16,8 @@ type Props = {
 };
 
 export default function Radio({
-  checked,
-  defaultChecked,
-  disabled,
-  label,
-  id,
-  name,
-  value,
-  onChange,
-  className,
+  checked, defaultChecked, disabled, label, id, name, value, onChange, className,
 }: Props) {
-  // initialize from defaultChecked, then behave as controlled if "checked" prop is provided
   const [internal, setInternal] = React.useState<boolean>(!!defaultChecked);
   const isControlled = typeof checked === "boolean";
   const isChecked = isControlled ? !!checked : internal;
@@ -39,26 +29,22 @@ export default function Radio({
   }
 
   return (
-    <label className={`${s.wrapper} ${className ?? ""}`} htmlFor={inputId}>
+    <label className={cn("inline-flex items-center gap-3 cursor-pointer select-none", className)} htmlFor={inputId}>
       <span
-        className={`${s.control} ${isChecked ? s.checked : ""} ${
-          disabled ? s.disabled : ""
-        }`}
+        className={cn(
+          "inline-grid place-items-center w-6 h-6 rounded-full box-border border-[1.5px] border-solid transition-all duration-120",
+          isChecked ? "bg-secondary-container border-secondary" : "bg-surface-background border-border-high",
+          disabled ? "bg-disable-container border-disable" : ""
+        )}
         aria-hidden
       >
-        <span className={s.dot} />
+        <span className={cn("w-4 h-4 rounded-full transition-colors duration-120", isChecked ? "bg-secondary" : "bg-transparent", disabled ? "bg-disable" : "")} />
       </span>
-
-      {label ? <span className={s.label}>{label}</span> : null}
-
+      {label ? <span className="text-label-12 leading-label-12 text-surface-neutral-high">{label}</span> : null}
       <input
-        id={inputId}
-        name={name}
-        value={value}
-        type="radio"
-        className={s.input}
-        checked={isChecked}
-        disabled={disabled}
+        id={inputId} name={name} value={value} type="radio"
+        className="absolute opacity-0 pointer-events-none"
+        checked={isChecked} disabled={disabled}
         onChange={handleChange}
       />
     </label>

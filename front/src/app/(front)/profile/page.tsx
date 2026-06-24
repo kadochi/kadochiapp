@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import ProfilePageClient from "./ProfilePageClient";
-import getInitialSession, { type Session } from "@/lib/auth/session";
+import { getInitialSession } from "@/modules/auth/services/session";
+import type { Session } from "@/modules/auth/types";
 
 export const metadata: Metadata = {
   title: "حساب کاربری",
