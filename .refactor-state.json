@@ -1,0 +1,114 @@
+{
+  "pass": 8,
+  "phase": "final-sweep",
+  "lastFile": "src/app/TopLoader.tsx",
+  "lighthouse": {},
+  "openIssues": [
+    {
+      "id": "S-003",
+      "severity": "medium",
+      "phase": "structure",
+      "desc": "No src/hooks/ directory; RQ hooks scattered in modules/*/hooks/",
+      "file": "src/hooks/"
+    },
+    {
+      "id": "S-004",
+      "severity": "medium",
+      "phase": "structure",
+      "desc": "No src/schemas/ directory; zod schemas scattered in modules/*/schema/",
+      "file": "src/schemas/"
+    },
+    {
+      "id": "S-005",
+      "severity": "medium",
+      "phase": "structure",
+      "desc": "No src/server/ directory; server-only code in lib/ and modules/",
+      "file": "src/server/"
+    },
+    {
+      "id": "S-006",
+      "severity": "low",
+      "phase": "structure",
+      "desc": "CSS module files (.module.css) mixed with Tailwind v4 tokens",
+      "file": "src/components/"
+    },
+    {
+      "id": "S-007",
+      "severity": "medium",
+      "phase": "structure",
+      "desc": "Multiple module index.ts barrel files may cause circular deps",
+      "file": "src/modules/"
+    },
+    {
+      "id": "D-001",
+      "severity": "high",
+      "phase": "data-layer",
+      "desc": "useWordPressFetch uses useState/useEffect instead of React Query",
+      "file": "src/services/wordpress/client.ts"
+    },
+    {
+      "id": "D-003",
+      "severity": "medium",
+      "phase": "data-layer",
+      "desc": "No HydrationBoundary used for RSC→RQ hydration",
+      "file": "src/lib/api/query-client.ts"
+    },
+    {
+      "id": "D-004",
+      "severity": "low",
+      "phase": "data-layer",
+      "desc": "Session data duplicated in React context and RQ cache",
+      "file": "src/modules/auth/context/session-context.tsx"
+    },
+    {
+      "id": "T-002",
+      "severity": "medium",
+      "phase": "types",
+      "desc": "src/types/wordpress.ts contains hand-written interfaces",
+      "file": "src/types/wordpress.ts"
+    },
+    {
+      "id": "C-001",
+      "severity": "high",
+      "phase": "components",
+      "desc": "lib/api/woo.ts is 1340 LOC — exceeds 250 limit",
+      "file": "src/lib/api/woo.ts"
+    },
+    {
+      "id": "C-007",
+      "severity": "medium",
+      "phase": "components",
+      "desc": "Many components use .module.css instead of Tailwind v4 tokens",
+      "file": "src/components/"
+    },
+    {
+      "id": "S-008",
+      "severity": "low",
+      "phase": "seo",
+      "desc": "Layout uses inline <script> tags for GA/Yektanet",
+      "file": "src/app/layout.tsx"
+    },
+    {
+      "id": "LINT",
+      "severity": "low",
+      "phase": "final-sweep",
+      "desc": "267 lint warnings remaining (0 errors) — pre-existing issues",
+      "file": "."
+    }
+  ],
+  "doneSlices": [
+    "S-001: Added typecheck/test/lint scripts to package.json",
+    "S-002: Removed dead lib/api/client.ts (unused axios file)",
+    "D-002: Created queryKeys factory in lib/api/query-keys.ts, updated all RQ hooks",
+    "T-001: Added noUncheckedIndexedAccess and noImplicitOverride to tsconfig, fixed all type errors",
+    "C-001: Split modules/catalog/services/products.ts into products.ts, products.mappers.ts, products.types.ts",
+    "C-005: Split modules/checkout/services/payment.ts into payment.ts, payment.utils.ts, payment.types.ts",
+    "C-002: Removed dead lib/auth/session.ts (383 LOC, duplicate of modules/auth/services/session.ts)",
+    "C-003: Split lib/api/orders.ts into orders.ts, orders.helpers.ts, orders.types.ts",
+    "C-004: Split services/wordpress/index.ts into index.ts, types.ts, utils.ts, fetchers.ts",
+    "A-001: Added skip-to-content link in layout.tsx",
+    "A-002: Added prefers-reduced-motion support in globals.css",
+    "S-008: Added JSON-LD structured data to product/[id]/page.tsx",
+    "V-001: Created TopLoader client component for dynamic import of nextjs-toploader"
+  ]
+}
