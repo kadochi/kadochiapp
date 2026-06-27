@@ -1,13 +1,5 @@
 "use client";
 
-import {
-  useMemo,
-  useState,
-  useCallback,
-  useEffect,
-  useTransition,
-} from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import BottomSheet from "@/components/ui/BottomSheet/BottomSheet";
 import SectionHeader from "@/components/layout/SectionHeader/SectionHeader";
 import Divider from "@/components/ui/Divider/Divider";
@@ -15,109 +7,18 @@ import Chip from "@/components/ui/Chip/Chip";
 import Input from "@/components/ui/Input/Input";
 import Button from "@/components/ui/Button/Button";
 import Toggle from "@/components/ui/Toggle/Toggle";
-import SegmentSelector, {
-  type SegmentItem,
-} from "@/components/ui/SegmentSelector/SegmentSelector";
+import SegmentSelector from "@/components/ui/SegmentSelector/SegmentSelector";
 import { X, Trash2 } from "lucide-react";
 import s from "./Sheets.module.css";
-
-type CategoryItem = { label: string; value: string };
-
-type OccasionKey =
-  | "none"
-  | "birthday"
-  | "anniversary"
-  | "newyear"
-  | "yalda"
-  | "graduation"
-  | "valentine"
-  | "parents";
-
-type OccasionItem = {
-  key: OccasionKey;
-  title: string;
-  tags?: string[];
-  icon: string;
-};
-
-const ICONS: Record<OccasionKey | "motherday" | "fatherday", string> = {
-  none: "/images/filters-occasion-none.png",
-  birthday: "/images/filters-occasion-birthday.png",
-  anniversary: "/images/filters-occasion-anniv.png",
-  newyear: "/images/filters-occasion-newyear.png",
-  yalda: "/images/filters-occasion-yalda.png",
-  graduation: "/images/filters-occasion-grad.png",
-  valentine: "/images/filters-occasion-valentine.png",
-  parents: "/images/filters-occasion-mother-father.png",
-  motherday: "/images/filters-occasion-mother-father.png",
-  fatherday: "/images/filters-occasion-mother-father.png",
-};
-
-const OCCASIONS: OccasionItem[] = [
-  {
-    key: "parents",
-    title: "روز مادر یا\nروز پدر",
-    tags: ["motherday", "fatherday"],
-    icon: ICONS.parents,
-  },
-  {
-    key: "anniversary",
-    title: "سالگرد\nازدواج",
-    tags: ["anniversary"],
-    icon: ICONS.anniversary,
-  },
-  {
-    key: "birthday",
-    title: "جشن\nتولد",
-    tags: ["birthday"],
-    icon: ICONS.birthday,
-  },
-  { key: "none", title: "بدون\nمناسبت", icon: ICONS.none },
-  {
-    key: "graduation",
-    title: "شروع\nمسیر جدید",
-    tags: ["graduation"],
-    icon: ICONS.graduation,
-  },
-  {
-    key: "newyear",
-    title: "عید\nنوروز",
-    tags: ["newyear"],
-    icon: ICONS.newyear,
-  },
-  { key: "yalda", title: "شب\nیلدا", tags: ["yalda"], icon: ICONS.yalda },
-  {
-    key: "valentine",
-    title: "روز عشق\nولنتاین",
-    tags: ["valentine"],
-    icon: ICONS.valentine,
-  },
-];
-
-const onlyDigits = (v: string) =>
-  v
-    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
-    .replace(/[^\d]/g, "");
-const withThousands = (v: string) =>
-  v ? v.replace(/^0+/, "").replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "";
-const toInt = (v: string) => {
-  const d = onlyDigits(v);
-  return d ? Number(d) : 0;
-};
-const normTags = (raw?: string | null) =>
-  raw
-    ? raw
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean)
-    : [];
-
-type SortId = "latest" | "oldest" | "popular";
-const sortItems: SegmentItem[] = [
-  { id: "latest", label: "جدیدترین" },
-  { id: "oldest", label: "قدیمی‌ترین" },
-  { id: "popular", label: "محبوب‌ترین" },
-];
+import {
+  OCCASIONS,
+  onlyDigits,
+  sortItems,
+  withThousands,
+  type CategoryItem,
+  type SortId,
+} from "./allFilters.constants";
+import { useAllFilters } from "./useAllFilters";
 
 export default function AllFiltersSheet({
   isOpen,
@@ -128,153 +29,25 @@ export default function AllFiltersSheet({
   onClose?: () => void;
   categories: CategoryItem[];
 }) {
-  const router = useRouter();
-  const sp = useSearchParams();
-
-  const closeSafe = useCallback(() => {
-    if (onClose) return onClose();
-    const usp = new URLSearchParams(sp.toString());
-    usp.delete("sheet");
-    router.replace(`/products?${usp.toString()}`, { scroll: false });
-  }, [onClose, router, sp]);
-
-  const urlOrderby = (sp.get("orderby") || "date").toLowerCase();
-  const urlOrder = (sp.get("order") || "desc").toLowerCase() as "asc" | "desc";
-  const urlCategory = sp.get("category") || "";
-  const urlTags = useMemo(() => normTags(sp.get("tag")), [sp]);
-  const urlMin = sp.get("min_price") || "";
-  const urlMax = sp.get("max_price") || "";
-
-  const [sort, setSort] = useState<SortId>(
-    urlOrderby === "popularity"
-      ? "popular"
-      : urlOrder === "asc"
-      ? "oldest"
-      : "latest"
-  );
-  const [category, setCategory] = useState<string>(urlCategory);
-  const [fast, setFast] = useState<boolean>(urlTags.includes("fast-delivery"));
-
-  const initialOccasion: OccasionKey = (() => {
-    const t = urlTags.filter((x) => x !== "fast-delivery");
-    if (t.includes("motherday") && t.includes("fatherday")) return "parents";
-    const single = [
-      "birthday",
-      "anniversary",
-      "newyear",
-      "yalda",
-      "graduation",
-      "valentine",
-    ] as const;
-    for (const k of single) if (t.includes(k)) return k as OccasionKey;
-    return "none";
-  })();
-  const [occasion, setOccasion] = useState<OccasionKey>(initialOccasion);
-
-  const [minStr, setMinStr] = useState<string>(
-    withThousands(onlyDigits(urlMin))
-  );
-  const [maxStr, setMaxStr] = useState<string>(
-    withThousands(onlyDigits(urlMax))
-  );
-
-  useEffect(() => {
-    const oBy = (sp.get("orderby") || "date").toLowerCase();
-    const o = (sp.get("order") || "desc").toLowerCase() as "asc" | "desc";
-    setSort(
-      oBy === "popularity" ? "popular" : o === "asc" ? "oldest" : "latest"
-    );
-    setCategory(sp.get("category") || "");
-    const t = normTags(sp.get("tag"));
-    setFast(t.includes("fast-delivery"));
-    const tNoFast = t.filter((x) => x !== "fast-delivery");
-    if (tNoFast.includes("motherday") && tNoFast.includes("fatherday"))
-      setOccasion("parents");
-    else {
-      const singles: OccasionKey[] = [
-        "birthday",
-        "anniversary",
-        "newyear",
-        "yalda",
-        "graduation",
-        "valentine",
-      ];
-      const found = singles.find((k) => tNoFast.includes(k));
-      setOccasion(found ?? "none");
-    }
-    setMinStr(withThousands(onlyDigits(sp.get("min_price") || "")));
-    setMaxStr(withThousands(onlyDigits(sp.get("max_price") || "")));
-  }, [isOpen, sp]);
-
-  const [isPending, startTransition] = useTransition();
-
-  const applyAll = useCallback(() => {
-    const usp = new URLSearchParams(sp.toString());
-
-    if (sort === "popular") {
-      usp.set("orderby", "popularity");
-      usp.set("order", "desc");
-    } else if (sort === "oldest") {
-      usp.set("orderby", "date");
-      usp.set("order", "asc");
-    } else {
-      usp.set("orderby", "date");
-      usp.set("order", "desc");
-    }
-
-    if (category) usp.set("category", category);
-    else usp.delete("category");
-
-    const tags: string[] = [];
-    if (occasion === "parents") tags.push("motherday", "fatherday");
-    else if (occasion !== "none") {
-      const item = OCCASIONS.find((o) => o.key === occasion);
-      if (item?.tags?.[0]) tags.push(item.tags[0]);
-    }
-    if (fast) tags.push("fast-delivery");
-    if (tags.length) usp.set("tag", Array.from(new Set(tags)).join(","));
-    else usp.delete("tag");
-
-    const nMin = toInt(minStr);
-    const nMax = toInt(maxStr);
-    if (nMin > 0) usp.set("min_price", String(nMin));
-    else usp.delete("min_price");
-    if (nMax > 0) usp.set("max_price", String(nMax));
-    else usp.delete("max_price");
-
-    usp.set("page", "1");
-    usp.delete("sheet");
-
-    startTransition(() => {
-      router.replace(`/products?${usp.toString()}`, { scroll: false });
-    });
-  }, [
-    sp,
-    router,
+  const {
+    closeSafe,
     sort,
+    setSort,
     category,
-    occasion,
+    setCategory,
     fast,
+    setFast,
+    occasion,
+    setOccasion,
     minStr,
+    setMinStr,
     maxStr,
-    startTransition,
-  ]);
-
-  const clearAll = () => {
-    setSort("latest");
-    setCategory("");
-    setOccasion("none");
-    setFast(false);
-    setMinStr("");
-    setMaxStr("");
-  };
-
-  const activeCount =
-    (sort !== "latest" ? 1 : 0) +
-    (category ? 1 : 0) +
-    (occasion !== "none" ? 1 : 0) +
-    (fast ? 1 : 0) +
-    (minStr || maxStr ? 1 : 0);
+    setMaxStr,
+    isPending,
+    applyAll,
+    clearAll,
+    activeCount,
+  } = useAllFilters(isOpen, onClose);
 
   return (
     <BottomSheet isOpen={isOpen} onClose={closeSafe} ariaLabel="فیلترها">
