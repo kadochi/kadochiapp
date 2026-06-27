@@ -1,7 +1,7 @@
 {
-  "pass": 6,
+  "pass": 7,
   "phase": "structure",
-  "lastFile": "src/components/layout/Header/Header.tsx",
+  "lastFile": "src/app/page.tsx",
   "lighthouse": {},
   "openIssues": [],
   "doneSlices": [
@@ -11,7 +11,8 @@
     "phase-1-slice-3: split AllFiltersSheet.client.tsx (440 LOC) into allFilters.constants.ts + useAllFilters.ts; view now 213 LOC",
     "phase-1-slice-4: split OrdersPageClient.tsx (472 LOC) into orders.helpers.ts + useOrders.ts + OrderCard.tsx; view now 141 LOC",
     "phase-1-slice-5: split Footer.tsx (279 LOC) into footer.constants.ts + footer.hooks.ts (category fetch moved into useFooterCategories hook); view now 187 LOC",
-    "phase-1-slice-6: split Header.tsx (267 LOC) into a thin variant dispatcher (40 LOC) + HeaderDefault.tsx; internal variant now reuses existing HeaderInternal (removed duplicated inline render)"
+    "phase-1-slice-6: split Header.tsx (267 LOC) into a thin variant dispatcher (40 LOC) + HeaderDefault.tsx; internal variant now reuses existing HeaderInternal (removed duplicated inline render)",
+    "phase-1-slice-7: extracted app/page.tsx data (ServicesNav items, carousel params, siteLd/orgLd JSON-LD) into home.constants.ts; page now 202 LOC. NOTE: siteLd/orgLd are already rendered in current code (audit note was stale)."
   ],
   "baseline": {
     "lint": { "errors": 0, "warnings": 229 },

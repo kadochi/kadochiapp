@@ -11,6 +11,14 @@ import OccasionLabel from "@/domains/occasions/components/OccasionLabel/Occasion
 import AboutSection from "@/domains/statics/components/AboutSection/AboutSection";
 import Label from "@/components/ui/Label/Label";
 import Header from "@/components/layout/Header/Header";
+import {
+  FAST_DELIVERY_PARAMS,
+  LATEST_PARAMS,
+  orgLd,
+  POPULAR_PARAMS,
+  SERVICES_NAV_ITEMS,
+  siteLd,
+} from "./home.constants";
 
 export const revalidate = 60;
 
@@ -35,75 +43,12 @@ export const metadata: Metadata = {
 };
 
 export default async function WPLatestProductsPage() {
-  const latestParams = { orderby: "date", order: "desc", per_page: 12 };
-  const popularParams = { orderby: "popularity", order: "desc", per_page: 12 };
-
-  const siteLd = {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    url: "https://kadochi.com/",
-    name: "کادوچی",
-    potentialAction: {
-      "@type": "SearchAction",
-      target: "https://kadochi.com/products?q={search_term_string}",
-      "query-input": "required name=search_term_string",
-    },
-  };
-
-  const orgLd = {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    name: "کادوچی",
-    url: "https://kadochi.com/",
-    logo: "https://kadochi.com/images/logo.svg",
-  };
-
   return (
     <>
       <Header />
       <h1 className="sr-only">کادوچی | خرید کادو، گل و کیک با ارسال سریع</h1>
       <HeroSlider />
-      <ServicesNav
-        items={[
-          {
-            label: "محصولات کادویی",
-            href: "/products",
-            icon: "/icons/all-gifts.svg",
-            variant: "sq",
-          },
-          {
-            label: "جستجوی کادوی مناسب",
-            href: "/",
-            icon: "/icons/giftf-inder.svg",
-            variant: "sq",
-            comingSoon: true,
-          },
-          {
-            label: "تقویم مناسبت‌ها",
-            href: "/occasions",
-            icon: "/icons/ocassions-calendar.svg",
-            variant: "sq",
-          },
-          {
-            label: "ارسال سریع امروز",
-            href: "/products?tag=fast-delivery",
-            icon: "/icons/today-delivery.svg",
-            variant: "sq",
-          },
-          {
-            label: "کیک تولد و برگزاری تولد",
-            href: "/products?category=chocolate",
-            icon: "/icons/birthday-cake.svg",
-            variant: "wide",
-          },
-          {
-            label: "باکس گل و دسته‌گل",
-            href: "/products?category=flower",
-            icon: "/icons/flower-box.svg",
-            variant: "wide",
-          },
-        ]}
-      />
+      <ServicesNav items={SERVICES_NAV_ITEMS} />
       <Divider type="spacer" />
       <section>
         <SectionHeader
@@ -129,7 +74,7 @@ export default async function WPLatestProductsPage() {
             </Button>
           }
         />
-        <ProductCarousel wpParams={latestParams} />
+        <ProductCarousel wpParams={LATEST_PARAMS} />
       </section>
       <Divider type="spacer" />
       <section>
@@ -183,7 +128,7 @@ export default async function WPLatestProductsPage() {
             </Button>
           }
         />
-        <ProductCarousel endpoint="/api/products" wpParams={popularParams} />
+        <ProductCarousel endpoint="/api/products" wpParams={POPULAR_PARAMS} />
       </section>
       <Divider type="spacer" />
       <section>
@@ -238,7 +183,7 @@ export default async function WPLatestProductsPage() {
         />
         <ProductCarousel
           endpoint="/api/products"
-          wpParams={{ tag: 25, per_page: 8 }}
+          wpParams={FAST_DELIVERY_PARAMS}
         />
       </section>
       <Divider type="spacer" />
