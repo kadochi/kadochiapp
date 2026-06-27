@@ -43,7 +43,7 @@ function jwtVerifyHS256<T = any>(token: string, secret: string): T | null {
   if (expected !== s) return null;
   try {
     const json = Buffer.from(
-      p.replace(/-/g, "+").replace(/_/g, "/"),
+      p!.replace(/-/g, "+").replace(/_/g, "/"),
       "base64"
     ).toString();
     return JSON.parse(json) as T;

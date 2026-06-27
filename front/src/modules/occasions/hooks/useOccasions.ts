@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { dayjs, parseOccasionDate, PERSIAN_MONTHS } from "@/lib/jalali";
+import { queryKeys } from "@/lib/api/query-keys";
 import type { OccasionItem } from "../types";
 
 type WPOccasion = {
@@ -58,7 +59,7 @@ function dedupeAndSort(items: OccasionItem[]): OccasionItem[] {
 
 export function useOccasionsQuery(userId?: number | null) {
   return useQuery({
-    queryKey: ["occasions", "carousel", userId],
+    queryKey: queryKeys.occasions.list(userId),
     queryFn: async () => {
       const today = new Date();
 

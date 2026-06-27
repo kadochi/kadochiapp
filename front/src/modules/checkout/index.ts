@@ -41,7 +41,7 @@ export {
 export type {
   RequestPaymentResult,
   VerifyPaymentResult,
-} from "./services/payment";
+} from "./services/payment.types";
 
 export { useCheckoutMutation } from "./hooks/useCheckout";
 

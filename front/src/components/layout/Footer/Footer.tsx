@@ -155,7 +155,7 @@ export default function Footer() {
                 ["کادو فارغ التحصیلی", "/products?tag=graduation"],
               ].map(([label, href]) => (
                 <li key={href}>
-                  <Link href={href} className={s.link}>
+                  <Link href={href!} className={s.link}>
                     {label}
                   </Link>
                 </li>
@@ -177,7 +177,7 @@ export default function Footer() {
                 ["سوالات متداول", "/faq"],
               ].map(([label, href]) => (
                 <li key={href}>
-                  <Link href={href} className={s.link}>
+                  <Link href={href!} className={s.link}>
                     {label}
                   </Link>
                 </li>

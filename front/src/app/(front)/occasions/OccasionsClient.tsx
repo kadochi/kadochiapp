@@ -195,7 +195,7 @@ export default function OccasionsClient({
     const el = headerRef.current;
     if (!el) return;
     const io = new IntersectionObserver(
-      (entries) => setShowFab(!entries[0].isIntersecting),
+      (entries) => setShowFab(!entries[0]!.isIntersecting),
       { root: null, threshold: 0 },
     );
     io.observe(el);

@@ -503,7 +503,7 @@ const resolveTagIdsCsv = cache(async function resolveTagIdsCsv(
     } catch {}
 
     const missing = slugParts.filter(
-      (slug, idx) => !resolvedSlugSet.has(slugPartsLower[idx]),
+      (slug, idx) => !resolvedSlugSet.has(slugPartsLower[idx]!),
     );
     if (missing.length) {
       const fallbackIds = await Promise.all(

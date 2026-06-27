@@ -30,7 +30,7 @@ export const WEEKDAYS_FA = [
 ] as const;
 
 export const persianDigits = (numStr: string) =>
-  numStr.replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
+  numStr.replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)] ?? d);
 
 export type JalaliParts = { jy: number; jm: number; jd: number };
 

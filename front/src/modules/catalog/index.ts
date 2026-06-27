@@ -6,7 +6,8 @@ export type { WooStoreProduct, WooV3Product, WooStoreCategory, WooStoreImage, Wo
 export type { Currency, Price, StockStatus, MediaImage, Category, Attribute, Product, ProductDetail, ProductComment, StoreCategory } from "./types";
 
 // Services
-export { mapStoreProductToCard, mapStoreProducts, mapStoreProductToDetail, fetchStoreProducts, fetchStoreProductById, listProducts, getProductDetail, fetchProductComments, createProductReview, fetchWpTagMeta, getPublishedProductsForSitemap } from "./services/products";
+export { mapStoreProductToCard, mapStoreProducts, mapStoreProductToDetail } from "./services/products.mappers";
+export { fetchStoreProducts, fetchStoreProductById, listProducts, getProductDetail, fetchProductComments, createProductReview, fetchWpTagMeta, getPublishedProductsForSitemap } from "./services/products";
 export { fetchStoreCategories, fetchWpCategoryMeta, getAllCategoriesForFilter } from "./services/categories";
 
 // Hooks

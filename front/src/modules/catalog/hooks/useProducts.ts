@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/api/query-keys";
 import type { ProductCard, ProductDetail } from "../types";
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -16,7 +17,7 @@ export function useProducts(params: Record<string, string | number | boolean | u
   const url = `/api/products${queryString ? `?${queryString}` : ""}`;
 
   return useQuery<ProductCard[]>({
-    queryKey: ["products", params],
+    queryKey: queryKeys.catalog.products(params),
     queryFn: () => fetchJson<ProductCard[]>(url),
     staleTime: 2 * 60 * 1000,
   });
@@ -24,7 +25,7 @@ export function useProducts(params: Record<string, string | number | boolean | u
 
 export function useProductDetail(id: string | number) {
   return useQuery<ProductDetail | null>({
-    queryKey: ["product", id],
+    queryKey: queryKeys.catalog.product(id),
     queryFn: async () => {
       const res = await fetch(`/api/products/${id}`);
       if (!res.ok) return null;

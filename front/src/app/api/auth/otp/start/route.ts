@@ -27,7 +27,7 @@ function extractOtpFromResponseBody(text: string): string | null {
       j?.code ?? j?.otp ?? j?.data?.otp ?? j?.data?.code ?? j?.result?.code;
     if (typeof cand === "string") {
       const m = cand.match(/\b(\d{4,6})\b/);
-      if (m) return m[1];
+      if (m) return m[1]!;
     }
     if (typeof cand === "number") {
       const s = String(cand);
@@ -35,10 +35,10 @@ function extractOtpFromResponseBody(text: string): string | null {
     }
     const flat = JSON.stringify(j);
     const m2 = flat.match(/\b(\d{4,6})\b/);
-    if (m2) return m2[1];
+    if (m2) return m2[1]!;
   } catch {
     const m = text.match(/\b(\d{4,6})\b/);
-    if (m) return m[1];
+    if (m) return m[1]!;
   }
   return null;
 }

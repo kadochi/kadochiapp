@@ -88,7 +88,7 @@ export default function OccasionCarouselClient({
           return {
             title,
             day: String(j.date()),
-            month: PERSIAN_MONTHS[j.month() + 1],
+            month: PERSIAN_MONTHS[j.month() + 1]!,
             remainingDays,
             sortKey: targetDate.getTime(),
             variant,

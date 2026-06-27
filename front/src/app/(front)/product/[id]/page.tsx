@@ -17,6 +17,7 @@ import Label from "@/components/ui/Label/Label";
 import Button from "@/components/ui/Button/Button";
 import Breadcrumb from "@/components/ui/Breadcrumb/Breadcrumb";
 import Header from "@/components/layout/Header/Header";
+import Script from "next/script";
 
 export const revalidate = 300;
 
@@ -126,8 +127,26 @@ export default async function ProductPage({ params }: { params: Params }) {
     | { id: number; name: string }
     | undefined;
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: title,
+    image: images[0],
+    description: stripHtml(product.descriptionPlain),
+    offers: {
+      "@type": "Offer",
+      price: String(amount),
+      priceCurrency: "IRR",
+      availability: product.stock.inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+    },
+    ...(ratingAvg > 0 ? { aggregateRating: { "@type": "AggregateRating", ratingValue: String(ratingAvg), reviewCount: reviewsCount } } : {}),
+  }
+
   return (
     <main dir="rtl" style={{ paddingTop: 0 }}>
+      <Script id="product-ld-json" type="application/ld+json" strategy="beforeInteractive">
+        {JSON.stringify(jsonLd)}
+      </Script>
       <Header />
       <section>
         <ImageGallery images={images} title={title} />

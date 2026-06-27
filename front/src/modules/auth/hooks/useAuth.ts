@@ -2,11 +2,12 @@
 
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiStartOtp, apiVerifyOtp, apiLogout } from "../services/otp";
+import { queryKeys } from "@/lib/api/query-keys";
 import type { Session } from "../types";
 
 export function useSessionQuery() {
   return useQuery({
-    queryKey: ["auth", "session"],
+    queryKey: queryKeys.auth.session(),
     queryFn: async () => {
       const r = await fetch("/api/auth/session", {
         cache: "no-store",

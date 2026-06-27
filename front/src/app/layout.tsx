@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import "@/styles/globals.css";
 import Providers from "./providers";
-import NextTopLoader from "nextjs-toploader";
+import NextTopLoader from "./TopLoader";
 import BottomNavigation from "@/components/layout/BottomNavigation/BottomNavigation";
 import { getInitialSession } from "@/modules/auth/services/session";
 import Footer from "@/components/layout/Footer/Footer";
@@ -105,6 +105,13 @@ export default async function RootLayout({
       </head>
 
       <body>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-on focus:rounded-s focus:outline-none"
+        >
+          رفتن به محتوای اصلی
+        </a>
+
         <Providers initialSession={session}>
           <GATracker />
 
@@ -134,7 +141,7 @@ export default async function RootLayout({
               crawlSpeed={200}
               zIndex={2000}
             />
-            <main className="page noHeaderPad">{children}</main>
+            <main id="main-content" className="page noHeaderPad">{children}</main>
             <BottomNavigation />
             <Footer />
           </div>
