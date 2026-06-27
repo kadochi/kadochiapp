@@ -1,13 +1,16 @@
 {
-  "pass": 4,
+  "pass": 5,
   "phase": "structure",
-  "lastFile": "src/app/(front)/profile/orders/OrdersPageClient.tsx",
+  "lastFile": "src/components/layout/Footer/Footer.tsx",
   "lighthouse": {},
   "openIssues": [],
   "doneSlices": [
     "phase-0-tooling: added typecheck script, noUncheckedIndexedAccess + noImplicitOverride, fixed 24 strict-flag errors",
     "phase-1-slice-1: split CheckoutClient.tsx (1047 LOC) into helpers + hooks + 3 step components; orchestrator now 161 LOC",
-    "phase-1-slice-2: split products/page.tsx (458 LOC) into products.data.ts (server fetchers) + products.helpers.ts (normalize + JSON-LD); page now 270 LOC"
+    "phase-1-slice-2: split products/page.tsx (458 LOC) into products.data.ts (server fetchers) + products.helpers.ts (normalize + JSON-LD); page now 270 LOC",
+    "phase-1-slice-3: split AllFiltersSheet.client.tsx (440 LOC) into allFilters.constants.ts + useAllFilters.ts; view now 213 LOC",
+    "phase-1-slice-4: split OrdersPageClient.tsx (472 LOC) into orders.helpers.ts + useOrders.ts + OrderCard.tsx; view now 141 LOC",
+    "phase-1-slice-5: split Footer.tsx (279 LOC) into footer.constants.ts + footer.hooks.ts (category fetch moved into useFooterCategories hook); view now 187 LOC"
   ],
   "baseline": {
     "lint": { "errors": 0, "warnings": 229 },

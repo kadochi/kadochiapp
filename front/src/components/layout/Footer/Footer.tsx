@@ -1,76 +1,19 @@
 // src/components/layout/Footer/Footer.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
 import Link from "next/link";
 import s from "./Footer.module.css";
-
-type StoreCategory = {
-  id: number;
-  name: string;
-  slug: string;
-  image?: { src?: string | null } | null;
-};
-
-// Routes where footer should be hidden
-const HIDDEN_ROUTES: (string | RegExp)[] = [
-  "/basket",
-  "/login",
-  "/auth/otp",
-  "/checkout",
-  "/profile",
-  "/profile/info",
-  "/profile/orders",
-  "/checkout/success",
-  "/checkout/zp-callback",
-  /^\/product\/.+/,
-  /orders\/.+/,
-];
-
-function useHideFooter() {
-  const pathname = usePathname();
-  return useMemo(
-    () =>
-      HIDDEN_ROUTES.some((pattern) =>
-        typeof pattern === "string"
-          ? pathname === pattern
-          : pattern.test(pathname)
-      ),
-    [pathname]
-  );
-}
+import {
+  BADGE_LINKS,
+  CONTACT_LINKS,
+  OCCASION_LINKS,
+  SOCIAL_LINKS,
+} from "./footer.constants";
+import { useFooterCategories, useHideFooter } from "./footer.hooks";
 
 export default function Footer() {
   const hide = useHideFooter();
-  const [categories, setCategories] = useState<StoreCategory[] | null>(null);
-
-  useEffect(() => {
-    if (hide) return;
-    let cancelled = false;
-
-    // Fetch via same-origin proxy to avoid CORS
-    const url = `/api/store/categories?per_page=100&hide_empty=true`;
-
-    fetch(url, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: StoreCategory[]) => {
-        if (cancelled) return;
-        const filtered = (data || []).filter((c) => {
-          const n = (c?.name || "").trim().toLowerCase();
-          const s = (c?.slug || "").trim().toLowerCase();
-          return n !== "بدون دسته‌بندی" && s !== "uncategorized";
-        });
-        setCategories(filtered.slice(0, 100));
-      })
-      .catch(() => {
-        if (!cancelled) setCategories([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [hide]);
+  const categories = useFooterCategories(hide);
 
   if (hide) return null;
 
@@ -126,24 +69,20 @@ export default function Footer() {
               دسته‌بندی‌ها
             </h3>
             <ul className={s.list}>
-              {
-                categories && categories.length > 0 ? (
-                  categories.map((cat) => (
-                    <li key={cat.id}>
-                      <Link
-                        href={`/products?category=${encodeURIComponent(
-                          cat.id
-                        )}`}
-                        className={s.link}
-                      >
-                        {cat.name}
-                      </Link>
-                    </li>
-                  ))
-                ) : categories && categories.length === 0 ? (
-                  <li>موردی یافت نشد</li>
-                ) : null /* render nothing while loading */
-              }
+              {categories && categories.length > 0 ? (
+                categories.map((cat) => (
+                  <li key={cat.id}>
+                    <Link
+                      href={`/products?category=${encodeURIComponent(cat.id)}`}
+                      className={s.link}
+                    >
+                      {cat.name}
+                    </Link>
+                  </li>
+                ))
+              ) : categories && categories.length === 0 ? (
+                <li>موردی یافت نشد</li>
+              ) : null /* render nothing while loading */}
             </ul>
           </section>
 
@@ -153,18 +92,9 @@ export default function Footer() {
               مناسبت‌ها
             </h3>
             <ul className={s.list}>
-              {[
-                ["کادو جشن تولد", "/products?tag=birthday"],
-                ["کادو سالگرد ازدواج", "/products?tag=anniversary"],
-                ["کادو روز مادر", "/products?tag=motherday"],
-                ["کادو روز پدر", "/products?tag=fatherday"],
-                ["کادو ولنتاین", "/products?tag=valentine"],
-                ["کادو شب یلدا", "/products?tag=yalda"],
-                ["کادو سال نو", "/products?tag=newyear"],
-                ["کادو فارغ التحصیلی", "/products?tag=graduation"],
-              ].map(([label, href]) => (
+              {OCCASION_LINKS.map(([label, href]) => (
                 <li key={href}>
-                  <Link href={href ?? "#"} className={s.link}>
+                  <Link href={href} className={s.link}>
                     {label}
                   </Link>
                 </li>
@@ -178,15 +108,9 @@ export default function Footer() {
               ارتباط
             </h3>
             <ul className={s.list}>
-              {[
-                ["تماس با ما", "/contact"],
-                ["درباره ما", "/about"],
-                ["قوانین و مقررات", "/terms"],
-                ["حفظ حریم شخصی", "/privacy"],
-                ["سوالات متداول", "/faq"],
-              ].map(([label, href]) => (
+              {CONTACT_LINKS.map(([label, href]) => (
                 <li key={href}>
-                  <Link href={href ?? "#"} className={s.link}>
+                  <Link href={href} className={s.link}>
                     {label}
                   </Link>
                 </li>
@@ -204,12 +128,7 @@ export default function Footer() {
           </p>
 
           <div className={s.socials} aria-label="شبکه‌های اجتماعی">
-            {[
-              ["Instagram", "social-instagram.svg", "https://www.instagram.com/kadochicom/"],
-              ["Telegram", "social-telegram.svg", "https://t.me/kadochi_giftshop"],
-              ["LinkedIn", "social-linkedin.svg", "https://www.linkedin.com/company/kadochi"],
-              ["X", "social-twitter.svg", "https://x.com/kadochicom"],
-            ].map(([name, icon, href]) => (
+            {SOCIAL_LINKS.map(([name, icon, href]) => (
               <a
                 key={name}
                 href={href}
@@ -248,18 +167,7 @@ export default function Footer() {
             </a>
 
             {/* Other badges */}
-            {[
-              [
-                "/images/eanjoman.png",
-                "اتحادیه کسب‌وکارهای مجازی",
-                "https://ecunion.ir/",
-              ],
-              [
-                "/images/brand.svg",
-                "برند محبوب ایرانی ۱۳۹۸",
-                "https://1398.irantopbrands.org/%D9%86%D8%AA%D8%A7%DB%8C%D8%A7%D8%AC_1398",
-              ],
-            ].map(([src, alt, href], i) => (
+            {BADGE_LINKS.map(([src, alt, href], i) => (
               <a
                 key={i}
                 className={s.badgeItem}
