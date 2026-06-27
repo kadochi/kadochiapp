@@ -42,7 +42,7 @@ export default function OtpInner({
   const { refreshSession } = useSession();
 
   useEffect(() => {
-    const el = inputs[0].current;
+    const el = inputs[0]?.current;
     const t = setTimeout(() => {
       el?.focus();
       el?.select();
@@ -81,12 +81,12 @@ export default function OtpInner({
       a[i] = val;
       return a;
     });
-    if (val && i < inputs.length - 1) inputs[i + 1].current?.focus();
+    if (val && i < inputs.length - 1) inputs[i + 1]?.current?.focus();
   }
 
   function handleKeyDown(i: number, e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Backspace" && !code[i] && i > 0)
-      inputs[i - 1].current?.focus();
+      inputs[i - 1]?.current?.focus();
   }
 
   useEffect(() => {
@@ -133,7 +133,7 @@ export default function OtpInner({
       const empty = ["", "", "", ""];
       setCode(empty);
       syncHiddenValue(empty);
-      const el = inputs[0].current;
+      const el = inputs[0]?.current;
       setTimeout(() => {
         el?.focus();
         el?.select();

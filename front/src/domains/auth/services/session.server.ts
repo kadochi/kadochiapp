@@ -35,6 +35,7 @@ function verifyHS256(token: string, secret: string): any | null {
   const parts = token.split(".");
   if (parts.length !== 3) return null;
   const [h, p, s] = parts;
+  if (!h || !p || !s) return null;
   const data = `${h}.${p}`;
   const expected = b64u(
     crypto.createHmac("sha256", secret).update(data).digest()

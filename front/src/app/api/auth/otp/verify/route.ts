@@ -192,7 +192,7 @@ class OtpRouteError extends Error {
     readonly reason: string,
     readonly status: number,
     readonly ctx?: Record<string, unknown>,
-    readonly cause?: unknown,
+    override readonly cause?: unknown,
   ) {
     super(reason);
     this.name = "OtpRouteError";

@@ -1,0 +1,15 @@
+{
+  "pass": 0,
+  "phase": "tooling",
+  "lastFile": null,
+  "lighthouse": {},
+  "openIssues": [],
+  "doneSlices": [
+    "phase-0-tooling: added typecheck script, noUncheckedIndexedAccess + noImplicitOverride, fixed 24 strict-flag errors"
+  ],
+  "baseline": {
+    "lint": { "errors": 0, "warnings": 229 },
+    "typecheck": "clean",
+    "build": "pending-verify"
+  }
+}

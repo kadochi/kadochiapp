@@ -263,7 +263,7 @@ export default function OrdersPageClient({
     const observer = new IntersectionObserver(
       (entries) => {
         const first = entries[0];
-        if (first.isIntersecting) {
+        if (first?.isIntersecting) {
           onLoadMore();
         }
       },

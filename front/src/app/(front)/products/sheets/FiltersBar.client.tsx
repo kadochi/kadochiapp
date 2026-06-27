@@ -110,8 +110,8 @@ export default function FiltersBar({
     const sset = new Set(occTags);
     if (sset.has("motherday") && sset.has("fatherday") && sset.size === 2) {
       occasionText = "روز مادر یا روز پدر";
-    } else if (occTags.length === 1 && occasionMap[occTags[0]]) {
-      occasionText = occasionMap[occTags[0]];
+    } else if (occTags.length === 1 && occTags[0] && occasionMap[occTags[0]]) {
+      occasionText = occasionMap[occTags[0]]!;
     } else {
       occasionText = "مناسبت";
     }

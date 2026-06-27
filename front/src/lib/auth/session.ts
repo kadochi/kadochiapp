@@ -54,6 +54,7 @@ function jwtVerifyHS256<T = any>(token: string, secret: string): T | null {
   const parts = token.split(".");
   if (parts.length !== 3) return null;
   const [h, p, s] = parts;
+  if (!h || !p || !s) return null;
   const data = `${h}.${p}`;
   const expected = b64u(
     crypto.createHmac("sha256", secret).update(data).digest()
