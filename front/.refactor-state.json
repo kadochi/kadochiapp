@@ -1,7 +1,7 @@
 {
-  "pass": 2,
+  "pass": 4,
   "phase": "structure",
-  "lastFile": "src/app/(front)/products/page.tsx",
+  "lastFile": "src/app/(front)/profile/orders/OrdersPageClient.tsx",
   "lighthouse": {},
   "openIssues": [],
   "doneSlices": [
