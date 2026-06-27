@@ -1,11 +1,12 @@
 {
-  "pass": 0,
-  "phase": "tooling",
-  "lastFile": null,
+  "pass": 1,
+  "phase": "structure",
+  "lastFile": "src/app/(front)/checkout/CheckoutClient.tsx",
   "lighthouse": {},
   "openIssues": [],
   "doneSlices": [
-    "phase-0-tooling: added typecheck script, noUncheckedIndexedAccess + noImplicitOverride, fixed 24 strict-flag errors"
+    "phase-0-tooling: added typecheck script, noUncheckedIndexedAccess + noImplicitOverride, fixed 24 strict-flag errors",
+    "phase-1-slice-1: split CheckoutClient.tsx (1047 LOC) into helpers + hooks + 3 step components; orchestrator now 161 LOC"
   ],
   "baseline": {
     "lint": { "errors": 0, "warnings": 229 },
