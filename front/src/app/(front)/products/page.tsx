@@ -1,5 +1,4 @@
 import "server-only";
-import { cache } from "react";
 import type { Metadata } from "next";
 import { listProducts } from "@/lib/api/woo";
 import Breadcrumb from "@/components/ui/Breadcrumb/Breadcrumb";
@@ -14,95 +13,19 @@ import FiltersBar from "./sheets/FiltersBar.client";
 import ProductListClient from "@/domains/catalog/components/ProductList/ProductList.client";
 import s from "./products.module.css";
 import Header from "@/components/layout/Header/Header";
-import { wordpressFetch } from "@/services/wordpress";
-
-type Search = {
-  q?: string;
-  page?: string;
-  order?: "asc" | "desc";
-  orderby?: "date" | "price" | "popularity" | "rating";
-  category?: string;
-  tag?: string;
-  sheet?: string;
-  min_price?: string;
-  max_price?: string;
-};
-
-type WPCategory = {
-  id: number;
-  name: string;
-  slug: string;
-  description?: string | null;
-};
-type WPTag = { id: number; name: string; description?: string | null };
-
-const SITE_BASE = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
-
-/* ---- helpers ---- */
-
-const getCategoryMeta = cache(async (input: string) => {
-  const isId = /^\d+$/.test(input);
-  const path = isId
-    ? `/wp-json/wp/v2/product_cat/${input}`
-    : `/wp-json/wp/v2/product_cat?slug=${encodeURIComponent(input)}&per_page=1`;
-  try {
-    const r = await wordpressFetch(path, { revalidate: 300 });
-    if (!r.ok) return null;
-    const js = isId ? await r.json() : (await r.json())?.[0];
-    return js
-      ? ({
-          id: js.id,
-          name: js.name,
-          description: js.description ?? null,
-        } as WPCategory)
-      : null;
-  } catch {
-    return null;
-  }
-});
-
-const getTagMeta = cache(async (input: string) => {
-  const isId = /^\d+$/.test(input);
-  const path = isId
-    ? `/wp-json/wp/v2/product_tag/${input}`
-    : `/wp-json/wp/v2/product_tag?slug=${encodeURIComponent(input)}&per_page=1`;
-  try {
-    const r = await wordpressFetch(path, { revalidate: 300 });
-    if (!r.ok) return null;
-    const js = isId ? await r.json() : (await r.json())?.[0];
-    return js
-      ? ({
-          id: js.id,
-          name: js.name,
-          description: js.description ?? null,
-        } as WPTag)
-      : null;
-  } catch {
-    return null;
-  }
-});
-
-async function getAllCategoriesSSR() {
-  const r = await wordpressFetch(
-    "/wp-json/wp/v2/product_cat?per_page=100&_fields=id,name,slug",
-    { revalidate: 600 },
-  );
-  if (!r.ok) return [];
-  const arr = (await r.json()) as Array<{
-    id: number;
-    name: string;
-    slug: string;
-  }>;
-  return arr.map((c) => ({ label: c.name, value: String(c.id) }));
-}
-
-function stripHtml(input?: string | null) {
-  if (!input) return "";
-  return input
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+import {
+  getAllCategoriesSSR,
+  getCategoryMeta,
+  getTagMeta,
+  stripHtml,
+  type Search,
+} from "./products.data";
+import {
+  buildBreadcrumbLd,
+  buildItemListLd,
+  normalizeForClient,
+  type Crumb,
+} from "./products.helpers";
 
 export const dynamicParams = true;
 export const revalidate = 300;
@@ -173,60 +96,6 @@ export async function generateMetadata({
   };
 }
 
-function normalizeForClient(items: any[]) {
-  const toNum = (v: any) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : 0;
-  };
-  const isPriceObj = (v: any): v is { amount: number; currency: string } =>
-    v && typeof v === "object" && "amount" in v && "currency" in v;
-
-  return (items || []).map((p) => {
-    const images =
-      Array.isArray(p?.images) && p.images.length
-        ? p.images
-            .map((im: any) => ({
-              url: im?.url ?? im?.src ?? "",
-              alt: im?.alt ?? p?.name ?? "",
-            }))
-            .filter((im: any) => im.url)
-        : [];
-
-    const currency =
-      (isPriceObj(p?.price) && p.price.currency) || p?.currency || "IRR";
-
-    const toAmount = (val: any): number =>
-      isPriceObj(val) ? Number(val.amount || 0) : toNum(val);
-
-    const baseRaw =
-      (p?.salePrice !== undefined &&
-      p?.salePrice !== null &&
-      p?.salePrice !== ""
-        ? p.salePrice
-        : p?.price !== undefined && p?.price !== null && p?.price !== ""
-          ? p.price
-          : p?.regularPrice) ?? 0;
-
-    const price = isPriceObj(p?.price)
-      ? p.price
-      : { amount: toAmount(baseRaw), currency };
-
-    const regularPrice = isPriceObj(p?.regularPrice)
-      ? p.regularPrice
-      : p?.regularPrice != null && p?.regularPrice !== ""
-        ? { amount: toAmount(p.regularPrice), currency }
-        : undefined;
-
-    const salePrice = isPriceObj(p?.salePrice)
-      ? p.salePrice
-      : p?.salePrice != null && p?.salePrice !== ""
-        ? { amount: toAmount(p.salePrice), currency }
-        : undefined;
-
-    return { ...p, images, price, regularPrice, salePrice };
-  });
-}
-
 export default async function ProductsPage({
   searchParams,
 }: {
@@ -285,7 +154,6 @@ export default async function ProductsPage({
   }
 
   const { items } = listResult;
-
   const normalizedItems = normalizeForClient(items);
 
   const clientKey = (() => {
@@ -313,10 +181,10 @@ export default async function ProductsPage({
     per_page: String(perPage),
   };
 
-  const crumbs = [
+  const crumbs: Crumb[] = [
     { label: "خانه", href: "/" },
     { label: "محصولات کادویی", href: "/products" },
-  ] as Array<{ label: string; href?: string }>;
+  ];
   if (catMeta && categoryParam) {
     crumbs.push({
       label: catMeta.name,
@@ -330,70 +198,14 @@ export default async function ProductsPage({
   }
 
   // ----- SEO structured data (no UI change) -----
-
-  const searchForCanonical = new URLSearchParams();
-  if (categoryParam) searchForCanonical.set("category", categoryParam);
-  if (tagParam) searchForCanonical.set("tag", tagParam);
-  if (q) searchForCanonical.set("q", q);
-  if (page > 1) searchForCanonical.set("page", String(page));
-  const canonicalPath =
-    "/products" +
-    (searchForCanonical.toString() ? `?${searchForCanonical.toString()}` : "");
-  const canonicalUrl = `${SITE_BASE}${canonicalPath}`;
-
-  const breadcrumbLd = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: crumbs.map((c, idx) => ({
-      "@type": "ListItem",
-      position: idx + 1,
-      name: c.label,
-      ...(c.href ? { item: `${SITE_BASE}${c.href}` } : {}),
-    })),
-  };
-
-  const itemListLd =
-    normalizedItems.length > 0
-      ? {
-          "@context": "https://schema.org",
-          "@type": "ItemList",
-          name: title,
-          itemListOrder: order === "asc" ? "Ascending" : "Descending",
-          numberOfItems: normalizedItems.length,
-          itemListElement: normalizedItems
-            .map((p: any, index: number) => {
-              const url =
-                p?.permalink ||
-                (p?.slug ? `${SITE_BASE}/product/${p.slug}` : null) ||
-                (p?.id ? `${SITE_BASE}/product/${p.id}` : null);
-              if (!url) return null;
-
-              const firstImage =
-                Array.isArray(p.images) && p.images.length
-                  ? p.images[0]?.url
-                  : undefined;
-
-              return {
-                "@type": "ListItem",
-                position: (page - 1) * perPage + index + 1,
-                item: {
-                  "@type": "Product",
-                  name: p.name || "",
-                  image: firstImage,
-                  sku: p.sku || undefined,
-                  url,
-                  offers: {
-                    "@type": "Offer",
-                    priceCurrency: p.price?.currency || "IRR",
-                    price: String(p.price?.amount ?? 0),
-                    availability: "https://schema.org/InStock",
-                  },
-                },
-              };
-            })
-            .filter(Boolean),
-        }
-      : null;
+  const breadcrumbLd = buildBreadcrumbLd(crumbs);
+  const itemListLd = buildItemListLd({
+    normalizedItems,
+    title,
+    order,
+    page,
+    perPage,
+  });
 
   return (
     <main

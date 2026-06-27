@@ -1,12 +1,13 @@
 {
-  "pass": 1,
+  "pass": 2,
   "phase": "structure",
-  "lastFile": "src/app/(front)/checkout/CheckoutClient.tsx",
+  "lastFile": "src/app/(front)/products/page.tsx",
   "lighthouse": {},
   "openIssues": [],
   "doneSlices": [
     "phase-0-tooling: added typecheck script, noUncheckedIndexedAccess + noImplicitOverride, fixed 24 strict-flag errors",
-    "phase-1-slice-1: split CheckoutClient.tsx (1047 LOC) into helpers + hooks + 3 step components; orchestrator now 161 LOC"
+    "phase-1-slice-1: split CheckoutClient.tsx (1047 LOC) into helpers + hooks + 3 step components; orchestrator now 161 LOC",
+    "phase-1-slice-2: split products/page.tsx (458 LOC) into products.data.ts (server fetchers) + products.helpers.ts (normalize + JSON-LD); page now 270 LOC"
   ],
   "baseline": {
     "lint": { "errors": 0, "warnings": 229 },
