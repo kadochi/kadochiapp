@@ -7,7 +7,8 @@ import {
   UpstreamTimeout,
 } from "@/services/http/errors";
 import { wordpressJson } from "@/services/wordpress";
-import type { WooStoreProduct } from "@/types/wordpress";
+import { WooStoreProductSchema } from "@/schemas/wordpress";
+import type { WooStoreProduct } from "@/schemas/wordpress";
 
 // Explicit Node runtime (we call external WooCommerce APIs)
 export const runtime = "nodejs";
@@ -108,6 +109,7 @@ export async function GET(req: Request) {
         const result = await wordpressJson<WooStoreProduct[]>(
           `/wp-json/wc/store/v1/products?${qs.toString()}`,
           {
+            schema: WooStoreProductSchema.array(),
             timeoutMs: INCLUDE_TIMEOUT_MS,
             allowProxyFallback: true,
             dedupeKey: key,

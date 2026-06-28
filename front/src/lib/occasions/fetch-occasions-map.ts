@@ -2,7 +2,8 @@ import "server-only";
 
 import { wordpressJson } from "@/services/wordpress";
 import { parseOccasionDate } from "@/lib/jalali";
-import type { WordPressOccasion } from "@/types/wordpress";
+import { WordPressOccasionSchema } from "@/schemas/wordpress";
+import type { WordPressOccasion } from "@/schemas/wordpress";
 import type { OccasionEntry } from "./types";
 
 export type { OccasionEntry };
@@ -75,16 +76,18 @@ function mergePayloads(
 export async function fetchOccasionsMap(
   userId: number | null,
 ): Promise<Record<string, OccasionEntry[]>> {
+  const occasionArraySchema = WordPressOccasionSchema.array();
+
   const adminCall = wordpressJson<WordPressOccasion[]>(
     `/wp-json/wp/v2/occasion?author=1&acf_format=standard&per_page=100`,
-    FETCH_OPTS,
+    { ...FETCH_OPTS, schema: occasionArraySchema },
   );
 
   const userCall =
     userId != null
       ? wordpressJson<WordPressOccasion[]>(
           `/wp-json/wp/v2/occasion?author=${userId}&acf_format=standard&per_page=100`,
-          FETCH_OPTS,
+          { ...FETCH_OPTS, schema: occasionArraySchema },
         )
       : null;
 
