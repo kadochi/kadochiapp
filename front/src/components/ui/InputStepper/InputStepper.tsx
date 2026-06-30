@@ -79,7 +79,7 @@ export default function InputStepper({
         disabled={decDisabled}
         aria-label={showTrash ? "Remove" : "Decrement"}
       >
-        {showTrash ? <Trash2 size={24} aria-hidden /> : <MinusIcon />}
+        {showTrash ? <Trash2 size={20} aria-hidden /> : <MinusIcon />}
       </button>
 
       <div className={s.value} aria-live="polite" aria-atomic="true">
