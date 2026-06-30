@@ -124,6 +124,7 @@ services:
 
     volumes:
       - ./wordpress/theme:/var/www/html/wp-content/themes/kadochi
+      - ./wordpress/mu-plugins:/var/www/html/wp-content/mu-plugins
       - wordpress_data:/var/www/html
 
     networks:

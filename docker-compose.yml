@@ -145,6 +145,8 @@ services:
     volumes:
       # Custom theme (see wordpress/theme/)
       - ./wordpress/theme:/var/www/html/wp-content/themes/kadochi
+      # Must-use plugins (always active, version-controlled)
+      - ./wordpress/mu-plugins:/var/www/html/wp-content/mu-plugins
 
       # Persistent uploads/plugins
       - wordpress_data:/var/www/html
