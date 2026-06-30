@@ -2,6 +2,7 @@
 "use client";
 
 import React from "react";
+import { Trash2 } from "lucide-react";
 import s from "./InputStepper.module.css";
 
 type StepperType = "product" | "basket";
@@ -25,14 +26,6 @@ const PlusIcon = (props: React.SVGProps<SVGSVGElement>) => (
 const MinusIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden {...props}>
     <path fill="currentColor" d="M5 11h14v2H5z" />
-  </svg>
-);
-const TrashIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden {...props}>
-    <path
-      fill="currentColor"
-      d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9z"
-    />
   </svg>
 );
 
@@ -86,7 +79,7 @@ export default function InputStepper({
         disabled={decDisabled}
         aria-label={showTrash ? "Remove" : "Decrement"}
       >
-        {showTrash ? <TrashIcon /> : <MinusIcon />}
+        {showTrash ? <Trash2 size={24} aria-hidden /> : <MinusIcon />}
       </button>
 
       <div className={s.value} aria-live="polite" aria-atomic="true">

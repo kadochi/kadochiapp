@@ -112,7 +112,7 @@ export default async function WPLatestProductsPage() {
           leftSlot={
             <Button
               as="a"
-              href="/products"
+              href="/products?orderby=date&order=desc&page=1"
               type="link"
               style="ghost"
               size="small"
@@ -166,7 +166,7 @@ export default async function WPLatestProductsPage() {
           leftSlot={
             <Button
               as="a"
-              href="/products"
+              href="/products?orderby=popularity&order=desc&page=1"
               type="link"
               style="ghost"
               size="small"
@@ -219,7 +219,7 @@ export default async function WPLatestProductsPage() {
           leftSlot={
             <Button
               as="a"
-              href="/products"
+              href="/products?tag=fast-delivery&page=1"
               type="link"
               style="ghost"
               size="small"

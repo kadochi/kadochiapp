@@ -24,9 +24,10 @@
   max-width: 400px;
   height: auto;
   max-height: 400px;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 2 / 3;
   margin-inline: auto;
   object-fit: cover;
+  border-radius: var(--radius-m);
 }
 
 .thumbSwiper {
