@@ -1,32 +1,4 @@
 services:
-  traefik:
-    image: traefik:v3.7.1
-    container_name: kadochi-traefik
-    restart: unless-stopped
-    command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      # Entrypoints
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      # Redirect HTTP → HTTPS
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
-      # Cloudflare Origin Certificate (generate at dash.cloudflare.com → SSL/TLS → Origin Server)
-      - "--providers.file.filename=/etc/traefik/dynamic.yml"
-      # Dashboard (optional)
-      - "--api.dashboard=true"
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "./certs:/certs:ro"
-      - "./traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro"
-    networks:
-      - web
-
   # Next.js frontend
   nextjs:
     build:
@@ -145,8 +117,6 @@ services:
     volumes:
       # Custom theme (see wordpress/theme/)
       - ./wordpress/theme:/var/www/html/wp-content/themes/kadochi
-      # Must-use plugins (always active, version-controlled)
-      - ./wordpress/mu-plugins:/var/www/html/wp-content/mu-plugins
 
       # Persistent uploads/plugins
       - wordpress_data:/var/www/html
@@ -172,4 +142,4 @@ volumes:
 
 networks:
   web:
-    driver: bridge
+    external: true
