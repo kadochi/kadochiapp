@@ -110,6 +110,7 @@ export const WooStoreProductSchema = z
           .passthrough(),
       )
       .optional(),
+    is_in_stock: z.boolean().optional(),
     is_purchasable: z.boolean().optional(),
     type: z.string().optional(),
     meta_data: WooMetaDataSchema.optional(),

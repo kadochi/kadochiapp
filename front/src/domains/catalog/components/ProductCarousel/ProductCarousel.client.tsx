@@ -1,30 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Virtual } from "swiper/modules";
 import "swiper/css";
 import s from "./ProductCarousel.module.css";
-
 import ProductCard from "@/domains/catalog/components/ProductCard/ProductCard";
 import ProductCardSkeleton from "@/domains/catalog/components/ProductCard/ProductCardSkeleton";
 import { inferInStock } from "@/domains/catalog/utils/stock";
-
-/* ------------------------- Types ------------------------- */
-type StoreProduct = {
-  id: number;
-  name: string;
-  images?: { id: number; src: string; alt?: string }[];
-  prices?: {
-    price?: string;
-    sale_price?: string;
-    regular_price?: string;
-    currency_minor_unit?: number;
-  };
-  is_in_stock?: boolean;
-  is_purchasable?: boolean;
-  stock_status?: "instock" | "outofstock" | "onbackorder" | string;
-};
+import { useStoreProducts } from "@/domains/catalog/hooks/useStoreProducts";
+import type { WooStoreProduct } from "@/schemas/woo";
 
 type Product = {
   id: number | string;
@@ -45,59 +30,42 @@ type Props = {
   productIds?: Array<number | string>;
 };
 
-/* ------------------------- Helpers ------------------------- */
-function isStoreProductArray(arr: unknown): arr is StoreProduct[] {
-  return (
-    Array.isArray(arr) &&
-    arr.every(
-      (item) =>
-        typeof item === "object" &&
-        item !== null &&
-        "id" in item &&
-        "name" in item,
-    )
+function mapProduct(p: WooStoreProduct): Product {
+  const prices = p.prices as
+    | { sale_price?: string; price?: string; regular_price?: string }
+    | undefined;
+  const sale = Number(prices?.sale_price ?? NaN);
+  const regular = Number(prices?.regular_price ?? NaN);
+  const base = Number(
+    prices?.sale_price ?? prices?.price ?? prices?.regular_price ?? 0,
   );
+
+  const inStock = inferInStock(p);
+
+  let prev: number | null = null;
+  let off: number | null = null;
+  if (
+    inStock &&
+    Number.isFinite(sale) &&
+    Number.isFinite(regular) &&
+    regular > sale
+  ) {
+    prev = regular;
+    off = Math.max(0, Math.round(((regular - sale) / regular) * 100));
+  }
+
+  return {
+    id: p.id,
+    image: p.images?.[0]?.src ?? "",
+    title: p.name ?? "",
+    price: inStock ? base : null,
+    previousPrice: inStock ? prev : null,
+    offPercent: inStock ? off : null,
+    inStock,
+    href: `/product/${p.id}`,
+  };
 }
 
-function mapProducts(arr: StoreProduct[]): Product[] {
-  return arr
-    .filter(Boolean)
-    .map((p) => {
-      const sale = Number(p.prices?.sale_price ?? NaN);
-      const regular = Number(p.prices?.regular_price ?? NaN);
-      const base = Number(
-        p.prices?.sale_price ?? p.prices?.price ?? p.prices?.regular_price ?? 0,
-      );
-
-      const inStock = inferInStock(p);
-
-      let prev: number | null = null;
-      let off: number | null = null;
-      if (
-        inStock &&
-        Number.isFinite(sale) &&
-        Number.isFinite(regular) &&
-        regular > sale
-      ) {
-        prev = regular;
-        off = Math.max(0, Math.round(((regular - sale) / regular) * 100));
-      }
-
-      return {
-        id: p.id,
-        image: p.images?.[0]?.src || "",
-        title: p.name || "",
-        price: inStock ? base : null,
-        previousPrice: inStock ? prev : null,
-        offPercent: inStock ? off : null,
-        inStock,
-        href: `/product/${p.id}`,
-      };
-    })
-    .filter((p) => p.id != null && String(p.title).trim().length > 0);
-}
-
-/* ------------------------- Component ------------------------- */
 export default function ProductCarouselClient({
   items,
   filter,
@@ -105,127 +73,32 @@ export default function ProductCarouselClient({
   wpParams,
   productIds,
 }: Props) {
-  const [fetched, setFetched] = useState<Product[]>([]);
-  const [loading, setLoading] = useState<boolean>(!(items && items.length));
+  const hasItems = !!(items?.length);
 
-  const controllerRef = useRef<AbortController | null>(null);
-  const reqIdRef = useRef(0);
+  const { data: fetchedRaw, isLoading } = useStoreProducts({
+    endpoint,
+    wpParams,
+    productIds,
+    enabled: !hasItems,
+  });
 
-  const hasItems = !!(items && items.length);
-  const hasIds = !!(productIds && productIds.length);
-
-  useEffect(() => {
-    if (hasItems) {
-      setFetched(items as Product[]);
-      setLoading(false);
-    }
-  }, [hasItems, items]);
-
-  const listUrl = useMemo(() => {
-    if (!wpParams) return endpoint;
-    const qs = new URLSearchParams();
-    Object.entries(wpParams).forEach(([k, v]) => {
-      if (v !== undefined && v !== null) qs.set(k, String(v));
-    });
-    const sep = endpoint.includes("?") ? "&" : "?";
-    const q = qs.toString();
-    return q ? `${endpoint}${sep}${q}` : endpoint;
-  }, [endpoint, wpParams]);
-
-  useEffect(() => {
-    if (hasItems) {
-      setLoading(false);
-      return;
-    }
-
-    if (controllerRef.current && !controllerRef.current.signal.aborted) {
-      controllerRef.current.abort("new-effect");
-    }
-
-    const controller = new AbortController();
-    controllerRef.current = controller;
-    const thisReqId = ++reqIdRef.current;
-
-    setLoading(true);
-
-    const timeout = setTimeout(() => {
-      if (!controller.signal.aborted) controller.abort("timeout");
-    }, 10000);
-
-    (async () => {
-      try {
-        let data: unknown;
-
-        if (hasIds) {
-          const ids = (productIds as Array<number | string>)
-            .map((x) => Number(x))
-            .filter((n) => Number.isFinite(n) && n > 0);
-
-          if (!ids.length) {
-            if (reqIdRef.current === thisReqId) setFetched([]);
-            return;
-          }
-
-          const url = `/api/products/bulk?ids=${encodeURIComponent(
-            ids.join(","),
-          )}`;
-          const r = await fetch(url, { signal: controller.signal });
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          data = await r.json();
-        } else {
-          const r = await fetch(listUrl, { signal: controller.signal });
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          data = await r.json();
-        }
-
-        if (controller.signal.aborted || reqIdRef.current !== thisReqId) return;
-
-        let arr: unknown = data;
-        if (!Array.isArray(arr) && typeof arr === "object" && arr !== null) {
-          if (Array.isArray((arr as any).items)) arr = (arr as any).items;
-          else if (Array.isArray((arr as any).products))
-            arr = (arr as any).products;
-        }
-
-        if (!isStoreProductArray(arr)) {
-          console.error("[Carousel] Unexpected list shape:", data);
-          if (reqIdRef.current === thisReqId) setFetched([]);
-          return;
-        }
-
-        if (reqIdRef.current === thisReqId) setFetched(mapProducts(arr));
-      } catch (err: any) {
-        if (err?.name === "AbortError") return;
-        console.error("[Carousel] Fetch error:", err);
-        if (reqIdRef.current === thisReqId) setFetched([]);
-      } finally {
-        clearTimeout(timeout);
-        if (reqIdRef.current === thisReqId) setLoading(false);
-        if (controllerRef.current === controller) {
-          controllerRef.current = null;
-        }
-      }
-    })();
-
-    return () => {
-      if (controllerRef.current === controller && !controller.signal.aborted) {
-        controller.abort("cleanup");
-      }
-    };
-  }, [hasItems, hasIds, productIds, listUrl]);
-
-  const products: Product[] = useMemo(() => {
-    const src = items ?? fetched;
-    return filter ? src.filter(filter) : src;
-  }, [items, fetched, filter]);
+  const products = useMemo(() => {
+    const base: Product[] = hasItems
+      ? (items as Product[])
+      : (fetchedRaw ?? [])
+          .map(mapProduct)
+          .filter((p) => String(p.title).trim().length > 0);
+    return filter ? base.filter(filter) : base;
+  }, [hasItems, items, fetchedRaw, filter]);
 
   const skeletonCount = useMemo(() => {
-    if (hasIds) return Math.min(productIds?.length || 8, 12);
-    const match = listUrl.match(/per_page=(\d+)/);
-    return match ? Number(match[1]) : 8;
-  }, [hasIds, productIds, listUrl]);
+    if (productIds?.length) return Math.min(productIds.length, 12);
+    if (wpParams?.per_page) return Number(wpParams.per_page);
+    const m = endpoint.match(/per_page=(\d+)/);
+    return m?.[1] ? Number(m[1]) : 8;
+  }, [productIds, wpParams, endpoint]);
 
-  const showSkeleton = loading || products.length === 0;
+  const showSkeleton = !hasItems && (isLoading || products.length === 0);
   const swiperKey = showSkeleton ? "loading" : `ready-${products.length}`;
 
   return (
