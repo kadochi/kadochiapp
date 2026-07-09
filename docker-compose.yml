@@ -29,7 +29,15 @@ services:
       NEXT_PUBLIC_SITE_URL: https://kadochi.com
       # Server-side /api/wp fallback stays in-container (not https://kadochi.com).
       INTERNAL_SITE_ORIGIN: http://127.0.0.1:3000
-      COOKIE_DOMAIN: .kadochi.com
+      # Sign-in is apex-only (kadochi.com). Leave the cookie host-only rather
+      # than scoping it to .kadochi.com — the leading-dot value is silently
+      # dropped on the apex host anyway (see resolveCookieDomain).
+      COOKIE_DOMAIN: ""
+      # Force the Secure flag deterministically instead of inferring it from
+      # x-forwarded-proto (the removed in-compose Traefik used to guarantee it).
+      # REQUIRES the edge to redirect HTTP->HTTPS so every browser is on HTTPS;
+      # otherwise HTTP visitors get a Secure cookie their browser discards.
+      COOKIE_SECURE: "true"
       REDIS_URL: redis://redis:6379
       # Live payments unless front/.env.production explicitly sets sandbox.
       ZARINPAL_MODE: production

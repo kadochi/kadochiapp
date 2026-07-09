@@ -113,8 +113,14 @@ async function resolveCookieSecure(): Promise<boolean> {
 async function resolveCookieDomain(): Promise<string | undefined> {
   const want = (process.env.COOKIE_DOMAIN || "").trim().toLowerCase();
   if (!want) return undefined;
-  const host = ((await headers()).get("host") || "").toLowerCase();
-  return host.endsWith(want) ? want : undefined;
+  // Compare against the bare domain so a leading-dot value (e.g. ".kadochi.com")
+  // still matches the apex host ("kadochi.com"). Without this, endsWith() fails
+  // on the apex and the Domain attribute is silently dropped, making the cookie
+  // host-only on apex while www gets a shared domain — an asymmetry that loses
+  // the session across a www<->apex redirect.
+  const bare = want.replace(/^\./, "");
+  const host = ((await headers()).get("host") || "").toLowerCase().split(":")[0];
+  return host === bare || host.endsWith(`.${bare}`) ? want : undefined;
 }
 
 function baseCookieOpts(secure: boolean, maxAgeSec?: number, domain?: string) {

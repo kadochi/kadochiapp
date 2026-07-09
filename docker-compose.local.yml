@@ -32,8 +32,8 @@ services:
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       REDIS_URL: redis://redis:6379
       # Disable Secure flag so cookies land on plain-HTTP localhost.
-      # The production compose sets COOKIE_DOMAIN=.kadochi.com; force it
-      # empty here so a copied .env.local never leaks prod domain into local.
+      # Keep COOKIE_DOMAIN empty (host-only) so a copied .env.production never
+      # leaks a prod domain into local dev.
       COOKIE_SECURE: "false"
       COOKIE_DOMAIN: ""
 
