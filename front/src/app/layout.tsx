@@ -6,8 +6,7 @@ import NextTopLoader from "nextjs-toploader";
 import BottomNavigation from "@/components/layout/BottomNavigation/BottomNavigation";
 import getInitialSession from "@/lib/auth/session";
 import Footer from "@/components/layout/Footer/Footer";
-import Script from "next/script";
-import GATracker from "./ga-tracker";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
@@ -50,36 +49,6 @@ export default async function RootLayout({
   return (
     <html lang="fa-IR" dir="rtl">
       <head>
-        {GA_ID && (
-          <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
-              strategy="afterInteractive"
-            />
-            <Script id="ga-init" strategy="afterInteractive">
-              {`
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', '${GA_ID}');
-              `}
-            </Script>
-          </>
-        )}
-
-        <Script id="yektanet" strategy="afterInteractive">
-          {`
-            !function(t,e,n){
-              t.yektanetAnalyticsObject=n, t[n]=t[n]||function(){t[n].q.push(arguments)}, t[n].q=t[n].q||[];
-              var a=new Date, r=a.getFullYear().toString()+"0"+a.getMonth()+"0"+a.getDate()+"0"+a.getHours(),
-                  c=e.getElementsByTagName("script")[0], s=e.createElement("script");
-              s.id="ua-script-dcGBF3E7"; s.dataset.analyticsobject=n;
-              s.async=1; s.type="text/javascript";
-              s.src="https://cdn.yektanet.com/rg_woebegone/scripts_v3/dcGBF3E7/rg.complete.js?v="+r, c.parentNode.insertBefore(s,c)
-            }(window,document,"yektanet");
-          `}
-        </Script>
-
         <link rel="preconnect" href="https://api.kadochi.com" crossOrigin="" />
         <link
           rel="preload"
@@ -106,8 +75,6 @@ export default async function RootLayout({
 
       <body>
         <Providers initialSession={session}>
-          <GATracker />
-
           <div className="layoutContainer">
             <script
               id="scroll-restoration"
@@ -139,6 +106,7 @@ export default async function RootLayout({
             <Footer />
           </div>
         </Providers>
+        {GA_ID && <GoogleAnalytics gaId={GA_ID} />}
       </body>
     </html>
   );
