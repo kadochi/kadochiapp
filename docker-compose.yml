@@ -22,8 +22,11 @@ services:
       # Bind on all interfaces so INTERNAL_SITE_ORIGIN loopback proxy works.
       HOSTNAME: "0.0.0.0"
       # Internal Docker service names — avoid public DNS/TLS hairpin from nextjs.
-      WP_BASE_URL: http://wordpress
-      WOO_BASE_URL: http://wordpress
+      # Use the unique container_name (not the service name "wordpress"), since
+      # Hamtimi's stack also has a service named "wordpress" on the shared
+      # "web" network — the service name resolves to both containers.
+      WP_BASE_URL: http://kadochi-wordpress
+      WOO_BASE_URL: http://kadochi-wordpress
       NEXT_PUBLIC_WP_BASE_URL: https://api.kadochi.com
       # Public site URL and cookie domain for production.
       NEXT_PUBLIC_SITE_URL: https://kadochi.com
@@ -117,7 +120,7 @@ services:
         define('WP_HOME', 'https://api.kadochi.com');
         define('WP_SITEURL', 'https://api.kadochi.com');
         // Internal Docker HTTP: Woo query-key auth must be treated as HTTPS.
-        // Use $$ so Compose does not eat $_GET / $_SERVER (see docker-compose.local.yml).
+        // Use $$ so Compose does not eat $$_GET / $$_SERVER (see docker-compose.local.yml).
         if (!empty($$_GET['consumer_key']) && !empty($$_GET['consumer_secret'])) {
           $$_SERVER['HTTPS'] = 'on';
         }
