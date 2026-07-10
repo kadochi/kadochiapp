@@ -1,59 +1,15 @@
-# OS
-.DS_Store
-Thumbs.db
-
-# Certificates
-/certs
-
-# Cursor
-.cursor
-
-# Environment
 .env
-.env.*
-!.env.example
+.DS_Store
 
-# Dependencies
-node_modules/
+# Next.js
+front/node_modules/
+front/.next/
+front/tsconfig.tsbuildinfo
+front/.env*.local
 
-# Build output
-.next/
-out/
-dist/
-build/
-coverage/
-storybook-static/
+# Local backups and WordPress migration archives can be very large.
+*.wpress
 
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-*storybook.log
-
-# TypeScript
-*.tsbuildinfo
-next-env.d.ts
-
-# Caches & tooling
-.cache/
-.eslintcache
-.stylelintcache
-.vercel/
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/sdks
-!.yarn/versions
-
-# TLS / certificates
-letsencrypt/acme.json
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
+# Docker-managed data remains in named volumes, not this checkout.
+mysql-data/
+wordpress-data/

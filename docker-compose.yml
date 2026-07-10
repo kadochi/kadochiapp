@@ -1,173 +1,63 @@
 services:
-  traefik:
-    image: traefik:v3.7.1
-    container_name: kadochi-traefik
-    restart: unless-stopped
-    command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      # Entrypoints
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      # Redirect HTTP → HTTPS
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
-      # Cloudflare Origin Certificate (generate at dash.cloudflare.com → SSL/TLS → Origin Server)
-      - "--providers.file.filename=/etc/traefik/dynamic.yml"
-      # Dashboard (optional)
-      - "--api.dashboard=true"
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "./certs:/certs:ro"
-      - "./traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro"
-    networks:
-      - web
-
-  # Next.js frontend
-  nextjs:
+  front:
     build:
       context: ./front
-      dockerfile: Dockerfile
-    container_name: kadochi-nextjs
-    restart: unless-stopped
-
-    depends_on:
-      - redis
-
-    # Load all secrets from the production env file.
-    # The environment block below overrides URL values to use Docker-internal
-    # hostnames — the public URLs in .env.production would route through
-    # Traefik/external DNS and never reach the wordpress container directly.
-    env_file:
-      - ./front/.env.production
-
+    command: npm run dev
+    ports:
+      - "3000:3000"
     environment:
-      NODE_ENV: production
-      # Bind on all interfaces so INTERNAL_SITE_ORIGIN loopback proxy works.
-      HOSTNAME: "0.0.0.0"
-      # Internal Docker service names — avoid public DNS/TLS hairpin from nextjs.
-      WP_BASE_URL: http://wordpress
-      WOO_BASE_URL: http://wordpress
-      NEXT_PUBLIC_WP_BASE_URL: https://api.kadochi.com
-      # Public site URL and cookie domain for production.
-      NEXT_PUBLIC_SITE_URL: https://kadochi.com
-      # Server-side /api/wp fallback stays in-container (not https://kadochi.com).
-      INTERNAL_SITE_ORIGIN: http://127.0.0.1:3000
-      COOKIE_DOMAIN: .kadochi.com
-      REDIS_URL: redis://redis:6379
-      # Live payments unless front/.env.production explicitly sets sandbox.
-      ZARINPAL_MODE: production
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+      WORDPRESS_INTERNAL_URL: ${WORDPRESS_INTERNAL_URL:-http://wordpress}
+      WORDPRESS_URL: ${WORDPRESS_URL:-http://localhost:8080}
+      NEXT_PUBLIC_WORDPRESS_URL: ${NEXT_PUBLIC_WORDPRESS_URL:-http://localhost:8080}
+    volumes:
+      - ./front:/app
+      - front_node_modules:/app/node_modules
+    depends_on:
+      wordpress:
+        condition: service_started
 
-    labels:
-      - "traefik.enable=true"
+  wordpress:
+    image: wordpress:7.0.0-apache
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST:-mysql:3306}
+      WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME:-wordpress}
+      WORDPRESS_DB_USER: ${WORDPRESS_DB_USER:-wordpress}
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:-wordpress_dev_password}
+    volumes:
+      - wordpress_data:/var/www/html
+      - ./theme:/var/www/html/wp-content/themes/kadochi:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
 
-      # Main domain
-      - "traefik.http.routers.nextjs.rule=Host(`kadochi.com`) || Host(`www.kadochi.com`)"
-      - "traefik.http.routers.nextjs.entrypoints=websecure"
-      - "traefik.http.routers.nextjs.tls=true"
-
-      # Internal app port
-      - "traefik.http.services.nextjs.loadbalancer.server.port=3000"
-
-    networks:
-      - web
-
-  # MySQL database
   mysql:
     image: mysql:8.0
-    container_name: kadochi-mysql
-    restart: unless-stopped
-
     environment:
-      MYSQL_DATABASE: kadochi
-      MYSQL_USER: kadochi
-      MYSQL_PASSWORD: zyzba1-vyqxem-muareZ
-      MYSQL_ROOT_PASSWORD: zyzba1-vyqxem-muareZ
-
-    command: --default-authentication-plugin=mysql_native_password
-
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-wordpress}
+      MYSQL_USER: ${MYSQL_USER:-wordpress}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-wordpress_dev_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_dev_password}
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
 
-    networks:
-      - web
-
-  # Redis cache
   redis:
     image: redis:7-alpine
-    container_name: kadochi-redis
-    restart: unless-stopped
-
     command: redis-server --appendonly yes
-
     volumes:
       - redis_data:/data
 
-    networks:
-      - web
-
-  # WordPress
-  wordpress:
-    build:
-      context: ./wordpress
-      dockerfile: Dockerfile
-    image: kadochi-wordpress:php8.2-apache
-    container_name: kadochi-wordpress
-    restart: unless-stopped
-
-    depends_on:
-      - mysql
-      - redis
-
-    environment:
-      WORDPRESS_DB_HOST: mysql:3306
-      WORDPRESS_DB_NAME: kadochi
-      WORDPRESS_DB_USER: kadochi
-      WORDPRESS_DB_PASSWORD: zyzba1-vyqxem-muareZ
-
-      # Redis
-      WORDPRESS_CONFIG_EXTRA: |
-        define('WP_REDIS_HOST', 'redis');
-        define('WP_REDIS_PORT', 6379);
-        define('WP_CACHE', true);
-        define('WP_HOME', 'https://api.kadochi.com');
-        define('WP_SITEURL', 'https://api.kadochi.com');
-        // Internal Docker HTTP: Woo query-key auth must be treated as HTTPS.
-        // Use $$ so Compose does not eat $_GET / $_SERVER (see docker-compose.local.yml).
-        if (!empty($$_GET['consumer_key']) && !empty($$_GET['consumer_secret'])) {
-          $$_SERVER['HTTPS'] = 'on';
-        }
-
-    volumes:
-      # Custom theme (see wordpress/theme/)
-      - ./wordpress/theme:/var/www/html/wp-content/themes/kadochi
-
-      # Persistent uploads/plugins
-      - wordpress_data:/var/www/html
-
-    labels:
-      - "traefik.enable=true"
-
-      # API / WP domain
-      - "traefik.http.routers.wordpress.rule=Host(`api.kadochi.com`)"
-      - "traefik.http.routers.wordpress.entrypoints=websecure"
-      - "traefik.http.routers.wordpress.tls=true"
-
-      # Internal apache port
-      - "traefik.http.services.wordpress.loadbalancer.server.port=80"
-
-    networks:
-      - web
-
 volumes:
-  mysql_data:
+  front_node_modules:
   wordpress_data:
+  mysql_data:
   redis_data:
-
-networks:
-  web:
-    driver: bridge
