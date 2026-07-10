@@ -1,0 +1,10 @@
+/*
+Theme Name: Kadochi Headless Admin Theme
+Theme URI: https://example.local/kadochi
+Author: Kadochi
+Description: A minimal WordPress theme retained for editor and administration workflows in a headless setup.
+Version: 1.0.0
+Text Domain: kadochi
+*/
+
+body { font-family: system-ui, sans-serif; margin: 2rem; }
