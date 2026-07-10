@@ -1,9 +1,8 @@
+import { Slot } from "@radix-ui/react-slot";
 import {
   Children,
-  cloneElement,
   isValidElement,
   type ComponentProps,
-  type ReactElement,
   type ReactNode,
 } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -108,15 +107,6 @@ type ButtonProps = Omit<ComponentProps<"button">, "disabled"> &
     loading?: boolean;
   };
 
-type SlottableChildProps = {
-  "aria-busy"?: boolean;
-  "aria-disabled"?: boolean;
-  "data-loading"?: boolean;
-  children?: ReactNode;
-  className?: string;
-  tabIndex?: number;
-};
-
 function Spinner() {
   return (
     <span
@@ -152,41 +142,26 @@ function Button({
     className,
   );
 
-  if (asChild) {
-    const child = Children.only(children);
-
-    if (!isValidElement<SlottableChildProps>(child)) {
-      throw new Error("Button with asChild requires a single React element child.");
-    }
-
-    const content = loading ? (
-      <LoadingContent>{child.props.children}</LoadingContent>
-    ) : (
-      child.props.children
-    );
-
-    return cloneElement(child as ReactElement<SlottableChildProps>, {
-      ...props,
-      "aria-busy": loading || undefined,
-      "aria-disabled": isDisabled || undefined,
-      "data-loading": loading || undefined,
-      children: content,
-      className: clsx(classes, child.props.className),
-      tabIndex: isDisabled ? -1 : child.props.tabIndex,
-    });
-  }
+  const Comp = asChild ? Slot : "button";
+  const child = asChild ? Children.only(children) : undefined;
+  const loadingChildren =
+    asChild && isValidElement<{ children?: ReactNode }>(child)
+      ? child.props.children
+      : children;
 
   return (
-    <button
+    <Comp
       {...props}
       aria-busy={loading || undefined}
+      aria-disabled={asChild ? isDisabled || undefined : undefined}
       className={classes}
       data-loading={loading || undefined}
-      disabled={isDisabled}
+      disabled={asChild ? undefined : isDisabled}
+      tabIndex={asChild && isDisabled ? -1 : undefined}
       type={type}
     >
-      {loading ? <LoadingContent>{children}</LoadingContent> : children}
-    </button>
+      {loading ? <LoadingContent>{loadingChildren}</LoadingContent> : children}
+    </Comp>
   );
 }
 
