@@ -10,7 +10,7 @@ import { CircleAlert, CircleCheck, Info } from "lucide-react";
 
 const inputFieldVariants = cva(
   [
-    "relative flex w-full items-center rounded-s border bg-surface-background text-surface-neutral-high-emphasis",
+    "relative flex w-full items-center rounded-m border bg-surface-background text-surface-neutral-high-emphasis",
     "transition-[border-color,box-shadow,background-color] duration-150 ease-out",
     "focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25",
     "has-[:disabled]:cursor-not-allowed has-[:disabled]:border-disable has-[:disabled]:bg-disable-container",
@@ -24,7 +24,8 @@ const inputFieldVariants = cva(
       },
       status: {
         default: "border-border-high-emphasis",
-        error: "border-error focus-within:border-error focus-within:ring-error/20",
+        error:
+          "border-error focus-within:border-error focus-within:ring-error/20",
         success:
           "border-success focus-within:border-success focus-within:ring-success/20",
       },
@@ -65,7 +66,12 @@ type InputProps = Omit<ComponentPropsWithoutRef<"input">, "size"> &
   };
 
 function StatusIcon({ status }: { status: NonNullable<InputProps["status"]> }) {
-  const Icon = status === "error" ? CircleAlert : status === "success" ? CircleCheck : Info;
+  const Icon =
+    status === "error"
+      ? CircleAlert
+      : status === "success"
+        ? CircleCheck
+        : Info;
 
   return <Icon aria-hidden="true" className="mt-px size-14 shrink-0" />;
 }
@@ -94,7 +100,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   const inputId = id ?? generatedId;
   const descriptionId = `${inputId}-description`;
   const hasDescription = Boolean(description);
-  const describedBy = [ariaDescribedBy, hasDescription ? descriptionId : undefined]
+  const describedBy = [
+    ariaDescribedBy,
+    hasDescription ? descriptionId : undefined,
+  ]
     .filter(Boolean)
     .join(" ");
 
