@@ -2,6 +2,7 @@ import { Button } from "../components/ui/button";
 import { Breadcrumb } from "../components/ui/breadcrumb";
 import { Checkbox } from "../components/ui/checkbox";
 import { Radio } from "../components/ui/radio";
+import { Avatar } from "../components/ui/avatar";
 import { Eye } from "lucide-react";
 
 const buttonVariants = [
@@ -28,6 +29,37 @@ const radioTones = [
 ];
 
 const radioSizes = ["small", "medium"] as const;
+
+const avatarSizes = ["sm", "md", "lg", "xl"] as const;
+
+const avatarExamples = [
+  {
+    name: "Image",
+    render: (size: (typeof avatarSizes)[number]) => (
+      <Avatar
+        size={size}
+        alt="Sahar Ahmadi"
+        src="https://i.pravatar.cc/160?img=47"
+      />
+    ),
+  },
+  {
+    name: "Initials",
+    render: (size: (typeof avatarSizes)[number]) => (
+      <Avatar size={size} alt="Sahar Ahmadi" />
+    ),
+  },
+  {
+    name: "Custom fallback",
+    render: (size: (typeof avatarSizes)[number]) => (
+      <Avatar size={size} alt="Kadochi" fallback="ک" />
+    ),
+  },
+  {
+    name: "Default fallback",
+    render: (size: (typeof avatarSizes)[number]) => <Avatar size={size} />,
+  },
+];
 
 const breadcrumbExamples = [
   {
@@ -114,6 +146,54 @@ export default function HomePage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </section>
+
+        <section className="mt-16" aria-labelledby="avatar-heading">
+          <div className="mb-6 flex items-baseline justify-between gap-4">
+            <h2 id="avatar-heading" className="text-heading-24 font-regular">
+              Avatar
+            </h2>
+            <p className="text-label-12 text-surface-neutral-low-emphasis">
+              4 sizes · image, initials, and fallback states
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-m border border-border-low-emphasis bg-surface-background">
+            <table className="w-full min-w-175 border-collapse text-left">
+              <thead className="border-b border-border-low-emphasis">
+                <tr>
+                  <th scope="col" className="w-40 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
+                    Configuration
+                  </th>
+                  {avatarSizes.map((size) => (
+                    <th key={size} scope="col" className="px-5 py-4 text-label-12 font-regular uppercase text-surface-neutral-mid-emphasis">
+                      {size}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {avatarExamples.map(({ name, render }, index) => (
+                  <tr key={name} className={index === avatarExamples.length - 1 ? "" : "border-b border-border-low-emphasis"}>
+                    <th scope="row" className="whitespace-nowrap px-5 py-5 text-label-14 font-regular">
+                      {name}
+                    </th>
+                    {avatarSizes.map((size) => (
+                      <td key={size} className="px-5 py-5">
+                        {render(size)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-16 rounded-m border border-border-low-emphasis bg-surface-background px-5 py-4">
+            <Avatar alt="One name" />
+            <Avatar aria-label="A labeled decorative avatar" fallback="A" />
+            <Avatar alt="Broken image falls back" src="/missing-avatar.png" />
           </div>
         </section>
 
