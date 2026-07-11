@@ -1,5 +1,7 @@
 import { Button } from "../components/ui/button";
 import { Breadcrumb } from "../components/ui/breadcrumb";
+import { Checkbox } from "../components/ui/checkbox";
+import { Radio } from "../components/ui/radio";
 import { Eye } from "lucide-react";
 
 const buttonVariants = [
@@ -12,6 +14,20 @@ const buttonVariants = [
 ];
 
 const sizes = ["small", "medium", "large"] as const;
+
+const checkboxTones = [
+  { name: "Primary", value: "primary" as const },
+  { name: "Secondary", value: "secondary" as const },
+];
+
+const checkboxSizes = ["small", "medium"] as const;
+
+const radioTones = [
+  { name: "Primary", value: "primary" as const },
+  { name: "Secondary", value: "secondary" as const },
+];
+
+const radioSizes = ["small", "medium"] as const;
 
 const breadcrumbExamples = [
   {
@@ -99,6 +115,122 @@ export default function HomePage() {
               </tbody>
             </table>
           </div>
+        </section>
+
+        <section className="mt-16" aria-labelledby="checkbox-heading">
+          <div className="mb-6 flex items-baseline justify-between gap-4">
+            <h2 id="checkbox-heading" className="text-heading-24 font-regular">
+              Checkbox
+            </h2>
+            <p className="text-label-12 text-surface-neutral-low-emphasis">
+              2 tones · 2 sizes · checked, disabled, and invalid states
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-m border border-border-low-emphasis bg-surface-background">
+            <table className="w-full min-w-175 border-collapse text-left">
+              <thead className="border-b border-border-low-emphasis">
+                <tr>
+                  <th scope="col" className="w-40 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
+                    Tone
+                  </th>
+                  {checkboxSizes.map((size) => (
+                    <th key={size} scope="col" className="px-5 py-4 text-label-12 font-regular capitalize text-surface-neutral-mid-emphasis">
+                      {size}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {checkboxTones.map(({ name, value }, index) => (
+                  <tr key={value} className={index === checkboxTones.length - 1 ? "" : "border-b border-border-low-emphasis"}>
+                    <th scope="row" className="whitespace-nowrap px-5 py-5 text-label-14 font-regular">
+                      {name}
+                    </th>
+                    {checkboxSizes.map((size) => (
+                      <td key={size} className="px-5 py-5 align-top">
+                        <div className="flex flex-col items-start gap-16">
+                          <Checkbox tone={value} size={size} label="Unchecked" />
+                          <Checkbox tone={value} size={size} defaultChecked label="Checked" />
+                          <Checkbox tone={value} size={size} disabled label="Disabled" />
+                          <Checkbox tone={value} size={size} defaultChecked disabled label="Disabled checked" />
+                          <Checkbox tone={value} size={size} invalid label="Invalid" />
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-x-32 gap-y-16 rounded-m border border-border-low-emphasis bg-surface-background px-5 py-4">
+            <Checkbox aria-label="Checkbox without a visible label" />
+            <Checkbox name="terms" required label="Required field" />
+            <Checkbox defaultChecked label={<><span className="font-bold">Rich</span> label content</>} />
+          </div>
+        </section>
+
+        <section className="mt-16" aria-labelledby="radio-heading">
+          <div className="mb-6 flex items-baseline justify-between gap-4">
+            <h2 id="radio-heading" className="text-heading-24 font-regular">
+              Radio
+            </h2>
+            <p className="text-label-12 text-surface-neutral-low-emphasis">
+              2 tones · 2 sizes · checked, disabled, and invalid states
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-m border border-border-low-emphasis bg-surface-background">
+            <table className="w-full min-w-175 border-collapse text-left">
+              <thead className="border-b border-border-low-emphasis">
+                <tr>
+                  <th scope="col" className="w-40 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
+                    Tone
+                  </th>
+                  {radioSizes.map((size) => (
+                    <th key={size} scope="col" className="px-5 py-4 text-label-12 font-regular capitalize text-surface-neutral-mid-emphasis">
+                      {size}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {radioTones.map(({ name, value }, index) => (
+                  <tr key={value} className={index === radioTones.length - 1 ? "" : "border-b border-border-low-emphasis"}>
+                    <th scope="row" className="whitespace-nowrap px-5 py-5 text-label-14 font-regular">
+                      {name}
+                    </th>
+                    {radioSizes.map((size) => (
+                      <td key={size} className="px-5 py-5 align-top">
+                        <div className="flex flex-col items-start gap-16">
+                          <Radio tone={value} size={size} label="Unchecked" />
+                          <Radio tone={value} size={size} defaultChecked label="Checked" />
+                          <Radio tone={value} size={size} disabled label="Disabled" />
+                          <Radio tone={value} size={size} defaultChecked disabled label="Disabled checked" />
+                          <Radio tone={value} size={size} invalid label="Invalid" />
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-x-32 gap-y-16 rounded-m border border-border-low-emphasis bg-surface-background px-5 py-4">
+            <Radio aria-label="Radio without a visible label" />
+            <Radio name="terms" required label="Required field" />
+            <Radio defaultChecked label={<><span className="font-bold">Rich</span> label content</>} />
+          </div>
+
+          <fieldset className="mt-4 flex flex-wrap items-center gap-x-32 gap-y-16 rounded-m border border-border-low-emphasis bg-surface-background px-5 py-4">
+            <legend className="sr-only">Notification preference</legend>
+            <Radio name="notification" value="email" defaultChecked label="Email" />
+            <Radio name="notification" value="sms" label="SMS" />
+            <Radio name="notification" value="push" label={<><span className="font-bold">Push</span> notifications</>} />
+            <Radio name="notification" value="disabled" disabled label="Disabled option" />
+          </fieldset>
         </section>
 
         <section className="mt-16" aria-labelledby="breadcrumb-heading">
