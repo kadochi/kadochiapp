@@ -1,42 +1,33 @@
 "use client";
 
-import {
-  useId,
-  useState,
-  type ComponentPropsWithoutRef,
-  type ReactNode,
-} from "react";
+import { type ComponentPropsWithoutRef, type ReactNode } from "react";
+import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 import { cva, type VariantProps } from "class-variance-authority";
-import clsx from "clsx";
+import { cn } from "../../lib/utils";
 
 const segmentSelectorVariants = cva([
   "inline-flex w-full overflow-hidden rounded-m border border-border-high-emphasis bg-surface-background font-sans",
 ]);
 
-const segmentVariants = cva([
-  "group relative flex min-w-0 flex-1 border-e border-border-high-emphasis last:border-e-0",
-  "has-[:disabled]:cursor-not-allowed",
-]);
-
-const segmentLabelVariants = cva(
+const segmentItemVariants = cva(
   [
-    "flex w-full cursor-pointer items-center justify-center whitespace-nowrap px-8 text-surface-neutral-high-emphasis",
+    "group relative flex min-w-0 flex-1 cursor-pointer items-center justify-center whitespace-nowrap border-e border-border-high-emphasis px-8 text-surface-neutral-high-emphasis last:border-e-0",
     "transition-[background-color,color,box-shadow] duration-150 ease-out",
-    "peer-focus-visible:ring-2 peer-focus-visible:ring-inset",
-    "peer-disabled:cursor-not-allowed peer-disabled:bg-disable-container peer-disabled:text-on-disable",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset",
+    "disabled:cursor-not-allowed disabled:bg-disable-container disabled:text-on-disable",
   ],
   {
     variants: {
       tone: {
         primary: [
-          "hover:peer-not-disabled:bg-surface",
-          "peer-checked:bg-primary-container peer-checked:text-on-primary-container",
-          "peer-focus-visible:ring-primary/40",
+          "enabled:hover:bg-surface",
+          "data-[state=checked]:bg-primary-container data-[state=checked]:text-on-primary-container",
+          "focus-visible:ring-primary/40",
         ],
         secondary: [
-          "hover:peer-not-disabled:bg-surface",
-          "peer-checked:bg-secondary-container peer-checked:text-on-secondary-container",
-          "peer-focus-visible:ring-secondary/40",
+          "enabled:hover:bg-surface",
+          "data-[state=checked]:bg-secondary-container data-[state=checked]:text-on-secondary-container",
+          "focus-visible:ring-secondary/40",
         ],
       },
       size: {
@@ -62,88 +53,43 @@ type SegmentItem = {
 };
 
 type SegmentSelectorProps = Omit<
-  ComponentPropsWithoutRef<"div">,
-  "children" | "defaultValue" | "onChange"
+  ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>,
+  "children" | "asChild"
 > &
-  VariantProps<typeof segmentLabelVariants> & {
+  VariantProps<typeof segmentItemVariants> & {
     /** A list of uniquely valued options. */
     items: readonly SegmentItem[];
-    /** Selected value in controlled mode. */
-    value?: string;
-    /** Initially selected value in uncontrolled mode. */
-    defaultValue?: string;
-    /** Called when the selected value changes. */
-    onValueChange?: (value: string) => void;
-    /** Groups the underlying radios and enables native form submission. */
-    name?: string;
-    /** Associates the underlying radios with a form outside their DOM tree. */
-    form?: string;
-    /** Requires a selection before the containing form can submit. */
-    required?: boolean;
   };
 
 function SegmentSelector({
   items,
-  value,
-  defaultValue,
-  onValueChange,
-  name,
-  form,
-  required,
   tone,
   size,
   className,
   dir = "rtl",
   ...props
 }: SegmentSelectorProps) {
-  const generatedName = useId();
-  const [uncontrolledValue, setUncontrolledValue] = useState(defaultValue);
-  const selectedValue = value ?? uncontrolledValue;
-  const groupName = name ?? generatedName;
-
-  function handleValueChange(nextValue: string) {
-    if (value === undefined) setUncontrolledValue(nextValue);
-    onValueChange?.(nextValue);
-  }
-
   return (
-    <div
+    <RadioGroupPrimitive.Root
       {...props}
       dir={dir}
-      role="radiogroup"
-      className={clsx(segmentSelectorVariants(), className)}
+      orientation="horizontal"
+      className={cn(segmentSelectorVariants(), className)}
     >
-      {items.map(({ value: itemValue, label, disabled = false }) => {
-        const checked = itemValue === selectedValue;
-
-        return (
-          <label key={itemValue} className={segmentVariants()}>
-            <input
-              checked={checked}
-              className="peer sr-only"
-              disabled={disabled}
-              form={form}
-              name={groupName}
-              required={required}
-              type="radio"
-              value={itemValue}
-              onChange={() => handleValueChange(itemValue)}
-            />
-            <span className={segmentLabelVariants({ tone, size })}>
-              {label}
-            </span>
-          </label>
-        );
-      })}
-    </div>
+      {items.map(({ value, label, disabled = false }) => (
+        <RadioGroupPrimitive.Item
+          key={value}
+          value={value}
+          disabled={disabled}
+          className={segmentItemVariants({ tone, size })}
+        >
+          {label}
+        </RadioGroupPrimitive.Item>
+      ))}
+    </RadioGroupPrimitive.Root>
   );
 }
 
-export {
-  SegmentSelector,
-  segmentLabelVariants,
-  segmentSelectorVariants,
-  segmentVariants,
-};
+export { SegmentSelector, segmentItemVariants, segmentSelectorVariants };
 export type { SegmentItem, SegmentSelectorProps };
 export default SegmentSelector;

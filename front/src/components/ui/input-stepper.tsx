@@ -6,22 +6,22 @@ import {
   type ComponentPropsWithoutRef,
 } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import clsx from "clsx";
+import { cn } from "../../lib/utils";
 import { Minus, Plus, Trash2 } from "lucide-react";
 
 const inputStepperVariants = cva(
   [
-    "relative inline-flex shrink-0 select-none items-center justify-center rounded-rounded bg-surface-background font-sans font-bold tabular-nums text-surface-neutral-high-emphasis",
+    "inline-flex shrink-0 select-none items-center justify-between rounded-rounded font-sans font-bold tabular-nums text-surface-neutral-high-emphasis",
   ],
   {
     variants: {
       variant: {
-        outline: "border-2 border-primary",
-        subtle: "border border-transparent",
+        outline: "border-2 border-primary bg-surface-background",
+        subtle: "border border-transparent bg-surface",
       },
       size: {
-        sm: "h-32 min-w-96 px-4 text-title-14 [--stepper-inset:4px] [--stepper-control-size:24px]",
-        md: "h-56 min-w-[9rem] px-16 text-title-18 [--stepper-inset:16px] [--stepper-control-size:24px]",
+        sm: "h-32 min-w-96 px-4 text-title-14 [--stepper-control-size:24px]",
+        md: "h-56 min-w-[9rem] px-16 text-title-18 [--stepper-control-size:24px]",
       },
     },
     defaultVariants: {
@@ -33,7 +33,7 @@ const inputStepperVariants = cva(
 
 const inputStepperControlVariants = cva(
   [
-    "absolute inline-flex size-[var(--stepper-control-size)] items-center justify-center rounded-rounded",
+    "inline-flex size-[var(--stepper-control-size)] items-center justify-center rounded-rounded",
     "transition-colors duration-150 ease-out",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
     "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
@@ -41,8 +41,9 @@ const inputStepperControlVariants = cva(
   {
     variants: {
       variant: {
-        outline: "hover:bg-surface active:bg-surface-dim",
-        subtle: "bg-surface hover:bg-surface-dim active:bg-border-high-emphasis",
+        outline: "bg-transparent hover:bg-surface active:bg-surface-dim",
+        subtle:
+          "bg-surface-dim hover:bg-border-high-emphasis active:bg-border-high-emphasis",
       },
     },
     defaultVariants: {
@@ -143,7 +144,7 @@ const InputStepper = forwardRef<HTMLDivElement, InputStepperProps>(
         ref={ref}
         aria-label={ariaLabel}
         aria-disabled={disabled || undefined}
-        className={clsx(inputStepperVariants({ variant, size }), className)}
+        className={cn(inputStepperVariants({ variant, size }), className)}
         data-state={
           disabled
             ? "disabled"
@@ -156,10 +157,23 @@ const InputStepper = forwardRef<HTMLDivElement, InputStepperProps>(
         role="group"
       >
         <button
+          aria-label={incrementLabel}
+          className={inputStepperControlVariants({ variant })}
+          disabled={disabled || isAtMaximum}
+          type="button"
+          onClick={handleIncrement}
+        >
+          <Plus aria-hidden="true" className="size-16" />
+        </button>
+
+        <output aria-atomic="true" aria-live="polite" className="flex-1 text-center">
+          {currentValue}
+        </output>
+
+        <button
           aria-label={canRemove ? "Remove item" : decrementLabel}
-          className={clsx(
+          className={cn(
             inputStepperControlVariants({ variant }),
-            "end-[var(--stepper-inset)]",
             canRemove && "text-error",
           )}
           disabled={disabled || (isAtMinimum && !canRemove)}
@@ -171,23 +185,6 @@ const InputStepper = forwardRef<HTMLDivElement, InputStepperProps>(
           ) : (
             <Minus aria-hidden="true" className="size-16" />
           )}
-        </button>
-
-        <output aria-atomic="true" aria-live="polite">
-          {currentValue}
-        </output>
-
-        <button
-          aria-label={incrementLabel}
-          className={clsx(
-            inputStepperControlVariants({ variant }),
-            "start-[var(--stepper-inset)]",
-          )}
-          disabled={disabled || isAtMaximum}
-          type="button"
-          onClick={handleIncrement}
-        >
-          <Plus aria-hidden="true" className="size-16" />
         </button>
       </div>
     );

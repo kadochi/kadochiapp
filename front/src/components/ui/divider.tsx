@@ -1,6 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import clsx from "clsx";
+import { cn } from "../../lib/utils";
 
 const dividerVariants = cva("my-0 w-full shrink-0 border-0 p-0", {
   variants: {
@@ -49,7 +49,7 @@ function Divider({
   "aria-hidden": ariaHidden,
   ...props
 }: DividerProps) {
-  const classes = clsx(
+  const classes = cn(
     dividerVariants({ variant, inset }),
     variant === "spacer" && spacerSizeVariants({ size }),
     className,

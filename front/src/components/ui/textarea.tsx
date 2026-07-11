@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import clsx from "clsx";
+import { cn } from "../../lib/utils";
 
 const textAreaFieldVariants = cva(
   [
@@ -129,7 +129,7 @@ const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
           {leadingIcon ? (
             <span
               aria-hidden="true"
-              className={clsx(
+              className={cn(
                 "pointer-events-none absolute start-[var(--textarea-inset)] top-[var(--textarea-inset)] inline-flex size-16 shrink-0 items-center justify-center text-surface-neutral-mid-emphasis [&>svg]:size-16",
                 disabled && "text-on-disable",
               )}
@@ -143,7 +143,7 @@ const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
             id={textAreaId}
             aria-describedby={describedBy || undefined}
             aria-invalid={status === "error" || ariaInvalid || undefined}
-            className={clsx(
+            className={cn(
               "min-h-0 w-full resize-y border-0 bg-transparent p-0 font-sans text-label-16 font-regular text-surface-neutral-high-emphasis outline-none placeholder:text-surface-neutral-mid-emphasis disabled:cursor-not-allowed disabled:text-on-disable",
               leadingIcon && "ps-24",
               className,

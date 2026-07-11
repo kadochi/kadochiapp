@@ -8,7 +8,7 @@ import {
 } from "react";
 import { ChevronDown } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
-import clsx from "clsx";
+import { cn } from "../../lib/utils";
 
 const accordionItemVariants = cva(
   "overflow-hidden rounded-m border transition-[border-color,box-shadow] duration-150 ease-out",
@@ -134,7 +134,7 @@ function Accordion({
   return (
     <div
       {...props}
-      className={clsx("w-full space-y-12 font-sans", className)}
+      className={cn("w-full space-y-12 font-sans", className)}
       dir={dir}
     >
       {items.map((item, index) => {
@@ -161,7 +161,7 @@ function Accordion({
                 <span className="min-w-0 flex-1">{item.title}</span>
                 <ChevronDown
                   aria-hidden="true"
-                  className={clsx(
+                  className={cn(
                     "size-20 shrink-0 transition-transform duration-150 ease-out",
                     isExpanded && "rotate-180",
                   )}

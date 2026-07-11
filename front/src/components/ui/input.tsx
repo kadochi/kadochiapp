@@ -5,7 +5,7 @@ import {
   type ReactNode,
 } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import clsx from "clsx";
+import { cn } from "../../lib/utils";
 import { CircleAlert, CircleCheck, Info } from "lucide-react";
 
 const inputFieldVariants = cva(
@@ -18,9 +18,9 @@ const inputFieldVariants = cva(
   {
     variants: {
       size: {
-        sm: "h-40 px-12 [--input-icon-size:16px] [--input-inset:12px]",
-        md: "h-56 px-16 [--input-icon-size:16px] [--input-inset:16px]",
-        lg: "h-64 px-16 [--input-icon-size:20px] [--input-inset:16px]",
+        sm: "h-40 gap-8 px-12 [--input-icon-size:16px]",
+        md: "h-56 gap-12 px-16 [--input-icon-size:16px]",
+        lg: "h-64 gap-12 px-16 [--input-icon-size:20px]",
       },
       status: {
         default: "border-border-high-emphasis",
@@ -38,7 +38,7 @@ const inputFieldVariants = cva(
 );
 
 const inputMessageVariants = cva(
-  "inline-flex items-start gap-4 text-label-12 font-regular",
+  "inline-flex items-center gap-4 font-regular",
   {
     variants: {
       status: {
@@ -46,12 +46,79 @@ const inputMessageVariants = cva(
         error: "text-error",
         success: "text-success",
       },
+      size: {
+        sm: "text-label-12 [--message-icon-size:14px]",
+        md: "text-label-12 [--message-icon-size:14px]",
+        lg: "text-label-14 [--message-icon-size:16px]",
+      },
     },
     defaultVariants: {
       status: "default",
+      size: "md",
     },
   },
 );
+
+type FieldStatus = NonNullable<VariantProps<typeof inputMessageVariants>["status"]>;
+type FieldSize = NonNullable<VariantProps<typeof inputMessageVariants>["size"]>;
+
+function StatusIcon({ status }: { status: FieldStatus }) {
+  const Icon =
+    status === "error"
+      ? CircleAlert
+      : status === "success"
+        ? CircleCheck
+        : Info;
+
+  return (
+    <Icon aria-hidden="true" className="size-[var(--message-icon-size)] shrink-0" />
+  );
+}
+
+/** Field label shared by Input and Select. */
+function FieldLabel({
+  htmlFor,
+  required,
+  children,
+}: {
+  htmlFor?: string;
+  required?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <label
+      className="inline-flex w-fit items-baseline gap-4 text-label-12 font-regular text-surface-neutral-mid-emphasis"
+      htmlFor={htmlFor}
+    >
+      {children}
+      {required ? <span className="text-error">*</span> : null}
+    </label>
+  );
+}
+
+/** Supporting/validation message shared by Input and Select. */
+function InputMessage({
+  id,
+  status,
+  size,
+  children,
+}: {
+  id?: string;
+  status: FieldStatus;
+  size: FieldSize;
+  children: ReactNode;
+}) {
+  return (
+    <p
+      className={inputMessageVariants({ status, size })}
+      id={id}
+      role={status === "error" ? "alert" : undefined}
+    >
+      <StatusIcon status={status} />
+      {children}
+    </p>
+  );
+}
 
 type InputProps = Omit<ComponentPropsWithoutRef<"input">, "size"> &
   VariantProps<typeof inputFieldVariants> & {
@@ -65,15 +132,24 @@ type InputProps = Omit<ComponentPropsWithoutRef<"input">, "size"> &
     trailingIcon?: ReactNode;
   };
 
-function StatusIcon({ status }: { status: NonNullable<InputProps["status"]> }) {
-  const Icon =
-    status === "error"
-      ? CircleAlert
-      : status === "success"
-        ? CircleCheck
-        : Info;
-
-  return <Icon aria-hidden="true" className="mt-px size-14 shrink-0" />;
+function FieldIcon({
+  disabled,
+  children,
+}: {
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "inline-flex size-[var(--input-icon-size)] shrink-0 items-center justify-center text-surface-neutral-mid-emphasis [&>svg]:size-full",
+        disabled && "text-on-disable",
+      )}
+    >
+      {children}
+    </span>
+  );
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
@@ -96,6 +172,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   ref,
 ) {
   const status = statusProp ?? "default";
+  const resolvedSize = size ?? "md";
   const generatedId = useId();
   const inputId = id ?? generatedId;
   const descriptionId = `${inputId}-description`;
@@ -110,26 +187,14 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   return (
     <div className="grid w-full gap-8">
       {label ? (
-        <label
-          className="inline-flex w-fit items-baseline gap-4 text-label-12 font-regular text-surface-neutral-mid-emphasis"
-          htmlFor={inputId}
-        >
+        <FieldLabel htmlFor={inputId} required={required}>
           {label}
-          {required ? <span className="text-error">*</span> : null}
-        </label>
+        </FieldLabel>
       ) : null}
 
       <div className={inputFieldVariants({ size, status })} dir={dir}>
         {leadingIcon ? (
-          <span
-            aria-hidden="true"
-            className={clsx(
-              "pointer-events-none absolute start-[var(--input-inset)] inline-flex size-[var(--input-icon-size)] items-center justify-center text-surface-neutral-mid-emphasis [&>svg]:size-full",
-              disabled && "text-on-disable",
-            )}
-          >
-            {leadingIcon}
-          </span>
+          <FieldIcon disabled={disabled}>{leadingIcon}</FieldIcon>
         ) : null}
         <input
           {...props}
@@ -137,10 +202,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           id={inputId}
           aria-describedby={describedBy || undefined}
           aria-invalid={status === "error" || ariaInvalid || undefined}
-          className={clsx(
+          className={cn(
             "h-full min-w-0 flex-1 border-0 bg-transparent p-0 font-sans text-label-16 font-regular text-surface-neutral-high-emphasis outline-none placeholder:text-surface-neutral-mid-emphasis disabled:cursor-not-allowed disabled:text-on-disable",
-            leadingIcon && "ps-24",
-            trailingIcon && "pe-24",
             className,
           )}
           disabled={disabled}
@@ -148,32 +211,25 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           dir={dir}
         />
         {trailingIcon ? (
-          <span
-            aria-hidden="true"
-            className={clsx(
-              "pointer-events-none absolute end-[var(--input-inset)] inline-flex size-[var(--input-icon-size)] items-center justify-center text-surface-neutral-mid-emphasis [&>svg]:size-full",
-              disabled && "text-on-disable",
-            )}
-          >
-            {trailingIcon}
-          </span>
+          <FieldIcon disabled={disabled}>{trailingIcon}</FieldIcon>
         ) : null}
       </div>
 
       {hasDescription ? (
-        <p
-          className={inputMessageVariants({ status })}
-          id={descriptionId}
-          role={status === "error" ? "alert" : undefined}
-        >
-          <StatusIcon status={status} />
+        <InputMessage id={descriptionId} status={status} size={resolvedSize}>
           {description}
-        </p>
+        </InputMessage>
       ) : null}
     </div>
   );
 });
 
-export { Input, inputFieldVariants, inputMessageVariants };
-export type { InputProps };
+export {
+  Input,
+  FieldLabel,
+  InputMessage,
+  inputFieldVariants,
+  inputMessageVariants,
+};
+export type { InputProps, FieldSize, FieldStatus };
 export default Input;

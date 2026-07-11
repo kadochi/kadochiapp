@@ -1,8 +1,8 @@
 "use client";
 
-import * as Dialog from "@radix-ui/react-dialog";
+import { Dialog } from "radix-ui";
 import { cva, type VariantProps } from "class-variance-authority";
-import clsx from "clsx";
+import { cn } from "../../lib/utils";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 const bottomSheetOverlayVariants = cva(
@@ -62,7 +62,7 @@ function BottomSheetContent({
       <Dialog.Overlay className={bottomSheetOverlayVariants()} />
       <Dialog.Content
         {...props}
-        className={clsx(bottomSheetContentVariants({ size }), className)}
+        className={cn(bottomSheetContentVariants({ size }), className)}
       >
         {showHandle ? (
           <div aria-hidden="true" className="flex justify-center pb-16 pt-8">
@@ -97,7 +97,7 @@ function BottomSheetHeader({
   return (
     <div
       {...props}
-      className={clsx("flex flex-col gap-4 px-20 pb-16 text-start", className)}
+      className={cn("flex flex-col gap-4 px-20 pb-16 text-start", className)}
     >
       {children}
     </div>

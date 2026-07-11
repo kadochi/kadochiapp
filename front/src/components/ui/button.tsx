@@ -1,4 +1,4 @@
-import { Slot } from "@radix-ui/react-slot";
+import { Slot } from "radix-ui";
 import {
   Children,
   isValidElement,
@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import clsx from "clsx";
+import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
   [
@@ -23,42 +23,42 @@ const buttonVariants = cva(
         "primary-filled": [
           "border-0 bg-primary text-on-primary",
           "[background-image:linear-gradient(to_left,var(--color-primary),var(--color-primary-gradient))]",
-          "[&:not(:disabled):not([aria-disabled=true]):not([data-loading=true]):hover]:[background-image:linear-gradient(to_left,var(--color-on-primary-container),var(--color-primary))]",
-          "[&:not(:disabled):not([aria-disabled=true]):not([data-loading=true]):active]:[background-image:linear-gradient(to_left,color-mix(in_oklab,var(--color-primary)_84%,black),color-mix(in_oklab,var(--color-primary)_84%,black))]",
+          "not-data-disabled:not-data-loading:hover:[background-image:linear-gradient(to_left,var(--color-on-primary-container),var(--color-primary))]",
+          "not-data-disabled:not-data-loading:active:[background-image:linear-gradient(to_left,color-mix(in_oklab,var(--color-primary)_84%,black),color-mix(in_oklab,var(--color-primary)_84%,black))]",
         ],
         "primary-tonal": [
           "border-0 bg-primary-container text-on-primary-container",
-          "[&:not(:disabled):not([aria-disabled=true]):not([data-loading=true]):hover]:[filter:saturate(1.04)_brightness(0.98)]",
-          "[&:not(:disabled):not([aria-disabled=true]):not([data-loading=true]):active]:[filter:saturate(1.08)_brightness(0.96)]",
+          "not-data-disabled:not-data-loading:hover:[filter:saturate(1.04)_brightness(0.98)]",
+          "not-data-disabled:not-data-loading:active:[filter:saturate(1.08)_brightness(0.96)]",
         ],
         "secondary-filled": [
           "border-0 bg-secondary text-on-secondary",
           "[background-image:linear-gradient(to_left,var(--color-secondary),var(--color-secondary-gradient))]",
-          "[&:not(:disabled):not([aria-disabled=true]):not([data-loading=true]):hover]:[background-image:linear-gradient(to_left,var(--color-on-secondary-container),var(--color-secondary))]",
-          "[&:not(:disabled):not([aria-disabled=true]):not([data-loading=true]):active]:[background-image:linear-gradient(to_left,color-mix(in_oklab,var(--color-secondary)_84%,black),color-mix(in_oklab,var(--color-secondary)_84%,black))]",
+          "not-data-disabled:not-data-loading:hover:[background-image:linear-gradient(to_left,var(--color-on-secondary-container),var(--color-secondary))]",
+          "not-data-disabled:not-data-loading:active:[background-image:linear-gradient(to_left,color-mix(in_oklab,var(--color-secondary)_84%,black),color-mix(in_oklab,var(--color-secondary)_84%,black))]",
         ],
         "secondary-tonal": [
           "border-0 bg-secondary-container text-on-secondary-container",
-          "[&:not(:disabled):not([aria-disabled=true]):not([data-loading=true]):hover]:[filter:saturate(1.04)_brightness(0.98)]",
-          "[&:not(:disabled):not([aria-disabled=true]):not([data-loading=true]):active]:[filter:saturate(1.08)_brightness(0.96)]",
+          "not-data-disabled:not-data-loading:hover:[filter:saturate(1.04)_brightness(0.98)]",
+          "not-data-disabled:not-data-loading:active:[filter:saturate(1.08)_brightness(0.96)]",
         ],
         "tertiary-outline": [
           "border border-solid border-border-high-emphasis bg-transparent text-text-primary",
-          "[&:not(:disabled):not([aria-disabled=true]):not([data-loading=true]):hover]:bg-[color-mix(in_oklab,var(--color-border-high-emphasis)_10%,transparent)]",
-          "[&:not(:disabled):not([aria-disabled=true]):not([data-loading=true]):active]:bg-[color-mix(in_oklab,var(--color-border-high-emphasis)_20%,transparent)]",
+          "not-data-disabled:not-data-loading:hover:bg-[color-mix(in_oklab,var(--color-border-high-emphasis)_10%,transparent)]",
+          "not-data-disabled:not-data-loading:active:bg-[color-mix(in_oklab,var(--color-border-high-emphasis)_20%,transparent)]",
         ],
         "link-ghost": [
           "border-0 bg-transparent text-text-primary",
-          "[&:not(:disabled):not([aria-disabled=true]):not([data-loading=true]):active]:opacity-90",
+          "not-data-disabled:not-data-loading:active:opacity-90",
         ],
       },
       size: {
         small:
-          "h-[40px] min-h-[40px] max-h-[40px] gap-[6px] px-[12px] py-[12px] text-label-14 [--button-icon-size:16px]",
+          "h-40 min-h-40 max-h-40 gap-6 px-12 py-12 text-label-14 [--button-icon-size:16px]",
         medium:
-          "h-[48px] min-h-[48px] max-h-[48px] gap-[6px] px-[12px] py-[14px] text-label-16 [--button-icon-size:24px]",
+          "h-48 min-h-48 max-h-48 gap-6 px-12 py-[14px] text-label-16 [--button-icon-size:24px]",
         large:
-          "h-[56px] min-h-[56px] max-h-[56px] gap-[8px] px-[16px] py-[18px] text-label-16 [--button-icon-size:24px]",
+          "h-56 min-h-56 max-h-56 gap-8 px-16 py-18 text-label-16 [--button-icon-size:24px]",
       },
       disabled: {
         true: "pointer-events-none cursor-not-allowed",
@@ -80,13 +80,13 @@ const buttonVariants = cva(
         ],
         disabled: true,
         className:
-          "disabled:border-0 disabled:bg-disable-container disabled:bg-none disabled:text-on-disable aria-disabled:border-0 aria-disabled:bg-disable-container aria-disabled:bg-none aria-disabled:text-on-disable [filter:none]",
+          "data-disabled:border-0 data-disabled:bg-disable-container data-disabled:bg-none data-disabled:text-on-disable data-disabled:[filter:none]",
       },
       {
         variant: "tertiary-outline",
         disabled: true,
         className:
-          "disabled:border disabled:border-disable disabled:bg-disable-container disabled:text-on-disable aria-disabled:border aria-disabled:border-disable aria-disabled:bg-disable-container aria-disabled:text-on-disable [filter:none]",
+          "data-disabled:border data-disabled:border-disable data-disabled:bg-disable-container data-disabled:text-on-disable data-disabled:[filter:none]",
       },
     ],
     defaultVariants: {
@@ -137,12 +137,12 @@ function Button({
   ...props
 }: ButtonProps) {
   const isDisabled = disabled || loading;
-  const classes = clsx(
+  const classes = cn(
     buttonVariants({ variant, size, disabled: isDisabled, loading }),
     className,
   );
 
-  const Comp = asChild ? Slot : "button";
+  const Comp = asChild ? Slot.Root : "button";
   const child = asChild ? Children.only(children) : undefined;
   const loadingChildren =
     asChild && isValidElement<{ children?: ReactNode }>(child)
@@ -155,6 +155,7 @@ function Button({
       aria-busy={loading || undefined}
       aria-disabled={asChild ? isDisabled || undefined : undefined}
       className={classes}
+      data-disabled={isDisabled || undefined}
       data-loading={loading || undefined}
       disabled={asChild ? undefined : isDisabled}
       tabIndex={asChild && isDisabled ? -1 : undefined}

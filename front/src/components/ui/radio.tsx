@@ -1,34 +1,40 @@
 "use client";
 
 import {
+  createContext,
   forwardRef,
+  useContext,
   type ComponentPropsWithoutRef,
+  type ComponentRef,
   type ReactNode,
 } from "react";
+import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 import { cva, type VariantProps } from "class-variance-authority";
-import clsx from "clsx";
+import { cn } from "../../lib/utils";
 
 const radioVariants = cva(
   [
-    "pointer-events-none inline-flex shrink-0 items-center justify-center rounded-full border-[1.5px] bg-surface-background text-transparent",
+    "inline-flex shrink-0 items-center justify-center rounded-full border-[1.5px] bg-surface-background text-transparent",
     "transition-[background-color,border-color,color,box-shadow] duration-150 ease-out",
-    "peer-focus-visible:ring-2 peer-focus-visible:ring-secondary/30 peer-focus-visible:ring-offset-2",
-    "peer-disabled:border-disable peer-disabled:bg-disable-container peer-checked:peer-disabled:border-disable peer-checked:peer-disabled:text-on-disable",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 focus-visible:ring-offset-2",
+    "disabled:border-disable disabled:bg-disable-container disabled:text-on-disable",
+    // Disabled overrides the checked tone (compound wins on specificity).
+    "disabled:data-[state=checked]:border-disable disabled:data-[state=checked]:bg-disable-container disabled:data-[state=checked]:text-on-disable",
   ],
   {
     variants: {
       tone: {
         primary: [
           "border-border-high-emphasis",
-          "group-hover:peer-not-disabled:border-primary",
-          "peer-checked:border-primary peer-checked:bg-primary-container peer-checked:text-primary",
-          "group-hover:peer-checked:peer-not-disabled:shadow-[0_0_0_2px_color-mix(in_oklab,var(--color-primary)_40%,transparent)]",
+          "group-hover:enabled:border-primary",
+          "data-[state=checked]:border-primary data-[state=checked]:bg-primary-container data-[state=checked]:text-primary",
+          "group-hover:enabled:data-[state=checked]:shadow-[0_0_0_2px_color-mix(in_oklab,var(--color-primary)_40%,transparent)]",
         ],
         secondary: [
           "border-border-high-emphasis",
-          "group-hover:peer-not-disabled:border-secondary",
-          "peer-checked:border-secondary peer-checked:bg-secondary-container peer-checked:text-secondary",
-          "group-hover:peer-checked:peer-not-disabled:shadow-[0_0_0_2px_color-mix(in_oklab,var(--color-secondary)_40%,transparent)]",
+          "group-hover:enabled:border-secondary",
+          "data-[state=checked]:border-secondary data-[state=checked]:bg-secondary-container data-[state=checked]:text-secondary",
+          "group-hover:enabled:data-[state=checked]:shadow-[0_0_0_2px_color-mix(in_oklab,var(--color-secondary)_40%,transparent)]",
         ],
       },
       size: {
@@ -37,9 +43,9 @@ const radioVariants = cva(
       },
       invalid: {
         true: [
-          "!border-error",
-          "group-hover:peer-not-disabled:!border-error",
-          "peer-checked:!border-error peer-checked:!bg-error-container peer-checked:!text-error",
+          "border-error",
+          "group-hover:enabled:border-error",
+          "data-[state=checked]:border-error data-[state=checked]:bg-error-container data-[state=checked]:text-error",
         ],
         false: null,
       },
@@ -52,55 +58,80 @@ const radioVariants = cva(
   },
 );
 
-type RadioProps = Omit<
-  ComponentPropsWithoutRef<"input">,
-  "type" | "size" | "onChange"
-> &
-  VariantProps<typeof radioVariants> & {
-    /** Content that labels the radio. Provide `aria-label` when omitted. */
-    label?: ReactNode;
-    /** Called when this radio becomes selected. */
-    onCheckedChange?: (checked: boolean) => void;
-  };
+type RadioContextValue = Pick<
+  VariantProps<typeof radioVariants>,
+  "tone" | "size" | "invalid"
+>;
 
-const Radio = forwardRef<HTMLInputElement, RadioProps>(function Radio(
-  {
-    className,
-    label,
-    tone,
-    size,
-    invalid = false,
-    disabled,
-    onCheckedChange,
-    "aria-invalid": ariaInvalid,
-    ...props
-  },
+const RadioContext = createContext<RadioContextValue>({});
+
+type RadioGroupProps = Omit<
+  ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>,
+  "asChild"
+> &
+  RadioContextValue;
+
+const RadioGroup = forwardRef<
+  ComponentRef<typeof RadioGroupPrimitive.Root>,
+  RadioGroupProps
+>(function RadioGroup(
+  { className, tone, size, invalid, children, dir = "rtl", ...props },
   ref,
 ) {
   return (
+    <RadioContext.Provider value={{ tone, size, invalid }}>
+      <RadioGroupPrimitive.Root
+        {...props}
+        ref={ref}
+        dir={dir}
+        aria-invalid={invalid || undefined}
+        className={cn("flex flex-col gap-16", className)}
+      >
+        {children}
+      </RadioGroupPrimitive.Root>
+    </RadioContext.Provider>
+  );
+});
+
+type RadioGroupItemProps = Omit<
+  ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Item>,
+  "asChild"
+> & {
+  /** Content that labels the radio. Provide `aria-label` when omitted. */
+  label?: ReactNode;
+};
+
+const RadioGroupItem = forwardRef<
+  ComponentRef<typeof RadioGroupPrimitive.Item>,
+  RadioGroupItemProps
+>(function RadioGroupItem({ className, label, disabled, ...props }, ref) {
+  const { tone, size, invalid } = useContext(RadioContext);
+
+  return (
     <label
-      className={clsx(
+      className={cn(
         "group inline-flex w-fit cursor-pointer select-none items-center gap-12 font-sans text-label-12 font-regular text-surface-neutral-high-emphasis",
         "has-[:disabled]:cursor-not-allowed has-[:disabled]:text-on-disable",
         className,
       )}
     >
-      <input
+      <RadioGroupPrimitive.Item
         {...props}
         ref={ref}
-        aria-invalid={invalid || ariaInvalid || undefined}
-        className="peer sr-only"
         disabled={disabled}
-        type="radio"
-        onChange={(event) => onCheckedChange?.(event.target.checked)}
-      />
-      <span aria-hidden="true" className={radioVariants({ tone, size, invalid })}>
-        <span className="size-[var(--radio-dot-size)] rounded-full bg-current" />
-      </span>
+        className={radioVariants({ tone, size, invalid })}
+      >
+        <RadioGroupPrimitive.Indicator
+          forceMount
+          className="inline-flex items-center justify-center data-[state=unchecked]:text-transparent"
+        >
+          <span className="size-[var(--radio-dot-size)] rounded-full bg-current" />
+        </RadioGroupPrimitive.Indicator>
+      </RadioGroupPrimitive.Item>
       {label ? <span>{label}</span> : null}
     </label>
   );
 });
 
-export { Radio, radioVariants };
-export type { RadioProps };
+export { RadioGroup, RadioGroupItem, radioVariants };
+export type { RadioGroupProps, RadioGroupItemProps };

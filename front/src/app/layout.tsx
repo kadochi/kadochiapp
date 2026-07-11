@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { Direction } from "radix-ui";
+import { Toaster } from "../components/ui/toaster";
 import "./globals.css";
 
 const iranSans = localFont({
@@ -32,7 +34,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={iranSans.variable}>
-      <body className="font-sans">{children}</body>
+      <body className="font-sans">
+        <Direction.Provider dir="rtl">
+          <Toaster>{children}</Toaster>
+        </Direction.Provider>
+      </body>
     </html>
   );
 }

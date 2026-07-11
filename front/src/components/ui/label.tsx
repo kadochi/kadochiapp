@@ -1,4 +1,4 @@
-import { Slot } from "@radix-ui/react-slot";
+import { Slot } from "radix-ui";
 import {
   Children,
   cloneElement,
@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import clsx from "clsx";
+import { cn } from "../../lib/utils";
 
 const labelVariants = cva(
   [
@@ -141,7 +141,7 @@ function Label({
   children,
   ...props
 }: LabelProps) {
-  const classes = clsx(labelVariants({ variant, appearance, size }), className);
+  const classes = cn(labelVariants({ variant, appearance, size }), className);
   let child: ReactElement<{ children?: ReactNode }> | undefined;
 
   if (asChild) {
@@ -170,9 +170,9 @@ function Label({
 
   if (child) {
     return (
-      <Slot {...props} className={classes}>
+      <Slot.Root {...props} className={classes}>
         {cloneElement(child, undefined, content)}
-      </Slot>
+      </Slot.Root>
     );
   }
 

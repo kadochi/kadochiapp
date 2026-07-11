@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type ComponentProps } from "react";
 import { cva } from "class-variance-authority";
-import clsx from "clsx";
+import { cn } from "../../lib/utils";
 
 const breadcrumbVariants = cva([
   "box-border block overflow-x-auto overflow-y-hidden whitespace-nowrap px-16 py-12",
@@ -41,7 +41,7 @@ function Breadcrumb({
       {...props}
       ref={wrapRef}
       aria-label={ariaLabel ?? "breadcrumb"}
-      className={clsx(breadcrumbVariants(), className)}
+      className={cn(breadcrumbVariants(), className)}
     >
       <ol className="m-0 inline-flex list-none items-center gap-8 p-0">
         {items.map((item, index) => {
@@ -67,7 +67,7 @@ function Breadcrumb({
               ) : (
                 <span
                   aria-current={isCurrent ? "page" : undefined}
-                  className={clsx(
+                  className={cn(
                     "inline-flex items-center gap-0 text-label-12 font-regular text-surface-neutral-mid-emphasis",
                     isCurrent && "cursor-default font-bold text-surface-neutral-high-emphasis",
                   )}

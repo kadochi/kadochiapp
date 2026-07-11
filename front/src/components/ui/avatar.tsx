@@ -1,10 +1,10 @@
 "use client";
 
-import * as AvatarPrimitive from "@radix-ui/react-avatar";
+import { Avatar as AvatarPrimitive } from "radix-ui";
 import { UserRound } from "lucide-react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import clsx from "clsx";
+import { cn } from "../../lib/utils";
 
 const avatarVariants = cva(
   [
@@ -67,13 +67,13 @@ function Avatar({
       {...props}
       aria-hidden={accessibleName ? undefined : true}
       aria-label={accessibleName}
-      className={clsx(avatarVariants({ size }), className)}
+      className={cn(avatarVariants({ size }), className)}
       role={accessibleName ? "img" : undefined}
     >
       {src ? <AvatarPrimitive.Image src={src} alt="" /> : null}
       <AvatarPrimitive.Fallback
         aria-hidden="true"
-        className={clsx(
+        className={cn(
           "inline-flex items-center justify-center leading-none",
           isTextFallback &&
             "bg-clip-text text-transparent [background-image:linear-gradient(to_left,var(--color-secondary),var(--color-secondary-gradient))]",

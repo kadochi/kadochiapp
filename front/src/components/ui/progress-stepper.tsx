@@ -1,7 +1,7 @@
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { Check } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
-import clsx from "clsx";
+import { cn } from "../../lib/utils";
 
 const progressStepperVariants = cva("m-0 w-full list-none p-0 font-sans", {
   variants: {
@@ -57,10 +57,14 @@ const progressIndicatorVariants = cva(
 const progressConnectorVariants = cva("pointer-events-none absolute bg-border-high-emphasis", {
   variants: {
     orientation: {
+      // Incoming edge: spans the gap back to the previous indicator, with a 4px
+      // gap at each end so the tail never touches a `current` indicator's ring.
       horizontal:
-        "top-[calc(var(--progress-indicator-size)/2)] start-[calc(50%+var(--progress-indicator-size)/2)] h-px w-[calc(100%-var(--progress-indicator-size))]",
+        "top-[calc(var(--progress-indicator-size)/2)] [inset-inline-end:calc(50%+var(--progress-indicator-size)/2+4px)] h-px w-[calc(100%-var(--progress-indicator-size)-8px)]",
+      // Outgoing edge: drawn from the earlier cell so the line stays continuous
+      // alongside tall labels; 4px gap top and bottom.
       vertical:
-        "top-[var(--progress-indicator-size)] bottom-0 start-[calc(var(--progress-indicator-size)/2)] w-px",
+        "start-[calc(var(--progress-indicator-size)/2)] top-[calc(var(--progress-indicator-size)+4px)] bottom-[4px] w-px",
     },
     active: {
       true: "bg-secondary",
@@ -113,27 +117,38 @@ function ProgressStepper({
 }: ProgressStepperProps) {
   const resolvedOrientation = orientation ?? "horizontal";
 
+  const isActiveStatus = (status: StepStatus) =>
+    status === "complete" || status === "current";
+
   return (
     <ol
       {...props}
       aria-label={ariaLabel}
-      className={clsx(progressStepperVariants({ orientation, size }), className)}
+      className={cn(progressStepperVariants({ orientation, size }), className)}
       dir={dir}
     >
       {steps.map((step, index) => {
         const status = step.status ?? "upcoming";
+        const isFirstStep = index === 0;
         const isLastStep = index === steps.length - 1;
-        const nextStatus = steps[index + 1]?.status ?? "upcoming";
+        // Horizontal connectors are drawn on the incoming edge (coloured by this
+        // step's own status); vertical connectors originate from the earlier
+        // cell so the line stays continuous next to tall labels.
+        const showConnector =
+          resolvedOrientation === "horizontal" ? !isFirstStep : !isLastStep;
         const isConnectorActive =
-          nextStatus === "complete" || nextStatus === "current";
+          resolvedOrientation === "horizontal"
+            ? isActiveStatus(status)
+            : isActiveStatus(steps[index + 1]?.status ?? "upcoming");
 
         return (
           <li
             key={step.id ?? index}
             aria-current={status === "current" ? "step" : undefined}
+            data-status={status}
             className={progressStepVariants({ orientation: resolvedOrientation })}
           >
-            {!isLastStep && (
+            {showConnector && (
               <span
                 aria-hidden="true"
                 className={progressConnectorVariants({
@@ -155,7 +170,7 @@ function ProgressStepper({
             </span>
 
             <span
-              className={clsx(
+              className={cn(
                 "min-w-0 text-surface-neutral-high-emphasis",
                 resolvedOrientation === "horizontal"
                   ? "mt-[var(--progress-label-gap)]"

@@ -3,34 +3,38 @@
 import {
   forwardRef,
   type ComponentPropsWithoutRef,
+  type ComponentRef,
   type ReactNode,
 } from "react";
+import { Checkbox as CheckboxPrimitive } from "radix-ui";
 import { cva, type VariantProps } from "class-variance-authority";
-import clsx from "clsx";
+import { cn } from "../../lib/utils";
 import { Check } from "lucide-react";
 
 const checkboxVariants = cva(
   [
-    "pointer-events-none inline-flex shrink-0 items-center justify-center rounded-xs border-[1.5px] text-transparent",
+    "inline-flex shrink-0 items-center justify-center rounded-xs border-[1.5px] text-transparent",
     "transition-[background-color,border-color,color,box-shadow] duration-150 ease-out",
-    "[&>svg]:size-[var(--checkbox-icon-size)]",
-    "peer-focus-visible:ring-2 peer-focus-visible:ring-secondary/30 peer-focus-visible:ring-offset-2",
-    "peer-disabled:!border-disable peer-disabled:!bg-disable-container peer-disabled:!text-on-disable",
+    "[&_svg]:size-[var(--checkbox-icon-size)]",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 focus-visible:ring-offset-2",
+    "disabled:border-disable disabled:bg-disable-container disabled:text-on-disable",
+    // Disabled overrides the checked tone (compound wins on specificity).
+    "disabled:data-[state=checked]:border-disable disabled:data-[state=checked]:bg-disable-container disabled:data-[state=checked]:text-on-disable",
   ],
   {
     variants: {
       tone: {
         primary: [
           "border-border-high-emphasis bg-surface-background",
-          "group-hover:peer-not-disabled:border-primary",
-          "peer-checked:border-primary peer-checked:bg-primary-container peer-checked:text-on-primary-container",
-          "group-hover:peer-checked:peer-not-disabled:shadow-[0_0_0_2px_color-mix(in_oklab,var(--color-primary)_40%,transparent)]",
+          "group-hover:enabled:border-primary",
+          "data-[state=checked]:border-primary data-[state=checked]:bg-primary-container data-[state=checked]:text-on-primary-container",
+          "group-hover:enabled:data-[state=checked]:shadow-[0_0_0_2px_color-mix(in_oklab,var(--color-primary)_40%,transparent)]",
         ],
         secondary: [
           "border-border-high-emphasis bg-surface-background",
-          "group-hover:peer-not-disabled:border-secondary",
-          "peer-checked:border-secondary peer-checked:bg-secondary-container peer-checked:text-on-secondary-container",
-          "group-hover:peer-checked:peer-not-disabled:shadow-[0_0_0_2px_color-mix(in_oklab,var(--color-secondary)_40%,transparent)]",
+          "group-hover:enabled:border-secondary",
+          "data-[state=checked]:border-secondary data-[state=checked]:bg-secondary-container data-[state=checked]:text-on-secondary-container",
+          "group-hover:enabled:data-[state=checked]:shadow-[0_0_0_2px_color-mix(in_oklab,var(--color-secondary)_40%,transparent)]",
         ],
       },
       size: {
@@ -39,9 +43,9 @@ const checkboxVariants = cva(
       },
       invalid: {
         true: [
-          "!border-error",
-          "group-hover:peer-not-disabled:!border-error",
-          "peer-checked:!border-error peer-checked:!bg-error-container peer-checked:!text-on-error-container",
+          "border-error",
+          "group-hover:enabled:border-error",
+          "data-[state=checked]:border-error data-[state=checked]:bg-error-container data-[state=checked]:text-on-error-container",
         ],
         false: null,
       },
@@ -55,17 +59,22 @@ const checkboxVariants = cva(
 );
 
 type CheckboxProps = Omit<
-  ComponentPropsWithoutRef<"input">,
-  "type" | "size" | "onChange"
+  ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>,
+  "asChild" | "onCheckedChange"
 > &
-  VariantProps<typeof checkboxVariants> & {
+  Omit<VariantProps<typeof checkboxVariants>, "invalid"> & {
     /** Content that labels the checkbox. Provide `aria-label` when omitted. */
     label?: ReactNode;
-    /** Called whenever the native checkbox value changes. */
+    /** Marks the control as invalid. */
+    invalid?: boolean;
+    /** Called whenever the checkbox value changes. */
     onCheckedChange?: (checked: boolean) => void;
   };
 
-const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
+const Checkbox = forwardRef<
+  ComponentRef<typeof CheckboxPrimitive.Root>,
+  CheckboxProps
+>(function Checkbox(
   {
     className,
     label,
@@ -81,24 +90,28 @@ const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
 ) {
   return (
     <label
-      className={clsx(
+      className={cn(
         "group inline-flex w-fit cursor-pointer select-none items-center gap-12 font-sans text-label-12 font-regular text-surface-neutral-high-emphasis",
         "has-[:disabled]:cursor-not-allowed has-[:disabled]:text-on-disable",
         className,
       )}
     >
-      <input
+      <CheckboxPrimitive.Root
         {...props}
         ref={ref}
         aria-invalid={invalid || ariaInvalid || undefined}
-        className="peer sr-only"
         disabled={disabled}
-        type="checkbox"
-        onChange={(event) => onCheckedChange?.(event.target.checked)}
-      />
-      <span aria-hidden="true" className={checkboxVariants({ tone, size, invalid })}>
-        <Check strokeWidth={2.5} />
-      </span>
+        className={checkboxVariants({ tone, size, invalid })}
+        onCheckedChange={
+          onCheckedChange
+            ? (checked) => onCheckedChange(checked === true)
+            : undefined
+        }
+      >
+        <CheckboxPrimitive.Indicator forceMount className="data-[state=unchecked]:text-transparent">
+          <Check strokeWidth={2.5} />
+        </CheckboxPrimitive.Indicator>
+      </CheckboxPrimitive.Root>
       {label ? <span>{label}</span> : null}
     </label>
   );
