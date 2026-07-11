@@ -1,6 +1,6 @@
 import { Button } from "../components/ui/button";
-import { Breadcrumb } from "../components/ui/breadcrumb";
 import { Avatar } from "../components/ui/avatar";
+import { BreadcrumbPreview } from "../components/breadcrumb-preview";
 import { ChipPreview } from "../components/chip-preview";
 import { CheckboxPreview } from "../components/checkbox-preview";
 import { RadioPreview } from "../components/radio-preview";
@@ -60,29 +60,6 @@ const avatarExamples = [
   {
     name: "Default fallback",
     render: (size: (typeof avatarSizes)[number]) => <Avatar size={size} />,
-  },
-];
-
-const breadcrumbExamples = [
-  {
-    name: "Default",
-    items: [
-      { label: "خانه", href: "/" },
-      { label: "محصولات", href: "/products" },
-      { label: "موبایل و تبلت", href: "/products/mobile" },
-      { label: "گوشی موبایل" },
-    ],
-  },
-  {
-    name: "Long path",
-    items: [
-      { label: "خانه", href: "/" },
-      { label: "لوازم دیجیتال", href: "/digital" },
-      { label: "موبایل و تبلت", href: "/digital/mobile" },
-      { label: "گوشی موبایل", href: "/digital/mobile/phones" },
-      { label: "گوشی اپل", href: "/digital/mobile/phones/apple" },
-      { label: "آیفون ۱۶ پرو مکس" },
-    ],
   },
 ];
 
@@ -235,34 +212,7 @@ export default function HomePage() {
 
         <RadioPreview />
 
-        <section className="mt-16" aria-labelledby="breadcrumb-heading">
-          <div className="mb-6 flex items-baseline justify-between gap-4">
-            <h2 id="breadcrumb-heading" className="text-heading-24 font-regular">
-              Breadcrumb
-            </h2>
-            <p className="text-label-12 text-surface-neutral-low-emphasis">
-              RTL · horizontally scrollable
-            </p>
-          </div>
-
-          <div className="overflow-hidden rounded-m border border-border-low-emphasis bg-surface-background">
-            {breadcrumbExamples.map(({ name, items }, index) => (
-              <div
-                key={name}
-                className={
-                  index === breadcrumbExamples.length - 1
-                    ? ""
-                    : "border-b border-border-low-emphasis"
-                }
-              >
-                <p className="px-5 pt-5 text-label-12 font-regular text-surface-neutral-mid-emphasis">
-                  {name}
-                </p>
-                <Breadcrumb items={items} />
-              </div>
-            ))}
-          </div>
-        </section>
+        <BreadcrumbPreview />
       </div>
     </main>
   );
