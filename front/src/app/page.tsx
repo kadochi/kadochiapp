@@ -3,6 +3,9 @@ import { Breadcrumb } from "../components/ui/breadcrumb";
 import { Checkbox } from "../components/ui/checkbox";
 import { Radio } from "../components/ui/radio";
 import { Avatar } from "../components/ui/avatar";
+import { ChipPreview } from "../components/chip-preview";
+import { DividerPreview } from "../components/divider-preview";
+import { TogglePreview } from "../components/toggle-preview";
 import { Eye } from "lucide-react";
 
 const buttonVariants = [
@@ -148,6 +151,12 @@ export default function HomePage() {
             </table>
           </div>
         </section>
+
+        <ChipPreview />
+
+        <DividerPreview />
+
+        <TogglePreview />
 
         <section className="mt-16" aria-labelledby="avatar-heading">
           <div className="mb-6 flex items-baseline justify-between gap-4">
