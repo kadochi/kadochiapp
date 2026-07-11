@@ -5,10 +5,10 @@ import { useToast } from "./ui/toaster";
 import type { AlertTone } from "./ui/alert";
 
 const toasts: { tone: AlertTone; label: string; title: string; body: string }[] = [
-  { tone: "info", label: "Info", title: "اطلاع‌رسانی", body: "نسخهٔ جدید در دسترس است." },
-  { tone: "success", label: "Success", title: "انجام شد", body: "سفارش شما ثبت شد." },
-  { tone: "warning", label: "Warning", title: "هشدار", body: "موجودی رو به پایان است." },
-  { tone: "error", label: "Error", title: "خطا", body: "اتصال برقرار نشد." },
+  { tone: "info", label: "اطلاع", title: "اطلاع‌رسانی", body: "نسخهٔ جدید در دسترس است." },
+  { tone: "success", label: "موفقیت", title: "انجام شد", body: "سفارش شما ثبت شد." },
+  { tone: "warning", label: "هشدار", title: "هشدار", body: "موجودی رو به پایان است." },
+  { tone: "error", label: "خطا", title: "خطا", body: "اتصال برقرار نشد." },
 ];
 
 function ToastPreview() {
@@ -18,10 +18,10 @@ function ToastPreview() {
     <section className="mt-16" aria-labelledby="toast-heading">
       <div className="mb-6 flex items-baseline justify-between gap-4">
         <h2 id="toast-heading" className="text-heading-24 font-regular">
-          Toast
+          توست
         </h2>
         <p className="text-label-12 text-surface-neutral-low-emphasis">
-          4 tones · auto-dismiss · swipe to dismiss
+          ۴ رنگ‌مایه · بسته‌شدن خودکار · بسته‌شدن با کشیدن
         </p>
       </div>
 

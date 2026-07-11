@@ -2,7 +2,7 @@ import { Breadcrumb } from "./ui/breadcrumb";
 
 const breadcrumbExamples = [
   {
-    name: "Default",
+    name: "پیش‌فرض",
     items: [
       { label: "خانه", href: "/" },
       { label: "محصولات", href: "/products" },
@@ -11,7 +11,7 @@ const breadcrumbExamples = [
     ],
   },
   {
-    name: "Long path",
+    name: "مسیر طولانی",
     items: [
       { label: "خانه", href: "/" },
       { label: "لوازم دیجیتال", href: "/digital" },
@@ -22,7 +22,7 @@ const breadcrumbExamples = [
     ],
   },
   {
-    name: "Collapsed (maxItems=4)",
+    name: "جمع‌شده (حداکثر ۴ آیتم)",
     maxItems: 4,
     items: [
       { label: "خانه", href: "/" },
@@ -42,10 +42,10 @@ function BreadcrumbPreview() {
     <section className="mt-16" aria-labelledby="breadcrumb-heading">
       <div className="mb-6 flex items-baseline justify-between gap-4">
         <h2 id="breadcrumb-heading" className="text-heading-24 font-regular">
-          Breadcrumb
+          بردکرامب
         </h2>
         <p className="text-label-12 text-surface-neutral-low-emphasis">
-          RTL · horizontally scrollable · collapsed overflow menu
+          راست‌به‌چپ · اسکرول افقی · منوی جمع‌شده در صورت طولانی بودن مسیر
         </p>
       </div>
 

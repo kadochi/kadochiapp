@@ -2,11 +2,11 @@ import { Check, CircleAlert, Link as LinkIcon } from "lucide-react";
 import { Label } from "./ui/label";
 
 const variants = [
-  { name: "Success", value: "success" as const },
-  { name: "Secondary", value: "secondary" as const },
-  { name: "Warning", value: "warning" as const },
-  { name: "Danger", value: "danger" as const },
-  { name: "Neutral", value: "neutral" as const },
+  { name: "موفقیت", value: "success" as const },
+  { name: "ثانویه", value: "secondary" as const },
+  { name: "هشدار", value: "warning" as const },
+  { name: "خطر", value: "danger" as const },
+  { name: "خنثی", value: "neutral" as const },
 ];
 
 const appearances = ["solid", "soft", "gradient"] as const;
@@ -17,10 +17,10 @@ function LabelPreview() {
     <section className="mt-16" aria-labelledby="label-heading">
       <div className="mb-6 flex items-baseline justify-between gap-4">
         <h2 id="label-heading" className="text-heading-24 font-regular">
-          Label
+          برچسب
         </h2>
         <p className="text-label-12 text-surface-neutral-low-emphasis">
-          5 variants · 3 appearances · 2 sizes
+          ۵ نوع · ۳ ظاهر · ۲ اندازه
         </p>
       </div>
 
@@ -29,7 +29,7 @@ function LabelPreview() {
           <thead className="border-b border-border-low-emphasis">
             <tr>
               <th scope="col" className="w-40 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
-                Variant
+                نوع
               </th>
               {appearances.map((appearance) => (
                 <th key={appearance} scope="col" className="px-5 py-4 text-label-12 font-regular capitalize text-surface-neutral-mid-emphasis">
@@ -49,7 +49,7 @@ function LabelPreview() {
                     <div className="flex flex-wrap items-center gap-8">
                       {sizes.map((size) => (
                         <Label key={size} appearance={appearance} leadingIcon={<Check />} size={size} variant={value}>
-                          {size === "sm" ? "Small" : "Medium"}
+                          {size === "sm" ? "کوچک" : "متوسط"}
                         </Label>
                       ))}
                     </div>
@@ -63,16 +63,16 @@ function LabelPreview() {
 
       <div className="mt-4 flex flex-wrap items-center gap-16 rounded-m border border-border-low-emphasis bg-surface-background px-5 py-4">
         <Label leadingIcon={<CircleAlert />} variant="warning">
-          With icon
+          با آیکون
         </Label>
         <Label appearance="soft" variant="neutral">
-          Text only
+          فقط متن
         </Label>
         <Label asChild appearance="gradient" leadingIcon={<LinkIcon />} variant="secondary">
-          <a href="#label-heading">Label link</a>
+          <a href="#label-heading">پیوند برچسب</a>
         </Label>
         <Label className="uppercase tracking-wide" variant="danger">
-          Custom class
+          کلاس دلخواه
         </Label>
       </div>
     </section>

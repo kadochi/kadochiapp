@@ -4,8 +4,8 @@ import { useState } from "react";
 import { Accordion } from "./ui/accordion";
 
 const variants = [
-  { name: "Outline", value: "outline" as const },
-  { name: "Subtle", value: "subtle" as const },
+  { name: "خط‌دار", value: "outline" as const },
+  { name: "ملایم", value: "subtle" as const },
 ];
 
 const sizes = ["sm", "md", "lg"] as const;
@@ -36,7 +36,7 @@ function ControlledAccordion() {
     <div className="flex flex-col gap-12">
       <Accordion items={items} value={value} onValueChange={setValue} />
       <p className="text-label-12 text-surface-neutral-mid-emphasis">
-        Expanded: {value.length ? value.join(", ") : "none"}
+        باز شده: {value.length ? value.join("، ") : "هیچ‌کدام"}
       </p>
     </div>
   );
@@ -47,10 +47,10 @@ function AccordionPreview() {
     <section className="mt-16" aria-labelledby="accordion-heading">
       <div className="mb-6 flex items-baseline justify-between gap-4">
         <h2 id="accordion-heading" className="text-heading-24 font-regular">
-          Accordion
+          آکاردئون
         </h2>
         <p className="text-label-12 text-surface-neutral-low-emphasis">
-          2 variants · 3 sizes · open, closed, disabled, controlled, and multiple states
+          ۲ نوع · ۳ اندازه · حالت‌های باز، بسته، غیرفعال، کنترل‌شده و چندتایی
         </p>
       </div>
 
@@ -59,7 +59,7 @@ function AccordionPreview() {
           <thead className="border-b border-border-low-emphasis">
             <tr>
               <th scope="col" className="w-40 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
-                Variant
+                نوع
               </th>
               {sizes.map((size) => (
                 <th key={size} scope="col" className="px-5 py-4 text-label-12 font-regular uppercase text-surface-neutral-mid-emphasis">
@@ -93,13 +93,13 @@ function AccordionPreview() {
       <div className="mt-4 grid gap-16 rounded-m border border-border-low-emphasis bg-surface-background px-5 py-4 lg:grid-cols-3">
         <div className="flex flex-col gap-12">
           <span className="text-label-12 text-surface-neutral-mid-emphasis">
-            All closed
+            همه بسته
           </span>
           <Accordion items={items} />
         </div>
         <div className="flex flex-col gap-12">
           <span className="text-label-12 text-surface-neutral-mid-emphasis">
-            Multiple expanded
+            چند مورد باز
           </span>
           <Accordion
             defaultValue={["shipping", "payment"]}
@@ -109,14 +109,14 @@ function AccordionPreview() {
         </div>
         <div className="flex flex-col gap-12">
           <span className="text-label-12 text-surface-neutral-mid-emphasis">
-            Controlled
+            کنترل‌شده
           </span>
           <ControlledAccordion />
         </div>
       </div>
 
       <div className="mt-4 max-w-sm rounded-m border border-border-low-emphasis bg-surface-background px-5 py-4">
-        <span className="text-label-12 text-surface-neutral-mid-emphasis">LTR</span>
+        <span className="text-label-12 text-surface-neutral-mid-emphasis">چیدمان چپ‌به‌راست</span>
         <Accordion
           className="mt-12"
           dir="ltr"

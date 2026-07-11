@@ -7,23 +7,23 @@ import { Select } from "./ui/select";
 const sizes = ["sm", "md", "lg"] as const;
 
 const states = [
-  { name: "Default", props: {} },
+  { name: "پیش‌فرض", props: {} },
   {
-    name: "Error",
+    name: "خطا",
     props: {
       status: "error" as const,
       description: "لطفاً یک شهر را انتخاب کنید.",
     },
   },
   {
-    name: "Success",
+    name: "موفقیت",
     props: {
       status: "success" as const,
       description: "شهر انتخاب شد.",
       defaultValue: "tehran",
     },
   },
-  { name: "Disabled", props: { disabled: true, defaultValue: "tehran" } },
+  { name: "غیرفعال", props: { disabled: true, defaultValue: "tehran" } },
 ];
 
 const cities = [
@@ -55,10 +55,10 @@ function SelectPreview() {
     <section className="mt-16" aria-labelledby="select-heading">
       <div className="mb-6 flex items-baseline justify-between gap-4">
         <h2 id="select-heading" className="text-heading-24 font-regular">
-          Select
+          سلکت‌باکس
         </h2>
         <p className="text-label-12 text-surface-neutral-low-emphasis">
-          3 sizes · default, error, success, disabled · RTL popper
+          ۳ اندازه · پیش‌فرض، خطا، موفقیت، غیرفعال · منوی راست‌به‌چپ
         </p>
       </div>
 
@@ -67,7 +67,7 @@ function SelectPreview() {
           <thead className="border-b border-border-low-emphasis">
             <tr>
               <th scope="col" className="w-40 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
-                State
+                وضعیت
               </th>
               {sizes.map((size) => (
                 <th key={size} scope="col" className="px-5 py-4 text-label-12 font-regular uppercase text-surface-neutral-mid-emphasis">

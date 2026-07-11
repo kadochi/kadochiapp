@@ -4,7 +4,7 @@ const sizes = ["sm", "md", "lg"] as const;
 
 const states = [
   {
-    name: "In progress",
+    name: "در حال انجام",
     steps: [
       { label: "سبد خرید", status: "complete" as const },
       { label: "اطلاعات ارسال", status: "current" as const },
@@ -13,7 +13,7 @@ const states = [
     ],
   },
   {
-    name: "Complete",
+    name: "تکمیل‌شده",
     steps: [
       { label: "سبد خرید", status: "complete" as const },
       { label: "اطلاعات ارسال", status: "complete" as const },
@@ -22,7 +22,7 @@ const states = [
     ],
   },
   {
-    name: "Disabled steps",
+    name: "مراحل غیرفعال",
     steps: [
       { label: "سبد خرید", status: "complete" as const },
       { label: "اطلاعات ارسال", status: "current" as const },
@@ -37,10 +37,10 @@ function ProgressStepperPreview() {
     <section className="mt-16" aria-labelledby="progress-stepper-heading">
       <div className="mb-6 flex items-baseline justify-between gap-4">
         <h2 id="progress-stepper-heading" className="text-heading-24 font-regular">
-          Progress stepper
+          نوار مراحل
         </h2>
         <p className="text-label-12 text-surface-neutral-low-emphasis">
-          3 sizes · horizontal and vertical · complete, current, upcoming and disabled
+          ۳ اندازه · افقی و عمودی · حالت‌های تکمیل‌شده، جاری، آینده و غیرفعال
         </p>
       </div>
 
@@ -52,7 +52,7 @@ function ProgressStepperPreview() {
                 scope="col"
                 className="w-44 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis"
               >
-                State
+                وضعیت
               </th>
               {sizes.map((size) => (
                 <th
@@ -88,7 +88,7 @@ function ProgressStepperPreview() {
       <div className="mt-4 grid gap-4 rounded-m border border-border-low-emphasis bg-surface-background p-5 md:grid-cols-2">
         <div className="min-w-0">
           <p className="mb-4 text-label-12 text-surface-neutral-mid-emphasis">
-            Vertical with supporting content
+            عمودی همراه با محتوای توضیحی
           </p>
           <ProgressStepper
             orientation="vertical"
@@ -102,7 +102,7 @@ function ProgressStepperPreview() {
 
         <div className="min-w-0">
           <p className="mb-4 text-label-12 text-surface-neutral-mid-emphasis">
-            Numbers hidden · left-to-right flow
+            بدون نمایش شماره · چیدمان چپ‌به‌راست
           </p>
           <ProgressStepper
             dir="ltr"

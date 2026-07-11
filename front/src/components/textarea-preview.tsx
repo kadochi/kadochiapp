@@ -8,49 +8,49 @@ const sizes = ["sm", "md", "lg"] as const;
 
 const states = [
   {
-    name: "Default",
+    name: "پیش‌فرض",
     props: {
-      description: "Optional supporting text.",
-      label: "Description",
+      description: "متن توضیحی اختیاری.",
+      label: "توضیحات",
       required: true,
     },
   },
   {
-    name: "Error",
+    name: "خطا",
     props: {
-      defaultValue: "Too short",
-      description: "Enter at least 20 characters.",
-      label: "Description",
+      defaultValue: "خیلی کوتاه",
+      description: "حداقل ۲۰ نویسه وارد کنید.",
+      label: "توضیحات",
       status: "error" as const,
     },
   },
   {
-    name: "Success",
+    name: "موفقیت",
     props: {
-      defaultValue: "A complete description.",
-      description: "Looks good.",
-      label: "Description",
+      defaultValue: "یک توضیح کامل.",
+      description: "خوب به نظر می‌رسد.",
+      label: "توضیحات",
       status: "success" as const,
     },
   },
   {
-    name: "Disabled",
+    name: "غیرفعال",
     props: {
-      defaultValue: "Editing is unavailable.",
-      description: "This field cannot be changed.",
+      defaultValue: "امکان ویرایش وجود ندارد.",
+      description: "این فیلد قابل تغییر نیست.",
       disabled: true,
-      label: "Description",
+      label: "توضیحات",
     },
   },
 ];
 
 function ControlledCountExample() {
-  const [value, setValue] = useState("A short product description.");
+  const [value, setValue] = useState("توضیح کوتاهی برای محصول.");
 
   return (
     <TextArea
-      description="Controlled value with a character count."
-      label="Product description"
+      description="مقدار کنترل‌شده همراه با شمارش نویسه."
+      label="توضیح محصول"
       maxLength={120}
       showCount
       value={value}
@@ -64,10 +64,10 @@ function TextAreaPreview() {
     <section className="mt-16" aria-labelledby="textarea-heading">
       <div className="mb-6 flex items-baseline justify-between gap-4">
         <h2 id="textarea-heading" className="text-heading-24 font-regular">
-          Textarea
+          ناحیه متنی
         </h2>
         <p className="text-label-12 text-surface-neutral-low-emphasis">
-          3 sizes · default, error, success, disabled and focus states
+          ۳ اندازه · حالت‌های پیش‌فرض، خطا، موفقیت، غیرفعال و فوکوس
         </p>
       </div>
 
@@ -76,7 +76,7 @@ function TextAreaPreview() {
           <thead className="border-b border-border-low-emphasis">
             <tr>
               <th scope="col" className="w-40 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
-                State
+                وضعیت
               </th>
               {sizes.map((size) => (
                 <th key={size} scope="col" className="px-5 py-4 text-label-12 font-regular uppercase text-surface-neutral-mid-emphasis">
@@ -96,7 +96,7 @@ function TextAreaPreview() {
                 </th>
                 {sizes.map((size) => (
                   <td key={size} className="min-w-80 px-5 py-5 align-top">
-                    <TextArea {...props} placeholder="Write a description..." size={size} />
+                    <TextArea {...props} placeholder="توضیحی بنویسید..." size={size} />
                   </td>
                 ))}
               </tr>
@@ -108,19 +108,19 @@ function TextAreaPreview() {
       <div className="mt-4 grid gap-16 rounded-m border border-border-low-emphasis bg-surface-background p-5 md:grid-cols-2">
         <ControlledCountExample />
         <TextArea
-          defaultValue="Share the important details."
-          description="Leading icon and LTR direction."
+          defaultValue="جزئیات مهم را وارد کنید."
+          description="آیکون ابتدایی و چیدمان چپ‌به‌راست."
           dir="ltr"
-          label="Notes"
+          label="یادداشت‌ها"
           leadingIcon={<MessageSquare />}
-          placeholder="Add a note..."
+          placeholder="یادداشتی اضافه کنید..."
           showCount
         />
         <TextArea
-          description="An accessible name can replace a visible label."
-          aria-label="Internal note"
+          description="یک نام قابل‌دسترس می‌تواند جایگزین برچسب نمایانی شود."
+          aria-label="یادداشت داخلی"
           leadingIcon={<Info />}
-          placeholder="Internal note..."
+          placeholder="یادداشت داخلی..."
           size="sm"
         />
       </div>

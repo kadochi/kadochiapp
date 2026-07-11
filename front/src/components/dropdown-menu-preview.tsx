@@ -16,10 +16,10 @@ function DropdownMenuPreview() {
     <section className="mt-16" aria-labelledby="dropdown-menu-heading">
       <div className="mb-6 flex items-baseline justify-between gap-4">
         <h2 id="dropdown-menu-heading" className="text-heading-24 font-regular">
-          Dropdown menu
+          منوی کشویی
         </h2>
         <p className="text-label-12 text-surface-neutral-low-emphasis">
-          Button trigger · icons · danger item · separator
+          فعال‌سازی با دکمه · آیکون · آیتم خطر · جداکننده
         </p>
       </div>
 

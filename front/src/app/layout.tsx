@@ -28,12 +28,12 @@ const iranSans = localFont({
 
 export const metadata: Metadata = {
   title: "Kadochi",
-  description: "Headless WordPress frontend"
+  description: "فرانت‌اند هدلس وردپرس"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={iranSans.variable}>
+    <html lang="fa" dir="rtl" className={iranSans.variable}>
       <body className="font-sans">
         <Direction.Provider dir="rtl">
           <Toaster>{children}</Toaster>

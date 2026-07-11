@@ -5,8 +5,8 @@ import { Check, ExternalLink, Tag } from "lucide-react";
 import { Chip } from "./ui/chip";
 
 const variants = [
-  { name: "Outline", value: "outline" as const },
-  { name: "Selected", value: "selected" as const },
+  { name: "خط‌دار", value: "outline" as const },
+  { name: "انتخاب‌شده", value: "selected" as const },
 ];
 
 const sizes = ["sm", "md"] as const;
@@ -17,7 +17,7 @@ function RemovableChip({ size }: { size: (typeof sizes)[number] }) {
   return visible ? (
     <Chip
       leadingIcon={<Tag />}
-      removeLabel="Remove tag"
+      removeLabel="حذف برچسب"
       size={size}
       onRemove={() => setVisible(false)}
     >
@@ -39,10 +39,10 @@ function ChipPreview() {
     <section className="mt-16" aria-labelledby="chip-heading">
       <div className="mb-6 flex items-baseline justify-between gap-4">
         <h2 id="chip-heading" className="text-heading-24 font-regular">
-          Chip
+          چیپ
         </h2>
         <p className="text-label-12 text-surface-neutral-low-emphasis">
-          2 variants · 2 sizes · disabled, metadata, removable, and link states
+          ۲ نوع · ۲ اندازه · حالت‌های غیرفعال، متادیتا، قابل حذف و پیوند
         </p>
       </div>
 
@@ -51,7 +51,7 @@ function ChipPreview() {
           <thead className="border-b border-border-low-emphasis">
             <tr>
               <th scope="col" className="w-40 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
-                Variant
+                نوع
               </th>
               {sizes.map((size) => (
                 <th key={size} scope="col" className="px-5 py-4 text-label-12 font-regular uppercase text-surface-neutral-mid-emphasis">

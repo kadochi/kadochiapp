@@ -4,8 +4,8 @@ import { useState } from "react";
 import { Toggle } from "./ui/toggle";
 
 const tones = [
-  { name: "Primary", value: "primary" as const },
-  { name: "Secondary", value: "secondary" as const },
+  { name: "اصلی", value: "primary" as const },
+  { name: "ثانویه", value: "secondary" as const },
 ];
 
 const sizes = ["sm", "md"] as const;
@@ -16,7 +16,7 @@ function ControlledToggle() {
   return (
     <Toggle
       checked={checked}
-      label={checked ? "Controlled: on" : "Controlled: off"}
+      label={checked ? "کنترل‌شده: روشن" : "کنترل‌شده: خاموش"}
       onCheckedChange={setChecked}
     />
   );
@@ -27,10 +27,10 @@ function TogglePreview() {
     <section className="mt-16" aria-labelledby="toggle-heading">
       <div className="mb-6 flex items-baseline justify-between gap-4">
         <h2 id="toggle-heading" className="text-heading-24 font-regular">
-          Toggle
+          سوییچ
         </h2>
         <p className="text-label-12 text-surface-neutral-low-emphasis">
-          2 tones · 2 sizes · checked and disabled states
+          ۲ رنگ‌مایه · ۲ اندازه · حالت‌های انتخاب‌شده و غیرفعال
         </p>
       </div>
 
@@ -39,7 +39,7 @@ function TogglePreview() {
           <thead className="border-b border-border-low-emphasis">
             <tr>
               <th scope="col" className="w-40 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
-                Tone
+                رنگ‌مایه
               </th>
               {sizes.map((size) => (
                 <th key={size} scope="col" className="px-5 py-4 text-label-12 font-regular uppercase text-surface-neutral-mid-emphasis">
@@ -57,10 +57,10 @@ function TogglePreview() {
                 {sizes.map((size) => (
                   <td key={size} className="px-5 py-5 align-top">
                     <div className="flex flex-col items-start gap-16">
-                      <Toggle tone={value} size={size} label="Off" />
-                      <Toggle tone={value} size={size} defaultChecked label="On" />
-                      <Toggle tone={value} size={size} disabled label="Disabled off" />
-                      <Toggle tone={value} size={size} defaultChecked disabled label="Disabled on" />
+                      <Toggle tone={value} size={size} label="خاموش" />
+                      <Toggle tone={value} size={size} defaultChecked label="روشن" />
+                      <Toggle tone={value} size={size} disabled label="غیرفعال (خاموش)" />
+                      <Toggle tone={value} size={size} defaultChecked disabled label="غیرفعال (روشن)" />
                     </div>
                   </td>
                 ))}
@@ -71,10 +71,10 @@ function TogglePreview() {
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-x-32 gap-y-16 rounded-m border border-border-low-emphasis bg-surface-background px-5 py-4">
-        <Toggle aria-label="Toggle without a visible label" />
-        <Toggle defaultChecked name="notifications" label="Uncontrolled" />
+        <Toggle aria-label="سوییچ بدون برچسب نمایانی" />
+        <Toggle defaultChecked name="notifications" label="کنترل‌نشده" />
         <ControlledToggle />
-        <Toggle label={<><span className="font-bold">Rich</span> label content</>} />
+        <Toggle label={<><span className="font-bold">متنوع</span> با محتوای برچسب</>} />
       </div>
     </section>
   );

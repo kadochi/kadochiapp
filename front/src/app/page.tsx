@@ -22,21 +22,26 @@ import { ToastPreview } from "../components/toast-preview";
 import { Eye } from "lucide-react";
 
 const buttonVariants = [
-  { name: "Primary", value: "primary-filled" as const },
-  { name: "Primary tonal", value: "primary-tonal" as const },
-  { name: "Secondary", value: "secondary-filled" as const },
-  { name: "Secondary tonal", value: "secondary-tonal" as const },
-  { name: "Outline", value: "tertiary-outline" as const },
-  { name: "Ghost", value: "link-ghost" as const },
+  { name: "اصلی", value: "primary-filled" as const },
+  { name: "اصلی تونال", value: "primary-tonal" as const },
+  { name: "ثانویه", value: "secondary-filled" as const },
+  { name: "ثانویه تونال", value: "secondary-tonal" as const },
+  { name: "خط‌دار", value: "tertiary-outline" as const },
+  { name: "شبح", value: "link-ghost" as const },
 ];
 
 const sizes = ["small", "medium", "large"] as const;
+const sizeLabels: Record<(typeof sizes)[number], string> = {
+  small: "کوچک",
+  medium: "متوسط",
+  large: "بزرگ",
+};
 
 const avatarSizes = ["sm", "md", "lg", "xl"] as const;
 
 const avatarExamples = [
   {
-    name: "Image",
+    name: "تصویر",
     render: (size: (typeof avatarSizes)[number]) => (
       <Avatar
         size={size}
@@ -46,19 +51,19 @@ const avatarExamples = [
     ),
   },
   {
-    name: "Initials",
+    name: "حروف اول",
     render: (size: (typeof avatarSizes)[number]) => (
       <Avatar size={size} alt="Sahar Ahmadi" />
     ),
   },
   {
-    name: "Custom fallback",
+    name: "جایگزین دلخواه",
     render: (size: (typeof avatarSizes)[number]) => (
       <Avatar size={size} alt="Kadochi" fallback="ک" />
     ),
   },
   {
-    name: "Default fallback",
+    name: "جایگزین پیش‌فرض",
     render: (size: (typeof avatarSizes)[number]) => <Avatar size={size} />,
   },
 ];
@@ -70,17 +75,17 @@ export default function HomePage() {
         <header className="mb-12 border-b border-border-low-emphasis pb-6">
           <p className="text-label-12 text-surface-neutral-low-emphasis">Kadochi</p>
           <h1 className="mt-2 text-heading-32 font-regular tracking-[-.04em]">
-            Components
+            کامپوننت‌ها
           </h1>
         </header>
 
         <section aria-labelledby="buttons-heading">
           <div className="mb-6 flex items-baseline justify-between gap-4">
             <h2 id="buttons-heading" className="text-heading-24 font-regular">
-              Button
+              دکمه
             </h2>
             <p className="text-label-12 text-surface-neutral-low-emphasis">
-              6 variants · 3 sizes · 3 states
+              ۶ نوع · ۳ اندازه · ۳ وضعیت
             </p>
           </div>
 
@@ -89,11 +94,11 @@ export default function HomePage() {
               <thead className="border-b border-border-low-emphasis">
                 <tr>
                   <th scope="col" className="w-40 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
-                    Variant
+                    نوع
                   </th>
                   {sizes.map((size) => (
                     <th key={size} scope="col" className="px-5 py-4 text-label-12 font-regular capitalize text-surface-neutral-mid-emphasis">
-                      {size}
+                      {sizeLabels[size]}
                     </th>
                   ))}
                 </tr>
@@ -109,14 +114,14 @@ export default function HomePage() {
                         <div className="flex flex-col items-start gap-2">
                           <Button variant={value} size={size}>
                             <Eye aria-hidden="true" />
-                            Preview
+                            پیش‌نمایش
                           </Button>
                           <Button variant={value} size={size} disabled>
                             <Eye aria-hidden="true" />
-                            Disabled
+                            غیرفعال
                           </Button>
                           <Button variant={value} size={size} loading>
-                            Preview
+                            پیش‌نمایش
                           </Button>
                         </div>
                       </td>
@@ -163,10 +168,10 @@ export default function HomePage() {
         <section className="mt-16" aria-labelledby="avatar-heading">
           <div className="mb-6 flex items-baseline justify-between gap-4">
             <h2 id="avatar-heading" className="text-heading-24 font-regular">
-              Avatar
+              آواتار
             </h2>
             <p className="text-label-12 text-surface-neutral-low-emphasis">
-              4 sizes · image, initials, and fallback states
+              ۴ اندازه · حالت‌های تصویر، حروف اول و جایگزین
             </p>
           </div>
 
@@ -175,7 +180,7 @@ export default function HomePage() {
               <thead className="border-b border-border-low-emphasis">
                 <tr>
                   <th scope="col" className="w-40 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
-                    Configuration
+                    پیکربندی
                   </th>
                   {avatarSizes.map((size) => (
                     <th key={size} scope="col" className="px-5 py-4 text-label-12 font-regular uppercase text-surface-neutral-mid-emphasis">
@@ -203,8 +208,8 @@ export default function HomePage() {
 
           <div className="mt-4 flex flex-wrap items-center gap-16 rounded-m border border-border-low-emphasis bg-surface-background px-5 py-4">
             <Avatar alt="One name" />
-            <Avatar aria-label="A labeled decorative avatar" fallback="A" />
-            <Avatar alt="Broken image falls back" src="/missing-avatar.png" />
+            <Avatar aria-label="آواتار تزئینی با برچسب" fallback="A" />
+            <Avatar alt="بازگشت به جایگزین در صورت خطای تصویر" src="/missing-avatar.png" />
           </div>
         </section>
 

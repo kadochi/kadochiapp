@@ -37,7 +37,7 @@ function SheetExample({
     <BottomSheet>
       <BottomSheetTrigger asChild>
         <Button size="small" variant="tertiary-outline">
-          Open {size.toUpperCase()}
+          باز کردن {size.toUpperCase()}
         </Button>
       </BottomSheetTrigger>
       <BottomSheetContent showHandle={showHandle} size={size}>
@@ -74,7 +74,7 @@ function ControlledSheetExample() {
   return (
     <BottomSheet open={open} onOpenChange={setOpen}>
       <Button size="small" variant="primary-filled" onClick={() => setOpen(true)}>
-        Open controlled
+        باز کردن (کنترل‌شده)
       </Button>
       <BottomSheetContent size="md">
         <BottomSheetHeader>
@@ -105,10 +105,10 @@ function BottomSheetPreview() {
     <section className="mt-16" aria-labelledby="bottom-sheet-heading">
       <div className="mb-6 flex items-baseline justify-between gap-4">
         <h2 id="bottom-sheet-heading" className="text-heading-24 font-regular">
-          Bottom sheet
+          باتم‌شیت
         </h2>
         <p className="text-label-12 text-surface-neutral-low-emphasis">
-          3 sizes · handle configurations · controlled and uncontrolled states
+          ۳ اندازه · پیکربندی دستگیره · حالت‌های کنترل‌شده و کنترل‌نشده
         </p>
       </div>
 
@@ -117,7 +117,7 @@ function BottomSheetPreview() {
           <thead className="border-b border-border-low-emphasis">
             <tr>
               <th className="w-48 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis" scope="col">
-                Configuration
+                پیکربندی
               </th>
               {sizes.map((size) => (
                 <th className="px-5 py-4 text-label-12 font-regular uppercase text-surface-neutral-mid-emphasis" key={size} scope="col">
@@ -129,7 +129,7 @@ function BottomSheetPreview() {
           <tbody>
             <tr className="border-b border-border-low-emphasis">
               <th className="px-5 py-5 text-label-14 font-regular" scope="row">
-                With handle
+                با دستگیره
               </th>
               {sizes.map((size) => (
                 <td className="px-5 py-5" key={size}>
@@ -139,7 +139,7 @@ function BottomSheetPreview() {
             </tr>
             <tr>
               <th className="px-5 py-5 text-label-14 font-regular" scope="row">
-                Without handle
+                بدون دستگیره
               </th>
               {sizes.map((size) => (
                 <td className="px-5 py-5" key={size}>
@@ -153,7 +153,7 @@ function BottomSheetPreview() {
 
       <div className="mt-4 rounded-m border border-border-low-emphasis bg-surface-background px-5 py-4">
         <p className="mb-12 text-label-12 text-surface-neutral-mid-emphasis">
-          Controlled state and custom close actions
+          وضعیت کنترل‌شده و اکشن‌های بستن دلخواه
         </p>
         <ControlledSheetExample />
       </div>

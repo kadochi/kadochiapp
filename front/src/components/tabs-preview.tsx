@@ -3,8 +3,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 const sizes = ["sm", "md", "lg"] as const;
 
 const tones = [
-  { name: "Primary", value: "primary" as const },
-  { name: "Secondary", value: "secondary" as const },
+  { name: "اصلی", value: "primary" as const },
+  { name: "ثانویه", value: "secondary" as const },
 ];
 
 const panels = [
@@ -43,10 +43,10 @@ function TabsPreview() {
     <section className="mt-16" aria-labelledby="tabs-heading">
       <div className="mb-6 flex items-baseline justify-between gap-4">
         <h2 id="tabs-heading" className="text-heading-24 font-regular">
-          Tabs
+          تب‌ها
         </h2>
         <p className="text-label-12 text-surface-neutral-low-emphasis">
-          2 tones · 3 sizes · panels · RTL keyboard nav
+          ۲ رنگ‌مایه · ۳ اندازه · پنل‌ها · ناوبری راست‌به‌چپ با صفحه‌کلید
         </p>
       </div>
 
@@ -55,7 +55,7 @@ function TabsPreview() {
           <thead className="border-b border-border-low-emphasis">
             <tr>
               <th scope="col" className="w-40 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
-                Tone
+                رنگ‌مایه
               </th>
               {sizes.map((size) => (
                 <th key={size} scope="col" className="px-5 py-4 text-label-12 font-regular uppercase text-surface-neutral-mid-emphasis">

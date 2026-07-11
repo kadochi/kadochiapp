@@ -41,10 +41,10 @@ function AlertPreview() {
     <section className="mt-16" aria-labelledby="alert-heading">
       <div className="mb-6 flex items-baseline justify-between gap-4">
         <h2 id="alert-heading" className="text-heading-24 font-regular">
-          Alert
+          پیام هشدار
         </h2>
         <p className="text-label-12 text-surface-neutral-low-emphasis">
-          4 tones · title + description · dismissible
+          ۴ رنگ‌مایه · عنوان + توضیح · قابل بستن
         </p>
       </div>
 

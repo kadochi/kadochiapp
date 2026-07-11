@@ -31,7 +31,7 @@ const ToastViewport = forwardRef<
 
 const toastVariants = cva(
   [
-    "relative shadow-[0_8px_24px_rgb(0_0_0_/_0.12)]",
+    "relative",
     "data-[state=open]:animate-toast-in data-[state=closed]:animate-toast-out",
     "data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none",
     "data-[swipe=cancel]:translate-x-0 data-[swipe=cancel]:transition-transform",
@@ -61,7 +61,11 @@ const Toast = forwardRef<ComponentRef<typeof ToastPrimitive.Root>, ToastProps>(
       <ToastPrimitive.Root
         {...props}
         ref={ref}
-        className={cn(alertVariants({ tone }), toastVariants({ tone }), className)}
+        className={cn(
+          alertVariants({ tone }),
+          toastVariants({ tone }),
+          className,
+        )}
       />
     );
   },
@@ -88,7 +92,10 @@ const ToastDescription = forwardRef<
     <ToastPrimitive.Description
       {...props}
       ref={ref}
-      className={cn("mt-2 text-label-14 font-regular leading-normal", className)}
+      className={cn(
+        "mt-2 text-label-14 font-regular leading-normal",
+        className,
+      )}
     />
   );
 });
@@ -96,7 +103,10 @@ const ToastDescription = forwardRef<
 const ToastClose = forwardRef<
   ComponentRef<typeof ToastPrimitive.Close>,
   ComponentPropsWithoutRef<typeof ToastPrimitive.Close>
->(function ToastClose({ className, "aria-label": ariaLabel = "Dismiss", ...props }, ref) {
+>(function ToastClose(
+  { className, "aria-label": ariaLabel = "Dismiss", ...props },
+  ref,
+) {
   return (
     <ToastPrimitive.Close
       {...props}

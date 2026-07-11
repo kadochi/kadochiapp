@@ -16,24 +16,24 @@ function DividerPreview() {
     <section className="mt-16" aria-labelledby="divider-heading">
       <div className="mb-6 flex items-baseline justify-between gap-4">
         <h2 id="divider-heading" className="text-heading-24 font-regular">
-          Divider
+          جداکننده
         </h2>
         <p className="text-label-12 text-surface-neutral-low-emphasis">
-          Line and spacer variants · inset configuration · 3 spacer sizes
+          نوع خطی و فاصله‌گذار · پیکربندی فاصله‌دار · ۳ اندازه فاصله‌گذار
         </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <PreviewFrame>
           <p className="mb-4 text-label-12 text-surface-neutral-mid-emphasis">
-            Full-width line (default)
+            خط تمام‌عرض (پیش‌فرض)
           </p>
           <Divider />
         </PreviewFrame>
 
         <PreviewFrame>
           <p className="mb-4 text-label-12 text-surface-neutral-mid-emphasis">
-            Inset line
+            خط با فاصله
           </p>
           <Divider inset />
         </PreviewFrame>
@@ -44,13 +44,13 @@ function DividerPreview() {
           <thead className="border-b border-border-low-emphasis">
             <tr>
               <th scope="col" className="w-40 px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
-                Spacer size
+                اندازه فاصله‌گذار
               </th>
               <th scope="col" className="px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
-                Full width
+                تمام عرض
               </th>
               <th scope="col" className="px-5 py-4 text-label-12 font-regular text-surface-neutral-mid-emphasis">
-                Inset
+                فاصله‌دار
               </th>
             </tr>
           </thead>
