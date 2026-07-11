@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  forwardRef,
-  useState,
-  type ComponentPropsWithoutRef,
-} from "react";
+import { forwardRef, useState, type ComponentPropsWithoutRef } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 import { Minus, Plus, Trash2 } from "lucide-react";
@@ -34,6 +30,7 @@ const inputStepperVariants = cva(
 const inputStepperControlVariants = cva(
   [
     "inline-flex size-[var(--stepper-control-size)] items-center justify-center rounded-rounded",
+    "border-0",
     "transition-colors duration-150 ease-out",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
     "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
@@ -106,7 +103,9 @@ const InputStepper = forwardRef<HTMLDivElement, InputStepperProps>(
   ) {
     const minimum = Number.isFinite(min) ? min : 0;
     const maximum =
-      max === undefined || !Number.isFinite(max) ? undefined : Math.max(max, minimum);
+      max === undefined || !Number.isFinite(max)
+        ? undefined
+        : Math.max(max, minimum);
     const increment = Number.isFinite(step) && step > 0 ? step : 1;
     const [uncontrolledValue, setUncontrolledValue] = useState(() =>
       clamp(defaultValue ?? minimum, minimum, maximum),
@@ -166,7 +165,11 @@ const InputStepper = forwardRef<HTMLDivElement, InputStepperProps>(
           <Plus aria-hidden="true" className="size-16" />
         </button>
 
-        <output aria-atomic="true" aria-live="polite" className="flex-1 text-center">
+        <output
+          aria-atomic="true"
+          aria-live="polite"
+          className="flex-1 text-center"
+        >
           {currentValue}
         </output>
 
