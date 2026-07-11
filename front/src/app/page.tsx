@@ -5,7 +5,12 @@ import { Radio } from "../components/ui/radio";
 import { Avatar } from "../components/ui/avatar";
 import { ChipPreview } from "../components/chip-preview";
 import { DividerPreview } from "../components/divider-preview";
+import { LabelPreview } from "../components/label-preview";
+import { SegmentSelectorPreview } from "../components/segment-selector-preview";
 import { TogglePreview } from "../components/toggle-preview";
+import { InputStepperPreview } from "../components/input-stepper-preview";
+import { TextAreaPreview } from "../components/textarea-preview";
+import { InputPreview } from "../components/input-preview";
 import { Eye } from "lucide-react";
 
 const buttonVariants = [
@@ -154,9 +159,19 @@ export default function HomePage() {
 
         <ChipPreview />
 
+        <LabelPreview />
+
         <DividerPreview />
 
         <TogglePreview />
+
+        <InputStepperPreview />
+
+        <TextAreaPreview />
+
+        <InputPreview />
+
+        <SegmentSelectorPreview />
 
         <section className="mt-16" aria-labelledby="avatar-heading">
           <div className="mb-6 flex items-baseline justify-between gap-4">
