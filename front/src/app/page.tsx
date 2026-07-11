@@ -9,8 +9,11 @@ import { LabelPreview } from "../components/label-preview";
 import { SegmentSelectorPreview } from "../components/segment-selector-preview";
 import { TogglePreview } from "../components/toggle-preview";
 import { InputStepperPreview } from "../components/input-stepper-preview";
+import { ProgressStepperPreview } from "../components/progress-stepper-preview";
 import { TextAreaPreview } from "../components/textarea-preview";
 import { InputPreview } from "../components/input-preview";
+import { AccordionPreview } from "../components/accordion-preview";
+import { BottomSheetPreview } from "../components/bottom-sheet-preview";
 import { Eye } from "lucide-react";
 
 const buttonVariants = [
@@ -163,9 +166,15 @@ export default function HomePage() {
 
         <DividerPreview />
 
+        <AccordionPreview />
+
+        <BottomSheetPreview />
+
         <TogglePreview />
 
         <InputStepperPreview />
+
+        <ProgressStepperPreview />
 
         <TextAreaPreview />
 
