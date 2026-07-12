@@ -1,3 +1,7 @@
+import "server-only";
+
+import { env } from "./server/env";
+
 export type WordPressSiteInfo = {
   connected: boolean;
   name: string;
@@ -12,12 +16,10 @@ type WordPressApiRootResponse = {
   url?: string;
 };
 
-const internalUrl = process.env.WORDPRESS_INTERNAL_URL ?? "http://wordpress";
-
 /** Fetches WordPress server-to-server; browser code should use NEXT_PUBLIC_WORDPRESS_URL instead. */
 export async function getWordPressSiteInfo(): Promise<WordPressSiteInfo> {
   try {
-    const response = await fetch(`${internalUrl}/wp-json/`, {
+    const response = await fetch(`${env.WORDPRESS_INTERNAL_URL}/wp-json/`, {
       cache: "no-store"
     });
 
@@ -30,7 +32,7 @@ export async function getWordPressSiteInfo(): Promise<WordPressSiteInfo> {
       connected: true,
       name: settings.name ?? "WordPress",
       description: settings.description ?? "",
-      url: settings.url ?? internalUrl
+      url: settings.url ?? env.WORDPRESS_INTERNAL_URL
     };
   } catch {
     return { connected: false, name: "", description: "", url: "", error: "Could not reach WordPress yet." };

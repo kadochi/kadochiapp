@@ -30,6 +30,7 @@ services:
     volumes:
       - wordpress_data:/var/www/html
       - ./theme:/var/www/html/wp-content/themes/kadochi:ro
+      - ./plugins/kadochi-core:/var/www/html/wp-content/plugins/kadochi-core:ro
     depends_on:
       mysql:
         condition: service_healthy
