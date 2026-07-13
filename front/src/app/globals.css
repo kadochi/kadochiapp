@@ -225,3 +225,22 @@
     transform: translateX(calc(var(--radix-toast-swipe-end-x) + 100%));
   }
 }
+
+@keyframes hero-text-shimmer {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes hero-skeleton-shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}

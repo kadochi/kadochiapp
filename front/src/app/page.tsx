@@ -13,6 +13,7 @@ import {
   Link as LinkIcon,
   LockKeyhole,
   MapPin,
+  Menu,
   MessageSquare,
   Pencil,
   Search,
@@ -34,6 +35,7 @@ import {
   BottomSheetTrigger,
 } from "../components/ui/bottom-sheet";
 import { Breadcrumb } from "../components/ui/breadcrumb";
+import { SideMenu } from "../components/layout/side-menu";
 import { Button } from "../components/ui/button";
 import { Checkbox } from "../components/ui/checkbox";
 import { Chip } from "../components/ui/chip";
@@ -727,6 +729,32 @@ function RadioStateColumn({ tone, size }: { tone: RadioTone; size: RadioSize }) 
   );
 }
 
+function SideMenuExample() {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <section className="mt-16" aria-labelledby="side-menu-heading">
+      <div className="mb-6 flex items-baseline justify-between gap-4">
+        <h2 id="side-menu-heading" className="text-heading-24 font-regular">
+          منوی کناری
+        </h2>
+        <p className="text-label-12 text-surface-neutral-low-emphasis">
+          پنل راست‌به‌چپ · پروفایل مهمان · بستن با کلیک یا Escape
+        </p>
+      </div>
+
+      <div className="rounded-m border border-border-low-emphasis bg-surface-background px-5 py-4">
+        <Button onClick={() => setIsOpen(true)} size="small" variant="tertiary-outline">
+          <Menu aria-hidden="true" />
+          باز کردن منو
+        </Button>
+      </div>
+
+      <SideMenu isOpen={isOpen} onClose={() => setIsOpen(false)} />
+    </section>
+  );
+}
+
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-surface-soft px-5 py-10 font-sans text-text-primary sm:px-8 sm:py-14">
@@ -737,6 +765,8 @@ export default function HomePage() {
             کامپوننت‌ها
           </h1>
         </header>
+
+        <SideMenuExample />
 
         <section aria-labelledby="buttons-heading">
           <div className="mb-6 flex items-baseline justify-between gap-4">
