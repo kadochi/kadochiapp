@@ -15,9 +15,9 @@ This repository runs a headless WordPress + Next.js development stack. Next.js i
    - WordPress admin: http://localhost:8080/wp-admin
    - WordPress REST API: http://localhost:8080/wp-json/wp/v2
 
-The frontend uses local OTP authentication by default: open `/login`, use `09121234567`, then enter `1234`. This development adapter does not send SMS and is refused in production.
+WordPress owns OTP verification and JWT issuance in every environment. In `local` or `development`, open `/login`, use `09121234567`, then enter `1234`; no SMS is sent. Verification creates or resolves a real WooCommerce customer and the frontend stores the resulting opaque WordPress JWT only in an HttpOnly cookie.
 
-For production, set `KADOCHI_AUTH_MODE=melipayamak` and configure `MELIPAYAMAK_OTP_URL`, `REDIS_URL`, `WOO_CONSUMER_KEY`, `WOO_CONSUMER_SECRET`, and a 32+-character `KADOCHI_AUTH_SECRET`. The server calls the existing v2 MeliPayamak relay with `{ "to": "0912..." }`, keeps only an HMAC digest of the returned OTP in Redis, rate-limits requests and verification attempts, and creates or resolves the matching WooCommerce customer. See [the environment template](.env.example) for the full contract. `wordpress-jwt` remains available for installations that already have compatible WordPress OTP/JWT endpoints.
+For production, set `WP_ENVIRONMENT_TYPE=production` and configure `MELIPAYAMAK_OTP_URL`. The WordPress plugin calls the relay with `{ "to": "0912..." }`, requires `{ "code": "1234" }`, stores only an HMAC OTP digest in WordPress transients, rate-limits sends, and signs seven-day JWTs from the WordPress authentication salt. No Redis instance, WooCommerce REST credential, or Next.js JWT secret is required. See [the environment template](.env.example) for the full contract.
 
 On first launch, complete WordPress's installation wizard and activate **Kadochi Headless Admin Theme** in Appearance → Themes. Source edits in `front/` hot reload; edits in `theme/` are immediately mounted into WordPress.
 
@@ -26,7 +26,6 @@ On first launch, complete WordPress's installation wizard and activate **Kadochi
 - `front`: Next.js development server (Node 24) on port 3000.
 - `wordpress`: WordPress 7 Apache server on port 8080.
 - `mysql`: MySQL 8.0, persisted in the `mysql_data` Docker volume.
-- `redis`: internal-only, passwordless development Redis persisted in `redis_data`.
 
 WordPress core, uploads, and plugins are persisted in `wordpress_data`. Docker volumes survive ordinary `docker compose down` and container rebuilds. To remove all local site data intentionally, run `docker compose down --volumes`.
 

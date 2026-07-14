@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     const search = new URL(request.url).searchParams;
     const query = occasionListQuerySchema.parse({ page: search.get("page") ?? undefined, perPage: search.get("perPage") ?? undefined });
     const path = `/wp-json/kadochi/v1/occasions?${new URLSearchParams({ page: String(query.page), per_page: String(query.perPage) })}`;
-    return jsonOk(await executeOccasions({ method: "GET", path, cookie: request.headers.get("cookie") ?? "", response: "list" }, id), id, { headers: { "Cache-Control": "no-store" } });
+    return jsonOk(await executeOccasions({ method: "GET", path, response: "list" }, id), id, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return jsonError(error, id); }
 }
 
@@ -17,6 +17,6 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const input = createOccasionSchema.parse(await request.json());
-    return jsonOk(await executeOccasions({ method: "POST", path: "/wp-json/kadochi/v1/occasions", cookie: request.headers.get("cookie") ?? "", body: input, response: "item" }, id), id, { headers: { "Cache-Control": "no-store" } });
+    return jsonOk(await executeOccasions({ method: "POST", path: "/wp-json/kadochi/v1/occasions", body: input, response: "item" }, id), id, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return jsonError(error, id); }
 }

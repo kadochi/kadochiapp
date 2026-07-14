@@ -30,12 +30,16 @@ export const otpStartResponseSchema = z.object({
   retryAfter: z.number().finite().nonnegative().optional(),
 }).strict();
 
-/** The auth plugin response; the JWT is deliberately never returned by a BFF route. */
-export const wordpressJwtSchema = z.object({ token: z.string().min(1) }).strict();
-
 export const customerSchema = z.object({
   id: z.number().int().positive(),
   email: z.string().email(),
   displayName: z.string(),
   roles: z.array(z.string()),
 });
+
+/** The JWT is deliberately never returned by a BFF route. */
+export const wordpressOtpVerifyResponseSchema = z.object({
+  token: z.string().min(1),
+  expiresIn: z.number().finite().positive(),
+  customer: customerSchema,
+}).strict();

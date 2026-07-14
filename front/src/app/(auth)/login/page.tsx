@@ -9,8 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default function LoginPage() {
-  const isLocalAuth = process.env.NODE_ENV === "development"
-    && (process.env.KADOCHI_AUTH_MODE ?? "local") === "local";
+  const isLocalAuth = process.env.NODE_ENV === "development";
 
   return (
     <Suspense fallback={<div className="min-h-[calc(100dvh-var(--spacing-88))] bg-surface-background" />}>

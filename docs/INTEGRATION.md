@@ -17,7 +17,7 @@ The selected retention behavior in this implementation is WordPress trash (not p
 2. Confirm the `kadochi/v1/health` response as an administrator. Resolve any SCF notice before publishing content.
 3. Snapshot representative records before activation. Existing post-type registrations are adopted rather than re-registered; the plugin only registers missing types. Existing `occasion` registrations are force-hardened: no public/query/search/rewrite/default REST access remains.
 4. Confirm the normalized public route at `GET /wp-json/kadochi/v1/content/home`. Keep existing editorial REST routes during the compatibility audit; do not disable them until their consumers have migrated.
-5. Configure an actual same-site WordPress cookie and REST nonce bridge, then set `KADOCHI_AUTH_MODE=wordpress-cookie`. The BFF intentionally refuses identity/occasion actions until this is selected; it does not create a parallel login system.
+5. Set `WP_ENVIRONMENT_TYPE=production` and `MELIPAYAMAK_OTP_URL` before production testing. Kadochi Core owns OTP verification and bearer JWT authentication; the BFF keeps the opaque token in an HttpOnly cookie and forwards it only to protected WordPress routes.
 6. Verify gateway, shipping, tax, guest/customer, duplicate-payment, and timeout reconciliation behavior. Only then set `KADOCHI_CHECKOUT_ENABLED=true`.
 
 ## Rollback
@@ -27,6 +27,7 @@ Deactivate Kadochi Core to remove its custom REST routes and registrations, then
 ## Contracts
 
 - `GET /wp-json/kadochi/v1/content/home`: normalized editorial DTO, public, cacheable.
+- `POST /wp-json/kadochi/v1/auth/otp/start` and `POST /wp-json/kadochi/v1/auth/otp/verify`: WordPress-owned OTP challenge and JWT issuance. The verification response is consumed only by the BFF.
 - `GET /wp-json/kadochi/v1/customer`: current customer only, authenticated.
 - `GET|POST /wp-json/kadochi/v1/occasions` and `GET|PATCH|DELETE /wp-json/kadochi/v1/occasions/{id}`: authenticated owner-only records; no owner input is accepted or serialized.
 - Browser cart/checkout/customer/occasion traffic uses explicit `/api/...` Next.js handlers. Cart tokens are held only in `kadochi_cart_token`, an HttpOnly same-site cookie.
