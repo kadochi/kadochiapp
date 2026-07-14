@@ -25,7 +25,7 @@ export function jsonError(error: unknown, id: string): NextResponse {
           }, {}),
         }
       : { code: "upstream_failure", status: 500, message: "The request could not be completed.", requestId: id, retryable: false };
-  return NextResponse.json(detail, { status: detail.status, headers: { "x-request-id": id } });
+  return NextResponse.json(detail, { status: detail.status, headers: { "Cache-Control": "no-store", "x-request-id": id } });
 }
 
 export function jsonOk<T>(body: T, id: string, init?: ResponseInit): NextResponse<T> {
@@ -33,12 +33,12 @@ export function jsonOk<T>(body: T, id: string, init?: ResponseInit): NextRespons
 }
 
 /** Reject cross-site cookie-authenticated mutations before forwarding them upstream. */
-export function assertSameOrigin(request: Request): void {
+export function assertSameOrigin(request: Request, id = requestId(request)): void {
   const origin = request.headers.get("origin");
   const requestUrl = new URL(request.url);
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
   const fetchSite = request.headers.get("sec-fetch-site");
   if (!host || host !== requestUrl.host || (origin && origin !== requestUrl.origin) || (!origin && fetchSite === "cross-site")) {
-    throw new ServiceError({ code: "forbidden", status: 403, message: "Cross-site requests are not allowed.", requestId: requestId(request), retryable: false });
+    throw new ServiceError({ code: "forbidden", status: 403, message: "Cross-site requests are not allowed.", requestId: id, retryable: false });
   }
 }
