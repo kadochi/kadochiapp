@@ -12,6 +12,14 @@ services:
       WORDPRESS_URL: ${WORDPRESS_URL:-http://localhost:8080}
       NEXT_PUBLIC_WORDPRESS_URL: ${NEXT_PUBLIC_WORDPRESS_URL:-http://localhost:8080}
       KADOCHI_AUTH_MODE: ${KADOCHI_AUTH_MODE:-local}
+      KADOCHI_AUTH_SECRET: ${KADOCHI_AUTH_SECRET:-}
+      MELIPAYAMAK_OTP_URL: ${MELIPAYAMAK_OTP_URL:-}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      WOO_CONSUMER_KEY: ${WOO_CONSUMER_KEY:-}
+      WOO_CONSUMER_SECRET: ${WOO_CONSUMER_SECRET:-}
+      OTP_CODE_TTL_SEC: ${OTP_CODE_TTL_SEC:-180}
+      OTP_ATTEMPT_RATE_PER_HOUR: ${OTP_ATTEMPT_RATE_PER_HOUR:-3}
+      OTP_VERIFY_ATTEMPTS: ${OTP_VERIFY_ATTEMPTS:-5}
     volumes:
       - ./front:/app
       - front_node_modules:/app/node_modules

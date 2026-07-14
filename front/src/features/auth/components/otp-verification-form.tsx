@@ -16,9 +16,9 @@ import { FieldLabel, Input, InputMessage } from "@/components/ui/input";
 import { ServiceError } from "@/lib/http/errors";
 import { cn } from "@/lib/utils";
 import { useAuth } from "../auth-provider";
-import { LOCAL_AUTH_OTP_LENGTH } from "../local-auth";
 
 type OtpVerificationFormProps = {
+  codeLength: number;
   phone: string;
   initialRetryAfter: number;
   onBack: () => void;
@@ -44,14 +44,16 @@ function verifyErrorMessage(error: unknown): string {
 }
 
 export function OtpVerificationForm({
+  codeLength,
   phone,
   initialRetryAfter,
   onBack,
   onVerified,
 }: OtpVerificationFormProps) {
   const { startOtp, verifyOtp } = useAuth();
+  const [otpLength, setOtpLength] = useState(codeLength);
   const [code, setCode] = useState(() =>
-    Array.from({ length: LOCAL_AUTH_OTP_LENGTH }, () => ""),
+    Array.from({ length: codeLength }, () => ""),
   );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -76,15 +78,15 @@ export function OtpVerificationForm({
   function writeCode(value: string) {
     const digits = latinDigits(value)
       .replace(/\D/g, "")
-      .slice(0, LOCAL_AUTH_OTP_LENGTH);
+      .slice(0, otpLength);
     const next = Array.from(
-      { length: LOCAL_AUTH_OTP_LENGTH },
+      { length: otpLength },
       (_, index) => digits[index] ?? "",
     );
     setCode(next);
     setError(null);
     inputRefs.current[
-      Math.min(digits.length, LOCAL_AUTH_OTP_LENGTH) - 1
+      Math.min(digits.length, otpLength) - 1
     ]?.focus();
   }
 
@@ -99,7 +101,7 @@ export function OtpVerificationForm({
   ) {
     if (event.key === "Backspace" && !code[index] && index > 0)
       inputRefs.current[index - 1]?.focus();
-    if (event.key === "ArrowLeft" && index < LOCAL_AUTH_OTP_LENGTH - 1)
+    if (event.key === "ArrowLeft" && index < otpLength - 1)
       inputRefs.current[index + 1]?.focus();
     if (event.key === "ArrowRight" && index > 0)
       inputRefs.current[index - 1]?.focus();
@@ -108,8 +110,8 @@ export function OtpVerificationForm({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const joined = code.join("");
-    if (joined.length !== LOCAL_AUTH_OTP_LENGTH) {
-      setError(`کد تأیید ${LOCAL_AUTH_OTP_LENGTH} رقمی را کامل وارد کنید.`);
+    if (joined.length !== otpLength) {
+      setError(`کد تأیید ${otpLength} رقمی را کامل وارد کنید.`);
       return;
     }
 
@@ -120,7 +122,7 @@ export function OtpVerificationForm({
       onVerified();
     } catch (caught) {
       setError(verifyErrorMessage(caught));
-      setCode(Array.from({ length: LOCAL_AUTH_OTP_LENGTH }, () => ""));
+      setCode(Array.from({ length: otpLength }, () => ""));
       window.setTimeout(() => inputRefs.current[0]?.focus(), 0);
     } finally {
       setLoading(false);
@@ -133,6 +135,11 @@ export function OtpVerificationForm({
       setResending(true);
       setError(null);
       const challenge = await startOtp({ phone });
+      const nextLength = challenge.codeLength ?? otpLength;
+      if (nextLength !== otpLength) {
+        setOtpLength(nextLength);
+        setCode(Array.from({ length: nextLength }, () => ""));
+      }
       setSecondsLeft(Math.ceil(challenge.retryAfter ?? 60));
       setResendCount((current) => current + 1);
     } catch (caught) {
@@ -202,7 +209,7 @@ export function OtpVerificationForm({
                       ),
                     );
                     setError(null);
-                    if (value && index < LOCAL_AUTH_OTP_LENGTH - 1)
+                    if (value && index < otpLength - 1)
                       inputRefs.current[index + 1]?.focus();
                   }}
                   onKeyDown={(event) => handleKeyDown(index, event)}

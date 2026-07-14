@@ -25,6 +25,7 @@ export const startOtpInputSchema = z.object({ phone: iranianPhoneSchema }).stric
 export const verifyOtpInputSchema = z.object({ phone: iranianPhoneSchema, code: otpCodeSchema }).strict();
 
 export const otpStartResponseSchema = z.object({
+  codeLength: z.number().int().min(4).max(6).optional(),
   expiresIn: z.number().finite().positive(),
   retryAfter: z.number().finite().nonnegative().optional(),
 }).strict();

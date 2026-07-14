@@ -6,7 +6,7 @@ export async function POST(request: Request) {
   const id = requestId(request);
   try {
     assertSameOrigin(request, id);
-    const result = await startOtp(startOtpInputSchema.parse(await request.json()), id);
+    const result = await startOtp(startOtpInputSchema.parse(await request.json()), id, request);
     return jsonOk(result, id, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return jsonError(error, id);

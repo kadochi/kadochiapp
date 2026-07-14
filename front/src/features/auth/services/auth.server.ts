@@ -6,10 +6,11 @@ import type { NextResponse } from "next/server";
 
 import { ServiceError } from "@/lib/http/errors";
 import { parseUpstreamJson, UpstreamError, wordpressFetch } from "@/lib/http/upstream";
-import { env, requireLocalIdentity, requireWordPressJwtIdentity } from "@/lib/server/env";
+import { env, requireLocalIdentity, requireMeliPayamakIdentity, requireWordPressJwtIdentity } from "@/lib/server/env";
 import { LOCAL_AUTH_OTP, LOCAL_AUTH_PHONE } from "../local-auth";
 import { customerSchema, iranianPhoneSchema, otpStartResponseSchema, wordpressJwtSchema } from "../schema/auth";
 import type { Customer, OtpStartResponse, StartOtpInput, VerifyOtpInput } from "../types";
+import { getMeliPayamakCustomer, startMeliPayamakOtp, verifyMeliPayamakOtp } from "./melipayamak-otp.server";
 
 const authTokenCookie = "kadochi_auth_token";
 
@@ -17,7 +18,7 @@ type CookieResponse = Pick<NextResponse, "cookies">;
 type AuthSession = { token: string; expiresAt: Date };
 
 const localPhone = iranianPhoneSchema.parse(LOCAL_AUTH_PHONE);
-const localSessionLifetimeSeconds = 60 * 60 * 24 * 7;
+const sessionLifetimeSeconds = 60 * 60 * 24 * 7;
 const localCustomer: Customer = customerSchema.parse({
   id: 1,
   email: "demo@kadochi.local",
@@ -32,6 +33,15 @@ type LocalJwtPayload = {
   iss: "kadochi-local";
   phone: string;
   sub: "1";
+};
+
+type MeliPayamakJwtPayload = {
+  aud: "kadochi-front";
+  exp: number;
+  iat: number;
+  iss: "kadochi-melipayamak";
+  phone: string;
+  sub: string;
 };
 
 function authCookieOptions(expires: Date) {
@@ -68,9 +78,13 @@ function localSignature(unsignedToken: string): string {
   return createHmac("sha256", env.KADOCHI_LOCAL_AUTH_SECRET).update(unsignedToken).digest("base64url");
 }
 
+function meliPayamakSignature(unsignedToken: string, secret: string): string {
+  return createHmac("sha256", secret).update(unsignedToken).digest("base64url");
+}
+
 function createLocalSession(): AuthSession {
   const issuedAt = Math.floor(Date.now() / 1_000);
-  const expiresAt = new Date((issuedAt + localSessionLifetimeSeconds) * 1_000);
+  const expiresAt = new Date((issuedAt + sessionLifetimeSeconds) * 1_000);
   const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
   const payload = Buffer.from(JSON.stringify({
     aud: "kadochi-front",
@@ -82,6 +96,23 @@ function createLocalSession(): AuthSession {
   } satisfies LocalJwtPayload)).toString("base64url");
   const unsignedToken = `${header}.${payload}`;
   return { token: `${unsignedToken}.${localSignature(unsignedToken)}`, expiresAt };
+}
+
+function createMeliPayamakSession(customerId: number, phone: string, requestId: string): AuthSession {
+  const { authSecret } = requireMeliPayamakIdentity(requestId);
+  const issuedAt = Math.floor(Date.now() / 1_000);
+  const expiresAt = new Date((issuedAt + sessionLifetimeSeconds) * 1_000);
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({
+    aud: "kadochi-front",
+    exp: Math.floor(expiresAt.getTime() / 1_000),
+    iat: issuedAt,
+    iss: "kadochi-melipayamak",
+    phone,
+    sub: String(customerId),
+  } satisfies MeliPayamakJwtPayload)).toString("base64url");
+  const unsignedToken = `${header}.${payload}`;
+  return { token: `${unsignedToken}.${meliPayamakSignature(unsignedToken, authSecret)}`, expiresAt };
 }
 
 function readLocalSession(token: string, requestId: string): LocalJwtPayload {
@@ -111,6 +142,39 @@ function readLocalSession(token: string, requestId: string): LocalJwtPayload {
   }
 }
 
+function readMeliPayamakSession(token: string, requestId: string): MeliPayamakJwtPayload {
+  const { authSecret } = requireMeliPayamakIdentity(requestId);
+  const [encodedHeader, encodedPayload, signature, ...rest] = token.split(".");
+  if (!encodedHeader || !encodedPayload || !signature || rest.length > 0) {
+    throw unauthenticated(requestId, "The authentication token is invalid.");
+  }
+
+  const expected = Buffer.from(meliPayamakSignature(`${encodedHeader}.${encodedPayload}`, authSecret));
+  const actual = Buffer.from(signature);
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+    throw unauthenticated(requestId, "The authentication token is invalid.");
+  }
+
+  try {
+    const header = JSON.parse(Buffer.from(encodedHeader, "base64url").toString("utf8")) as { alg?: unknown; typ?: unknown };
+    const value = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as Partial<MeliPayamakJwtPayload>;
+    const now = Math.floor(Date.now() / 1_000);
+    if (
+      header.alg !== "HS256" || header.typ !== "JWT"
+      || value.aud !== "kadochi-front" || value.iss !== "kadochi-melipayamak"
+      || typeof value.sub !== "string" || !/^\d+$/.test(value.sub)
+      || typeof value.phone !== "string" || !iranianPhoneSchema.safeParse(value.phone).success
+      || typeof value.iat !== "number" || value.iat > now + 30
+      || typeof value.exp !== "number" || value.exp <= now
+    ) {
+      throw new Error("Invalid MeliPayamak JWT claims");
+    }
+    return value as MeliPayamakJwtPayload;
+  } catch {
+    throw unauthenticated(requestId, "The authentication token has expired or is invalid.");
+  }
+}
+
 /** Reads only the JWT cookie; browser code never receives this value. */
 export async function getStoredAuthToken(): Promise<string | undefined> {
   return (await cookies()).get(authTokenCookie)?.value;
@@ -125,7 +189,7 @@ export function clearAuthToken(response: CookieResponse): void {
   response.cookies.set(authTokenCookie, "", { ...authCookieOptions(new Date(0)), maxAge: 0 });
 }
 
-export async function startOtp(input: StartOtpInput, requestId: string): Promise<OtpStartResponse> {
+export async function startOtp(input: StartOtpInput, requestId: string, request?: Request): Promise<OtpStartResponse> {
   if (env.KADOCHI_AUTH_MODE === "local") {
     requireLocalIdentity(requestId);
     if (input.phone !== localPhone) {
@@ -139,6 +203,11 @@ export async function startOtp(input: StartOtpInput, requestId: string): Promise
       });
     }
     return { expiresIn: 120, retryAfter: 60 };
+  }
+
+  if (env.KADOCHI_AUTH_MODE === "melipayamak") {
+    if (!request) throw new Error("The OTP request context is required.");
+    return startMeliPayamakOtp(input, requestId, request);
   }
 
   requireWordPressJwtIdentity(requestId);
@@ -161,6 +230,11 @@ export async function verifyOtp(input: VerifyOtpInput, requestId: string): Promi
     return createLocalSession();
   }
 
+  if (env.KADOCHI_AUTH_MODE === "melipayamak") {
+    const verified = await verifyMeliPayamakOtp(input, requestId);
+    return createMeliPayamakSession(verified.customerId, verified.phone, requestId);
+  }
+
   requireWordPressJwtIdentity(requestId);
   const response = await wordpressFetch(env.WORDPRESS_OTP_VERIFY_PATH, {
     method: "POST",
@@ -173,7 +247,7 @@ export async function verifyOtp(input: VerifyOtpInput, requestId: string): Promi
   return { token, expiresAt: jwtExpiry(token, requestId) };
 }
 
-/** Resolves local JWTs in development and validates production bearer tokens with WordPress. */
+/** Resolves the local adapter, MeliPayamak-backed sessions, or WordPress JWT sessions. */
 export async function getCurrentCustomer(token: string | undefined, requestId: string) {
   if (!token) throw unauthenticated(requestId);
 
@@ -181,6 +255,15 @@ export async function getCurrentCustomer(token: string | undefined, requestId: s
     requireLocalIdentity(requestId);
     readLocalSession(token, requestId);
     return localCustomer;
+  }
+
+  if (env.KADOCHI_AUTH_MODE === "melipayamak") {
+    const session = readMeliPayamakSession(token, requestId);
+    const customerId = Number(session.sub);
+    if (!Number.isSafeInteger(customerId) || customerId <= 0) {
+      throw unauthenticated(requestId, "The authentication token is invalid.");
+    }
+    return getMeliPayamakCustomer(customerId, requestId);
   }
 
   requireWordPressJwtIdentity(requestId);
@@ -214,7 +297,7 @@ export function jwtExpiry(token: string, requestId: string): Date {
 
 /** Revocation is deployment-specific. Its failure must never prevent local sign-out. */
 export async function revokeAuthToken(token: string, requestId: string): Promise<void> {
-  if (env.KADOCHI_AUTH_MODE === "local") return;
+  if (env.KADOCHI_AUTH_MODE === "local" || env.KADOCHI_AUTH_MODE === "melipayamak") return;
   if (!env.WORDPRESS_OTP_REVOKE_PATH) return;
   await wordpressFetch(env.WORDPRESS_OTP_REVOKE_PATH, {
     method: "POST",
