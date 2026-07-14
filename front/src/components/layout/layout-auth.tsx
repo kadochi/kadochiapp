@@ -15,9 +15,9 @@ export function LayoutAuth({
   children,
 }: LayoutAuthProps) {
   return (
-    <section className="mx-auto min-h-[calc(100dvh-var(--spacing-88))] w-full max-w-[580px] bg-surface-background">
-      <div className="grid gap-32 pt-80 pb-120">
-        <div className="mt-80 grid gap-8 px-24">
+    <section className="mx-auto flex min-h-[calc(100dvh-var(--spacing-88))] w-full max-w-[580px] flex-col justify-center bg-surface-background">
+      <div className="flex w-full flex-col items-center gap-32">
+        <div className="flex w-full flex-col items-center gap-8 px-24">
           <h1 className="mb-12 font-sans text-title-18 font-bold leading-[var(--text-title-18--line-height)] text-surface-neutral-high-emphasis">
             {title}
           </h1>

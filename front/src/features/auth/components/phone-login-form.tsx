@@ -64,8 +64,8 @@ export function PhoneLoginForm({ initialPhone = "", onStarted }: PhoneLoginFormP
       title="ورود / عضویت"
       description="شماره موبایل خود را وارد کنید تا کد تأیید یک‌بار مصرف برایتان ارسال شود."
     >
-      <form className="grid gap-32" noValidate onSubmit={handleSubmit}>
-        <div className="px-24">
+      <form className="flex w-full flex-col items-center gap-32" noValidate onSubmit={handleSubmit}>
+        <div className="w-full px-24">
           <Input
             autoComplete="tel-national"
             autoFocus
@@ -86,7 +86,7 @@ export function PhoneLoginForm({ initialPhone = "", onStarted }: PhoneLoginFormP
           />
         </div>
 
-        <div className="-mt-8 mb-8 px-24" dir="rtl">
+        <div className="-mt-8 mb-8 w-full px-24" dir="rtl">
           <Checkbox
             aria-readonly="true"
             checked
@@ -103,7 +103,7 @@ export function PhoneLoginForm({ initialPhone = "", onStarted }: PhoneLoginFormP
           />
         </div>
 
-        <div className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border-mid-emphasis bg-surface-background p-16 pb-[max(var(--spacing-32),env(safe-area-inset-bottom))]">
+        <div className="fixed inset-x-0 bottom-0 z-20 flex flex-col items-center border-t border-border-mid-emphasis bg-surface-background p-16 pb-[max(var(--spacing-32),env(safe-area-inset-bottom))]">
           <Button className="mx-auto w-full max-w-[580px]" loading={loading} size="large" type="submit">
             ارسال کد یک‌بار مصرف
           </Button>

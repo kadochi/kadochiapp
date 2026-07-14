@@ -176,8 +176,8 @@ export function OtpVerificationForm({
         </Button>
       }
     >
-      <form className="grid min-w-0 gap-32" onSubmit={handleSubmit}>
-        <fieldset className="m-0 grid min-w-0 justify-items-start gap-8 border-0 p-0 px-24">
+      <form className="flex min-w-0 w-full flex-col items-center gap-32" onSubmit={handleSubmit}>
+        <fieldset className="m-0 grid min-w-0 w-full justify-items-start gap-8 border-0 p-0 px-24">
           <legend className="contents">
             <FieldLabel htmlFor="otp-code-0">کد تأیید</FieldLabel>
           </legend>
@@ -222,7 +222,7 @@ export function OtpVerificationForm({
           ) : null}
         </fieldset>
 
-        <div className="grid min-h-24 justify-items-start gap-8 px-24 text-body-16 text-surface-neutral-mid-emphasis">
+        <div className="grid min-h-24 w-full justify-items-start gap-8 px-24 text-body-16 text-surface-neutral-mid-emphasis">
           {secondsLeft > 0 ? (
             <p className="m-0">امکان ارسال مجدد تا {secondsLeft} ثانیه دیگر</p>
           ) : resendCount < 3 ? (
@@ -251,7 +251,7 @@ export function OtpVerificationForm({
           )}
         </div>
 
-        <div className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border-mid-emphasis bg-surface-background p-16 pb-[max(var(--spacing-32),env(safe-area-inset-bottom))]">
+        <div className="fixed inset-x-0 bottom-0 z-20 flex flex-col items-center border-t border-border-mid-emphasis bg-surface-background p-16 pb-[max(var(--spacing-32),env(safe-area-inset-bottom))]">
           <Button
             className="mx-auto w-full max-w-[580px]"
             disabled={code.some((digit) => !digit)}
