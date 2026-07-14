@@ -1,0 +1,333 @@
+"use client";
+
+/* eslint-disable @next/next/no-img-element -- These are local, fixed-size icon assets. */
+
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { cva } from "class-variance-authority";
+import { getCurrentCustomer } from "@/features/auth/services/auth";
+import { getCart } from "@/features/cart/services/cart";
+import { cn } from "@/lib/utils";
+import { SideMenu } from "./side-menu";
+import { Button } from "../ui/button";
+
+type HeaderVariant = "default" | "internal";
+
+type HeaderUser = {
+  displayName?: string | null;
+  name?: string | null;
+  phone?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  avatarSrc?: string | null;
+};
+
+export type HeaderProps = {
+  variant?: HeaderVariant;
+  /** Shows the back action in the default header. Product pages show it automatically. */
+  showBack?: boolean;
+  /** Destination for the default header's back action. */
+  backHref?: string;
+  backAriaLabel?: string;
+  /** Title used by the internal header; the document title is used when omitted. */
+  title?: string;
+  /** Destination for the internal header's back action. */
+  backUrl?: string;
+  /** Optional controlled cart count. When omitted, it is read from the cart BFF. */
+  basketCount?: number;
+  /** Optional controlled auth state. When omitted, it is read from the auth BFF. */
+  isAuthenticated?: boolean;
+  /** Optional user data for a controlled auth state. */
+  user?: HeaderUser | null;
+  className?: string;
+};
+
+const iconButtonVariants = cva(
+  "flex size-32 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0",
+  {
+    variants: {
+      desktopOnly: {
+        true: "min-[864px]:hidden",
+        false: null,
+      },
+    },
+    defaultVariants: {
+      desktopOnly: false,
+    },
+  },
+);
+
+type NavigationItem = {
+  href: string;
+  label: string;
+  emphasized?: boolean;
+};
+
+const navigationItems: readonly NavigationItem[] = [
+  { href: "/", label: "کادوچی", emphasized: true },
+  { href: "/products", label: "کادو‌ها" },
+  { href: "/products?category=flower", label: "گل" },
+  { href: "/products?category=chocolate", label: "کیک تولد" },
+  { href: "/occasions", label: "مناسبت‌ها" },
+];
+
+function getAccountLabel(user: HeaderUser | null) {
+  const fullName = [user?.firstName, user?.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return (
+    user?.displayName?.trim() ||
+    user?.name?.trim() ||
+    fullName ||
+    user?.phone ||
+    "حساب کاربری"
+  );
+}
+
+function InternalHeader({
+  title,
+  backUrl,
+  className,
+}: Pick<HeaderProps, "title" | "backUrl" | "className">) {
+  const router = useRouter();
+  const [pageTitle, setPageTitle] = useState<string | undefined>(title);
+
+  useEffect(() => {
+    // The document title is an external value and is intentionally read after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPageTitle(title === undefined ? document.title || undefined : title);
+  }, [title]);
+
+  return (
+    <header
+      aria-label="سربرگ داخلی"
+      className={cn(
+        "sticky top-0 z-[1000] mx-auto flex h-88 w-full max-w-[1440px] items-center justify-center box-border bg-surface-background px-16 [direction:rtl]",
+        className,
+      )}
+      dir="rtl"
+    >
+      <a
+        aria-label="بازگشت"
+        className="absolute top-1/2 right-16 flex size-32 -translate-y-1/2 cursor-pointer items-center justify-center border-0 bg-transparent p-0"
+        href={backUrl ?? "#"}
+        onClick={(event) => {
+          event.preventDefault();
+          if (backUrl) {
+            router.push(backUrl);
+          } else {
+            window.history.back();
+          }
+        }}
+      >
+        <Image alt="" aria-hidden className="size-32" height={32} src="/icons/arrow-right.svg" width={32} />
+      </a>
+
+      {pageTitle ? (
+        <h1 className="absolute top-1/2 right-[calc(var(--spacing-16)+var(--spacing-32)+var(--spacing-8))] m-0 -translate-y-1/2 font-sans text-title-16 font-bold leading-[var(--text-title-16--line-height)] text-surface-neutral-high-emphasis">
+          {pageTitle}
+        </h1>
+      ) : null}
+
+      <div className="hidden flex-1 items-center justify-center min-[864px]:flex">
+        <Link aria-label="صفحه اصلی" className="inline-flex items-center justify-center leading-none" href="/">
+          <Image alt="Kadochi" className="block h-56 w-60" height={56} src="/images/logo.svg" width={60} />
+        </Link>
+      </div>
+    </header>
+  );
+}
+
+function DefaultHeader({
+  showBack = false,
+  backHref,
+  backAriaLabel = "بازگشت",
+  basketCount: controlledBasketCount,
+  isAuthenticated: controlledAuthentication,
+  user: controlledUser,
+  className,
+}: Omit<HeaderProps, "variant" | "title" | "backUrl">) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [basketCount, setBasketCount] = useState(0);
+  const [user, setUser] = useState<HeaderUser | null>(null);
+
+  useEffect(() => {
+    if (controlledBasketCount !== undefined) {
+      return;
+    }
+
+    let cancelled = false;
+    void getCart()
+      .then((cart) => {
+        if (!cancelled) {
+          setBasketCount(cart.items.reduce((total, item) => total + item.quantity, 0));
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [controlledBasketCount]);
+
+  useEffect(() => {
+    if (controlledUser !== undefined) {
+      return;
+    }
+
+    let cancelled = false;
+    void getCurrentCustomer()
+      .then((customer) => {
+        if (!cancelled) {
+          setUser({ displayName: customer.displayName });
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [controlledUser]);
+
+  const visibleBasketCount = Math.max(0, controlledBasketCount ?? basketCount);
+  const hasItems = visibleBasketCount > 0;
+  const accountUser = controlledUser === undefined ? user : controlledUser;
+  const isAuthenticated = controlledAuthentication ?? Boolean(accountUser);
+  const accountLabel = getAccountLabel(accountUser);
+  const shouldShowBack = showBack || pathname.startsWith("/product/");
+
+  const handleBack = () => {
+    if (backHref) {
+      router.push(backHref);
+      return;
+    }
+
+    const hasReferrer = document.referrer && document.referrer !== window.location.href;
+    if (window.history.length > 1 || hasReferrer) {
+      router.back();
+      return;
+    }
+
+    router.push("/products");
+  };
+
+  return (
+    <>
+      <div className={cn("sticky top-0 inset-x-0 z-50 bg-surface-background", className)}>
+        <header className="relative mx-auto flex h-88 w-full max-w-[1440px] items-center justify-between box-border bg-surface-background px-16 [direction:ltr]">
+          <div className="flex items-center gap-12">
+            <Link
+              aria-label="سبد خرید"
+              className="flex cursor-pointer items-center gap-4 no-underline"
+              data-active={hasItems || undefined}
+              href="/basket"
+              prefetch={false}
+            >
+              <img
+                alt="Basket"
+                className="size-32"
+                decoding="async"
+                height={32}
+                loading="lazy"
+                src={hasItems ? "/icons/basket-filled.svg" : "/icons/basket-empty.svg"}
+                width={32}
+              />
+              {hasItems ? (
+                <span
+                  aria-hidden={false}
+                  className="box-border h-24 min-w-24 rounded-rounded bg-error px-6 text-center font-sans text-label-14 font-regular leading-[24px] text-on-error"
+                  data-active
+                >
+                  {visibleBasketCount}
+                </span>
+              ) : null}
+            </Link>
+
+            <Button
+              aria-label={isAuthenticated ? "حساب کاربری" : "ورود / عضویت"}
+              className="hidden gap-6 px-12 py-8 pl-16 min-[864px]:inline-flex"
+              onClick={() => router.push(isAuthenticated ? "/profile" : "/login")}
+              size="medium"
+              variant="secondary-tonal"
+            >
+              <img alt="" className="!size-20" decoding="async" height={20} loading="lazy" src="/icons/user-login.svg" width={20} />
+              <span className="font-sans text-label-16 font-regular leading-[var(--text-label-16--line-height)]">
+                {accountLabel}
+              </span>
+            </Button>
+          </div>
+
+          <Link className="flex items-center justify-center" href="/" prefetch={false}>
+            <img alt="Logo" className="absolute left-1/2 h-56 w-60 -translate-x-1/2" decoding="async" fetchPriority="low" height={56} loading="eager" src="/images/logo.svg" width={56} />
+          </Link>
+
+          {shouldShowBack ? (
+            <button
+              aria-label={backAriaLabel}
+              className={iconButtonVariants({ desktopOnly: true })}
+              onClick={handleBack}
+              type="button"
+            >
+              <img alt="" aria-hidden className="size-32" decoding="async" height={32} loading="lazy" src="/icons/arrow-right.svg" width={32} />
+            </button>
+          ) : (
+            <button
+              aria-label="Menu"
+              className={iconButtonVariants({ desktopOnly: true })}
+              onClick={() => setIsMenuOpen(true)}
+              type="button"
+            >
+              <img alt="Menu" className="size-32" decoding="async" height={32} loading="lazy" src="/icons/menu-black.svg" width={32} />
+            </button>
+          )}
+
+          <nav aria-label="پیمایش اصلی" className="hidden gap-24 min-[864px]:flex [direction:rtl]">
+            {navigationItems.map((item) => (
+              <Link
+                key={item.href}
+                className={cn(
+                  "font-sans text-label-16 font-regular text-surface-neutral-high-emphasis no-underline",
+                  item.emphasized && "font-bold",
+                )}
+                href={item.href}
+                prefetch={false}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </header>
+      </div>
+
+      <SideMenu
+        isLoggedIn={isAuthenticated}
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        user={accountUser ?? undefined}
+      />
+    </>
+  );
+}
+
+/**
+ * The site header in its storefront and internal-page configurations.
+ *
+ * It keeps the original routes, responsive layout, cart indicator, account
+ * action, and side menu while using the application's current BFF services.
+ */
+function Header({ variant = "default", ...props }: Readonly<HeaderProps>) {
+  return variant === "internal" ? <InternalHeader {...props} /> : <DefaultHeader {...props} />;
+}
+
+// Kept for callers that previously rendered the internal header directly.
+const HeaderInternal = InternalHeader;
+
+export { Header, HeaderInternal, iconButtonVariants };
+export type { HeaderUser, HeaderVariant };
+export default Header;
