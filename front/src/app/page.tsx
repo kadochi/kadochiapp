@@ -35,7 +35,13 @@ import {
   BottomSheetTrigger,
 } from "../components/ui/bottom-sheet";
 import { Breadcrumb } from "../components/ui/breadcrumb";
+import Price, {
+  DiscountPrice,
+  NormalPrice,
+  SumPrice,
+} from "../components/layout/price";
 import { SideMenu } from "../components/layout/side-menu";
+import { TopBanner } from "../components/layout/top-banner";
 import { Button } from "../components/ui/button";
 import { Checkbox } from "../components/ui/checkbox";
 import { Chip } from "../components/ui/chip";
@@ -765,6 +771,100 @@ export default function HomePage() {
             کامپوننت‌ها
           </h1>
         </header>
+
+        <section className="mb-16" aria-labelledby="top-banner-heading">
+          <div className="mb-6 flex items-baseline justify-between gap-4">
+            <h2 id="top-banner-heading" className="text-heading-24 font-regular">
+              نوار اطلاع‌رسانی
+            </h2>
+            <p className="text-label-12 text-surface-neutral-low-emphasis">
+              پیام مناسبتی با پیوند خرید
+            </p>
+          </div>
+
+          <div className="overflow-hidden rounded-m border border-border-low-emphasis">
+            <TopBanner />
+          </div>
+        </section>
+
+        <section className="mb-16" aria-labelledby="price-heading">
+          <div className="mb-6 flex items-baseline justify-between gap-4">
+            <h2 id="price-heading" className="text-heading-24 font-regular">
+              قیمت
+            </h2>
+            <p className="text-label-12 text-surface-neutral-low-emphasis">
+              عادی · تخفیف‌دار · جمع کل · افقی و عمودی
+            </p>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <PreviewFrame>
+              <p className="mb-4 text-label-12 text-surface-neutral-mid-emphasis">
+                قیمت عادی
+              </p>
+              <div className="flex flex-wrap items-center gap-16">
+                <NormalPrice amount={1250000} size="L" />
+                <NormalPrice amount={1250000} size="M" />
+              </div>
+            </PreviewFrame>
+
+            <PreviewFrame>
+              <p className="mb-4 text-label-12 text-surface-neutral-mid-emphasis">
+                قیمت تخفیف‌دار
+              </p>
+              <div className="flex flex-col items-start gap-12">
+                <Price
+                  current={990000}
+                  previous={1250000}
+                  offPercent={21}
+                  size="L"
+                  orientation="vertical"
+                />
+                <Price
+                  current={990000}
+                  previous={1250000}
+                  offPercent={21}
+                  size="L"
+                  orientation="horizontal"
+                  showArrowOnLargeH
+                />
+              </div>
+            </PreviewFrame>
+
+            <PreviewFrame>
+              <p className="mb-4 text-label-12 text-surface-neutral-mid-emphasis">
+                اندازه متوسط
+              </p>
+              <div className="flex flex-wrap items-center gap-16">
+                <DiscountPrice
+                  current={990000}
+                  previous={1250000}
+                  offPercent={21}
+                  size="M"
+                  orientation="vertical"
+                />
+                <DiscountPrice
+                  current={990000}
+                  previous={1250000}
+                  offPercent={21}
+                  size="M"
+                  orientation="horizontal"
+                />
+              </div>
+            </PreviewFrame>
+
+            <PreviewFrame>
+              <p className="mb-4 text-label-12 text-surface-neutral-mid-emphasis">
+                جمع کل
+              </p>
+              <div className="flex flex-col items-start gap-12">
+                <SumPrice amount={2240000} />
+                <SumPrice amount={2240000} separate />
+                <SumPrice amount={2240000} orientation="vertical" />
+              </div>
+            </PreviewFrame>
+          </div>
+        </section>
 
         <SideMenuExample />
 
