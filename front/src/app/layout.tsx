@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { Direction } from "radix-ui";
 import { Toaster } from "../components/ui/toaster";
+import { AuthProvider } from "../features/auth/auth-provider";
 import "./globals.css";
 
 const iranSans = localFont({
@@ -36,7 +37,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="fa" dir="rtl" className={iranSans.variable}>
       <body className="font-sans">
         <Direction.Provider dir="rtl">
-          <Toaster>{children}</Toaster>
+          <AuthProvider>
+            <Toaster>{children}</Toaster>
+          </AuthProvider>
         </Direction.Provider>
       </body>
     </html>

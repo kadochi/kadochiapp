@@ -15,6 +15,8 @@ This repository runs a headless WordPress + Next.js development stack. Next.js i
    - WordPress admin: http://localhost:8080/wp-admin
    - WordPress REST API: http://localhost:8080/wp-json/wp/v2
 
+The frontend uses local OTP authentication by default: open `/login`, use `09121234567`, then enter `1234`. This development adapter does not send SMS and is refused in production. Set `KADOCHI_AUTH_MODE=wordpress-jwt` when the deployment's OTP/SMS endpoints are available.
+
 On first launch, complete WordPress's installation wizard and activate **Kadochi Headless Admin Theme** in Appearance → Themes. Source edits in `front/` hot reload; edits in `theme/` are immediately mounted into WordPress.
 
 ## Services and storage

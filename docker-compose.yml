@@ -11,6 +11,7 @@ services:
       WORDPRESS_INTERNAL_URL: ${WORDPRESS_INTERNAL_URL:-http://wordpress}
       WORDPRESS_URL: ${WORDPRESS_URL:-http://localhost:8080}
       NEXT_PUBLIC_WORDPRESS_URL: ${NEXT_PUBLIC_WORDPRESS_URL:-http://localhost:8080}
+      KADOCHI_AUTH_MODE: ${KADOCHI_AUTH_MODE:-local}
     volumes:
       - ./front:/app
       - front_node_modules:/app/node_modules

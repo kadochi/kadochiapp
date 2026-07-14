@@ -1,6 +1,6 @@
 # Auth contract
 
-The auth slice uses WordPress as the identity authority. The browser calls only same-origin BFF routes; it never receives, stores, or decodes a JWT.
+The auth slice uses WordPress as the production identity authority and includes an isolated local-development adapter. The browser calls only same-origin BFF routes; it never receives, stores, or decodes an auth token.
 
 ## Browser interface
 
@@ -23,6 +23,12 @@ Every route sends `Cache-Control: no-store`, includes `x-request-id`, validates 
 | `POST /api/auth/logout` | Optional `POST $WORDPRESS_OTP_REVOKE_PATH` with bearer auth | `204 No Content` |
 
 POST routes reject cross-site requests before contacting WordPress. Validation, upstream HTTP, rate-limit, timeout, unavailable-service, and malformed-response failures use the shared API error model. An absent, expired, or WordPress-rejected token yields `unauthenticated`; the local auth cookie is then cleared. Optional token revocation failure never prevents local logout.
+
+## Local development
+
+Set `KADOCHI_AUTH_MODE=local` (the Docker Compose default), then use phone `09121234567` and OTP `1234`. No SMS is sent. Successful verification issues a seven-day HS256 JWT with issuer, audience, subject, phone, issued-at, and expiry claims. The signed JWT is stored only in the HttpOnly auth cookie and validated on current-user requests. The browser receives the same `Customer` shape used by the WordPress flow. Local mode is rejected whenever `NODE_ENV=production`, so it cannot act as a deployment fallback.
+
+The local adapter sits behind the existing `startOtp`, `verifyOtp`, `getCurrentCustomer`, and `logout` interfaces. Replacing it with the SMS-backed WordPress endpoints therefore requires configuration rather than changes to the login UI.
 
 ## Token handling and deployment
 

@@ -59,7 +59,9 @@ const inputMessageVariants = cva(
   },
 );
 
-type FieldStatus = NonNullable<VariantProps<typeof inputMessageVariants>["status"]>;
+type FieldStatus = NonNullable<
+  VariantProps<typeof inputMessageVariants>["status"]
+>;
 type FieldSize = NonNullable<VariantProps<typeof inputMessageVariants>["size"]>;
 
 function StatusIcon({ status }: { status: FieldStatus }) {
@@ -71,7 +73,10 @@ function StatusIcon({ status }: { status: FieldStatus }) {
         : Info;
 
   return (
-    <Icon aria-hidden="true" className="size-[var(--message-icon-size)] shrink-0" />
+    <Icon
+      aria-hidden="true"
+      className="size-[var(--message-icon-size)] shrink-0"
+    />
   );
 }
 
@@ -130,6 +135,10 @@ type InputProps = Omit<ComponentPropsWithoutRef<"input">, "size"> &
     leadingIcon?: ReactNode;
     /** Decorative content placed at the inline end of the field. */
     trailingIcon?: ReactNode;
+    /** Classes applied to the full-width field container. */
+    className?: string;
+    /** @deprecated Use `className` instead. */
+    containerClassName?: string;
   };
 
 function FieldIcon({
@@ -159,6 +168,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     description,
     leadingIcon,
     trailingIcon,
+    containerClassName,
     size,
     status: statusProp,
     className,
@@ -185,7 +195,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     .join(" ");
 
   return (
-    <div className="grid w-full gap-8">
+    <div className={cn("grid w-full gap-8", containerClassName, className)}>
       {label ? (
         <FieldLabel htmlFor={inputId} required={required}>
           {label}
@@ -202,10 +212,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           id={inputId}
           aria-describedby={describedBy || undefined}
           aria-invalid={status === "error" || ariaInvalid || undefined}
-          className={cn(
-            "h-full min-w-0 flex-1 border-0 bg-transparent p-0 font-sans text-label-16 font-regular text-surface-neutral-high-emphasis outline-none placeholder:text-surface-neutral-mid-emphasis disabled:cursor-not-allowed disabled:text-on-disable",
-            className,
-          )}
+          className="h-full w-full min-w-0 flex-1 border-0 bg-transparent p-0 font-sans text-label-16 font-regular text-surface-neutral-high-emphasis outline-none placeholder:text-surface-neutral-mid-emphasis disabled:cursor-not-allowed disabled:text-on-disable"
           disabled={disabled}
           required={required}
           dir={dir}
