@@ -18,7 +18,7 @@ services:
         condition: service_started
 
   wordpress:
-    image: wordpress:7.0.0-apache
+    image: wordpress:7-php8.2-apache
     ports:
       - "8080:80"
     environment:
