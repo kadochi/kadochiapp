@@ -1,0 +1,23 @@
+import { cn } from "@/lib/utils";
+
+function shimmer(className: string) {
+  return cn(
+    "bg-[linear-gradient(90deg,var(--color-surface-soft)_0%,var(--color-surface-dim)_50%,var(--color-surface-soft)_100%)] bg-[length:200%_100%] [animation:hero-skeleton-shimmer_1.2s_linear_infinite]",
+    className,
+  );
+}
+
+/** Loading placeholder matching ProductCard's layout. */
+export function ProductCardSkeleton() {
+  return (
+    <div aria-hidden className="w-full [direction:rtl]">
+      <div className={shimmer("aspect-[1/1.2] w-full rounded-l")} />
+
+      <div className="pt-8 pb-16 px-16 text-center">
+        <div className={shimmer("mx-auto mt-8 h-[var(--text-label-14--line-height)] w-[58%] rounded-rounded")} />
+        <div className={shimmer("mx-auto mt-4 h-[var(--text-label-14--line-height)] w-[72%] rounded-rounded")} />
+        <div className={shimmer("mx-auto mt-8 h-[var(--text-label-14--line-height)] w-[44%] rounded-rounded")} />
+      </div>
+    </div>
+  );
+}

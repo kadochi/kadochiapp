@@ -25,6 +25,9 @@ import {
 import { Accordion } from "../components/ui/accordion";
 import { Alert, type AlertTone } from "../components/ui/alert";
 import { Avatar } from "../components/ui/avatar";
+import { ProductCard } from "../features/products/components/product-card";
+import { ProductCardSkeleton } from "../features/products/components/product-card-skeleton";
+import type { Product } from "../features/products/types";
 import {
   BottomSheet,
   BottomSheetClose,
@@ -114,6 +117,33 @@ const avatarExamples = [
     name: "جایگزین پیش‌فرض",
     render: (size: (typeof avatarSizes)[number]) => <Avatar size={size} />,
   },
+];
+
+function mockProduct(overrides: Partial<Product>): Product {
+  return {
+    id: 1,
+    name: "فندک زیپو کلاسیک نقره‌ای",
+    slug: "zippo-classic",
+    description: "",
+    shortDescription: "",
+    price: { amount: "1250000", currencyCode: "IRT", minorUnit: 0 },
+    images: [{ url: "/images/zippo-1.png", alt: "فندک زیپو" }],
+    categories: [],
+    inStock: true,
+    purchasable: true,
+    ...overrides,
+  };
+}
+
+const productCardExamples: Product[] = [
+  mockProduct({ id: 1 }),
+  mockProduct({
+    id: 2,
+    name: "فندک زیپو طرح‌دار",
+    price: { amount: "890000", currencyCode: "IRT", minorUnit: 0 },
+    regularPrice: { amount: "1200000", currencyCode: "IRT", minorUnit: 0 },
+  }),
+  mockProduct({ id: 3, name: "فندک زیپو ناموجود", inStock: false }),
 ];
 
 const chipVariants = [
@@ -864,6 +894,26 @@ export default function HomePage() {
               </div>
             </PreviewFrame>
           </div>
+        </section>
+
+        <section className="mb-16" aria-labelledby="product-card-heading">
+          <div className="mb-6 flex items-baseline justify-between gap-4">
+            <h2 id="product-card-heading" className="text-heading-24 font-regular">
+              کارت محصول
+            </h2>
+            <p className="text-label-12 text-surface-neutral-low-emphasis">
+              عادی · تخفیف‌دار · ناموجود · اسکلتون
+            </p>
+          </div>
+
+          <PreviewFrame>
+            <div className="grid grid-cols-2 gap-16 sm:grid-cols-4">
+              {productCardExamples.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+              <ProductCardSkeleton />
+            </div>
+          </PreviewFrame>
         </section>
 
         <SideMenuExample />

@@ -13,3 +13,5 @@ front/.env*.local
 # Docker-managed data remains in named volumes, not this checkout.
 mysql-data/
 wordpress-data/
+
+kadochi.old
