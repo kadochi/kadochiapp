@@ -27,6 +27,8 @@ import { Alert, type AlertTone } from "../components/ui/alert";
 import { Avatar } from "../components/ui/avatar";
 import { ProductCard } from "../features/products/components/product-card";
 import { ProductCardSkeleton } from "../features/products/components/product-card-skeleton";
+import { ProductList } from "../features/products/components/product-list";
+import { ProductsSlider } from "../features/products/components/products-slider";
 import type { Product } from "../features/products/types";
 import {
   BottomSheet,
@@ -144,6 +146,36 @@ const productCardExamples: Product[] = [
     regularPrice: { amount: "1200000", currencyCode: "IRT", minorUnit: 0 },
   }),
   mockProduct({ id: 3, name: "فندک زیپو ناموجود", inStock: false }),
+];
+
+const catalogPreviewProducts: Product[] = [
+  mockProduct({ id: 1 }),
+  mockProduct({
+    id: 2,
+    name: "فندک زیپو طرح‌دار",
+    images: [{ url: "/images/zippo-2.png", alt: "فندک زیپو طرح‌دار" }],
+    price: { amount: "890000", currencyCode: "IRT", minorUnit: 0 },
+    regularPrice: { amount: "1200000", currencyCode: "IRT", minorUnit: 0 },
+  }),
+  mockProduct({
+    id: 3,
+    name: "فندک زیپو طلایی",
+    price: { amount: "1450000", currencyCode: "IRT", minorUnit: 0 },
+  }),
+  mockProduct({
+    id: 4,
+    name: "فندک زیپو مات مشکی",
+    images: [{ url: "/images/zippo-2.png", alt: "فندک زیپو مات مشکی" }],
+    price: { amount: "1100000", currencyCode: "IRT", minorUnit: 0 },
+    regularPrice: { amount: "1350000", currencyCode: "IRT", minorUnit: 0 },
+  }),
+  mockProduct({ id: 5, name: "فندک زیپو ناموجود", inStock: false }),
+  mockProduct({
+    id: 6,
+    name: "فندک زیپو کلاسیک برنزی",
+    images: [{ url: "/images/zippo-2.png", alt: "فندک زیپو کلاسیک برنزی" }],
+    price: { amount: "980000", currencyCode: "IRT", minorUnit: 0 },
+  }),
 ];
 
 const chipVariants = [
@@ -914,6 +946,36 @@ export default function HomePage() {
               <ProductCardSkeleton />
             </div>
           </PreviewFrame>
+        </section>
+
+        <section className="mb-16" aria-labelledby="product-list-heading">
+          <div className="mb-6 flex items-baseline justify-between gap-4">
+            <h2 id="product-list-heading" className="text-heading-24 font-regular">
+              فهرست محصولات
+            </h2>
+            <p className="text-label-12 text-surface-neutral-low-emphasis">
+              شبکه واکنش‌گرا · ۲ تا ۶ ستون
+            </p>
+          </div>
+
+          <div className="overflow-hidden rounded-m border border-border-low-emphasis bg-surface-background">
+            <ProductList items={catalogPreviewProducts} />
+          </div>
+        </section>
+
+        <section className="mb-16" aria-labelledby="products-slider-heading">
+          <div className="mb-6 flex items-baseline justify-between gap-4">
+            <h2 id="products-slider-heading" className="text-heading-24 font-regular">
+              اسلایدر محصولات
+            </h2>
+            <p className="text-label-12 text-surface-neutral-low-emphasis">
+              کاروسل راست‌به‌چپ · واکنش‌گرا
+            </p>
+          </div>
+
+          <div className="overflow-hidden rounded-m border border-border-low-emphasis bg-surface-background py-8">
+            <ProductsSlider items={catalogPreviewProducts} />
+          </div>
         </section>
 
         <SideMenuExample />
