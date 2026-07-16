@@ -7,12 +7,19 @@ export const productQuerySchema = z.object({
   category: z.coerce.number().int().positive().optional(),
   slug: z.string().trim().min(1).max(200).optional(),
   exclude: z.array(z.coerce.number().int().positive()).max(20).optional(),
+  /** Product tag IDs resolved by the PLP before querying the Store API. */
+  tags: z.array(z.coerce.number().int().positive()).min(1).max(20).optional(),
+  tagOperator: z.enum(["in", "and"]).optional(),
+  /** Displayed Toman amounts; the service translates them to Woo's IRR unit. */
+  minPrice: z.string().regex(/^\d{1,12}$/).optional(),
+  maxPrice: z.string().regex(/^\d{1,12}$/).optional(),
+  order: z.enum(["asc", "desc"]).optional(),
   orderby: z.enum(["date", "id", "menu_order", "popularity", "rating", "price", "title"]).optional(),
 });
 
 export const categoryQuerySchema = z.object({
   page: z.coerce.number().int().positive().max(100).default(1),
-  perPage: z.coerce.number().int().positive().max(50).default(20),
+  perPage: z.coerce.number().int().positive().max(100).default(20),
   hideEmpty: z.boolean().default(false),
 });
 
@@ -57,6 +64,13 @@ const upstreamProductSchema = z.object({
 export const upstreamProductsSchema = z.array(upstreamProductSchema);
 export const upstreamProductSchemaExport = upstreamProductSchema;
 export const upstreamCategoriesSchema = z.array(z.object({ id: z.number().int().positive(), name: z.string(), slug: z.string(), parent: z.number().int().nonnegative().default(0), count: z.number().int().nonnegative().default(0), image: imageSchema.nullable().optional() }));
+export const upstreamProductTagsSchema = z.array(z.object({
+  id: z.number().int().positive(),
+  name: z.string(),
+  slug: z.string(),
+  description: z.string().default(""),
+  count: z.number().int().nonnegative().default(0),
+}));
 
 export const moneySchema = z.object({ amount: z.string().regex(/^\d+$/), currencyCode: z.string().length(3), minorUnit: z.number().int().min(0).max(4) });
 export const productAttributeSchema = z.object({ name: z.string().min(1), value: z.string().min(1) });
@@ -77,7 +91,21 @@ export const productSchema = z.object({
   inStock: z.boolean(),
   purchasable: z.boolean(),
 });
+export const productListResultSchema = z.object({
+  items: z.array(productSchema),
+  page: z.number().int().positive(),
+  perPage: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
+});
 export const categorySchema = z.object({ id: z.number().int().positive(), name: z.string(), slug: z.string(), parentId: z.number().int().nonnegative(), productCount: z.number().int().nonnegative(), imageUrl: z.string().url().optional() });
+export const productTagSchema = z.object({
+  id: z.number().int().positive(),
+  name: z.string(),
+  slug: z.string(),
+  description: z.string(),
+  productCount: z.number().int().nonnegative(),
+});
 
 export const reviewQuerySchema = z.object({
   productId: z.coerce.number().int().positive(),

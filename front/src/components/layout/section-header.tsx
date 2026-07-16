@@ -7,7 +7,7 @@ export type SectionHeaderProps = {
   leftSlot?: ReactNode;
   labelSlot?: ReactNode;
   className?: string;
-  as?: "h2" | "h3" | "h4";
+  as?: "h1" | "h2" | "h3" | "h4";
 };
 
 /** A right-to-left section heading with optional metadata and actions. */

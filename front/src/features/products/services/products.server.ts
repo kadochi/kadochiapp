@@ -12,12 +12,20 @@ import {
   reviewQuerySchema,
   upstreamCategoriesSchema,
   upstreamProductSchemaExport,
+  upstreamProductTagsSchema,
   upstreamProductsSchema,
   upstreamReviewsSchema,
   productReviewSubmissionSchema,
 } from "../schema/products";
 import { wordpressBearerHeaders } from "@/features/auth/services/auth.server";
-import type { CategoryQuery, CreateProductReviewInput, ProductQuery, ReviewQuery, SimilarProductsQuery } from "../types";
+import type {
+  CategoryQuery,
+  CreateProductReviewInput,
+  ProductListResult,
+  ProductQuery,
+  ReviewQuery,
+  SimilarProductsQuery,
+} from "../types";
 import { mapProduct } from "../utils/map-product";
 import { mapReview } from "../utils/map-review";
 
@@ -27,16 +35,35 @@ function productParams(query: ProductQuery): string {
   if (input.search) params.set("search", input.search);
   if (input.category) params.set("category", String(input.category));
   if (input.slug) params.set("slug", input.slug);
+  if (input.order) params.set("order", input.order);
   if (input.orderby) params.set("orderby", input.orderby);
+  if (input.tags?.length) {
+    params.set("tag", input.tags.join(","));
+    if (input.tagOperator) params.set("tag_operator", input.tagOperator);
+  }
+  // The storefront presents IRR prices as Toman. The Store API expects the
+  // amount in the smallest currency unit, so convert back to Rial here.
+  if (input.minPrice) params.set("min_price", String(Number(input.minPrice) * 10));
+  if (input.maxPrice) params.set("max_price", String(Number(input.maxPrice) * 10));
   if (input.exclude?.length) params.set("exclude", input.exclude.join(","));
   return params.toString();
 }
 
 /** Public, cacheable Woo Store API reads. Each method validates upstream data before returning it. */
-export async function listProducts(query: ProductQuery = {}) {
+export async function listProducts(query: ProductQuery = {}): Promise<ProductListResult> {
+  const input = productQuerySchema.parse(query);
   const id = randomUUID();
-  const response = await wordpressFetch(`/wp-json/wc/store/v1/products?${productParams(query)}`, { requestId: id, next: { revalidate: 60, tags: ["products"] } });
-  return (await parseUpstreamJson(response, (value) => upstreamProductsSchema.parse(value), id)).map(mapProduct);
+  const response = await wordpressFetch(`/wp-json/wc/store/v1/products?${productParams(input)}`, { requestId: id, next: { revalidate: 60, tags: ["products"] } });
+  const total = Number(response.headers.get("x-wp-total"));
+  const totalPages = Number(response.headers.get("x-wp-totalpages"));
+  const items = (await parseUpstreamJson(response, (value) => upstreamProductsSchema.parse(value), id)).map(mapProduct);
+  return {
+    items,
+    page: input.page,
+    perPage: input.perPage,
+    total: Number.isSafeInteger(total) && total >= 0 ? total : items.length,
+    totalPages: Number.isSafeInteger(totalPages) && totalPages >= 0 ? totalPages : (items.length ? 1 : 0),
+  };
 }
 
 export async function getProductById(id: number) {
@@ -89,12 +116,14 @@ export async function createProductReview(input: CreateProductReviewInput, reque
 
 export async function listSimilarProducts({ categoryId, excludeId, perPage = 8 }: SimilarProductsQuery) {
   const query = { exclude: [excludeId], perPage, orderby: "popularity" as const };
-  if (!categoryId) return listProducts(query);
+  if (!categoryId) return (await listProducts(query)).items;
 
   const categoryProducts = await listProducts({ ...query, category: categoryId });
   // A category can be empty or only contain the current product. Keep a useful
   // related-products rail by falling back to the catalog's popular products.
-  return categoryProducts.length ? categoryProducts : listProducts(query);
+  return categoryProducts.items.length
+    ? categoryProducts.items
+    : (await listProducts(query)).items;
 }
 
 export async function listCategories(query: CategoryQuery = {}) {
@@ -103,4 +132,20 @@ export async function listCategories(query: CategoryQuery = {}) {
   const id = randomUUID();
   const response = await wordpressFetch(`/wp-json/wc/store/v1/products/categories?${params}`, { requestId: id, next: { revalidate: 300, tags: ["product-categories"] } });
   return (await parseUpstreamJson(response, (value) => upstreamCategoriesSchema.parse(value), id)).map((category) => categorySchema.parse({ id: category.id, name: category.name, slug: category.slug, parentId: category.parent, productCount: category.count, imageUrl: category.image?.src }));
+}
+
+/** Lists public product tags so URL-friendly PLP filters can resolve to IDs. */
+export async function listProductTags() {
+  const id = randomUUID();
+  const response = await wordpressFetch("/wp-json/wc/store/v1/products/tags?per_page=100&hide_empty=true", {
+    requestId: id,
+    next: { revalidate: 300, tags: ["product-tags"] },
+  });
+  return (await parseUpstreamJson(response, (value) => upstreamProductTagsSchema.parse(value), id)).map((tag) => ({
+    id: tag.id,
+    name: tag.name,
+    slug: tag.slug,
+    description: tag.description,
+    productCount: tag.count,
+  }));
 }
