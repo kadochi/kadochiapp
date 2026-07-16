@@ -29,7 +29,7 @@ export function ProductCard({
         "block w-full no-underline text-inherit [direction:rtl]",
         className,
       )}
-      href={href ?? `/products/${product.slug}`}
+      href={href ?? `/product/${product.slug}`}
     >
       <div className="relative grid aspect-[1/1.2] w-full place-items-center overflow-hidden rounded-l bg-surface">
         {image ? (

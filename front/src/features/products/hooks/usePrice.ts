@@ -12,7 +12,8 @@ export type UsePriceResult = {
 };
 
 function toDisplayAmount(money: Money): number {
-  return Number(money.amount) / 10 ** money.minorUnit;
+  const base = Number(money.amount) / 10 ** money.minorUnit;
+  return money.currencyCode === "IRR" ? base / 10 : base;
 }
 
 /** Derives display amounts and discount values from product money fields. */

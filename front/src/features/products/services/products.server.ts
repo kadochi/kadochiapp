@@ -1,17 +1,31 @@
 import "server-only";
 
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { ServiceError } from "@/lib/http/errors";
 import { parseUpstreamJson, wordpressFetch } from "@/lib/http/upstream";
-import { categoryQuerySchema, categorySchema, productQuerySchema, upstreamCategoriesSchema, upstreamProductSchemaExport, upstreamProductsSchema } from "../schema/products";
-import type { CategoryQuery, ProductQuery } from "../types";
+import {
+  categoryQuerySchema,
+  categorySchema,
+  productQuerySchema,
+  reviewQuerySchema,
+  upstreamCategoriesSchema,
+  upstreamProductSchemaExport,
+  upstreamProductsSchema,
+  upstreamReviewsSchema,
+} from "../schema/products";
+import type { CategoryQuery, ProductQuery, ReviewQuery, SimilarProductsQuery } from "../types";
 import { mapProduct } from "../utils/map-product";
+import { mapReview } from "../utils/map-review";
 
 function productParams(query: ProductQuery): string {
   const input = productQuerySchema.parse(query);
   const params = new URLSearchParams({ page: String(input.page), per_page: String(input.perPage) });
   if (input.search) params.set("search", input.search);
   if (input.category) params.set("category", String(input.category));
+  if (input.slug) params.set("slug", input.slug);
+  if (input.orderby) params.set("orderby", input.orderby);
+  if (input.exclude?.length) params.set("exclude", input.exclude.join(","));
   return params.toString();
 }
 
@@ -30,10 +44,35 @@ export async function getProductById(id: number) {
 }
 
 export async function getProductBySlug(slug: string) {
-  const products = await listProducts({ search: slug, perPage: 20 });
-  const product = products.find((candidate) => candidate.slug === slug);
-  if (!product) throw new ServiceError({ code: "not_found", status: 404, message: "Product not found.", requestId: randomUUID(), retryable: false });
-  return product;
+  const input = z.string().trim().min(1).max(200).parse(slug);
+  const requestId = randomUUID();
+  const response = await wordpressFetch(
+    `/wp-json/wc/store/v1/products?${productParams({ slug: input, perPage: 5 })}`,
+    { requestId, next: { revalidate: 60, tags: ["products", `product:slug:${input}`] } },
+  );
+  const products = await parseUpstreamJson(response, (v) => upstreamProductsSchema.parse(v), requestId);
+  const match = products.find((candidate) => candidate.slug === input);
+  if (!match) throw new ServiceError({ code: "not_found", status: 404, message: "Product not found.", requestId, retryable: false });
+  return mapProduct(match);
+}
+
+export async function listProductReviews(query: ReviewQuery) {
+  const input = reviewQuerySchema.parse(query);
+  const params = new URLSearchParams({
+    product_id: String(input.productId),
+    page: String(input.page),
+    per_page: String(input.perPage),
+  });
+  const id = randomUUID();
+  const response = await wordpressFetch(`/wp-json/wc/store/v1/products/reviews?${params}`, {
+    requestId: id,
+    next: { revalidate: 120, tags: ["product-reviews", `product:${input.productId}:reviews`] },
+  });
+  return (await parseUpstreamJson(response, (v) => upstreamReviewsSchema.parse(v), id)).map(mapReview);
+}
+
+export async function listSimilarProducts({ categoryId, excludeId, perPage = 8 }: SimilarProductsQuery) {
+  return listProducts({ category: categoryId, exclude: [excludeId], perPage, orderby: "popularity" });
 }
 
 export async function listCategories(query: CategoryQuery = {}) {
