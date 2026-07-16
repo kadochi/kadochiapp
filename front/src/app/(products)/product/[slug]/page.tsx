@@ -10,6 +10,7 @@ import { ProductDescription } from "@/features/products/components/product-descr
 import { ProductGallery } from "@/features/products/components/product-gallery";
 import { ProductInfo } from "@/features/products/components/product-info";
 import { ProductReviews } from "@/features/products/components/product-reviews";
+import { ProductReview } from "@/features/products/components/product-review";
 import { ProductsSliderSkeleton, ProductReviewsSkeleton } from "@/features/products/components/product-detail-skeleton";
 import { ProductSpecs } from "@/features/products/components/product-specs";
 import { SimilarProducts } from "@/features/products/components/similar-products";
@@ -83,6 +84,13 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
       <Suspense fallback={<ProductsSliderSkeleton />}>
         <SimilarProducts categoryId={category?.id} excludeId={product.id} />
       </Suspense>
+
+      <ProductReview
+        averageRating={product.averageRating}
+        nextPath={`/product/${product.slug}`}
+        productId={product.id}
+        reviewCount={product.reviewCount}
+      />
 
       <Suspense fallback={<ProductReviewsSkeleton />}>
         <ProductReviews productId={product.id} />

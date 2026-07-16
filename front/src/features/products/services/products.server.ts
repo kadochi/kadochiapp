@@ -6,6 +6,7 @@ import { ServiceError } from "@/lib/http/errors";
 import { parseUpstreamJson, wordpressFetch } from "@/lib/http/upstream";
 import {
   categoryQuerySchema,
+  createProductReviewInputSchema,
   categorySchema,
   productQuerySchema,
   reviewQuerySchema,
@@ -13,8 +14,10 @@ import {
   upstreamProductSchemaExport,
   upstreamProductsSchema,
   upstreamReviewsSchema,
+  productReviewSubmissionSchema,
 } from "../schema/products";
-import type { CategoryQuery, ProductQuery, ReviewQuery, SimilarProductsQuery } from "../types";
+import { wordpressBearerHeaders } from "@/features/auth/services/auth.server";
+import type { CategoryQuery, CreateProductReviewInput, ProductQuery, ReviewQuery, SimilarProductsQuery } from "../types";
 import { mapProduct } from "../utils/map-product";
 import { mapReview } from "../utils/map-review";
 
@@ -59,20 +62,39 @@ export async function getProductBySlug(slug: string) {
 export async function listProductReviews(query: ReviewQuery) {
   const input = reviewQuerySchema.parse(query);
   const params = new URLSearchParams({
-    product_id: String(input.productId),
+    productId: String(input.productId),
     page: String(input.page),
     per_page: String(input.perPage),
   });
   const id = randomUUID();
-  const response = await wordpressFetch(`/wp-json/wc/store/v1/products/reviews?${params}`, {
+  const response = await wordpressFetch(`/wp-json/kadochi/v1/reviews?${params}`, {
     requestId: id,
     next: { revalidate: 120, tags: ["product-reviews", `product:${input.productId}:reviews`] },
   });
   return (await parseUpstreamJson(response, (v) => upstreamReviewsSchema.parse(v), id)).map(mapReview);
 }
 
+/** Creates a pending review through Kadochi Core using the caller's opaque JWT. */
+export async function createProductReview(input: CreateProductReviewInput, requestId: string) {
+  const review = createProductReviewInputSchema.parse(input);
+  const response = await wordpressFetch("/wp-json/kadochi/v1/reviews", {
+    method: "POST",
+    body: JSON.stringify(review),
+    headers: { "Content-Type": "application/json", ...(await wordpressBearerHeaders()) },
+    cache: "no-store",
+    requestId,
+  });
+  return parseUpstreamJson(response, (value) => productReviewSubmissionSchema.parse(value), requestId);
+}
+
 export async function listSimilarProducts({ categoryId, excludeId, perPage = 8 }: SimilarProductsQuery) {
-  return listProducts({ category: categoryId, exclude: [excludeId], perPage, orderby: "popularity" });
+  const query = { exclude: [excludeId], perPage, orderby: "popularity" as const };
+  if (!categoryId) return listProducts(query);
+
+  const categoryProducts = await listProducts({ ...query, category: categoryId });
+  // A category can be empty or only contain the current product. Keep a useful
+  // related-products rail by falling back to the catalog's popular products.
+  return categoryProducts.length ? categoryProducts : listProducts(query);
 }
 
 export async function listCategories(query: CategoryQuery = {}) {

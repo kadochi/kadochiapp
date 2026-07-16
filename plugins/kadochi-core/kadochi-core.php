@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Kadochi Core
  * Description: Durable headless content contracts and protected occasion records for Kadochi.
- * Version: 0.1.0
+ * Version: 0.1.1
  * Requires at least: 6.6
  * Requires PHP: 7.4
  * Text Domain: kadochi-core
@@ -188,6 +188,10 @@ final class Kadochi_Core {
 			'args' => array( 'phone' => $this->phone_route_arg(), 'code' => $this->code_route_arg() ),
 		) );
 		register_rest_route( self::REST_NAMESPACE, '/customer', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'customer' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
+		register_rest_route( self::REST_NAMESPACE, '/reviews', array(
+			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_reviews' ), 'permission_callback' => '__return_true' ),
+			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'create_review' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+		) );
 		register_rest_route( self::REST_NAMESPACE, '/occasions', array(
 			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_occasions' ), 'permission_callback' => array( $this, 'authenticated' ) ),
 			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'create_occasion' ), 'permission_callback' => array( $this, 'authenticated' ) ),
@@ -541,6 +545,79 @@ final class Kadochi_Core {
 	public function customer() {
 		$user = wp_get_current_user();
 		return rest_ensure_response( array( 'id' => (int) $user->ID, 'email' => sanitize_email( $user->user_email ), 'displayName' => sanitize_text_field( $user->display_name ), 'roles' => array_values( $user->roles ) ) );
+	}
+
+	private function review_product( $product_id ) {
+		if ( ! function_exists( 'wc_get_product' ) ) {
+			return $this->auth_error( 'kadochi_reviews_unavailable', __( 'The reviews service is unavailable.', 'kadochi-core' ), 503 );
+		}
+		$product = wc_get_product( absint( $product_id ) );
+		return $product ? $product : $this->auth_error( 'kadochi_product_not_found', __( 'The product was not found.', 'kadochi-core' ), 404 );
+	}
+
+	private function review_dto( $comment ) {
+		$avatar = esc_url_raw( get_avatar_url( $comment, array( 'size' => 96 ) ) );
+		return array(
+			'id' => (int) $comment->comment_ID,
+			'date_created' => mysql_to_rfc3339( $comment->comment_date_gmt ?: $comment->comment_date ),
+			'product_id' => (int) $comment->comment_post_ID,
+			'reviewer' => sanitize_text_field( $comment->comment_author ) ?: __( 'User', 'kadochi-core' ),
+			'review' => wp_kses_post( $comment->comment_content ),
+			'rating' => (int) get_comment_meta( $comment->comment_ID, 'rating', true ),
+			'verified' => (bool) get_comment_meta( $comment->comment_ID, 'verified', true ),
+			'reviewer_avatar_urls' => $avatar ? array( '96' => $avatar ) : array(),
+		);
+	}
+
+	public function list_reviews( WP_REST_Request $request ) {
+		$product = $this->review_product( $request->get_param( 'productId' ) );
+		if ( is_wp_error( $product ) ) {
+			return $product;
+		}
+		$page = max( 1, min( 100, absint( $request->get_param( 'page' ) ?: 1 ) ) );
+		$per_page = max( 1, min( 50, absint( $request->get_param( 'per_page' ) ?: 10 ) ) );
+		$comments = get_comments( array(
+			'post_id' => $product->get_id(),
+			'type' => 'review',
+			'status' => 'approve',
+			'number' => $per_page,
+			'offset' => ( $page - 1 ) * $per_page,
+			'orderby' => 'comment_date_gmt',
+			'order' => 'DESC',
+		) );
+		return rest_ensure_response( array_map( array( $this, 'review_dto' ), $comments ) );
+	}
+
+	public function create_review( WP_REST_Request $request ) {
+		$product = $this->review_product( $request->get_param( 'productId' ) );
+		if ( is_wp_error( $product ) ) {
+			return $product;
+		}
+		if ( 'yes' !== get_option( 'woocommerce_enable_reviews' ) || ! comments_open( $product->get_id() ) ) {
+			return $this->auth_error( 'kadochi_reviews_closed', __( 'Reviews are not available for this product.', 'kadochi-core' ), 403 );
+		}
+
+		$content = trim( wp_kses_post( (string) $request->get_param( 'content' ) ) );
+		$rating = absint( $request->get_param( 'rating' ) );
+		if ( wp_strlen( wp_strip_all_tags( $content ) ) < 3 || wp_strlen( wp_strip_all_tags( $content ) ) > 1000 || $rating < 1 || $rating > 5 ) {
+			return $this->auth_error( 'kadochi_invalid_review', __( 'The review content or rating is invalid.', 'kadochi-core' ), 400 );
+		}
+
+		$user = wp_get_current_user();
+		$comment_id = wp_insert_comment( array(
+			'comment_post_ID' => $product->get_id(),
+			'comment_author' => sanitize_text_field( $user->display_name ?: $user->user_login ),
+			'comment_author_email' => sanitize_email( $user->user_email ),
+			'comment_content' => $content,
+			'comment_type' => 'review',
+			'comment_approved' => 0,
+			'user_id' => (int) $user->ID,
+		) );
+		if ( ! $comment_id ) {
+			return $this->auth_error( 'kadochi_review_create_failed', __( 'The review could not be submitted.', 'kadochi-core' ), 500 );
+		}
+		update_comment_meta( $comment_id, 'rating', $rating );
+		return rest_ensure_response( array( 'id' => (int) $comment_id, 'status' => 'pending' ) );
 	}
 
 	private function value( $post_id, $name ) {

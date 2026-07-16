@@ -82,7 +82,7 @@ export const categorySchema = z.object({ id: z.number().int().positive(), name: 
 export const reviewQuerySchema = z.object({
   productId: z.coerce.number().int().positive(),
   page: z.coerce.number().int().positive().max(100).default(1),
-  perPage: z.coerce.number().int().positive().max(50).default(10),
+  perPage: z.coerce.number().int().positive().max(50).default(20),
 });
 
 const upstreamReviewSchema = z.object({
@@ -105,4 +105,15 @@ export const productReviewSchema = z.object({
   createdAt: z.string(),
   content: z.string(),
   verified: z.boolean(),
+});
+
+export const createProductReviewInputSchema = z.object({
+  productId: z.coerce.number().int().positive(),
+  rating: z.coerce.number().int().min(1).max(5),
+  content: z.string().trim().min(3).max(1000),
+}).strict();
+
+export const productReviewSubmissionSchema = z.object({
+  id: z.number().int().positive(),
+  status: z.literal("pending"),
 });

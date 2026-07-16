@@ -5,10 +5,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { cva } from "class-variance-authority";
 import { useOptionalAuth } from "@/features/auth/auth-provider";
-import { getCart } from "@/features/cart/services/cart";
+import { cartChangedEvent, getCart } from "@/features/cart/services/cart";
 import { cn } from "@/lib/utils";
 import { SideMenu } from "./side-menu";
 import { Button } from "../ui/button";
@@ -157,11 +157,7 @@ function DefaultHeader({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [basketCount, setBasketCount] = useState(0);
 
-  useEffect(() => {
-    if (controlledBasketCount !== undefined) {
-      return;
-    }
-
+  const refreshBasketCount = useCallback(() => {
     let cancelled = false;
     void getCart()
       .then((cart) => {
@@ -174,7 +170,18 @@ function DefaultHeader({
     return () => {
       cancelled = true;
     };
-  }, [controlledBasketCount]);
+  }, []);
+
+  useEffect(() => {
+    if (controlledBasketCount !== undefined) return;
+    const cancelInitialRequest = refreshBasketCount();
+    const handleCartChange = () => refreshBasketCount();
+    window.addEventListener(cartChangedEvent, handleCartChange);
+    return () => {
+      cancelInitialRequest();
+      window.removeEventListener(cartChangedEvent, handleCartChange);
+    };
+  }, [controlledBasketCount, refreshBasketCount]);
 
   const visibleBasketCount = Math.max(0, controlledBasketCount ?? basketCount);
   const hasItems = visibleBasketCount > 0;

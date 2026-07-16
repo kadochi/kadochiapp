@@ -19,9 +19,9 @@ export function ProductGallery({ images, title }: Readonly<ProductGalleryProps>)
   const { slides, activeThumbs, setThumbsSwiper, showThumbs, hasMultiple } = useProductGallery(images, title);
 
   return (
-    <div className="w-full" dir="rtl">
+    <div className="w-full bg-surface" dir="rtl">
       <Swiper
-        className="w-full [&_.swiper-slide]:grid [&_.swiper-slide]:aspect-square [&_.swiper-slide]:place-items-center [&_.swiper-slide]:bg-surface"
+        className="mx-auto w-full max-w-[400px] [&_.swiper-slide]:grid [&_.swiper-slide]:aspect-square [&_.swiper-slide]:place-items-center"
         modules={[FreeMode, Thumbs]}
         slidesPerView={1}
         spaceBetween={0}
@@ -32,7 +32,7 @@ export function ProductGallery({ images, title }: Readonly<ProductGalleryProps>)
             {slide.src ? (
               <img
                 alt={slide.alt}
-                className="size-full object-cover"
+                className="size-full max-h-[400px] object-cover"
                 decoding={slide.priority ? "sync" : "async"}
                 fetchPriority={slide.priority ? "high" : "auto"}
                 loading={slide.priority ? "eager" : "lazy"}
@@ -45,7 +45,7 @@ export function ProductGallery({ images, title }: Readonly<ProductGalleryProps>)
 
       {showThumbs && hasMultiple ? (
         <Swiper
-          className="mt-12 w-full px-16 [&_.swiper-slide]:size-56 [&_.swiper-slide]:w-auto"
+          className="mx-auto mt-12 w-full max-w-[400px] px-16 [&_.swiper-slide]:size-56 [&_.swiper-slide]:w-auto"
           freeMode
           modules={[FreeMode, Thumbs]}
           onSwiper={setThumbsSwiper}
