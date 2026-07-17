@@ -7,7 +7,6 @@ export type UseProductGalleryResult = {
   activeThumbs: SwiperClass | null;
   setThumbsSwiper: (swiper: SwiperClass | null) => void;
   showThumbs: boolean;
-  hasMultiple: boolean;
 };
 
 /** Prepares gallery slides and defers the thumbnail strip to idle time. */
@@ -37,6 +36,5 @@ export function useProductGallery(images: readonly ProductImage[], title: string
     activeThumbs: thumbsSwiper && !thumbsSwiper.destroyed ? thumbsSwiper : null,
     setThumbsSwiper,
     showThumbs,
-    hasMultiple: slides.length > 1,
   };
 }

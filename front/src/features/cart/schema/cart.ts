@@ -129,8 +129,10 @@ export const upstreamCartSchema = z.object({
     total_fees_tax: z.string().regex(/^\d+$/),
     total_discount: z.string().regex(/^\d+$/),
     total_discount_tax: z.string().regex(/^\d+$/),
-    total_shipping: z.string().regex(/^\d+$/),
-    total_shipping_tax: z.string().regex(/^\d+$/),
+    // WooCommerce returns null rather than "0" before it has calculated
+    // shipping (for example, for a new empty cart).
+    total_shipping: z.string().regex(/^\d+$/).nullable(),
+    total_shipping_tax: z.string().regex(/^\d+$/).nullable(),
     total_tax: z.string().regex(/^\d+$/),
     total_price: z.string().regex(/^\d+$/),
     currency_code: z.string().length(3),
