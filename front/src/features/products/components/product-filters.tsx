@@ -1,6 +1,11 @@
 "use client";
 
-import { useMemo, useState, type ComponentPropsWithoutRef } from "react";
+import {
+  useMemo,
+  useState,
+  type ComponentPropsWithoutRef,
+  type ReactNode,
+} from "react";
 import Image from "next/image";
 import {
   ArrowUpDown,
@@ -8,7 +13,7 @@ import {
   CalendarDays,
   Filter,
   Grid2X2,
-  RotateCcw,
+  Trash2,
   Truck,
 } from "lucide-react";
 
@@ -117,6 +122,40 @@ function ChipButton({ children, className, ...props }: ComponentPropsWithoutRef<
   );
 }
 
+type RemovableFilterChipProps = {
+  children: ReactNode;
+  leadingIcon: ReactNode;
+  onClick: () => void;
+  onRemove: () => void;
+  removeLabel: string;
+};
+
+function RemovableFilterChip({
+  children,
+  leadingIcon,
+  onClick,
+  onRemove,
+  removeLabel,
+}: Readonly<RemovableFilterChipProps>) {
+  return (
+    <Chip onRemove={onRemove} removeLabel={removeLabel} variant="selected">
+      <button
+        className="inline-flex cursor-pointer items-center gap-6 border-0 bg-transparent p-0 font-inherit text-inherit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 focus-visible:ring-offset-2"
+        onClick={onClick}
+        type="button"
+      >
+        <span
+          aria-hidden="true"
+          className="inline-flex size-[var(--chip-icon-size)] shrink-0 items-center justify-center [&>svg]:size-full"
+        >
+          {leadingIcon}
+        </span>
+        <span>{children}</span>
+      </button>
+    </Chip>
+  );
+}
+
 type ProductFiltersProps = { categories: readonly CategoryOption[] };
 
 /** The one PLP interaction boundary: URL-driven chips plus a consolidated filter sheet. */
@@ -146,31 +185,78 @@ export function ProductFilters({ categories }: Readonly<ProductFiltersProps>) {
               فیلترها
             </Chip>
           </ChipButton>
-          <ChipButton onClick={() => setIsOpen(true)}>
-            <Chip leadingIcon={<ArrowUpDown />} trailingIcon={<span className="text-label-12">⌄</span>} variant="selected">
+          {sort !== "latest" ? (
+            <RemovableFilterChip
+              leadingIcon={<ArrowUpDown />}
+              onClick={() => setIsOpen(true)}
+              onRemove={() => replaceFilters({ orderby: null, order: null })}
+              removeLabel="حذف مرتب‌سازی"
+            >
               {sortItems.find((item) => item.value === sort)?.label}
-            </Chip>
-          </ChipButton>
-          <ChipButton onClick={() => setIsOpen(true)}>
-            <Chip leadingIcon={<Grid2X2 />} variant={category ? "selected" : "outline"}>
+            </RemovableFilterChip>
+          ) : (
+            <ChipButton onClick={() => setIsOpen(true)}>
+              <Chip leadingIcon={<ArrowUpDown />} selectable variant="selected">
+                {sortItems.find((item) => item.value === sort)?.label}
+              </Chip>
+            </ChipButton>
+          )}
+          {category ? (
+            <RemovableFilterChip
+              leadingIcon={<Grid2X2 />}
+              onClick={() => setIsOpen(true)}
+              onRemove={() => replaceFilters({ category: null })}
+              removeLabel="حذف فیلتر دسته‌بندی"
+            >
               {categoryLabel}
-            </Chip>
-          </ChipButton>
-          <ChipButton onClick={() => setIsOpen(true)}>
-            <Chip leadingIcon={<CalendarDays />} variant={tags.some((tag) => occasionTags.has(tag)) ? "selected" : "outline"}>
+            </RemovableFilterChip>
+          ) : (
+            <ChipButton onClick={() => setIsOpen(true)}>
+              <Chip leadingIcon={<Grid2X2 />} variant="outline">دسته‌بندی</Chip>
+            </ChipButton>
+          )}
+          {tags.some((tag) => occasionTags.has(tag)) ? (
+            <RemovableFilterChip
+              leadingIcon={<CalendarDays />}
+              onClick={() => setIsOpen(true)}
+              onRemove={() => replaceFilters({ tag: joinTags(tags.filter((tag) => !occasionTags.has(tag))) || null })}
+              removeLabel="حذف فیلتر مناسبت"
+            >
               {occasionLabel(tags)}
-            </Chip>
-          </ChipButton>
-          <ChipButton onClick={() => setIsOpen(true)}>
-            <Chip leadingIcon={<BadgePercent />} variant={minPrice || maxPrice ? "selected" : "outline"}>
+            </RemovableFilterChip>
+          ) : (
+            <ChipButton onClick={() => setIsOpen(true)}>
+              <Chip leadingIcon={<CalendarDays />} variant="outline">مناسبت</Chip>
+            </ChipButton>
+          )}
+          {minPrice || maxPrice ? (
+            <RemovableFilterChip
+              leadingIcon={<BadgePercent />}
+              onClick={() => setIsOpen(true)}
+              onRemove={() => replaceFilters({ min_price: null, max_price: null })}
+              removeLabel="حذف فیلتر بازه قیمت"
+            >
               {priceLabel(minPrice, maxPrice)}
-            </Chip>
-          </ChipButton>
-          <ChipButton onClick={toggleFastDelivery}>
-            <Chip leadingIcon={<Truck />} variant={fastDelivery ? "selected" : "outline"}>
+            </RemovableFilterChip>
+          ) : (
+            <ChipButton onClick={() => setIsOpen(true)}>
+              <Chip leadingIcon={<BadgePercent />} variant="outline">بازه قیمت</Chip>
+            </ChipButton>
+          )}
+          {fastDelivery ? (
+            <RemovableFilterChip
+              leadingIcon={<Truck />}
+              onClick={toggleFastDelivery}
+              onRemove={toggleFastDelivery}
+              removeLabel="حذف فیلتر ارسال سریع امروز"
+            >
               ارسال سریع امروز
-            </Chip>
-          </ChipButton>
+            </RemovableFilterChip>
+          ) : (
+            <ChipButton onClick={toggleFastDelivery}>
+              <Chip leadingIcon={<Truck />} variant="outline">ارسال سریع امروز</Chip>
+            </ChipButton>
+          )}
         </div>
       </nav>
 
@@ -236,14 +322,9 @@ function FiltersSheet({ categories, onClose, onClear, onApply, values }: Readonl
 
   return (
     <BottomSheet open onOpenChange={(open) => !open && onClose()}>
-      <BottomSheetContent aria-describedby={undefined} size="lg">
-        <BottomSheetHeader className="flex-row items-center justify-between">
+      <BottomSheetContent aria-describedby={undefined} size="md">
+        <BottomSheetHeader className="sticky top-0 z-10 flex-row items-center justify-between border-b border-border-low-emphasis bg-surface-background py-16">
           <BottomSheetTitle className="text-title-18 font-bold text-text-primary">فیلترها</BottomSheetTitle>
-          {activeCount ? (
-            <Button onClick={onClear} size="small" variant="link-ghost">
-              <RotateCcw aria-hidden /> حذف همه
-            </Button>
-          ) : null}
         </BottomSheetHeader>
 
         <div className="grid gap-24 px-20 pb-24 [direction:rtl]">
@@ -257,10 +338,10 @@ function FiltersSheet({ categories, onClose, onClear, onApply, values }: Readonl
           <section aria-labelledby="category-heading">
             <h3 id="category-heading" className="mb-12 text-title-16 font-bold text-text-primary">دسته‌بندی</h3>
             <div className="flex flex-wrap gap-8">
-              <ChipButton onClick={() => setCategory("")}><Chip variant={category ? "outline" : "selected"}>همه دسته‌بندی‌ها</Chip></ChipButton>
+              <ChipButton onClick={() => setCategory("")}><Chip size="sm" variant={category ? "outline" : "selected"}>همه دسته‌بندی‌ها</Chip></ChipButton>
               {categories.map((item) => (
                 <ChipButton key={item.id} onClick={() => setCategory(String(item.id))}>
-                  <Chip variant={category === String(item.id) ? "selected" : "outline"}>{item.name}</Chip>
+                  <Chip size="sm" variant={category === String(item.id) ? "selected" : "outline"}>{item.name}</Chip>
                 </ChipButton>
               ))}
             </div>
@@ -290,7 +371,7 @@ function FiltersSheet({ categories, onClose, onClear, onApply, values }: Readonl
                     key={item.key}
                     aria-pressed={selected}
                     className={cn(
-                      "grid min-h-112 place-items-center gap-6 rounded-m border p-8 text-center text-label-12 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary",
+                      "flex flex-col items-center justify-center gap-6 rounded-m border p-8 text-center text-label-12 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary",
                       selected ? "border-secondary bg-secondary-container text-on-secondary-container" : "border-border-low-emphasis bg-surface-background text-text-primary hover:bg-surface",
                     )}
                     onClick={() => setOccasion(item.key)}
@@ -315,8 +396,20 @@ function FiltersSheet({ categories, onClose, onClear, onApply, values }: Readonl
           </section>
         </div>
 
-        <div className="sticky bottom-0 border-t border-border-low-emphasis bg-surface-background p-16">
-          <Button className="w-full" loading={false} onClick={apply} size="large" variant="secondary-filled">
+        <div className="sticky bottom-0 flex items-center gap-12 border-t border-border-low-emphasis bg-surface-background p-16">
+          {activeCount ? (
+            <Button
+              aria-label="حذف همه فیلترها"
+              className="size-56 shrink-0 px-0"
+              onClick={onClear}
+              size="large"
+              title="حذف همه فیلترها"
+              variant="tertiary-outline"
+            >
+              <Trash2 aria-hidden />
+            </Button>
+          ) : null}
+          <Button className="flex-1" loading={false} onClick={apply} size="large" variant="secondary-filled">
             {activeCount ? `اعمال فیلترها (${activeCount})` : "نمایش محصولات"}
           </Button>
         </div>

@@ -31,7 +31,7 @@ export function ProductCard({
       )}
       href={href ?? `/product/${product.slug}`}
     >
-      <div className="relative grid aspect-[1/1.2] w-full place-items-center overflow-hidden rounded-l bg-surface">
+      <div className="relative grid aspect-[1/1.2] w-full place-items-center overflow-hidden rounded-[var(--radius-l)] bg-surface">
         {image ? (
           <img
             alt={image.alt || product.name}

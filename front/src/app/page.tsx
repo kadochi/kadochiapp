@@ -1043,7 +1043,7 @@ export default function HomePage() {
               چیپ
             </h2>
             <p className="text-label-12 text-surface-neutral-low-emphasis">
-              ۲ نوع · ۲ اندازه · حالت‌های غیرفعال، متادیتا، قابل حذف و پیوند
+              ۲ نوع · ۲ اندازه · حالت‌های غیرفعال، متادیتا، انتخابی، قابل حذف و پیوند
             </p>
           </div>
 
@@ -1090,6 +1090,7 @@ export default function HomePage() {
 
           <div className="mt-4 flex flex-wrap items-center gap-12 rounded-m border border-border-low-emphasis bg-surface-background px-5 py-4">
             <Chip trailingIcon={<ExternalLink />}>آیکون انتهایی</Chip>
+            <Chip selectable>انتخاب گزینه</Chip>
             <RemovableChip size="md" />
             <Chip asChild leadingIcon={<ExternalLink />} variant="selected">
               <a href="#chip-heading">نمونهٔ پیوند</a>

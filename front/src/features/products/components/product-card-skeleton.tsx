@@ -11,7 +11,7 @@ function shimmer(className: string) {
 export function ProductCardSkeleton() {
   return (
     <div aria-hidden className="w-full [direction:rtl]">
-      <div className={shimmer("aspect-[1/1.2] w-full rounded-l")} />
+      <div className={shimmer("aspect-[1/1.2] w-full rounded-[var(--radius-l)]")} />
 
       <div className="pt-8 pb-16 px-16 text-center">
         <div className={shimmer("mx-auto mt-8 h-[var(--text-label-14--line-height)] w-[58%] rounded-rounded")} />

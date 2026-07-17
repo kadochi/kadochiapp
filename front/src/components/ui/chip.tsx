@@ -8,7 +8,7 @@ import {
 } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
-import { X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 
 const chipVariants = cva(
   [
@@ -57,6 +57,8 @@ type ChipOwnProps = VariantProps<typeof chipVariants> & {
   badge?: ReactNode;
   /** Decorative content displayed at the end of the chip. */
   trailingIcon?: ReactNode;
+  /** Displays a down-chevron to indicate that the chip opens a selection. */
+  selectable?: boolean;
   /** Enables the accessible remove control. */
   onRemove?: MouseEventHandler<HTMLButtonElement>;
   /** Accessible name for the remove control. */
@@ -76,6 +78,7 @@ function Chip({
   leadingIcon,
   badge,
   trailingIcon,
+  selectable = false,
   onRemove,
   removeLabel = "Remove",
   className,
@@ -100,7 +103,7 @@ function Chip({
   ) : null;
 
   const badgeElement = badge ? (
-    <span className="inline-flex min-w-20 items-center justify-center rounded-rounded bg-secondary px-4 py-2 text-label-10 leading-none text-on-secondary">
+    <span className="inline-flex h-20 min-w-20 items-center justify-center rounded-rounded bg-secondary px-4 text-label-10 leading-none text-on-secondary">
       {badge}
     </span>
   ) : null;
@@ -111,6 +114,15 @@ function Chip({
       className="inline-flex size-[var(--chip-icon-size)] shrink-0 items-center justify-center [&>svg]:size-full"
     >
       {trailingIcon}
+    </span>
+  ) : null;
+
+  const selectionIndicator = selectable ? (
+    <span
+      aria-hidden="true"
+      className="inline-flex size-[var(--chip-icon-size)] shrink-0 items-center justify-center [&>svg]:size-full"
+    >
+      <ChevronDown />
     </span>
   ) : null;
 
@@ -143,6 +155,7 @@ function Chip({
         <Slot.Slottable>{children}</Slot.Slottable>
         {badgeElement}
         {trailing}
+        {selectionIndicator}
       </Slot.Root>
     );
   }
@@ -155,9 +168,10 @@ function Chip({
       data-disabled={isDisabled || undefined}
     >
       {leading}
-      <span>{children}</span>
+      <span className="inline-flex items-center">{children}</span>
       {badgeElement}
       {trailing}
+      {selectionIndicator}
       {remove}
     </span>
   );
