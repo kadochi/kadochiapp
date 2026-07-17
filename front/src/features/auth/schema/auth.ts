@@ -34,8 +34,11 @@ export const customerSchema = z.object({
   id: z.number().int().positive(),
   email: z.string().email(),
   displayName: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  phone: iranianPhoneSchema,
   roles: z.array(z.string()),
-});
+}).strict();
 
 /** The JWT is deliberately never returned by a BFF route. */
 export const wordpressOtpVerifyResponseSchema = z.object({

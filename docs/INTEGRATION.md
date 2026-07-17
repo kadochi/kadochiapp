@@ -18,7 +18,7 @@ The selected retention behavior in this implementation is WordPress trash (not p
 3. Snapshot representative records before activation. Existing post-type registrations are adopted rather than re-registered; the plugin only registers missing types. Existing `occasion` registrations are force-hardened: no public/query/search/rewrite/default REST access remains.
 4. Confirm the normalized public route at `GET /wp-json/kadochi/v1/content/home`. Keep existing editorial REST routes during the compatibility audit; do not disable them until their consumers have migrated.
 5. Set `WP_ENVIRONMENT_TYPE=production` and `MELIPAYAMAK_OTP_URL` before production testing. Kadochi Core owns OTP verification and bearer JWT authentication; the BFF keeps the opaque token in an HttpOnly cookie and forwards it only to protected WordPress routes.
-6. Verify gateway, shipping, tax, guest/customer, duplicate-payment, and timeout reconciliation behavior. Only then set `KADOCHI_CHECKOUT_ENABLED=true`.
+6. Set `KADOCHI_PAYMENT_METHOD_ID=zarinpal` (or the deployed gateway's exact Woo ID) and `KADOCHI_FRONTEND_URL` to the public Next.js origin. Verify gateway, shipping, tax, bearer-associated customer orders, additional-field persistence, duplicate-payment, and timeout reconciliation behavior. Only then set `KADOCHI_CHECKOUT_ENABLED=true`.
 
 ## Rollback
 
@@ -29,5 +29,6 @@ Deactivate Kadochi Core to remove its custom REST routes and registrations, then
 - `GET /wp-json/kadochi/v1/content/home`: normalized editorial DTO, public, cacheable.
 - `POST /wp-json/kadochi/v1/auth/otp/start` and `POST /wp-json/kadochi/v1/auth/otp/verify`: WordPress-owned OTP challenge and JWT issuance. The verification response is consumed only by the BFF.
 - `GET /wp-json/kadochi/v1/customer`: current customer only, authenticated.
+- `GET /wp-json/kadochi/v1/orders/{id}` and `GET /wp-json/kadochi/v1/checkout/operations/{uuid}`: authenticated, owner-only safe order summaries used for payment return and timeout reconciliation. An order owned by another customer is indistinguishable from missing.
 - `GET|POST /wp-json/kadochi/v1/occasions` and `GET|PATCH|DELETE /wp-json/kadochi/v1/occasions/{id}`: authenticated owner-only records; no owner input is accepted or serialized.
-- Browser cart/checkout/customer/occasion traffic uses explicit `/api/...` Next.js handlers. Cart tokens are held only in `kadochi_cart_token`, an HttpOnly same-site cookie.
+- Browser cart/checkout/customer/occasion traffic uses explicit `/api/...` Next.js handlers. Cart tokens are held only in `kadochi_cart_token`, an HttpOnly same-site cookie. Checkout forwards that token and the opaque bearer token, persists delivery/packaging/postcard/operation additional fields, then lets Woo's configured Zarinpal gateway handle payment and verification. Kadochi Core rewrites the verified gateway return destination to `/checkout/return?order=…`; it does not implement a payment callback.

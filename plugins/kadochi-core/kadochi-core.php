@@ -18,6 +18,10 @@ final class Kadochi_Core {
 	const OTP_MAX_ATTEMPTS = 5;
 	const OTP_SEND_LIMIT_PER_HOUR = 3;
 	const JWT_TTL_SECONDS = 604800;
+	const CHECKOUT_FIELD_DELIVERY_SLOT = 'kadochi/delivery-slot';
+	const CHECKOUT_FIELD_PACKAGING = 'kadochi/packaging';
+	const CHECKOUT_FIELD_POSTCARD = 'kadochi/postcard';
+	const CHECKOUT_FIELD_OPERATION = 'kadochi/operation-id';
 
 	/** @var array<string, string> */
 	private $health = array();
@@ -32,6 +36,11 @@ final class Kadochi_Core {
 		add_filter( 'rest_endpoints', array( $this, 'remove_default_occasion_routes' ) );
 		add_filter( 'determine_current_user', array( $this, 'determine_current_user' ), 30 );
 		add_filter( 'rest_authentication_errors', array( $this, 'rest_authentication_errors' ), 30 );
+		add_action( 'woocommerce_init', array( $this, 'register_checkout_fields' ) );
+		add_action( 'woocommerce_blocks_loaded', array( $this, 'register_store_api_data' ) );
+		add_action( 'woocommerce_validate_additional_field', array( $this, 'validate_checkout_field' ), 10, 3 );
+		add_action( 'woocommerce_store_api_checkout_update_order_from_request', array( $this, 'validate_store_checkout_order' ), 10, 2 );
+		add_filter( 'woocommerce_get_return_url', array( $this, 'checkout_return_url' ), 20, 2 );
 		add_action( 'admin_notices', array( $this, 'render_admin_notices' ) );
 	}
 
@@ -188,6 +197,8 @@ final class Kadochi_Core {
 			'args' => array( 'phone' => $this->phone_route_arg(), 'code' => $this->code_route_arg() ),
 		) );
 		register_rest_route( self::REST_NAMESPACE, '/customer', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'customer' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
+		register_rest_route( self::REST_NAMESPACE, '/orders/(?P<id>\\d+)', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'order_summary' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
+		register_rest_route( self::REST_NAMESPACE, '/checkout/operations/(?P<operation>[a-f0-9-]{36})', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'operation_summary' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
 		register_rest_route( self::REST_NAMESPACE, '/reviews', array(
 			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_reviews' ), 'permission_callback' => '__return_true' ),
 			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'create_review' ), 'permission_callback' => array( $this, 'authenticated' ) ),
@@ -428,7 +439,28 @@ final class Kadochi_Core {
 		if ( ! $user ) {
 			return null;
 		}
-		return array( 'id' => (int) $user->ID, 'email' => sanitize_email( $user->user_email ), 'displayName' => sanitize_text_field( $user->display_name ?: $user->user_login ), 'roles' => array_values( $user->roles ) );
+		$first_name = sanitize_text_field( get_user_meta( $user->ID, 'first_name', true ) ?: get_user_meta( $user->ID, 'billing_first_name', true ) );
+		$last_name = sanitize_text_field( get_user_meta( $user->ID, 'last_name', true ) ?: get_user_meta( $user->ID, 'billing_last_name', true ) );
+		$phone = $this->canonical_phone( get_user_meta( $user->ID, 'kadochi_phone', true ) ) ?: $this->canonical_phone( get_user_meta( $user->ID, 'billing_phone', true ) );
+		if ( ! $phone ) {
+			return null;
+		}
+		$display_name = sanitize_text_field( $user->display_name );
+		if ( '' === $display_name ) {
+			$display_name = trim( $first_name . ' ' . $last_name );
+		}
+		if ( '' === $display_name ) {
+			$display_name = sanitize_text_field( $user->user_login );
+		}
+		return array(
+			'id' => (int) $user->ID,
+			'email' => sanitize_email( $user->user_email ),
+			'displayName' => $display_name,
+			'firstName' => $first_name,
+			'lastName' => $last_name,
+			'phone' => $phone,
+			'roles' => array_values( $user->roles ),
+		);
 	}
 
 	private function base64url_encode( $value ) {
@@ -543,8 +575,253 @@ final class Kadochi_Core {
 	}
 
 	public function customer() {
-		$user = wp_get_current_user();
-		return rest_ensure_response( array( 'id' => (int) $user->ID, 'email' => sanitize_email( $user->user_email ), 'displayName' => sanitize_text_field( $user->display_name ), 'roles' => array_values( $user->roles ) ) );
+		$customer = $this->customer_dto( get_current_user_id() );
+		return $customer ? rest_ensure_response( $customer ) : $this->auth_error( 'kadochi_customer_unavailable', __( 'The customer service is unavailable.', 'kadochi-core' ), 503 );
+	}
+
+	private function checkout_enabled() {
+		return 'true' === getenv( 'KADOCHI_CHECKOUT_ENABLED' );
+	}
+
+	private function payment_method_id() {
+		$value = getenv( 'KADOCHI_PAYMENT_METHOD_ID' );
+		return is_string( $value ) && '' !== trim( $value ) ? sanitize_key( $value ) : 'zarinpal';
+	}
+
+	/** Registers Store API-persisted values; the headless BFF writes these before payment. */
+	public function register_checkout_fields() {
+		if ( ! function_exists( 'woocommerce_register_additional_checkout_field' ) ) {
+			$this->health['checkout_fields'] = __( 'WooCommerce Additional Checkout Fields is required for Kadochi checkout.', 'kadochi-core' );
+			return;
+		}
+		$fields = array(
+			array( 'id' => self::CHECKOUT_FIELD_DELIVERY_SLOT, 'label' => __( 'Delivery slot', 'kadochi-core' ), 'location' => 'order', 'required' => true, 'sanitize_callback' => 'sanitize_text_field' ),
+			array( 'id' => self::CHECKOUT_FIELD_PACKAGING, 'label' => __( 'Packaging', 'kadochi-core' ), 'location' => 'order', 'required' => true, 'type' => 'select', 'options' => array( array( 'value' => 'gift', 'label' => __( 'Gift packaging', 'kadochi-core' ) ), array( 'value' => 'normal', 'label' => __( 'Normal packaging', 'kadochi-core' ) ) ) ),
+			array( 'id' => self::CHECKOUT_FIELD_POSTCARD, 'label' => __( 'Postcard message', 'kadochi-core' ), 'optionalLabel' => __( 'Postcard message', 'kadochi-core' ), 'location' => 'order', 'required' => false, 'sanitize_callback' => 'sanitize_textarea_field' ),
+			array( 'id' => self::CHECKOUT_FIELD_OPERATION, 'label' => __( 'Kadochi checkout operation', 'kadochi-core' ), 'location' => 'order', 'required' => true, 'sanitize_callback' => 'sanitize_text_field' ),
+		);
+		foreach ( $fields as $field ) {
+			woocommerce_register_additional_checkout_field( $field );
+		}
+	}
+
+	/** Exposes only server-derived eligibility in each Store API cart item's extension data. */
+	public function register_store_api_data() {
+		if ( ! function_exists( 'woocommerce_store_api_register_endpoint_data' ) || ! class_exists( '\\Automattic\\WooCommerce\\StoreApi\\Schemas\\V1\\CartItemSchema' ) ) {
+			return;
+		}
+		woocommerce_store_api_register_endpoint_data( array(
+			'endpoint' => \Automattic\WooCommerce\StoreApi\Schemas\V1\CartItemSchema::IDENTIFIER,
+			'namespace' => 'kadochi',
+			'data_callback' => array( $this, 'cart_item_extension_data' ),
+			'schema_callback' => array( $this, 'cart_item_extension_schema' ),
+			'schema_type' => ARRAY_A,
+		) );
+	}
+
+	public function cart_item_extension_data( $cart_item ) {
+		return array( 'fastDelivery' => $this->cart_item_fast_delivery( $cart_item ) );
+	}
+
+	public function cart_item_extension_schema() {
+		return array(
+			'fastDelivery' => array(
+				'description' => __( 'Whether the cart item is eligible for Kadochi same-day delivery.', 'kadochi-core' ),
+				'type' => 'boolean',
+				'readonly' => true,
+			),
+		);
+	}
+
+	private function fast_delivery_product( $product ) {
+		if ( ! is_object( $product ) || ! method_exists( $product, 'get_id' ) ) {
+			return false;
+		}
+		$product_id = method_exists( $product, 'get_parent_id' ) && $product->get_parent_id() ? $product->get_parent_id() : $product->get_id();
+		// `fast-delivery` is canonical. The remaining values preserve legacy catalogue tags.
+		$aliases = array( 'fast-delivery', 'fast_delivery', 'fastdelivery', 'same-day-delivery', 'same_day_delivery', 'express-delivery', 'express_delivery', 'express' );
+		return has_term( $aliases, 'product_tag', $product_id );
+	}
+
+	private function cart_item_fast_delivery( $cart_item ) {
+		return is_array( $cart_item ) && isset( $cart_item['data'] ) && $this->fast_delivery_product( $cart_item['data'] );
+	}
+
+	private function cart_fast_delivery() {
+		if ( ! function_exists( 'WC' ) || ! WC()->cart ) {
+			return false;
+		}
+		$items = WC()->cart->get_cart();
+		if ( empty( $items ) ) {
+			return false;
+		}
+		foreach ( $items as $item ) {
+			if ( ! $this->cart_item_fast_delivery( $item ) ) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** The exact slots are recomputed for every Store API validation in Tehran time. */
+	private function delivery_slots() {
+		$timezone = new DateTimeZone( 'Asia/Tehran' );
+		$now = new DateTimeImmutable( 'now', $timezone );
+		$today = $now->setTime( 0, 0, 0 );
+		$fast_delivery = $this->cart_fast_delivery();
+		$day = $fast_delivery ? $today : $today->modify( '+1 day' );
+		$windows = array( array( 10, 13 ), array( 13, 16 ), array( 16, 19 ) );
+		$slots = array();
+		while ( count( $slots ) < 9 ) {
+			if ( '5' !== $day->format( 'N' ) ) { // Friday.
+				$is_today = $day->format( 'Y-m-d' ) === $today->format( 'Y-m-d' );
+				foreach ( $windows as $window ) {
+					if ( count( $slots ) >= 9 ) {
+						break;
+					}
+					// Do not advertise a slot once its delivery window has started.
+					if ( $is_today && $window[0] <= (int) $now->format( 'G' ) ) {
+						continue;
+					}
+					$date = $day->format( 'Y-m-d' );
+					$slots[] = array( 'id' => $date . '-' . $window[0], 'date' => $date, 'startHour' => $window[0], 'endHour' => $window[1], 'label' => $date . '، ' . $window[0] . ' تا ' . $window[1] );
+				}
+			}
+			$day = $day->modify( '+1 day' );
+		}
+		return $slots;
+	}
+
+	private function valid_delivery_slot( $value ) {
+		if ( ! is_string( $value ) || ! preg_match( '/^\\d{4}-\\d{2}-\\d{2}-(10|13|16)$/', $value ) ) {
+			return false;
+		}
+		foreach ( $this->delivery_slots() as $slot ) {
+			if ( hash_equals( $slot['id'], $value ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public function validate_checkout_field( WP_Error $errors, $field_key, $field_value ) {
+		if ( self::CHECKOUT_FIELD_DELIVERY_SLOT === $field_key && ! $this->valid_delivery_slot( $field_value ) ) {
+			$errors->add( 'kadochi_invalid_delivery_slot', __( 'The selected delivery slot is no longer available.', 'kadochi-core' ) );
+		}
+		if ( self::CHECKOUT_FIELD_PACKAGING === $field_key && ! in_array( $field_value, array( 'gift', 'normal' ), true ) ) {
+			$errors->add( 'kadochi_invalid_packaging', __( 'Choose a valid packaging option.', 'kadochi-core' ) );
+		}
+		if ( self::CHECKOUT_FIELD_POSTCARD === $field_key && ( ! is_string( $field_value ) || wp_strlen( $field_value ) > 500 ) ) {
+			$errors->add( 'kadochi_invalid_postcard', __( 'The postcard message is too long.', 'kadochi-core' ) );
+		}
+		if ( self::CHECKOUT_FIELD_OPERATION === $field_key && ( ! is_string( $field_value ) || ! preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i', $field_value ) ) ) {
+			$errors->add( 'kadochi_invalid_operation', __( 'The checkout operation is invalid.', 'kadochi-core' ) );
+		}
+	}
+
+	private function checkout_operation_meta_key() {
+		return '_wc_other/' . self::CHECKOUT_FIELD_OPERATION;
+	}
+
+	/** Stops a duplicate Store API POST for a recorded operation before a second gateway request is made. */
+	public function validate_store_checkout_order( $order, WP_REST_Request $request ) {
+		// PUT stores the draft fields; only POST may start a gateway payment or acquire a lock.
+		if ( 'POST' !== $request->get_method() ) {
+			return;
+		}
+		if ( ! $this->checkout_enabled() ) {
+			throw new Exception( __( 'Kadochi checkout is disabled.', 'kadochi-core' ) );
+		}
+		$method = sanitize_key( (string) $request->get_param( 'payment_method' ) );
+		if ( $this->payment_method_id() !== $method ) {
+			throw new Exception( __( 'The selected payment method is unavailable.', 'kadochi-core' ) );
+		}
+		if ( ! is_object( $order ) || ! method_exists( $order, 'get_meta' ) ) {
+			return;
+		}
+		$delivery_slot = (string) $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_DELIVERY_SLOT, true );
+		if ( ! $this->valid_delivery_slot( $delivery_slot ) ) {
+			throw new Exception( __( 'The selected delivery slot is no longer available.', 'kadochi-core' ) );
+		}
+		$packaging = (string) $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_PACKAGING, true );
+		if ( ! in_array( $packaging, array( 'gift', 'normal' ), true ) ) {
+			throw new Exception( __( 'Choose a valid packaging option.', 'kadochi-core' ) );
+		}
+		$operation = (string) $order->get_meta( $this->checkout_operation_meta_key(), true );
+		if ( ! preg_match( '/^[a-f0-9-]{36}$/i', $operation ) ) {
+			throw new Exception( __( 'The checkout operation was not recorded.', 'kadochi-core' ) );
+		}
+		$lock_key = 'kadochi_checkout_operation_' . hash( 'sha256', $operation );
+		if ( ! add_option( $lock_key, array( 'order' => method_exists( $order, 'get_id' ) ? $order->get_id() : 0, 'createdAt' => time() ), '', 'no' ) ) {
+			throw new Exception( __( 'This checkout is already being processed.', 'kadochi-core' ) );
+		}
+		$order->update_meta_data( '_kadochi_checkout_operation', $operation );
+	}
+
+	public function checkout_return_url( $url, $order ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'get_payment_method' ) || $this->payment_method_id() !== $order->get_payment_method() ) {
+			return $url;
+		}
+		$frontend = getenv( 'KADOCHI_FRONTEND_URL' );
+		$frontend = is_string( $frontend ) ? esc_url_raw( trim( $frontend ) ) : '';
+		if ( ! $frontend || ! wp_http_validate_url( $frontend ) ) {
+			return $url;
+		}
+		return add_query_arg( 'order', absint( $order->get_id() ), trailingslashit( $frontend ) . 'checkout/return' );
+	}
+
+	private function order_money( $order ) {
+		$minor_unit = function_exists( 'wc_get_price_decimals' ) ? max( 0, (int) wc_get_price_decimals() ) : 0;
+		$total = function_exists( 'wc_format_decimal' ) ? wc_format_decimal( $order->get_total(), $minor_unit ) : (string) $order->get_total();
+		$parts = explode( '.', (string) $total, 2 );
+		$integer = preg_replace( '/\\D/', '', $parts[0] );
+		$fraction = isset( $parts[1] ) ? preg_replace( '/\\D/', '', $parts[1] ) : '';
+		$amount = ltrim( ( $integer ?: '0' ) . str_pad( substr( $fraction, 0, $minor_unit ), $minor_unit, '0' ), '0' );
+		return array( 'amount' => '' === $amount ? '0' : $amount, 'currencyCode' => sanitize_text_field( $order->get_currency() ), 'minorUnit' => $minor_unit );
+	}
+
+	private function owned_order( $order_id ) {
+		if ( ! function_exists( 'wc_get_order' ) ) {
+			return $this->auth_error( 'kadochi_orders_unavailable', __( 'The order service is unavailable.', 'kadochi-core' ), 503 );
+		}
+		$order = wc_get_order( absint( $order_id ) );
+		if ( ! $order || (int) $order->get_customer_id() !== get_current_user_id() ) {
+			return $this->auth_error( 'kadochi_order_not_found', __( 'Order not found.', 'kadochi-core' ), 404 );
+		}
+		return $order;
+	}
+
+	private function order_summary_dto( $order ) {
+		$created = $order->get_date_created();
+		return array(
+			'id' => (int) $order->get_id(),
+			'paid' => (bool) $order->is_paid(),
+			'status' => sanitize_key( $order->get_status() ),
+			'createdAt' => $created ? $created->date( 'c' ) : gmdate( 'c' ),
+			'total' => $this->order_money( $order ),
+			'recipient' => array( 'firstName' => sanitize_text_field( $order->get_shipping_first_name() ), 'lastName' => sanitize_text_field( $order->get_shipping_last_name() ) ),
+			'deliverySlot' => ( $slot = $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_DELIVERY_SLOT, true ) ) ? sanitize_text_field( $slot ) : null,
+		);
+	}
+
+	public function order_summary( WP_REST_Request $request ) {
+		$order = $this->owned_order( $request['id'] );
+		return is_wp_error( $order ) ? $order : rest_ensure_response( $this->order_summary_dto( $order ) );
+	}
+
+	public function operation_summary( WP_REST_Request $request ) {
+		if ( ! function_exists( 'wc_get_orders' ) ) {
+			return $this->auth_error( 'kadochi_orders_unavailable', __( 'The order service is unavailable.', 'kadochi-core' ), 503 );
+		}
+		$operation = sanitize_text_field( $request['operation'] );
+		if ( ! preg_match( '/^[a-f0-9-]{36}$/i', $operation ) ) {
+			return $this->auth_error( 'kadochi_order_not_found', __( 'Order not found.', 'kadochi-core' ), 404 );
+		}
+		$orders = wc_get_orders( array( 'customer_id' => get_current_user_id(), 'limit' => 1, 'meta_key' => $this->checkout_operation_meta_key(), 'meta_value' => $operation, 'orderby' => 'date', 'order' => 'DESC' ) );
+		if ( empty( $orders ) ) {
+			$orders = wc_get_orders( array( 'customer_id' => get_current_user_id(), 'limit' => 1, 'meta_key' => '_kadochi_checkout_operation', 'meta_value' => $operation, 'orderby' => 'date', 'order' => 'DESC' ) );
+		}
+		return empty( $orders ) ? $this->auth_error( 'kadochi_order_not_found', __( 'Order not found.', 'kadochi-core' ), 404 ) : rest_ensure_response( $this->order_summary_dto( $orders[0] ) );
 	}
 
 	private function review_product( $product_id ) {

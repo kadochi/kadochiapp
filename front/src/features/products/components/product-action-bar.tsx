@@ -14,7 +14,7 @@ export type ProductActionBarProps = {
 /** Sticky bottom bar with the current price and the add-to-cart control. */
 export function ProductActionBar({ product }: Readonly<ProductActionBarProps>) {
   const { current, previous, offPercent } = usePrice(product);
-  const { quantity, isInCart, setQuantity, add, remove, isPending } = useAddToCart({ productId: product.id });
+  const { quantity, minimum, maximum, multipleOf, editable, isInCart, setQuantity, add, remove, isPending } = useAddToCart({ productId: product.id });
 
   return (
     <div className="sticky inset-x-0 bottom-0 z-40 border-t border-border-low-emphasis bg-surface-background px-16 pt-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))]">
@@ -24,14 +24,15 @@ export function ProductActionBar({ product }: Readonly<ProductActionBarProps>) {
           {product.inStock ? (
             isInCart ? (
               <InputStepper
-                disabled={isPending}
-                min={1}
-                max={9}
+                min={minimum}
+                max={maximum}
                 onRemove={remove}
                 onValueChange={setQuantity}
                 size="sm"
+                step={multipleOf}
                 value={quantity}
                 variant="outline"
+                disabled={isPending || !editable}
               />
             ) : (
               <Button variant="primary-filled" size="large" loading={isPending} onClick={add} className="flex-1">

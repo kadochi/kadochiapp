@@ -10,6 +10,9 @@ services:
       WATCHPACK_POLLING: "true"
       WORDPRESS_INTERNAL_URL: ${WORDPRESS_INTERNAL_URL:-http://wordpress}
       NEXT_PUBLIC_WORDPRESS_URL: ${NEXT_PUBLIC_WORDPRESS_URL:-http://localhost:8080}
+      KADOCHI_CHECKOUT_ENABLED: ${KADOCHI_CHECKOUT_ENABLED:-false}
+      KADOCHI_PAYMENT_METHOD_ID: ${KADOCHI_PAYMENT_METHOD_ID:-zarinpal}
+      KADOCHI_FRONTEND_URL: ${KADOCHI_FRONTEND_URL:-http://localhost:3000}
     volumes:
       - ./front:/app
       - front_node_modules:/app/node_modules
@@ -28,6 +31,9 @@ services:
       WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:-wordpress_dev_password}
       WP_ENVIRONMENT_TYPE: ${WP_ENVIRONMENT_TYPE:-development}
       MELIPAYAMAK_OTP_URL: ${MELIPAYAMAK_OTP_URL:-}
+      KADOCHI_CHECKOUT_ENABLED: ${KADOCHI_CHECKOUT_ENABLED:-false}
+      KADOCHI_PAYMENT_METHOD_ID: ${KADOCHI_PAYMENT_METHOD_ID:-zarinpal}
+      KADOCHI_FRONTEND_URL: ${KADOCHI_FRONTEND_URL:-http://localhost:3000}
     volumes:
       - wordpress_data:/var/www/html
       - ./theme:/var/www/html/wp-content/themes/kadochi:ro

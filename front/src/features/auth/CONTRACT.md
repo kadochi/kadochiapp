@@ -5,7 +5,7 @@ WordPress owns OTP verification and JWT issuance in every environment. The brows
 ## Browser interface
 
 - `startOtp({ phone })` calls `POST /api/auth/otp/start` and returns `{ expiresIn, retryAfter?, codeLength? }`.
-- `verifyOtp({ phone, code })` calls `POST /api/auth/otp/verify` and returns a validated `Customer`.
+- `verifyOtp({ phone, code })` calls `POST /api/auth/otp/verify` and returns a validated `Customer` with canonical `phone`, `firstName`, and `lastName`.
 - `getCurrentCustomer()` calls `GET /api/auth/current` and returns a `Customer`.
 - `logout()` calls `POST /api/auth/logout` and resolves with no value.
 

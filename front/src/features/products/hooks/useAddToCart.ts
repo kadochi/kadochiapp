@@ -7,6 +7,10 @@ export type UseAddToCartOptions = { productId: number; min?: number; max?: numbe
 
 export type UseAddToCartResult = {
   quantity: number;
+  minimum: number;
+  maximum: number;
+  multipleOf: number;
+  editable: boolean;
   isInCart: boolean;
   setQuantity: (quantity: number) => Promise<void>;
   add: () => Promise<void>;
@@ -17,14 +21,21 @@ export type UseAddToCartResult = {
 /** Keeps the product action in sync with its persisted Woo cart item. */
 export function useAddToCart({ productId, min = 1, max = 9 }: UseAddToCartOptions): UseAddToCartResult {
   const { toast } = useToast();
-  const [item, setItem] = useState<{ key: string; quantity: number } | null>(null);
+  const [item, setItem] = useState<{ key: string; quantity: number; minimum: number; maximum: number; multipleOf: number; editable: boolean } | null>(null);
   const [isPending, setIsPending] = useState(false);
   const syncRevision = useRef(0);
 
   const syncItem = useCallback((cart: Cart) => {
     const next = cart.items.find((cartItem) => cartItem.productId === productId);
-    setItem(next ? { key: next.key, quantity: Math.max(min, Math.min(max, next.quantity)) } : null);
-  }, [max, min, productId]);
+    setItem(next ? {
+      key: next.key,
+      quantity: next.quantity,
+      minimum: next.quantityLimits.minimum,
+      maximum: next.quantityLimits.maximum,
+      multipleOf: next.quantityLimits.multipleOf,
+      editable: next.quantityLimits.editable,
+    } : null);
+  }, [productId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +70,12 @@ export function useAddToCart({ productId, min = 1, max = 9 }: UseAddToCartOption
     const revision = ++syncRevision.current;
     setIsPending(true);
     try {
-      const cart = await updateQuantity(item.key, Math.max(min, Math.min(max, value)));
+      const lowerBound = item.minimum;
+      const upperBound = item.maximum;
+      const step = item.multipleOf;
+      const clamped = Math.max(lowerBound, Math.min(upperBound, value));
+      const quantity = lowerBound + Math.round((clamped - lowerBound) / step) * step;
+      const cart = await updateQuantity(item.key, Math.max(lowerBound, Math.min(upperBound, quantity)));
       if (revision === syncRevision.current) syncItem(cart);
     } catch {
       toast({ tone: "error", title: "تغییر تعداد ناموفق بود" });
@@ -82,5 +98,16 @@ export function useAddToCart({ productId, min = 1, max = 9 }: UseAddToCartOption
     }
   }
 
-  return { quantity: item?.quantity ?? min, isInCart: item !== null, setQuantity, add, remove, isPending };
+  return {
+    quantity: item?.quantity ?? min,
+    minimum: item?.minimum ?? min,
+    maximum: item?.maximum ?? max,
+    multipleOf: item?.multipleOf ?? 1,
+    editable: item?.editable ?? true,
+    isInCart: item !== null,
+    setQuantity,
+    add,
+    remove,
+    isPending,
+  };
 }

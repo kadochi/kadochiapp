@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const input = addItemSchema.parse(await request.json());
-    const result = await executeCart({ method: "POST", path: "/wp-json/wc/store/v1/cart/add-item", body: { id: input.productId, quantity: input.quantity, variation: input.variationId } }, id);
+    const result = await executeCart({ method: "POST", path: "/wp-json/wc/store/v1/cart/add-item", body: { id: input.productId, quantity: input.quantity, variation: input.variation ?? [] } }, id);
     const response = jsonOk(result.cart, id, { headers: { "Cache-Control": "no-store" } });
     applyCartToken(response, result.cartToken);
     return response;

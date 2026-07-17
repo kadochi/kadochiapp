@@ -1,33 +1,226 @@
 import "server-only";
 
-import { z } from "zod";
 import { cookies } from "next/headers";
+
+import { getCurrentCustomer, getStoredAuthToken, wordpressBearerHeaders } from "@/features/auth/services/auth.server";
 import { ServiceError } from "@/lib/http/errors";
-import { parseUpstreamJson, wordpressFetch } from "@/lib/http/upstream";
+import { parseUpstreamJson, UpstreamError, wordpressFetch } from "@/lib/http/upstream";
+import { env } from "@/lib/server/env";
 import { upstreamCartSchema } from "../../cart/schema/cart";
 import { mapCart } from "../../cart/utils/map-cart";
-import { checkoutResultSchema, checkoutStateSchema, submitCheckoutSchema } from "../schema/checkout";
+import { createDeliverySlots } from "../utils/delivery-slots";
+import {
+  checkoutResultSchema,
+  checkoutStateSchema,
+  mapCheckoutResult,
+  orderSummarySchema,
+  submitCheckoutSchema,
+  upstreamCheckoutDraftSchema,
+} from "../schema/checkout";
 
-const paymentMethodsSchema = z.array(z.object({ id: z.string(), title: z.string(), description: z.string().default(""), supports: z.array(z.string()).default([]) }));
-async function tokenHeaders(): Promise<Record<string, string>> { const token = (await cookies()).get("kadochi_cart_token")?.value; return token ? { "Cart-Token": token } : {}; }
-function checkoutEnabled(requestId: string) { if (process.env.KADOCHI_CHECKOUT_ENABLED !== "true") throw new ServiceError({ code: "configuration", status: 503, message: "Checkout is disabled until payment and shipping configuration is verified.", requestId, retryable: false }); }
+const cartTokenCookie = "kadochi_cart_token";
+const deliveryField = "kadochi/delivery-slot";
+const packagingField = "kadochi/packaging";
+const postcardField = "kadochi/postcard";
+const operationField = "kadochi/operation-id";
+
+function checkoutEnabled(requestId: string) {
+  if (env.KADOCHI_CHECKOUT_ENABLED !== "true") {
+    throw new ServiceError({
+      code: "configuration",
+      status: 503,
+      message: "Checkout is disabled until payment and shipping configuration is verified.",
+      requestId,
+      retryable: false,
+    });
+  }
+}
+
+async function authenticatedCustomer(requestId: string) {
+  const token = await getStoredAuthToken();
+  return getCurrentCustomer(token, requestId);
+}
+
+async function checkoutHeaders(cartToken?: string): Promise<Record<string, string>> {
+  const storedCartToken = cartToken ?? (await cookies()).get(cartTokenCookie)?.value;
+  return {
+    ...(storedCartToken ? { "Cart-Token": storedCartToken } : {}),
+    ...(await wordpressBearerHeaders()),
+  };
+}
+
+function paymentMethod(requestId: string, paymentMethodIds: string[]) {
+  const id = env.KADOCHI_PAYMENT_METHOD_ID;
+  if (!paymentMethodIds.includes(id)) {
+    throw new ServiceError({
+      code: "configuration",
+      status: 503,
+      message: "Online payment is not available for this cart.",
+      requestId,
+      retryable: false,
+    });
+  }
+  return { id, title: "پرداخت آنلاین زرین‌پال" };
+}
+
+function unavailableSlot(requestId: string) {
+  throw new ServiceError({
+    code: "validation",
+    status: 400,
+    message: "The selected delivery slot is no longer available.",
+    requestId,
+    retryable: false,
+    fieldErrors: { deliverySlotId: ["زمان ارسال را دوباره انتخاب کنید."] },
+  });
+}
+
+function checkoutAddresses(input: ReturnType<typeof submitCheckoutSchema.parse>, customer: Awaited<ReturnType<typeof authenticatedCustomer>>) {
+  const recipient = input.recipient.kind === "self"
+    ? input.sender
+    : { firstName: input.recipient.firstName, lastName: input.recipient.lastName };
+  const sharedAddress = {
+    address_1: input.address.address1,
+    address_2: input.address.address2 ?? "",
+    city: "تهران",
+    country: "IR",
+    postcode: input.address.postcode ?? "",
+  };
+  return {
+    billing_address: {
+      first_name: input.sender.firstName,
+      last_name: input.sender.lastName,
+      email: customer.email,
+      phone: customer.phone,
+      ...sharedAddress,
+    },
+    shipping_address: {
+      first_name: recipient.firstName,
+      last_name: recipient.lastName,
+      ...sharedAddress,
+    },
+  };
+}
+
+function additionalFields(input: ReturnType<typeof submitCheckoutSchema.parse>) {
+  return {
+    [deliveryField]: input.deliverySlotId,
+    [packagingField]: input.packagingId,
+    [postcardField]: input.postcardText,
+    [operationField]: input.operationId,
+  };
+}
+
+async function cartForCheckout(headers: Record<string, string>, requestId: string) {
+  const response = await wordpressFetch("/wp-json/wc/store/v1/cart", { headers, cache: "no-store", requestId });
+  return {
+    cart: mapCart(await parseUpstreamJson(response, (value) => upstreamCartSchema.parse(value), requestId)),
+    cartToken: response.headers.get("cart-token"),
+  };
+}
 
 export async function checkoutState(requestId: string) {
   checkoutEnabled(requestId);
-  const headers = await tokenHeaders();
-  const [cartResponse, gatewayResponse] = await Promise.all([
-    wordpressFetch("/wp-json/wc/store/v1/cart", { headers, cache: "no-store", requestId }),
-    wordpressFetch("/wp-json/wc/store/v1/checkout", { headers, cache: "no-store", requestId }),
-  ]);
-  const cart = mapCart(await parseUpstreamJson(cartResponse, (value) => upstreamCartSchema.parse(value), requestId));
-  const paymentMethods = await parseUpstreamJson(gatewayResponse, (value) => paymentMethodsSchema.parse(value), requestId);
-  return checkoutStateSchema.parse({ cart, paymentMethods });
+  const customer = await authenticatedCustomer(requestId);
+  const initialHeaders = await checkoutHeaders();
+  const { cart, cartToken } = await cartForCheckout(initialHeaders, requestId);
+  const state = checkoutStateSchema.parse({
+    cart,
+    customer,
+    deliverySlots: createDeliverySlots(cart),
+    packagingOptions: [
+      { id: "gift", label: "بسته‌بندی هدیه", imageUrl: "/images/special-pack.png", fee: { amount: "0", currencyCode: "IRR", minorUnit: 0 }, default: true },
+      { id: "normal", label: "بسته‌بندی معمولی", imageUrl: "/images/normal-pack.png", fee: { amount: "0", currencyCode: "IRR", minorUnit: 0 }, default: false },
+    ],
+    paymentMethod: paymentMethod(requestId, cart.paymentMethodIds),
+  });
+  return { state, cartToken };
+}
+
+export async function orderSummary(orderId: number, requestId: string) {
+  await authenticatedCustomer(requestId);
+  const response = await wordpressFetch(`/wp-json/kadochi/v1/orders/${orderId}`, {
+    headers: await checkoutHeaders(),
+    cache: "no-store",
+    requestId,
+  });
+  return parseUpstreamJson(response, (value) => orderSummarySchema.parse(value), requestId);
+}
+
+async function orderSummaryForOperation(operationId: string, requestId: string) {
+  await authenticatedCustomer(requestId);
+  const response = await wordpressFetch(`/wp-json/kadochi/v1/checkout/operations/${operationId}`, {
+    headers: await checkoutHeaders(),
+    cache: "no-store",
+    requestId,
+  });
+  return parseUpstreamJson(response, (value) => orderSummarySchema.parse(value), requestId);
 }
 
 export async function checkout(input: unknown, requestId: string) {
   checkoutEnabled(requestId);
   const parsed = submitCheckoutSchema.parse(input);
-  const headers = await tokenHeaders();
-  const response = await wordpressFetch("/wp-json/wc/store/v1/checkout", { method: "POST", headers: { ...headers, "Content-Type": "application/json", "Idempotency-Key": parsed.operationId }, body: JSON.stringify({ billing_address: parsed.billingAddress, shipping_address: parsed.shippingAddress, payment_method: parsed.paymentMethod, payment_data: parsed.paymentData }), cache: "no-store", requestId });
-  return parseUpstreamJson(response, (value) => checkoutResultSchema.parse(value), requestId);
+  const customer = await authenticatedCustomer(requestId);
+  let lastCartToken: string | null = null;
+
+  try {
+    const initialHeaders = await checkoutHeaders();
+    const { cart, cartToken } = await cartForCheckout(initialHeaders, requestId);
+    lastCartToken = cartToken;
+    paymentMethod(requestId, cart.paymentMethodIds);
+    if (!createDeliverySlots(cart).some((slot) => slot.id === parsed.deliverySlotId)) unavailableSlot(requestId);
+
+    const draftHeaders = await checkoutHeaders(cartToken ?? undefined);
+    const draft = await wordpressFetch("/wp-json/wc/store/v1/checkout?__experimental_calc_totals=true", {
+      method: "PUT",
+      headers: { ...draftHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        payment_method: env.KADOCHI_PAYMENT_METHOD_ID,
+        additional_fields: additionalFields(parsed),
+      }),
+      cache: "no-store",
+      requestId,
+    });
+    lastCartToken = draft.headers.get("cart-token") ?? lastCartToken;
+    await parseUpstreamJson(draft, (value) => upstreamCheckoutDraftSchema.parse(value), requestId);
+
+    const response = await wordpressFetch("/wp-json/wc/store/v1/checkout", {
+      method: "POST",
+      headers: {
+        ...(await checkoutHeaders(lastCartToken ?? undefined)),
+        "Content-Type": "application/json",
+        "Idempotency-Key": parsed.operationId,
+      },
+      body: JSON.stringify({
+        ...checkoutAddresses(parsed, customer),
+        payment_method: env.KADOCHI_PAYMENT_METHOD_ID,
+        payment_data: [],
+      }),
+      cache: "no-store",
+      requestId,
+    });
+    lastCartToken = response.headers.get("cart-token") ?? lastCartToken;
+    return { result: await parseUpstreamJson(response, mapCheckoutResult, requestId), cartToken: lastCartToken };
+  } catch (error) {
+    // The checkout request may have reached Woo before a transport timeout. Reconcile the
+    // recorded operation instead of issuing a second payment attempt automatically.
+    if (error instanceof UpstreamError && (error.detail.code === "timeout" || error.detail.code === "network")) {
+      try {
+        const summary = await orderSummaryForOperation(parsed.operationId, requestId);
+        return {
+          result: checkoutResultSchema.parse({
+            orderId: summary.id,
+            status: summary.status,
+            reconciliation: summary.paid ? "paid" : "unpaid",
+          }),
+          cartToken: lastCartToken,
+        };
+      } catch {
+        return {
+          result: checkoutResultSchema.parse({ status: "unknown", reconciliation: "unknown" }),
+          cartToken: lastCartToken,
+        };
+      }
+    }
+    throw error;
+  }
 }

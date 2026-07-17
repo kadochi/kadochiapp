@@ -185,7 +185,12 @@ function DefaultHeader({
 
   const visibleBasketCount = Math.max(0, controlledBasketCount ?? basketCount);
   const hasItems = visibleBasketCount > 0;
-  const providerUser: HeaderUser | null = auth?.customer ? { displayName: auth.customer.displayName } : null;
+  const providerUser: HeaderUser | null = auth?.customer ? {
+    displayName: auth.customer.displayName,
+    firstName: auth.customer.firstName,
+    lastName: auth.customer.lastName,
+    phone: auth.customer.phone,
+  } : null;
   const accountUser = controlledUser !== undefined ? controlledUser : providerUser;
   const isAuthenticated = controlledAuthentication ?? (auth ? auth.status === "authenticated" : Boolean(accountUser));
   const accountLabel = getAccountLabel(accountUser);
