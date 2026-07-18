@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { Dialog } from "radix-ui";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { FreeMode, Thumbs } from "swiper/modules";
 import "swiper/css";
@@ -21,6 +24,23 @@ export function ProductGallery({
 }: Readonly<ProductGalleryProps>) {
   const { slides, activeThumbs, setThumbsSwiper, showThumbs } =
     useProductGallery(images, title);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const viewerSlide = slides[viewerIndex];
+  const hasMultipleSlides = slides.length > 1;
+
+  function openViewer(index: number) {
+    setViewerIndex(index);
+    setIsViewerOpen(true);
+  }
+
+  function showPrevious() {
+    setViewerIndex((index) => (index - 1 + slides.length) % slides.length);
+  }
+
+  function showNext() {
+    setViewerIndex((index) => (index + 1) % slides.length);
+  }
 
   return (
     <div className="w-full overflow-hidden bg-surface-background" dir="rtl">
@@ -35,7 +55,12 @@ export function ProductGallery({
         {slides.map((slide, index) => (
           <SwiperSlide key={(slide.src ?? "placeholder") + index}>
             {slide.src ? (
-              <div className="w-full px-8 lg:px-0">
+              <button
+                aria-label={`نمایش بزرگ ${slide.alt}`}
+                className="block w-full cursor-zoom-in border-0 bg-transparent px-8 py-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:px-0"
+                onClick={() => openViewer(index)}
+                type="button"
+              >
                 <img
                   alt={slide.alt}
                   className="mx-auto block aspect-[1/1.2] w-full max-w-[400px] rounded-xl object-cover"
@@ -44,7 +69,7 @@ export function ProductGallery({
                   loading={slide.priority ? "eager" : "lazy"}
                   src={slide.src}
                 />
-              </div>
+              </button>
             ) : null}
           </SwiperSlide>
         ))}
@@ -75,6 +100,83 @@ export function ProductGallery({
           ))}
         </Swiper>
       ) : null}
+
+      <Dialog.Root open={isViewerOpen} onOpenChange={setIsViewerOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-[200] bg-surface-scrim" />
+          <Dialog.Content className="fixed inset-0 z-[201] flex flex-col bg-surface-neutral-high-emphasis p-16 outline-none">
+            <Dialog.Title className="sr-only">نمایش تصاویر {title}</Dialog.Title>
+            <Dialog.Description className="sr-only">
+              برای جابه‌جایی میان تصاویر از دکمه‌های قبلی و بعدی استفاده کنید.
+            </Dialog.Description>
+
+            <div className="flex items-center justify-between gap-12 text-on-primary">
+              <span className="text-label-14 font-regular">
+                {viewerIndex + 1} از {slides.length}
+              </span>
+              <Dialog.Close asChild>
+                <button
+                  aria-label="بستن نمایش تصاویر"
+                  className="inline-flex size-40 cursor-pointer items-center justify-center rounded-rounded border-0 bg-white/10 p-0 text-on-primary transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-primary"
+                  type="button"
+                >
+                  <X aria-hidden className="size-24" />
+                </button>
+              </Dialog.Close>
+            </div>
+
+            <div className="relative flex min-h-0 flex-1 items-center justify-center py-16">
+              {viewerSlide?.src ? (
+                <img
+                  alt={viewerSlide.alt}
+                  className="max-h-full max-w-full rounded-m object-contain"
+                  src={viewerSlide.src}
+                />
+              ) : null}
+
+              {hasMultipleSlides ? (
+                <>
+                  <button
+                    aria-label="تصویر قبلی"
+                    className="absolute start-0 inline-flex size-40 cursor-pointer items-center justify-center rounded-rounded border-0 bg-white/10 p-0 text-on-primary transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-primary"
+                    onClick={showPrevious}
+                    type="button"
+                  >
+                    <ChevronRight aria-hidden className="size-24" />
+                  </button>
+                  <button
+                    aria-label="تصویر بعدی"
+                    className="absolute end-0 inline-flex size-40 cursor-pointer items-center justify-center rounded-rounded border-0 bg-white/10 p-0 text-on-primary transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-on-primary"
+                    onClick={showNext}
+                    type="button"
+                  >
+                    <ChevronLeft aria-hidden className="size-24" />
+                  </button>
+                </>
+              ) : null}
+            </div>
+
+            {hasMultipleSlides ? (
+              <div className="flex shrink-0 justify-center gap-8 overflow-x-auto py-4">
+                {slides.map((slide, index) => (
+                  <button
+                    aria-current={viewerIndex === index ? "true" : undefined}
+                    aria-label={`نمایش تصویر ${index + 1}`}
+                    className="shrink-0 cursor-pointer rounded-m border-2 border-transparent bg-transparent p-0 aria-[current=true]:border-on-primary"
+                    key={`viewer-thumbnail-${slide.src}-${index}`}
+                    onClick={() => setViewerIndex(index)}
+                    type="button"
+                  >
+                    {slide.src ? (
+                      <img alt="" aria-hidden className="size-64 rounded-[calc(var(--radius-m)-2px)] object-cover" src={slide.src} />
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }
