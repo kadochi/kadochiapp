@@ -24,18 +24,6 @@ const packagingField = "kadochi/packaging";
 const postcardField = "kadochi/postcard";
 const operationField = "kadochi/operation-id";
 
-function checkoutEnabled(requestId: string) {
-  if (env.KADOCHI_CHECKOUT_ENABLED !== "true") {
-    throw new ServiceError({
-      code: "configuration",
-      status: 503,
-      message: "Checkout is disabled until payment and shipping configuration is verified.",
-      requestId,
-      retryable: false,
-    });
-  }
-}
-
 async function authenticatedCustomer(requestId: string) {
   const token = await getStoredAuthToken();
   return getCurrentCustomer(token, requestId);
@@ -132,7 +120,6 @@ async function cartForCheckout(headers: Record<string, string>, requestId: strin
 }
 
 export async function checkoutState(requestId: string) {
-  checkoutEnabled(requestId);
   const customer = await authenticatedCustomer(requestId);
   const initialHeaders = await checkoutHeaders();
   const { cart: currentCart, cartToken } = await cartForCheckout(initialHeaders, requestId);
@@ -171,7 +158,6 @@ async function orderSummaryForOperation(operationId: string, requestId: string) 
 }
 
 export async function checkout(input: unknown, requestId: string) {
-  checkoutEnabled(requestId);
   const parsed = submitCheckoutSchema.parse(input);
   const customer = await authenticatedCustomer(requestId);
   let lastCartToken: string | null = null;

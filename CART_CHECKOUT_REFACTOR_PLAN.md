@@ -24,7 +24,7 @@
 
 - Correct the existing cart Store API schema: consume `images[]`, `quantity_limits`, line/totals, discounts, fees, shipping state, payment method IDs, and Kadochi extensions. Correct add-item variation payload handling.
 - Extend `Customer` with `firstName`, `lastName`, and canonical `phone`; populate these from Woo customer metadata in Kadochi Core.
-- Define `CheckoutState` as `{ cart, customer, deliverySlots, packagingOptions, paymentMethod }`. The only supported payment method is configurable with `KADOCHI_PAYMENT_METHOD_ID`, defaulting to `zarinpal`; checkout fails closed if that ID is unavailable.
+- Define `CheckoutState` as `{ cart, customer, deliverySlots, packagingOptions, paymentMethod }`. The only supported payment method is configurable with `KADOCHI_PAYMENT_METHOD_ID`, defaulting to the official ZarinPal plugin ID `WC_ZPal`; checkout fails closed if that ID is unavailable.
 - Define checkout submission as sender names, a discriminated self/other recipient, address, delivery slot ID, packaging ID, postcard text, and operation UUID. Derive sender phone/email, gateway ID, country `IR`, and city `تهران` server-side.
 - Forward both the HttpOnly Cart Token and authenticated bearer token to checkout so the existing guest cart becomes an order belonging to the signed-in customer. Rotate returned cart tokens without exposing them to browser code.
 - Replace the incorrect payment-method parsing from `GET /checkout`: Woo exposes checkout draft data there, while payment method IDs and cart totals come from the cart response. Cart writes and checkout remain Cart-Token protected. [Woo Cart API](https://developer.woocommerce.com/docs/apis/store-api/resources-endpoints/cart/), [Woo Checkout API](https://developer.woocommerce.com/docs/apis/store-api/resources-endpoints/checkout/), [Cart Token contract](https://developer.woocommerce.com/docs/apis/store-api/cart-tokens/).
@@ -38,7 +38,7 @@
 - Add an authenticated owner-only customer-order summary endpoint. It returns safe order ID, paid/status state, creation date, total, recipient, and delivery slot; another customer’s order returns not-found.
 - Let the Woo Zarinpal gateway own payment request, verification, and order status. Kadochi Core rewrites the verified order-received destination to `/checkout/return?order=…`; that route checks the protected order summary and branches to the branded success or failure page. No Next.js Zarinpal secrets or `/zp-callback` implementation.
 - Record the checkout draft/order and operation UUID before processing. Prevent concurrent submission and never retry payment automatically. After a timeout, reconcile against the protected order summary and report paid, unpaid, or unknown instead of blindly creating another attempt.
-- Add `KADOCHI_CHECKOUT_ENABLED`, `KADOCHI_PAYMENT_METHOD_ID=zarinpal`, and `KADOCHI_FRONTEND_URL` to validated environment configuration and Docker propagation. Keep checkout disabled until Woo, shipping, gateway, and callback smoke tests pass.
+- Add `KADOCHI_PAYMENT_METHOD_ID=WC_ZPal` and `KADOCHI_FRONTEND_URL` to validated environment configuration and Docker propagation. Validate Woo, shipping, gateway, and callback behavior in every target environment.
 
 ## Public Interface Changes
 

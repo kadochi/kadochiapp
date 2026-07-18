@@ -18,7 +18,7 @@ The selected retention behavior in this implementation is WordPress trash (not p
 3. Snapshot representative records before activation. Existing post-type registrations are adopted rather than re-registered; the plugin only registers missing types. Existing `occasion` registrations are force-hardened: no public/query/search/rewrite/default REST access remains.
 4. Confirm the normalized public route at `GET /wp-json/kadochi/v1/content/home`. Keep existing editorial REST routes during the compatibility audit; do not disable them until their consumers have migrated.
 5. Set `WP_ENVIRONMENT_TYPE=production` and `MELIPAYAMAK_OTP_URL` before production testing. Kadochi Core owns OTP verification and bearer JWT authentication; the BFF keeps the opaque token in an HttpOnly cookie and forwards it only to protected WordPress routes.
-6. Set `KADOCHI_PAYMENT_METHOD_ID=zarinpal` (or the deployed gateway's exact Woo ID) and `KADOCHI_FRONTEND_URL` to the public Next.js origin. Verify gateway, shipping, tax, bearer-associated customer orders, additional-field persistence, duplicate-payment, and timeout reconciliation behavior. Only then set `KADOCHI_CHECKOUT_ENABLED=true`.
+6. The Docker image provisions the official ZarinPal for WooCommerce plugin (gateway ID `WC_ZPal`). Activate it and configure its merchant credentials in WooCommerce, then set `KADOCHI_FRONTEND_URL` to the public Next.js origin. If using another gateway, set `KADOCHI_PAYMENT_METHOD_ID` to its exact case-sensitive Woo ID in both services. Verify gateway, shipping, tax, bearer-associated customer orders, additional-field persistence, duplicate-payment, and timeout reconciliation behavior.
 
 ## Rollback
 

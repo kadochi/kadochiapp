@@ -12,8 +12,7 @@ vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined })
 vi.mock("@/lib/server/env", () => ({
   env: {
     WORDPRESS_INTERNAL_URL: "http://wordpress",
-    KADOCHI_CHECKOUT_ENABLED: "true",
-    KADOCHI_PAYMENT_METHOD_ID: "zarinpal",
+    KADOCHI_PAYMENT_METHOD_ID: "WC_ZPal",
     KADOCHI_FRONTEND_URL: "http://localhost:3000",
   },
 }));
@@ -71,7 +70,7 @@ const rawCart = {
   },
   needs_shipping: true,
   has_calculated_shipping: true,
-  payment_methods: ["zarinpal"],
+  payment_methods: ["WC_ZPal"],
   shipping_rates: [],
 };
 
@@ -144,7 +143,7 @@ describe("checkout service", () => {
     expect(JSON.parse(postOptions.body as string)).toMatchObject({
       billing_address: { first_name: "Sender", email: customer.email, phone: customer.phone, country: "IR", city: "تهران" },
       shipping_address: { first_name: "Recipient", last_name: "Person", country: "IR", city: "تهران" },
-      payment_method: "zarinpal",
+      payment_method: "WC_ZPal",
       additional_fields: {
         "kadochi/delivery-slot": input().deliverySlotId,
         "kadochi/packaging": "gift",

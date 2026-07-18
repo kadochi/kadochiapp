@@ -580,13 +580,10 @@ final class Kadochi_Core {
 		return $customer ? rest_ensure_response( $customer ) : $this->auth_error( 'kadochi_customer_unavailable', __( 'The customer service is unavailable.', 'kadochi-core' ), 503 );
 	}
 
-	private function checkout_enabled() {
-		return 'true' === getenv( 'KADOCHI_CHECKOUT_ENABLED' );
-	}
-
 	private function payment_method_id() {
 		$value = getenv( 'KADOCHI_PAYMENT_METHOD_ID' );
-		return is_string( $value ) && '' !== trim( $value ) ? sanitize_key( $value ) : 'zarinpal';
+		$value = is_string( $value ) ? trim( $value ) : '';
+		return preg_match( '/^[A-Za-z0-9_-]{1,100}$/', $value ) ? $value : 'WC_ZPal';
 	}
 
 	/** Registers Store API-persisted values; the headless BFF writes these before payment. */
@@ -729,9 +726,6 @@ final class Kadochi_Core {
 		// PUT stores the draft fields; only POST materializes an order for payment.
 		if ( 'POST' !== $request->get_method() ) {
 			return;
-		}
-		if ( ! $this->checkout_enabled() ) {
-			throw new Exception( __( 'Kadochi checkout is disabled.', 'kadochi-core' ) );
 		}
 		$method = sanitize_key( (string) $request->get_param( 'payment_method' ) );
 		if ( $this->payment_method_id() !== $method ) {
