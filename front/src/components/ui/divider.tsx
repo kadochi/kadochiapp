@@ -2,7 +2,10 @@ import type { ComponentPropsWithoutRef } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
-const dividerVariants = cva("my-0 w-full shrink-0 border-0 p-0", {
+// Keep the reset consistent with the legacy Kadochi divider. In particular,
+// `m-0` prevents browser/default horizontal margins from affecting full-width
+// dividers, while the inset variant adds its deliberate spacing below.
+const dividerVariants = cva("m-0 w-full shrink-0 border-0 p-0", {
   variants: {
     variant: {
       line: "h-px bg-border-low-emphasis",

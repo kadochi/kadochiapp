@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { Divider } from "@/components/ui/divider";
 import type { ServiceError } from "@/lib/http/errors";
 import type { UpstreamError } from "@/lib/http/upstream";
 import { ProductActionBar } from "@/features/products/components/product-action-bar";
@@ -78,12 +79,16 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
     <>
       <ProductGallery images={product.images} title={product.name} />
       <ProductInfo product={product} />
+      <Divider variant="spacer" />
       <ProductDescription product={product} />
+      <Divider variant="spacer" />
       <ProductSpecs attributes={product.attributes} />
+      <Divider variant="spacer" />
 
       <Suspense fallback={<ProductsSliderSkeleton />}>
         <SimilarProducts categoryId={category?.id} excludeId={product.id} />
       </Suspense>
+      <Divider variant="spacer" />
 
       <ProductReview
         averageRating={product.averageRating}
@@ -91,12 +96,15 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
         productId={product.id}
         reviewCount={product.reviewCount}
       />
+      <Divider variant="spacer" />
 
       <Suspense fallback={<ProductReviewsSkeleton />}>
         <ProductReviews productId={product.id} />
       </Suspense>
 
+      <Divider />
       <Breadcrumb items={productBreadcrumbs(product)} />
+      <Divider />
 
       <ProductActionBar product={product} />
     </>

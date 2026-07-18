@@ -29,19 +29,19 @@ export async function ProductReviews({ productId }: Readonly<ProductReviewsProps
   return (
     <section aria-label="نظرات کاربران">
       <SectionHeader
-        title="نظرات کاربران"
+        title="آخرین نظرات کاربران"
         subtitle={reviews.length ? `${reviews.length.toLocaleString("fa-IR")} نظر ثبت شده` : "بدون نظر"}
       />
 
-      <div className="px-16">
+      <div className="p-16">
         {reviews.length === 0 ? (
-          <p className="py-16 text-center font-sans text-body-14 text-surface-neutral-mid-emphasis">
+          <p className="px-16 py-48 text-center font-sans text-label-14 text-surface-neutral-mid-emphasis">
             تاکنون نظری ثبت نشده است.
           </p>
         ) : (
-          <ul className="m-0 flex list-none flex-col gap-16 p-0">
+          <ul className="m-0 grid list-none gap-16 p-0">
             {reviews.map((review) => (
-              <li key={review.id} className="border-b border-border-low-emphasis pb-16 last:border-b-0 last:pb-0 [direction:rtl]">
+              <li key={review.id} className="border-b border-border-low-emphasis p-16 last:border-b-0 [direction:rtl]">
                 <div className="flex items-center justify-between gap-8">
                   <div className="flex items-center gap-8">
                     <Avatar alt={review.author} size="md" src={review.avatarUrl} />
@@ -61,7 +61,7 @@ export async function ProductReviews({ productId }: Readonly<ProductReviewsProps
                   ) : null}
                 </div>
 
-                <p className="mt-8 font-sans text-body-14 text-surface-neutral-mid-emphasis">{review.content}</p>
+                <p className="mt-16 whitespace-pre-wrap font-sans text-label-14 text-surface-neutral-mid-emphasis">{review.content}</p>
               </li>
             ))}
           </ul>

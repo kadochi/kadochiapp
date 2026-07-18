@@ -15,8 +15,12 @@ export type ProductGalleryProps = {
 };
 
 /** Main image slider with a deferred, synced thumbnail strip. */
-export function ProductGallery({ images, title }: Readonly<ProductGalleryProps>) {
-  const { slides, activeThumbs, setThumbsSwiper, showThumbs } = useProductGallery(images, title);
+export function ProductGallery({
+  images,
+  title,
+}: Readonly<ProductGalleryProps>) {
+  const { slides, activeThumbs, setThumbsSwiper, showThumbs } =
+    useProductGallery(images, title);
 
   return (
     <div className="w-full overflow-hidden bg-surface-background" dir="rtl">
@@ -31,14 +35,16 @@ export function ProductGallery({ images, title }: Readonly<ProductGalleryProps>)
         {slides.map((slide, index) => (
           <SwiperSlide key={(slide.src ?? "placeholder") + index}>
             {slide.src ? (
-              <img
-                alt={slide.alt}
-                className="block aspect-square h-auto max-h-[400px] w-full max-w-[400px] object-cover"
-                decoding={slide.priority ? "sync" : "async"}
-                fetchPriority={slide.priority ? "high" : "auto"}
-                loading={slide.priority ? "eager" : "lazy"}
-                src={slide.src}
-              />
+              <div className="w-full px-8 lg:px-0">
+                <img
+                  alt={slide.alt}
+                  className="mx-auto block aspect-[1/1.2] w-full max-w-[400px] rounded-xl object-cover"
+                  decoding={slide.priority ? "sync" : "async"}
+                  fetchPriority={slide.priority ? "high" : "auto"}
+                  loading={slide.priority ? "eager" : "lazy"}
+                  src={slide.src}
+                />
+              </div>
             ) : null}
           </SwiperSlide>
         ))}

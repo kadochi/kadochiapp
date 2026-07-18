@@ -22,7 +22,7 @@ const ToastViewport = forwardRef<
       {...props}
       ref={ref}
       className={cn(
-        "fixed bottom-0 start-0 z-[60] m-0 flex w-full max-w-[24rem] list-none flex-col gap-8 p-16 outline-none",
+        "fixed bottom-[calc(var(--spacing-72)+max(env(safe-area-inset-bottom),var(--spacing-24)))] start-0 z-[60] m-0 flex w-full max-w-[24rem] list-none flex-col gap-8 p-16 outline-none lg:bottom-0",
         className,
       )}
     />

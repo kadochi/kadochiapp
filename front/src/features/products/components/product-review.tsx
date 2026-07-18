@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Star } from "lucide-react";
 
+import SectionHeader from "@/components/layout/section-header";
 import { Button } from "@/components/ui/button";
 import { TextArea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toaster";
@@ -68,53 +69,65 @@ export function ProductReview({ productId, averageRating, reviewCount, nextPath 
 
   return (
     <section aria-label="نقد و بررسی کاربران">
-      <div className="flex items-center justify-between gap-16 px-16 pt-24 pb-16 [direction:rtl]">
-        <div>
-          <h3 className="m-0 font-sans text-title-18 font-bold text-surface-neutral-high-emphasis">نقد و بررسی</h3>
-          <p className="m-0 mt-4 font-sans text-label-14 text-surface-neutral-mid-emphasis">نظرات و امتیازات کاربران</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-6 text-surface-neutral-mid-emphasis" aria-label="میانگین امتیاز">
-          <Star aria-hidden className="size-18 fill-current text-warning" />
-          <span className="font-sans text-label-14 font-bold text-surface-neutral-high-emphasis">{ratingLabel} امتیاز</span>
-          <span className="font-sans text-label-12">({reviewCount.toLocaleString("fa-IR")} کاربر)</span>
-        </div>
-      </div>
-
-      <div className="px-16">
-        {auth.status === "loading" ? (
-          <div className="h-112 animate-pulse rounded-l bg-surface" aria-label="در حال بررسی ورود" />
-        ) : auth.status !== "authenticated" ? (
-          <div className="rounded-l bg-surface p-16 text-center [direction:rtl]">
-            <p className="m-0 font-sans text-body-14 text-surface-neutral-mid-emphasis">برای درج نظر وارد حساب کاربری خود شوید.</p>
-            <Button asChild className="mt-12" size="medium" variant="tertiary-outline">
-              <Link href={loginHref}>ورود به حساب کاربری</Link>
-            </Button>
+      <SectionHeader
+        as="h3"
+        title="نقد و بررسی"
+        subtitle="نظرات و امتیازات کاربران"
+        leftSlot={
+          <div className="inline-flex items-center gap-8 [direction:rtl]" aria-label="میانگین امتیاز">
+            <Star aria-hidden className="size-18 fill-current text-surface-neutral-high-emphasis" />
+            <div className="flex flex-col leading-none">
+              <span className="font-sans text-label-14 font-bold leading-[var(--text-label-14--line-height)] text-surface-neutral-high-emphasis">
+                {ratingLabel} امتیاز
+              </span>
+              <span className="font-sans text-label-12 font-regular leading-[var(--text-label-12--line-height)] text-surface-neutral-mid-emphasis">
+                (از {reviewCount.toLocaleString("fa-IR")} کاربر)
+              </span>
+            </div>
           </div>
-        ) : (
-          <form className="grid gap-16 [direction:rtl]" noValidate onSubmit={handleSubmit}>
+        }
+      />
+
+      {auth.status === "loading" ? (
+        <div className="mx-16 h-112 animate-pulse rounded-xxl bg-surface" aria-label="در حال بررسی ورود" />
+      ) : auth.status !== "authenticated" ? (
+        <div className="mx-16 rounded-xxl bg-surface px-16 py-48 text-center [direction:rtl]">
+          <p className="m-0 font-sans text-label-14 text-surface-neutral-high-emphasis">برای درج نظر وارد حساب کاربری خود شوید.</p>
+          <Button asChild className="mt-16" size="medium" variant="tertiary-outline">
+            <Link href={loginHref}>ورود به حساب کاربری</Link>
+          </Button>
+        </div>
+      ) : (
+        <form className="mx-16 flex flex-col gap-12 [direction:rtl]" noValidate onSubmit={handleSubmit}>
             <TextArea
+              aria-label="نظر شما"
               description={error ?? undefined}
-              label="نظر شما"
-              maxLength={1000}
+              maxLength={300}
               onChange={(event) => {
                 setContent(event.currentTarget.value);
                 setError(null);
               }}
               placeholder="نظر خود را وارد کنید."
               required
+              rows={4}
               showCount
+              size="md"
               status={error ? "error" : "default"}
+              className="h-[218px] min-h-[218px]"
               value={content}
             />
             <div className="flex flex-wrap items-center justify-between gap-12">
-              <div className="flex items-center gap-4" role="radiogroup" aria-label="امتیاز شما">
+              <div className="flex items-center gap-8" role="radiogroup" aria-label="امتیاز شما">
                 {[1, 2, 3, 4, 5].map((value) => {
                   const selected = rating >= value;
                   return (
                     <button
                       aria-checked={rating === value}
                       aria-label={`${value} ستاره`}
-                      className={cn("inline-flex size-32 cursor-pointer items-center justify-center rounded-rounded border-0 bg-transparent p-0 text-border-high-emphasis", selected && "text-warning")}
+                      className={cn(
+                        "inline-flex size-32 cursor-pointer items-center justify-center bg-transparent p-8 text-surface-neutral-high-emphasis",
+                        selected && "text-warning",
+                      )}
                       key={value}
                       onClick={() => setRating(value)}
                       role="radio"
@@ -125,13 +138,12 @@ export function ProductReview({ productId, averageRating, reviewCount, nextPath 
                   );
                 })}
               </div>
-              <Button disabled={!canSubmit} loading={isPending} size="medium" type="submit" variant="tertiary-outline">
+              <Button className="px-16" disabled={!canSubmit} loading={isPending} size="medium" type="submit" variant="tertiary-outline">
                 ثبت نظر
               </Button>
             </div>
-          </form>
-        )}
-      </div>
+        </form>
+      )}
     </section>
   );
 }

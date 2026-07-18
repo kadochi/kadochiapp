@@ -28,7 +28,8 @@ export function ProductActionBar({ product }: Readonly<ProductActionBarProps>) {
                 max={maximum}
                 onRemove={remove}
                 onValueChange={setQuantity}
-                size="sm"
+                className="w-full"
+                size="md"
                 step={multipleOf}
                 value={quantity}
                 variant="outline"

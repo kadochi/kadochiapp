@@ -10,8 +10,6 @@ export type ProductDescriptionProps = {
 /** Renders the full description HTML, clamped via a low-level client island. */
 export function ProductDescription({ product }: Readonly<ProductDescriptionProps>) {
   const html = product.description || product.shortDescription;
-  if (!html) return null;
-
   const category = product.categories[0];
 
   return (
@@ -22,17 +20,19 @@ export function ProductDescription({ product }: Readonly<ProductDescriptionProps
         subtitle="توضیحات و بررسی"
         leftSlot={
           category ? (
-            <Label appearance="soft" size="sm" variant="secondary">
+            <Label appearance="soft" size="md" variant="secondary">
               {category.name}
             </Label>
           ) : null
         }
       />
-      <div className="px-16">
-        <ExpandableContent>
-          <div dangerouslySetInnerHTML={{ __html: html }} />
-        </ExpandableContent>
-      </div>
+      {html ? (
+        <div className="px-16">
+          <ExpandableContent>
+            <div dangerouslySetInnerHTML={{ __html: html }} />
+          </ExpandableContent>
+        </div>
+      ) : null}
     </section>
   );
 }
