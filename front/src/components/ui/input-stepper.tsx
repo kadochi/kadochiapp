@@ -70,6 +70,8 @@ type InputStepperProps = Omit<
     onValueChange?: (value: number) => void;
     /** Enables a remove action when the quantity is at its minimum. */
     onRemove?: () => void;
+    /** Accessible name for the remove control when `onRemove` is provided. */
+    removeLabel?: string;
     /** Accessible name for the decrement control. */
     decrementLabel?: string;
     /** Accessible name for the increment control. */
@@ -95,6 +97,7 @@ const InputStepper = forwardRef<HTMLDivElement, InputStepperProps>(
       onRemove,
       decrementLabel = "Decrease quantity",
       incrementLabel = "Increase quantity",
+      removeLabel = "Remove item",
       disabled = false,
       "aria-label": ariaLabel = "Quantity",
       ...props
@@ -174,7 +177,7 @@ const InputStepper = forwardRef<HTMLDivElement, InputStepperProps>(
         </output>
 
         <button
-          aria-label={canRemove ? "Remove item" : decrementLabel}
+          aria-label={canRemove ? removeLabel : decrementLabel}
           className={cn(
             inputStepperControlVariants({ variant }),
             canRemove && "text-error",

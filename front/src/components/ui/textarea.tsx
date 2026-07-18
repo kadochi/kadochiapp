@@ -12,7 +12,7 @@ import { cn } from "../../lib/utils";
 
 const textAreaFieldVariants = cva(
   [
-    "relative flex w-full rounded-m border bg-surface-background text-surface-neutral-high-emphasis",
+    "relative flex w-full resize-y overflow-hidden rounded-m border bg-surface-background text-surface-neutral-high-emphasis",
     "transition-[border-color,box-shadow,background-color] duration-150 ease-out",
     "focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25",
     "has-[:disabled]:cursor-not-allowed has-[:disabled]:border-disable has-[:disabled]:bg-disable-container",
@@ -20,9 +20,9 @@ const textAreaFieldVariants = cva(
   {
     variants: {
       size: {
-        sm: "min-h-96 p-12 [--textarea-inset:12px]",
-        md: "min-h-120 p-16 [--textarea-inset:16px]",
-        lg: "min-h-160 p-16 [--textarea-inset:16px]",
+        sm: "h-96 min-h-96 p-12 [--textarea-inset:12px]",
+        md: "h-[7.5rem] min-h-96 p-16 [--textarea-inset:16px]",
+        lg: "h-[10rem] min-h-96 p-16 [--textarea-inset:16px]",
       },
       status: {
         default: "border-border-high-emphasis",
@@ -144,7 +144,7 @@ const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
             aria-describedby={describedBy || undefined}
             aria-invalid={status === "error" || ariaInvalid || undefined}
             className={cn(
-              "min-h-0 w-full resize-y border-0 bg-transparent p-0 font-sans text-label-16 font-regular text-surface-neutral-high-emphasis outline-none placeholder:text-surface-neutral-mid-emphasis disabled:cursor-not-allowed disabled:text-on-disable",
+              "h-full min-h-0 w-full resize-none overflow-y-auto border-0 bg-transparent p-0 font-sans text-label-16 font-regular text-surface-neutral-high-emphasis outline-none placeholder:text-surface-neutral-mid-emphasis disabled:cursor-not-allowed disabled:text-on-disable",
               leadingIcon && "ps-24",
               className,
             )}

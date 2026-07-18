@@ -28,6 +28,7 @@ export function ProductActionBar({ product }: Readonly<ProductActionBarProps>) {
                 max={maximum}
                 onRemove={remove}
                 onValueChange={setQuantity}
+                removeLabel="حذف از سبد خرید"
                 className="w-full"
                 size="md"
                 step={multipleOf}

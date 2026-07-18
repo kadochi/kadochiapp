@@ -25,6 +25,14 @@ type HeroSlide = Omit<HeroBannerProps, "className"> & {
   id: number;
 };
 
+type HeroSliderProps = {
+  /**
+   * Server-rendered editorial content from the homepage contract. Supplying it
+   * avoids a second request after hydration while retaining the BFF fallback.
+   */
+  initialSlides?: readonly HeroSlide[];
+};
+
 const heroEndpoint = "/api/content/home";
 
 function HeroBanner({
@@ -136,11 +144,17 @@ function toHeroSlides(data: unknown): HeroSlide[] {
   });
 }
 
-function HeroSlider() {
-  const [slides, setSlides] = useState<HeroSlide[]>([]);
+function HeroSlider({ initialSlides }: Readonly<HeroSliderProps>) {
+  const [slides, setSlides] = useState<HeroSlide[]>(() =>
+    initialSlides ? [...initialSlides] : [],
+  );
   const hasMultipleSlides = slides.length > 1;
 
   useEffect(() => {
+    if (initialSlides) {
+      return;
+    }
+
     const controller = new AbortController();
 
     void bffJson(heroEndpoint, { signal: controller.signal }, toHeroSlides)
@@ -155,7 +169,7 @@ function HeroSlider() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [initialSlides]);
 
   return (
     <section
@@ -202,5 +216,10 @@ function HeroSlider() {
 }
 
 export { HeroBanner, HeroSlider };
-export type { HeroBannerProps, HeroBannerProps as BannerProps, HeroSlide };
+export type {
+  HeroBannerProps,
+  HeroBannerProps as BannerProps,
+  HeroSlide,
+  HeroSliderProps,
+};
 export default HeroSlider;

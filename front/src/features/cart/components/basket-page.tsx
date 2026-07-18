@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Divider } from "@/components/ui/divider";
 import { InputStepper } from "@/components/ui/input-stepper";
+import { NormalPrice, SumPrice } from "@/components/layout/price";
 import StateMessage from "@/components/layout/state-message";
-import { formatIrrAsToman } from "../utils/money";
+import { tomanAmount } from "../utils/money";
 import { useCart } from "../hooks/use-cart";
 import type { Cart } from "../types";
 
@@ -31,63 +30,48 @@ export function BasketPage({ initialCart, loadError }: { initialCart: Cart | nul
   }
 
   return (
-    <div className="mx-auto w-full max-w-[640px] pb-128 [direction:rtl]">
+    <div className="mx-auto w-full max-w-[580px] pb-[calc(var(--spacing-128)+var(--spacing-32)+env(safe-area-inset-bottom))] [direction:rtl]">
       <div className="space-y-12 px-16 pt-12">
         {loadError || error ? <Alert tone="error" onDismiss={dismissError}>{error ?? loadError}</Alert> : null}
         {cart.items.map((item) => {
           const pending = pendingItems.has(item.key);
           const disabled = pending || !item.quantityLimits.editable;
           return (
-            <article key={item.key} className="flex gap-12 rounded-l border border-border-low-emphasis bg-surface-background p-12">
-              <div className="flex size-88 shrink-0 items-center justify-center overflow-hidden rounded-m bg-surface-soft">
-                {item.imageUrl ? <img alt="" className="size-full object-cover" src={item.imageUrl} /> : null}
-              </div>
+            <article key={item.key} className="flex flex-row-reverse items-center gap-8 rounded-l border-b border-border-low-emphasis bg-surface-background py-12">
+              <InputStepper
+                aria-label={`تعداد ${item.name}`}
+                decrementLabel="کاهش تعداد"
+                disabled={disabled}
+                incrementLabel="افزایش تعداد"
+                max={item.quantityLimits.maximum}
+                min={item.quantityLimits.minimum}
+                onRemove={() => remove(item.key)}
+                onValueChange={(quantity) => changeQuantity(item.key, quantity)}
+                removeLabel={`حذف ${item.name}`}
+                size="sm"
+                step={item.quantityLimits.multipleOf}
+                value={item.quantity}
+                variant="subtle"
+              />
               <div className="min-w-0 flex-1">
                 <h2 className="line-clamp-2 text-title-14 font-bold text-surface-neutral-high-emphasis">{item.name}</h2>
                 {item.fastDeliveryEligible ? <p className="mt-4 text-label-12 text-success">ارسال سریع در تهران</p> : null}
-                <p className="mt-8 text-label-14 font-bold text-surface-neutral-high-emphasis">{formatIrrAsToman(item.lineTotal)}</p>
-                <div className="mt-12 flex items-center justify-between gap-8">
-                  <InputStepper
-                    aria-label={`تعداد ${item.name}`}
-                    decrementLabel="کاهش تعداد"
-                    incrementLabel="افزایش تعداد"
-                    disabled={disabled}
-                    max={item.quantityLimits.maximum}
-                    min={item.quantityLimits.minimum}
-                    onRemove={() => remove(item.key)}
-                    onValueChange={(quantity) => changeQuantity(item.key, quantity)}
-                    size="sm"
-                    step={item.quantityLimits.multipleOf}
-                    value={item.quantity}
-                    variant="outline"
-                  />
-                  <button
-                    aria-label={`حذف ${item.name}`}
-                    className="inline-flex size-32 items-center justify-center rounded-rounded text-error disabled:opacity-40"
-                    disabled={disabled}
-                    onClick={() => remove(item.key)}
-                    type="button"
-                  >
-                    <Trash2 className="size-20" />
-                  </button>
+                <div className="mt-4">
+                  <NormalPrice amount={tomanAmount(item.lineTotal)} size="M" />
                 </div>
+              </div>
+              <div className="flex size-64 shrink-0 items-center justify-center overflow-hidden rounded-m bg-surface-soft">
+                {item.imageUrl ? <img alt="" className="size-full object-cover" src={item.imageUrl} /> : null}
               </div>
             </article>
           );
         })}
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border-low-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-16))] pt-12 shadow-[0_-8px_24px_rgba(0,0,0,.06)]">
-        <div className="mx-auto max-w-[640px]">
-          <div className="mb-12 flex items-center justify-between text-label-14 text-surface-neutral-mid-emphasis">
-            <span>جمع کالاها</span><span>{formatIrrAsToman(cart.totals.totalItems)}</span>
-          </div>
-          <Divider />
-          <div className="my-12 flex items-center justify-between">
-            <span className="text-title-16 font-bold">مبلغ قابل پرداخت</span>
-            <span className="text-title-16 font-extrabold">{formatIrrAsToman(cart.totals.totalPrice)}</span>
-          </div>
-          <Button asChild className="w-full" size="large" variant="primary-filled">
-            <Link href="/checkout">ادامه و ثبت سفارش</Link>
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border-mid-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-32))] pt-16">
+        <div className="mx-auto max-w-[580px]">
+          <SumPrice amount={tomanAmount(cart.totals.totalPrice)} label="جمع کل" separate />
+          <Button asChild className="mt-12 w-full" size="large" variant="primary-filled">
+            <Link href="/checkout">ادامه فرایند خرید</Link>
           </Button>
         </div>
       </div>

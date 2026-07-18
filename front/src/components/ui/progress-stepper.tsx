@@ -175,7 +175,8 @@ function ProgressStepper({
                 resolvedOrientation === "horizontal"
                   ? "mt-[var(--progress-label-gap)]"
                   : "pt-2",
-                status === "current" && "font-bold text-secondary",
+                (status === "complete" || status === "current") &&
+                  "font-bold text-secondary",
                 status === "disabled" && "text-on-disable",
               )}
             >
