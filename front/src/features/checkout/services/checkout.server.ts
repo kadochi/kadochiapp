@@ -63,6 +63,19 @@ function paymentMethod(requestId: string, paymentMethodIds: string[]) {
   return { id, title: "پرداخت آنلاین زرین‌پال" };
 }
 
+function checkoutCart(requestId: string, cart: ReturnType<typeof mapCart>) {
+  if (cart.items.length === 0) {
+    throw new ServiceError({
+      code: "conflict",
+      status: 409,
+      message: "The cart is empty.",
+      requestId,
+      retryable: false,
+    });
+  }
+  return cart;
+}
+
 function unavailableSlot(requestId: string) {
   throw new ServiceError({
     code: "validation",
@@ -122,7 +135,8 @@ export async function checkoutState(requestId: string) {
   checkoutEnabled(requestId);
   const customer = await authenticatedCustomer(requestId);
   const initialHeaders = await checkoutHeaders();
-  const { cart, cartToken } = await cartForCheckout(initialHeaders, requestId);
+  const { cart: currentCart, cartToken } = await cartForCheckout(initialHeaders, requestId);
+  const cart = checkoutCart(requestId, currentCart);
   const state = checkoutStateSchema.parse({
     cart,
     customer,
@@ -161,10 +175,12 @@ export async function checkout(input: unknown, requestId: string) {
   const parsed = submitCheckoutSchema.parse(input);
   const customer = await authenticatedCustomer(requestId);
   let lastCartToken: string | null = null;
+  let paymentSubmitted = false;
 
   try {
     const initialHeaders = await checkoutHeaders();
-    const { cart, cartToken } = await cartForCheckout(initialHeaders, requestId);
+    const { cart: currentCart, cartToken } = await cartForCheckout(initialHeaders, requestId);
+    const cart = checkoutCart(requestId, currentCart);
     lastCartToken = cartToken;
     paymentMethod(requestId, cart.paymentMethodIds);
     if (!createDeliverySlots(cart).some((slot) => slot.id === parsed.deliverySlotId)) unavailableSlot(requestId);
@@ -183,6 +199,7 @@ export async function checkout(input: unknown, requestId: string) {
     lastCartToken = draft.headers.get("cart-token") ?? lastCartToken;
     await parseUpstreamJson(draft, (value) => upstreamCheckoutDraftSchema.parse(value), requestId);
 
+    paymentSubmitted = true;
     const response = await wordpressFetch("/wp-json/wc/store/v1/checkout", {
       method: "POST",
       headers: {
@@ -194,16 +211,22 @@ export async function checkout(input: unknown, requestId: string) {
         ...checkoutAddresses(parsed, customer),
         payment_method: env.KADOCHI_PAYMENT_METHOD_ID,
         payment_data: [],
+        // Required again on POST by current Woo versions even when PUT stored the
+        // values in the shopper session or an older persisted draft order.
+        additional_fields: additionalFields(parsed),
       }),
       cache: "no-store",
       requestId,
+      // Woo represents a gateway-declared payment failure as HTTP 400 with a
+      // normal checkout result body. The schema below still rejects error DTOs.
+      acceptStatuses: [400],
     });
     lastCartToken = response.headers.get("cart-token") ?? lastCartToken;
     return { result: await parseUpstreamJson(response, mapCheckoutResult, requestId), cartToken: lastCartToken };
   } catch (error) {
-    // The checkout request may have reached Woo before a transport timeout. Reconcile the
+    // A retryable failure after POST may hide a completed gateway call. Reconcile the
     // recorded operation instead of issuing a second payment attempt automatically.
-    if (error instanceof UpstreamError && (error.detail.code === "timeout" || error.detail.code === "network")) {
+    if (paymentSubmitted && error instanceof UpstreamError && error.detail.retryable) {
       try {
         const summary = await orderSummaryForOperation(parsed.operationId, requestId);
         return {

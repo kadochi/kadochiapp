@@ -32,6 +32,14 @@ export class ServiceError extends Error {
   }
 }
 
+/** Recognizes typed service failures without coupling callers to the transport class. */
+export function hasApiErrorCode(error: unknown, code: ApiError["code"]): boolean {
+  if (error instanceof ServiceError) return error.detail.code === code;
+  if (typeof error !== "object" || error === null || !("detail" in error)) return false;
+  const detail = apiErrorSchema.safeParse((error as { detail: unknown }).detail);
+  return detail.success && detail.data.code === code;
+}
+
 export function errorForStatus(status: number, requestId: string, message = "The upstream service could not complete the request."): ApiError {
   const code = status === 401 ? "unauthenticated" : status === 403 ? "forbidden" : status === 404 ? "not_found" : status === 409 ? "conflict" : status === 429 ? "rate_limited" : "upstream_failure";
   return { code, status, message, requestId, retryable: status === 429 || status >= 500 };

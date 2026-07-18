@@ -7,7 +7,7 @@ type Context = { params: Promise<{ itemKey: string }> };
 export async function PATCH(request: Request, { params }: Context) {
   const id = requestId(request);
   try {
-    assertSameOrigin(request);
+    assertSameOrigin(request, id);
     const input = updateQuantitySchema.parse(await request.json());
     const { itemKey } = await params;
     const result = await executeCart({ method: "POST", path: "/wp-json/wc/store/v1/cart/update-item", body: { key: itemKey, quantity: input.quantity } }, id);
@@ -20,7 +20,7 @@ export async function PATCH(request: Request, { params }: Context) {
 export async function DELETE(request: Request, { params }: Context) {
   const id = requestId(request);
   try {
-    assertSameOrigin(request);
+    assertSameOrigin(request, id);
     const { itemKey } = await params;
     const result = await executeCart({ method: "POST", path: "/wp-json/wc/store/v1/cart/remove-item", body: { key: itemKey } }, id);
     const response = jsonOk(result.cart, id, { headers: { "Cache-Control": "no-store" } });

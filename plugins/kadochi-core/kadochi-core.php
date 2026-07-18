@@ -40,6 +40,7 @@ final class Kadochi_Core {
 		add_action( 'woocommerce_blocks_loaded', array( $this, 'register_store_api_data' ) );
 		add_action( 'woocommerce_validate_additional_field', array( $this, 'validate_checkout_field' ), 10, 3 );
 		add_action( 'woocommerce_store_api_checkout_update_order_from_request', array( $this, 'validate_store_checkout_order' ), 10, 2 );
+		add_action( 'woocommerce_store_api_checkout_order_processed', array( $this, 'lock_store_checkout_order' ), 1 );
 		add_filter( 'woocommerce_get_return_url', array( $this, 'checkout_return_url' ), 20, 2 );
 		add_action( 'admin_notices', array( $this, 'render_admin_notices' ) );
 	}
@@ -723,9 +724,9 @@ final class Kadochi_Core {
 		return '_wc_other/' . self::CHECKOUT_FIELD_OPERATION;
 	}
 
-	/** Stops a duplicate Store API POST for a recorded operation before a second gateway request is made. */
+	/** Validates the materialized Store API order before Woo's own final order checks. */
 	public function validate_store_checkout_order( $order, WP_REST_Request $request ) {
-		// PUT stores the draft fields; only POST may start a gateway payment or acquire a lock.
+		// PUT stores the draft fields; only POST materializes an order for payment.
 		if ( 'POST' !== $request->get_method() ) {
 			return;
 		}
@@ -751,11 +752,22 @@ final class Kadochi_Core {
 		if ( ! preg_match( '/^[a-f0-9-]{36}$/i', $operation ) ) {
 			throw new Exception( __( 'The checkout operation was not recorded.', 'kadochi-core' ) );
 		}
+		$order->update_meta_data( '_kadochi_checkout_operation', $operation );
+	}
+
+	/** Acquires the idempotency lock after validation and immediately before payment. */
+	public function lock_store_checkout_order( $order ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'get_meta' ) ) {
+			throw new Exception( __( 'The checkout order is unavailable.', 'kadochi-core' ) );
+		}
+		$operation = (string) $order->get_meta( '_kadochi_checkout_operation', true );
+		if ( ! preg_match( '/^[a-f0-9-]{36}$/i', $operation ) ) {
+			throw new Exception( __( 'The checkout operation was not recorded.', 'kadochi-core' ) );
+		}
 		$lock_key = 'kadochi_checkout_operation_' . hash( 'sha256', $operation );
 		if ( ! add_option( $lock_key, array( 'order' => method_exists( $order, 'get_id' ) ? $order->get_id() : 0, 'createdAt' => time() ), '', 'no' ) ) {
 			throw new Exception( __( 'This checkout is already being processed.', 'kadochi-core' ) );
 		}
-		$order->update_meta_data( '_kadochi_checkout_operation', $operation );
 	}
 
 	public function checkout_return_url( $url, $order ) {
@@ -763,10 +775,14 @@ final class Kadochi_Core {
 			return $url;
 		}
 		$frontend = getenv( 'KADOCHI_FRONTEND_URL' );
-		$frontend = is_string( $frontend ) ? esc_url_raw( trim( $frontend ) ) : '';
-		if ( ! $frontend || ! wp_http_validate_url( $frontend ) ) {
+		$frontend = is_string( $frontend ) ? trim( $frontend ) : '';
+		$parts = $frontend ? wp_parse_url( $frontend ) : false;
+		// This is a trusted deployment setting, not an outbound request target.
+		// wp_http_validate_url() rejects the documented localhost development URL.
+		if ( ! is_array( $parts ) || empty( $parts['host'] ) || empty( $parts['scheme'] ) || ! in_array( strtolower( $parts['scheme'] ), array( 'http', 'https' ), true ) || isset( $parts['user'] ) || isset( $parts['pass'] ) ) {
 			return $url;
 		}
+		$frontend = esc_url_raw( $frontend, array( 'http', 'https' ) );
 		return add_query_arg( 'order', absint( $order->get_id() ), trailingslashit( $frontend ) . 'checkout/return' );
 	}
 

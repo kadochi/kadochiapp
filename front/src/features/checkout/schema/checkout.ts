@@ -49,7 +49,7 @@ const recipientSchema = z.discriminatedUnion("kind", [
 const deliveryAddressSchema = z.object({
   address1: z.string().trim().min(5, "نشانی گیرنده را وارد کنید.").max(200),
   address2: z.string().trim().max(200).optional(),
-  postcode: z.string().trim().regex(/^\d{10}$/, "کدپستی باید ۱۰ رقم باشد.").optional(),
+  postcode: z.string().trim().regex(/^\d{10}$/, "کدپستی باید ۱۰ رقم باشد."),
 }).strict();
 
 /** Browser payload deliberately excludes totals, payment gateway, phone/email, country, and city. */
@@ -93,7 +93,9 @@ const upstreamCheckoutResultSchema = z.object({
 }).passthrough();
 
 export const upstreamCheckoutDraftSchema = z.object({
-  order_id: z.number().int().positive().optional(),
+  // WooCommerce 10.8+ may keep the PUT draft in the shopper session and return 0
+  // until POST materializes the real order.
+  order_id: z.number().int().nonnegative().optional(),
   status: z.string().optional(),
 }).passthrough();
 

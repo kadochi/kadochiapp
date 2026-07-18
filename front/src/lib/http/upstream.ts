@@ -16,20 +16,22 @@ type UpstreamOptions = Omit<RequestInit, "body" | "headers"> & {
   body?: string;
   headers?: HeadersInit;
   requestId: string;
+  acceptStatuses?: readonly number[];
 };
 
 /** Internal server-only transport. Feature services own endpoint selection and mapping. */
 export async function wordpressFetch(path: string, options: UpstreamOptions): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const { acceptStatuses = [], requestId, ...requestOptions } = options;
   try {
     const response = await fetch(new URL(path, env.WORDPRESS_INTERNAL_URL), {
-      ...options,
-      headers: { Accept: "application/json", ...options.headers },
+      ...requestOptions,
+      headers: { Accept: "application/json", ...requestOptions.headers },
       signal: controller.signal,
     });
-    if (!response.ok) {
-      throw new UpstreamError(errorForStatus(response.status, options.requestId));
+    if (!response.ok && !acceptStatuses.includes(response.status)) {
+      throw new UpstreamError(errorForStatus(response.status, requestId));
     }
     return response;
   } catch (error) {
@@ -39,7 +41,7 @@ export async function wordpressFetch(path: string, options: UpstreamOptions): Pr
       code: timedOut ? "timeout" : "network",
       status: timedOut ? 504 : 502,
       message: timedOut ? "The upstream service timed out." : "The upstream service is unavailable.",
-      requestId: options.requestId,
+      requestId,
       retryable: true,
     });
   } finally {

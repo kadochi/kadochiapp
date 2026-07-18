@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 
@@ -16,6 +16,7 @@ import { formatIrrAsToman } from "@/features/cart/utils/money";
 import { submitCheckoutSchema } from "../schema/checkout";
 import { submitCheckout } from "../services/checkout";
 import type { CheckoutState } from "../types";
+import { checkoutResultAction } from "../utils/checkout-result";
 
 type RecipientKind = "self" | "other";
 
@@ -38,6 +39,8 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   const [pendingRate, setPendingRate] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [reconciliationUnknown, setReconciliationUnknown] = useState(false);
+  const submissionLock = useRef(false);
+  const operationId = useRef<string | null>(null);
 
   const steps = useMemo(() => [
     { id: "details", label: "مشخصات", status: step > 0 ? "complete" as const : "current" as const },
@@ -49,7 +52,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
     if (!senderFirstName.trim() || !senderLastName.trim()) return "نام و نام خانوادگی فرستنده را وارد کنید.";
     if (recipientKind === "other" && (!recipientFirstName.trim() || !recipientLastName.trim())) return "نام و نام خانوادگی گیرنده را وارد کنید.";
     if (address1.trim().length < 5) return "نشانی گیرنده را کامل وارد کنید.";
-    if (postcode && !/^\d{10}$/.test(postcode)) return "کدپستی باید ۱۰ رقم باشد.";
+    if (!/^\d{10}$/.test(postcode)) return "کدپستی باید ۱۰ رقم باشد.";
     return null;
   };
 
@@ -78,7 +81,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   };
 
   const pay = async () => {
-    if (submitting || reconciliationUnknown) return;
+    if (submissionLock.current || reconciliationUnknown) return;
     const validationError = validateDetails();
     if (validationError) {
       setError(validationError);
@@ -90,6 +93,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
       setStep(1);
       return;
     }
+    submissionLock.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -102,28 +106,21 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         deliverySlotId,
         packagingId,
         postcardText,
-        operationId: crypto.randomUUID(),
+        operationId: operationId.current ?? (operationId.current = crypto.randomUUID()),
       });
       const result = await submitCheckout(payload);
-      if (result.reconciliation === "paid" && result.orderId) {
-        router.replace(`/checkout/success?order=${result.orderId}`);
+      const action = checkoutResultAction(result);
+      if (action.kind === "navigate") {
+        router.replace(action.href);
         return;
       }
-      if (result.reconciliation === "unpaid" && result.orderId) {
-        router.replace(`/checkout/failure?order=${result.orderId}`);
+      if (action.kind === "external") {
+        window.location.assign(action.href);
         return;
       }
-      if (result.reconciliation === "unknown") {
+      if (action.kind === "unknown") {
         setReconciliationUnknown(true);
         setError("وضعیت پرداخت نامشخص است. دوباره پرداخت را شروع نکنید؛ چند دقیقه بعد از لینک بازگشت یا پشتیبانی پیگیری کنید.");
-        return;
-      }
-      if (result.paymentResult?.redirectUrl) {
-        window.location.assign(result.paymentResult.redirectUrl);
-        return;
-      }
-      if (result.orderId) {
-        router.replace(`/checkout/return?order=${result.orderId}`);
         return;
       }
       setError("درگاه پرداخت پاسخ معتبری نداد. لطفاً با پشتیبانی تماس بگیرید.");
@@ -134,6 +131,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         setError(caught instanceof Error ? caught.message : "ثبت سفارش ناموفق بود.");
       }
     } finally {
+      submissionLock.current = false;
       setSubmitting(false);
     }
   };
@@ -188,7 +186,7 @@ function DetailsStep(props: {
     {props.recipientKind === "other" ? <div className="grid gap-12 sm:grid-cols-2"><Input label="نام گیرنده" required value={props.recipientFirstName} onChange={(event) => props.onRecipientFirstName(event.target.value)} /><Input label="نام خانوادگی گیرنده" required value={props.recipientLastName} onChange={(event) => props.onRecipientLastName(event.target.value)} /></div> : null}
     <TextArea label="نشانی گیرنده در تهران" required value={props.address1} onChange={(event) => props.onAddress1(event.target.value)} />
     <Input label="پلاک، واحد یا توضیحات تکمیلی" value={props.address2} onChange={(event) => props.onAddress2(event.target.value)} />
-    <Input inputMode="numeric" label="کدپستی (اختیاری)" maxLength={10} value={props.postcode} onChange={(event) => props.onPostcode(event.target.value.replace(/\D/g, ""))} />
+    <Input inputMode="numeric" label="کدپستی" maxLength={10} required value={props.postcode} onChange={(event) => props.onPostcode(event.target.value.replace(/\D/g, ""))} />
   </div>;
 }
 
