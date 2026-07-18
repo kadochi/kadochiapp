@@ -25,6 +25,8 @@ function submissionErrorMessage(error: unknown) {
   if (error instanceof ServiceError) {
     if (error.detail.code === "rate_limited") return "تعداد ارسال نظر بیش از حد مجاز است. کمی بعد دوباره تلاش کنید.";
     if (error.detail.code === "validation") return "امتیاز و متن نظر را بررسی کنید.";
+    if (error.detail.code === "forbidden") return "ثبت نظر برای این محصول غیرفعال است.";
+    if (error.detail.code === "not_found") return "محصول برای ثبت نظر پیدا نشد.";
     if (error.detail.retryable) return "ارسال نظر با مشکل ارتباطی مواجه شد. دوباره تلاش کنید.";
   }
   return "ارسال نظر ناموفق بود. دوباره تلاش کنید.";

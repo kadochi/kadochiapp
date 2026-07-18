@@ -19,11 +19,12 @@ function formatDate(value: string) {
 /** Read-only reviews list. A failed fetch renders an empty state instead of breaking the page. */
 export async function ProductReviews({ productId }: Readonly<ProductReviewsProps>) {
   let reviews: Awaited<ReturnType<typeof listProductReviews>> = [];
+  let didFailToLoad = false;
 
   try {
     reviews = await listProductReviews({ productId });
   } catch {
-    reviews = [];
+    didFailToLoad = true;
   }
 
   return (
@@ -34,7 +35,11 @@ export async function ProductReviews({ productId }: Readonly<ProductReviewsProps
       />
 
       <div className="p-16">
-        {reviews.length === 0 ? (
+        {didFailToLoad ? (
+          <p className="px-16 py-48 text-center font-sans text-label-14 text-surface-neutral-mid-emphasis">
+            دریافت نظرات با مشکل روبه‌رو شد. لطفاً دوباره تلاش کنید.
+          </p>
+        ) : reviews.length === 0 ? (
           <p className="px-16 py-48 text-center font-sans text-label-14 text-surface-neutral-mid-emphasis">
             تاکنون نظری ثبت نشده است.
           </p>

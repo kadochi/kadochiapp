@@ -96,7 +96,9 @@ export async function listProductReviews(query: ReviewQuery) {
   const id = randomUUID();
   const response = await wordpressFetch(`/wp-json/kadochi/v1/reviews?${params}`, {
     requestId: id,
-    next: { revalidate: 120, tags: ["product-reviews", `product:${input.productId}:reviews`] },
+    // Admin-created comments should be visible on the next PDP render rather
+    // than waiting for the former two-minute cache window.
+    cache: "no-store",
   });
   return (await parseUpstreamJson(response, (v) => upstreamReviewsSchema.parse(v), id)).map(mapReview);
 }

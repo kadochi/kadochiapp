@@ -844,13 +844,17 @@ final class Kadochi_Core {
 
 	private function review_dto( $comment ) {
 		$avatar = esc_url_raw( get_avatar_url( $comment, array( 'size' => 96 ) ) );
+		$rating = get_comment_meta( $comment->comment_ID, 'rating', true );
 		return array(
 			'id' => (int) $comment->comment_ID,
 			'date_created' => mysql_to_rfc3339( $comment->comment_date_gmt ?: $comment->comment_date ),
 			'product_id' => (int) $comment->comment_post_ID,
 			'reviewer' => sanitize_text_field( $comment->comment_author ) ?: __( 'User', 'kadochi-core' ),
 			'review' => wp_kses_post( $comment->comment_content ),
-			'rating' => (int) get_comment_meta( $comment->comment_ID, 'rating', true ),
+			// Product comments created in WordPress admin do not necessarily have a
+			// WooCommerce rating. Keep those as comments instead of rendering a
+			// misleading zero-star review in the storefront.
+			'rating' => '' === $rating ? null : (int) $rating,
 			'verified' => (bool) get_comment_meta( $comment->comment_ID, 'verified', true ),
 			'reviewer_avatar_urls' => $avatar ? array( '96' => $avatar ) : array(),
 		);
@@ -865,7 +869,9 @@ final class Kadochi_Core {
 		$per_page = max( 1, min( 50, absint( $request->get_param( 'per_page' ) ?: 10 ) ) );
 		$comments = get_comments( array(
 			'post_id' => $product->get_id(),
-			'type' => 'review',
+			// WooCommerce uses `review`; standard WordPress comments are stored
+			// with an empty type (some extensions use `comment`).
+			'type__in' => array( 'review', '', 'comment' ),
 			'status' => 'approve',
 			'number' => $per_page,
 			'offset' => ( $page - 1 ) * $per_page,
@@ -880,7 +886,7 @@ final class Kadochi_Core {
 		if ( is_wp_error( $product ) ) {
 			return $product;
 		}
-		if ( 'yes' !== get_option( 'woocommerce_enable_reviews' ) || ! comments_open( $product->get_id() ) ) {
+		if ( ! comments_open( $product->get_id() ) ) {
 			return $this->auth_error( 'kadochi_reviews_closed', __( 'Reviews are not available for this product.', 'kadochi-core' ), 403 );
 		}
 
