@@ -36,7 +36,7 @@ const navigationItems = [
   },
   {
     label: "پروفایل",
-    href: "/login?next=/",
+    href: "/profile",
     icon: "/icons/profile.svg",
     activeIcon: "/icons/profile-active.svg",
   },

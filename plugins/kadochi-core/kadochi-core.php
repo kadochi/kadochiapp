@@ -202,7 +202,12 @@ final class Kadochi_Core {
 			'permission_callback' => array( $this, 'public_auth_request' ),
 			'args' => array( 'phone' => $this->phone_route_arg(), 'code' => $this->code_route_arg() ),
 		) );
-		register_rest_route( self::REST_NAMESPACE, '/customer', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'customer' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
+		register_rest_route( self::REST_NAMESPACE, '/customer', array(
+			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'customer' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+			array( 'methods' => 'PATCH', 'callback' => array( $this, 'update_customer_profile' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+		) );
+		register_rest_route( self::REST_NAMESPACE, '/profile/orders', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_profile_orders' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
+		register_rest_route( self::REST_NAMESPACE, '/profile/orders/(?P<id>\\d+)', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'profile_order_detail' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
 		register_rest_route( self::REST_NAMESPACE, '/orders/(?P<id>\\d+)', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'order_summary' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
 		register_rest_route( self::REST_NAMESPACE, '/checkout/operations/(?P<operation>[a-f0-9-]{36})', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'operation_summary' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
 		register_rest_route( self::REST_NAMESPACE, '/reviews', array(
@@ -461,9 +466,9 @@ final class Kadochi_Core {
 		if ( ! $phone ) {
 			return null;
 		}
-		$display_name = sanitize_text_field( $user->display_name );
+		$display_name = trim( $first_name . ' ' . $last_name );
 		if ( '' === $display_name ) {
-			$display_name = trim( $first_name . ' ' . $last_name );
+			$display_name = sanitize_text_field( $user->display_name );
 		}
 		if ( '' === $display_name ) {
 			$display_name = sanitize_text_field( $user->user_login );
@@ -592,6 +597,48 @@ final class Kadochi_Core {
 
 	public function customer() {
 		$customer = $this->customer_dto( get_current_user_id() );
+		return $customer ? rest_ensure_response( $customer ) : $this->auth_error( 'kadochi_customer_unavailable', __( 'The customer service is unavailable.', 'kadochi-core' ), 503 );
+	}
+
+	/** Updates the small, user-controlled part of a customer record. Phone and email stay owned by authentication. */
+	public function update_customer_profile( WP_REST_Request $request ) {
+		$input = $request->get_json_params();
+		if ( ! is_array( $input ) || ( ! array_key_exists( 'firstName', $input ) && ! array_key_exists( 'lastName', $input ) ) ) {
+			return $this->auth_error( 'kadochi_invalid_profile', __( 'Provide at least one profile field.', 'kadochi-core' ), 400 );
+		}
+
+		$first_name = array_key_exists( 'firstName', $input ) && is_string( $input['firstName'] ) ? sanitize_text_field( $input['firstName'] ) : null;
+		$last_name = array_key_exists( 'lastName', $input ) && is_string( $input['lastName'] ) ? sanitize_text_field( $input['lastName'] ) : null;
+		if ( ( null !== $first_name && $this->string_length( $first_name ) > 100 ) || ( null !== $last_name && $this->string_length( $last_name ) > 100 ) || ( array_key_exists( 'firstName', $input ) && null === $first_name ) || ( array_key_exists( 'lastName', $input ) && null === $last_name ) ) {
+			return $this->auth_error( 'kadochi_invalid_profile', __( 'Profile fields are invalid.', 'kadochi-core' ), 400 );
+		}
+
+		$user_id = get_current_user_id();
+		$user = get_user_by( 'id', $user_id );
+		if ( ! $user ) {
+			return $this->auth_error( 'kadochi_customer_unavailable', __( 'The customer service is unavailable.', 'kadochi-core' ), 503 );
+		}
+
+		if ( null !== $first_name ) {
+			update_user_meta( $user_id, 'first_name', $first_name );
+			update_user_meta( $user_id, 'billing_first_name', $first_name );
+		}
+		if ( null !== $last_name ) {
+			update_user_meta( $user_id, 'last_name', $last_name );
+			update_user_meta( $user_id, 'billing_last_name', $last_name );
+		}
+
+		$next_first_name = null === $first_name ? sanitize_text_field( get_user_meta( $user_id, 'first_name', true ) ) : $first_name;
+		$next_last_name = null === $last_name ? sanitize_text_field( get_user_meta( $user_id, 'last_name', true ) ) : $last_name;
+		$display_name = trim( $next_first_name . ' ' . $next_last_name );
+		if ( '' !== $display_name ) {
+			$updated = wp_update_user( array( 'ID' => $user_id, 'display_name' => $display_name ) );
+			if ( is_wp_error( $updated ) ) {
+				return $this->auth_error( 'kadochi_customer_unavailable', __( 'The customer service is unavailable.', 'kadochi-core' ), 503 );
+			}
+		}
+
+		$customer = $this->customer_dto( $user_id );
 		return $customer ? rest_ensure_response( $customer ) : $this->auth_error( 'kadochi_customer_unavailable', __( 'The customer service is unavailable.', 'kadochi-core' ), 503 );
 	}
 
@@ -797,12 +844,18 @@ final class Kadochi_Core {
 
 	private function order_money( $order ) {
 		$minor_unit = function_exists( 'wc_get_price_decimals' ) ? max( 0, (int) wc_get_price_decimals() ) : 0;
-		$total = function_exists( 'wc_format_decimal' ) ? wc_format_decimal( $order->get_total(), $minor_unit ) : (string) $order->get_total();
+		return $this->money_value( $order->get_total(), $order->get_currency(), $minor_unit );
+	}
+
+	/** Converts Woo decimal values to the same exact-money representation used by the Store API. */
+	private function money_value( $value, $currency, $minor_unit = null ) {
+		$minor_unit = null === $minor_unit ? ( function_exists( 'wc_get_price_decimals' ) ? max( 0, (int) wc_get_price_decimals() ) : 0 ) : max( 0, (int) $minor_unit );
+		$total = function_exists( 'wc_format_decimal' ) ? wc_format_decimal( $value, $minor_unit ) : (string) $value;
 		$parts = explode( '.', (string) $total, 2 );
 		$integer = preg_replace( '/\\D/', '', $parts[0] );
 		$fraction = isset( $parts[1] ) ? preg_replace( '/\\D/', '', $parts[1] ) : '';
 		$amount = ltrim( ( $integer ?: '0' ) . str_pad( substr( $fraction, 0, $minor_unit ), $minor_unit, '0' ), '0' );
-		return array( 'amount' => '' === $amount ? '0' : $amount, 'currencyCode' => sanitize_text_field( $order->get_currency() ), 'minorUnit' => $minor_unit );
+		return array( 'amount' => '' === $amount ? '0' : $amount, 'currencyCode' => sanitize_text_field( $currency ), 'minorUnit' => $minor_unit );
 	}
 
 	private function owned_order( $order_id ) {
@@ -832,6 +885,91 @@ final class Kadochi_Core {
 	public function order_summary( WP_REST_Request $request ) {
 		$order = $this->owned_order( $request['id'] );
 		return is_wp_error( $order ) ? $order : rest_ensure_response( $this->order_summary_dto( $order ) );
+	}
+
+	private function profile_order_item_dto( $item ) {
+		$product = is_object( $item ) && method_exists( $item, 'get_product' ) ? $item->get_product() : null;
+		$image = null;
+		if ( $product && method_exists( $product, 'get_image_id' ) && function_exists( 'wp_get_attachment_image_url' ) ) {
+			$image = wp_get_attachment_image_url( $product->get_image_id(), 'woocommerce_thumbnail' );
+		}
+		return array(
+			'id' => is_object( $item ) && method_exists( $item, 'get_id' ) ? (int) $item->get_id() : 0,
+			'name' => is_object( $item ) && method_exists( $item, 'get_name' ) ? sanitize_text_field( $item->get_name() ) : '',
+			'quantity' => is_object( $item ) && method_exists( $item, 'get_quantity' ) ? max( 0, (int) $item->get_quantity() ) : 0,
+			'imageUrl' => $image ? esc_url_raw( $image ) : null,
+		);
+	}
+
+	private function profile_order_summary_dto( $order ) {
+		$created = $order->get_date_created();
+		$items = array();
+		foreach ( $order->get_items( 'line_item' ) as $item ) {
+			$items[] = $this->profile_order_item_dto( $item );
+		}
+		return array(
+			'id' => (int) $order->get_id(),
+			'status' => sanitize_key( $order->get_status() ),
+			'createdAt' => $created ? $created->date( 'c' ) : gmdate( 'c' ),
+			'total' => $this->order_money( $order ),
+			'items' => $items,
+		);
+	}
+
+	public function list_profile_orders( WP_REST_Request $request ) {
+		if ( ! function_exists( 'wc_get_orders' ) || ! function_exists( 'wc_get_order_statuses' ) ) {
+			return $this->auth_error( 'kadochi_orders_unavailable', __( 'The order service is unavailable.', 'kadochi-core' ), 503 );
+		}
+		$page = min( 100000, max( 1, absint( $request->get_param( 'page' ) ?: 1 ) ) );
+		$per_page = min( 50, max( 1, absint( $request->get_param( 'perPage' ) ?: 20 ) ) );
+		$result = wc_get_orders( array(
+			'customer_id' => get_current_user_id(),
+			'limit' => $per_page,
+			'page' => $page,
+			'paginate' => true,
+			'status' => array_keys( wc_get_order_statuses() ),
+			'orderby' => 'date',
+			'order' => 'DESC',
+		) );
+		$orders = is_object( $result ) && isset( $result->orders ) && is_array( $result->orders ) ? $result->orders : array();
+		$items = array();
+		foreach ( $orders as $order ) {
+			$items[] = $this->profile_order_summary_dto( $order );
+		}
+		$total = is_object( $result ) && isset( $result->total ) ? max( 0, (int) $result->total ) : count( $items );
+		$total_pages = is_object( $result ) && isset( $result->max_num_pages ) ? max( 0, (int) $result->max_num_pages ) : ( $total ? 1 : 0 );
+		return rest_ensure_response( array( 'items' => $items, 'page' => $page, 'perPage' => $per_page, 'total' => $total, 'totalPages' => $total_pages ) );
+	}
+
+	private function profile_order_detail_dto( $order ) {
+		$shipping_parts = array_filter( array( $order->get_shipping_state(), $order->get_shipping_city(), $order->get_shipping_address_1(), $order->get_shipping_address_2() ) );
+		$items = array();
+		foreach ( $order->get_items( 'line_item' ) as $item ) {
+			$items[] = $this->profile_order_item_dto( $item );
+		}
+		$fees = method_exists( $order, 'get_total_fees' ) ? $order->get_total_fees() : 0;
+		return array(
+			'id' => (int) $order->get_id(),
+			'status' => sanitize_key( $order->get_status() ),
+			'createdAt' => ( $created = $order->get_date_created() ) ? $created->date( 'c' ) : gmdate( 'c' ),
+			'sender' => trim( sanitize_text_field( $order->get_billing_first_name() ) . ' ' . sanitize_text_field( $order->get_billing_last_name() ) ),
+			'receiver' => trim( sanitize_text_field( $order->get_shipping_first_name() ) . ' ' . sanitize_text_field( $order->get_shipping_last_name() ) ),
+			'deliverySlot' => ( $slot = $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_DELIVERY_SLOT, true ) ) ? sanitize_text_field( $slot ) : null,
+			'address' => implode( '، ', array_map( 'sanitize_text_field', $shipping_parts ) ),
+			'items' => $items,
+			'summary' => array(
+				'subtotal' => $this->money_value( $order->get_subtotal(), $order->get_currency() ),
+				'tax' => $this->money_value( $order->get_total_tax(), $order->get_currency() ),
+				'shipping' => $this->money_value( $order->get_shipping_total(), $order->get_currency() ),
+				'service' => $this->money_value( $fees, $order->get_currency() ),
+				'total' => $this->order_money( $order ),
+			),
+		);
+	}
+
+	public function profile_order_detail( WP_REST_Request $request ) {
+		$order = $this->owned_order( $request['id'] );
+		return is_wp_error( $order ) ? $order : rest_ensure_response( $this->profile_order_detail_dto( $order ) );
 	}
 
 	public function operation_summary( WP_REST_Request $request ) {
