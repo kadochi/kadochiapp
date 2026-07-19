@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog } from "radix-ui";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Bookmark, ChevronLeft, ChevronRight, Heart, X } from "lucide-react";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { FreeMode, Thumbs } from "swiper/modules";
 import "swiper/css";
@@ -11,23 +11,70 @@ import "swiper/css/thumbs";
 
 import { useProductGallery } from "../hooks/useProductGallery";
 import type { ProductImage } from "../types";
+import { useToast } from "@/components/ui/toaster";
 
 export type ProductGalleryProps = {
   images: readonly ProductImage[];
+  productId: number;
   title: string;
 };
 
-/** Main image slider with a deferred, synced thumbnail strip. */
+/** Main image slider with product actions and a deferred, synced thumbnail strip. */
 export function ProductGallery({
   images,
+  productId,
   title,
 }: Readonly<ProductGalleryProps>) {
   const { slides, activeThumbs, setThumbsSwiper, showThumbs } =
     useProductGallery(images, title);
+  const { toast } = useToast();
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const [isLiked, setIsLiked] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const viewerSlide = slides[viewerIndex];
   const hasMultipleSlides = slides.length > 1;
+  const likeStorageKey = `kadochi:liked-products:${productId}`;
+  const saveStorageKey = `kadochi:saved-products:${productId}`;
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        setIsLiked(window.localStorage.getItem(likeStorageKey) === "true");
+        setIsSaved(window.localStorage.getItem(saveStorageKey) === "true");
+      } catch {
+        // Keep the controls usable when browser storage is unavailable.
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [likeStorageKey, saveStorageKey]);
+
+  function toggleProductAction(action: "like" | "save") {
+    const isLike = action === "like";
+    const updateState = isLike ? setIsLiked : setIsSaved;
+    const storageKey = isLike ? likeStorageKey : saveStorageKey;
+    const next = !(isLike ? isLiked : isSaved);
+
+    updateState(next);
+
+    try {
+      window.localStorage.setItem(storageKey, String(next));
+    } catch {
+      // The visual state still updates when storage is disabled.
+    }
+
+    toast({
+      tone: "success",
+      title: next
+        ? isLike
+          ? "محصول پسندیده شد"
+          : "محصول ذخیره شد"
+        : isLike
+          ? "پسندیدن محصول لغو شد"
+          : "محصول از ذخیره‌ها حذف شد",
+    });
+  }
 
   function openViewer(index: number) {
     setViewerIndex(index);
@@ -44,68 +91,107 @@ export function ProductGallery({
 
   return (
     <div className="w-full overflow-hidden bg-surface-background" dir="rtl">
-      <Swiper
-        className="mb-12 w-full min-[864px]:mx-auto min-[864px]:max-w-[400px] [&_.swiper-wrapper]:flex [&_.swiper-slide]:flex [&_.swiper-slide]:w-full [&_.swiper-slide]:justify-center"
-        dir="rtl"
-        modules={[FreeMode, Thumbs]}
-        slidesPerView={1}
-        spaceBetween={0}
-        thumbs={{ swiper: activeThumbs }}
-      >
-        {slides.map((slide, index) => (
-          <SwiperSlide key={(slide.src ?? "placeholder") + index}>
-            {slide.src ? (
-              <button
-                aria-label={`نمایش بزرگ ${slide.alt}`}
-                className="block w-full cursor-zoom-in border-0 bg-transparent px-8 py-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:px-0"
-                onClick={() => openViewer(index)}
-                type="button"
-              >
-                <img
-                  alt={slide.alt}
-                  className="mx-auto block aspect-[1/1.2] w-full max-w-[400px] rounded-xl object-cover"
-                  decoding={slide.priority ? "sync" : "async"}
-                  fetchPriority={slide.priority ? "high" : "auto"}
-                  loading={slide.priority ? "eager" : "lazy"}
-                  src={slide.src}
-                />
-              </button>
-            ) : null}
-          </SwiperSlide>
-        ))}
-      </Swiper>
-
-      {showThumbs ? (
+      <div className="relative mx-auto w-[calc(100%-1.5rem)] max-w-[400px]">
         <Swiper
-          className="my-12 flex w-full justify-center min-[864px]:mx-auto min-[864px]:max-w-[400px] [&_.swiper-wrapper]:items-center [&_.swiper-wrapper]:justify-center [&_.swiper-slide]:!w-64 [&_.swiper-slide]:flex [&_.swiper-slide]:justify-center [&_.swiper-slide-thumb-active_img]:border-2 [&_.swiper-slide-thumb-active_img]:border-secondary"
+          className="w-full [&_.swiper-wrapper]:flex [&_.swiper-slide]:flex [&_.swiper-slide]:w-full [&_.swiper-slide]:justify-center"
           dir="rtl"
-          freeMode
           modules={[FreeMode, Thumbs]}
-          onSwiper={setThumbsSwiper}
-          slidesPerView="auto"
-          spaceBetween={12}
-          watchSlidesProgress
+          slidesPerView={1}
+          spaceBetween={0}
+          thumbs={{ swiper: activeThumbs }}
         >
           {slides.map((slide, index) => (
-            <SwiperSlide key={`thumb-${slide.src}-${index}`}>
-              <img
-                alt=""
-                aria-hidden
-                className="size-64 cursor-pointer rounded-m border border-border-high-emphasis object-cover transition-[border-color] duration-200 ease-in-out"
-                decoding="async"
-                loading="lazy"
-                src={slide.src}
-              />
+            <SwiperSlide key={(slide.src ?? "placeholder") + index}>
+              {slide.src ? (
+                <button
+                  aria-label={`نمایش بزرگ ${slide.alt}`}
+                  className="block w-full cursor-zoom-in border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  onClick={() => openViewer(index)}
+                  type="button"
+                >
+                  <img
+                    alt={slide.alt}
+                    className="block aspect-[1/1.2] w-full rounded-xl object-cover"
+                    decoding={slide.priority ? "sync" : "async"}
+                    fetchPriority={slide.priority ? "high" : "auto"}
+                    loading={slide.priority ? "eager" : "lazy"}
+                    src={slide.src}
+                  />
+                </button>
+              ) : null}
             </SwiperSlide>
           ))}
         </Swiper>
-      ) : null}
+
+        <div className="absolute left-12 top-12 z-10 flex gap-8" dir="ltr">
+          <button
+            aria-label={isLiked ? "لغو پسندیدن محصول" : "پسندیدن محصول"}
+            aria-pressed={isLiked}
+            className="inline-flex size-40 cursor-pointer items-center justify-center rounded-rounded border border-white/70 bg-white/85 p-0 text-black shadow-sm backdrop-blur-sm transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary aria-pressed:bg-white aria-pressed:text-red-600"
+            onClick={() => toggleProductAction("like")}
+            type="button"
+          >
+            <Heart
+              aria-hidden
+              className="size-20"
+              fill={isLiked ? "currentColor" : "none"}
+            />
+          </button>
+          <button
+            aria-label={isSaved ? "حذف محصول از ذخیره‌ها" : "ذخیره محصول"}
+            aria-pressed={isSaved}
+            className="inline-flex size-40 cursor-pointer items-center justify-center rounded-rounded border border-white/70 bg-white/85 p-0 text-black shadow-sm backdrop-blur-sm transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary aria-pressed:bg-white"
+            onClick={() => toggleProductAction("save")}
+            type="button"
+          >
+            <Bookmark
+              aria-hidden
+              className="size-20"
+              fill={isSaved ? "currentColor" : "none"}
+            />
+          </button>
+        </div>
+
+        {showThumbs ? (
+          <div className="absolute inset-x-0 bottom-0 z-10 rounded-b-xl pb-16">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-[9rem] rounded-b-xl bg-gradient-to-t from-black/70 via-black/35 to-transparent"
+            />
+            <Swiper
+              className="relative flex w-full justify-center px-12 pb-[24px] pt-48 [&_.swiper-wrapper]:items-center [&_.swiper-wrapper]:justify-center [&_.swiper-slide]:!w-64 [&_.swiper-slide]:flex [&_.swiper-slide]:justify-center [&_.swiper-slide-thumb-active_img]:border-2 [&_.swiper-slide-thumb-active_img]:border-on-primary"
+              dir="rtl"
+              freeMode
+              modules={[FreeMode, Thumbs]}
+              onSwiper={setThumbsSwiper}
+              slidesPerView="auto"
+              spaceBetween={12}
+              watchSlidesProgress
+            >
+              {slides.map((slide, index) => (
+                <SwiperSlide key={`thumb-${slide.src}-${index}`}>
+                  <img
+                    alt=""
+                    aria-hidden
+                    className="size-64 cursor-pointer rounded-m border border-white/70 object-cover transition-[border-color] duration-200 ease-in-out"
+                    decoding="async"
+                    loading="lazy"
+                    src={slide.src}
+                  />
+                </SwiperSlide>
+              ))}
+            </Swiper>
+          </div>
+        ) : null}
+      </div>
 
       <Dialog.Root open={isViewerOpen} onOpenChange={setIsViewerOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-[200] bg-surface-scrim" />
           <Dialog.Content className="fixed inset-0 z-[201] flex flex-col bg-surface-neutral-high-emphasis p-16 outline-none">
-            <Dialog.Title className="sr-only">نمایش تصاویر {title}</Dialog.Title>
+            <Dialog.Title className="sr-only">
+              نمایش تصاویر {title}
+            </Dialog.Title>
             <Dialog.Description className="sr-only">
               برای جابه‌جایی میان تصاویر از دکمه‌های قبلی و بعدی استفاده کنید.
             </Dialog.Description>
@@ -168,7 +254,12 @@ export function ProductGallery({
                     type="button"
                   >
                     {slide.src ? (
-                      <img alt="" aria-hidden className="size-64 rounded-[calc(var(--radius-m)-2px)] object-cover" src={slide.src} />
+                      <img
+                        alt=""
+                        aria-hidden
+                        className="size-64 rounded-[calc(var(--radius-m)-2px)] object-cover"
+                        src={slide.src}
+                      />
                     ) : null}
                   </button>
                 ))}

@@ -131,6 +131,7 @@ function mockProduct(overrides: Partial<Product>): Product {
     price: { amount: "12500000", currencyCode: "IRR", minorUnit: 0 },
     images: [{ url: "/images/zippo-1.png", alt: "فندک زیپو" }],
     categories: [],
+    tags: [],
     attributes: [],
     averageRating: 0,
     reviewCount: 0,

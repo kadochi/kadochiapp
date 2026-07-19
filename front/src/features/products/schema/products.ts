@@ -45,6 +45,12 @@ const upstreamAttributeSchema = z.object({
   terms: z.array(z.object({ id: z.number().int().optional(), name: z.string(), slug: z.string().optional() })).default([]),
 });
 
+const upstreamProductTagSchema = z.object({
+  id: z.number().int().positive(),
+  name: z.string(),
+  slug: z.string(),
+});
+
 const upstreamProductSchema = z.object({
   id: z.number().int().positive(),
   name: z.string(),
@@ -54,6 +60,7 @@ const upstreamProductSchema = z.object({
   prices: priceSchema,
   images: z.array(imageSchema).default([]),
   categories: z.array(z.object({ id: z.number().int(), name: z.string(), slug: z.string() })).default([]),
+  tags: z.array(upstreamProductTagSchema).default([]),
   attributes: z.array(upstreamAttributeSchema).default([]),
   is_in_stock: z.boolean().default(false),
   is_purchasable: z.boolean().default(false),
@@ -74,6 +81,7 @@ export const upstreamProductTagsSchema = z.array(z.object({
 
 export const moneySchema = z.object({ amount: z.string().regex(/^\d+$/), currencyCode: z.string().length(3), minorUnit: z.number().int().min(0).max(4) });
 export const productAttributeSchema = z.object({ name: z.string().min(1), value: z.string().min(1) });
+export const productTermSchema = z.object({ id: z.number().int().positive(), name: z.string().min(1), slug: z.string().min(1) });
 export const productSchema = z.object({
   id: z.number().int().positive(),
   name: z.string(),
@@ -85,6 +93,7 @@ export const productSchema = z.object({
   salePrice: moneySchema.optional(),
   images: z.array(z.object({ id: z.number().int().optional(), url: z.string().url(), thumbnailUrl: z.string().url().optional(), alt: z.string() })),
   categories: z.array(z.object({ id: z.number().int(), name: z.string(), slug: z.string() })),
+  tags: z.array(productTermSchema),
   attributes: z.array(productAttributeSchema),
   averageRating: z.number().min(0).max(5),
   reviewCount: z.number().int().nonnegative(),

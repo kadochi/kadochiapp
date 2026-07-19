@@ -30,26 +30,17 @@ const navigationItems = [
   },
   {
     label: "مناسبت‌ها",
-    href: "/occasions",
+    href: "/#occasions",
     icon: "/icons/occasions.svg",
     activeIcon: "/icons/occasions-active.svg",
   },
   {
     label: "پروفایل",
-    href: "/profile",
+    href: "/login?next=/",
     icon: "/icons/profile.svg",
     activeIcon: "/icons/profile-active.svg",
   },
 ] as const satisfies readonly NavigationItem[];
-
-const hiddenRouteFragments = [
-  "/product/",
-  "/basket",
-  "/auth/",
-  "/login",
-  "/checkout",
-  "/profile/",
-] as const;
 
 const bottomNavigationSafeArea =
   "calc(80px + max(env(safe-area-inset-bottom), 8px))";
@@ -86,21 +77,10 @@ function isActiveNavigationItem(item: NavigationItem, pathname: string) {
     : pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-function isBottomNavigationHidden(pathname: string) {
-  return hiddenRouteFragments.some((fragment) => pathname.includes(fragment));
-}
-
 function BottomNavigation() {
   const pathname = usePathname();
-  const isHidden = isBottomNavigationHidden(pathname);
 
   useEffect(() => {
-    if (isHidden) {
-      document.body.style.removeProperty("--bottom-nav-safe");
-      delete document.body.dataset.bottomNav;
-      return;
-    }
-
     document.body.dataset.bottomNav = "active";
     document.body.style.setProperty("--bottom-nav-safe", bottomNavigationSafeArea);
 
@@ -108,11 +88,7 @@ function BottomNavigation() {
       document.body.style.removeProperty("--bottom-nav-safe");
       delete document.body.dataset.bottomNav;
     };
-  }, [isHidden]);
-
-  if (isHidden) {
-    return null;
-  }
+  }, []);
 
   return (
     <nav

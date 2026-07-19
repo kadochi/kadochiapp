@@ -21,6 +21,9 @@ export function mapProduct(product: UpstreamProduct) {
     salePrice: product.prices.sale_price ? money(product.prices.sale_price, product.prices) : undefined,
     images: product.images.map((image) => ({ id: image.id, url: image.src, thumbnailUrl: image.thumbnail, alt: image.alt ?? "" })),
     categories: product.categories,
+    tags: product.tags
+      .map((tag) => ({ id: tag.id, name: tag.name.trim(), slug: tag.slug.trim() }))
+      .filter((tag) => tag.name && tag.slug),
     attributes: product.attributes
       .map((attribute) => ({
         name: attribute.name.trim(),

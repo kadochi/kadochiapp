@@ -5,5 +5,4 @@ export const homepageContentSchema = z.object({
   banners: z.array(z.object({ id: z.number().int().positive(), title: z.string(), subtitle: z.string(), ctaText: z.string(), ctaLink: z.string().url().nullable(), backgroundGradient: z.string().nullable(), backgroundImage: imageSchema })),
   heroes: z.array(z.object({ id: z.number().int().positive(), title: z.string(), ctaText: z.string(), ctaLink: z.string().url().nullable(), backgroundImage: imageSchema })),
   sliders: z.array(z.object({ id: z.number().int().positive(), sliderTitle: z.string(), sliderButtonText: z.string(), sliderLink: z.string().url().nullable(), backgroundImage: imageSchema })),
-  gifts: z.array(z.object({ id: z.number().int().positive(), title: z.string(), description: z.string(), image: imageSchema, price: z.string().nullable() })),
 });

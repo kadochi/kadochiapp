@@ -5,7 +5,7 @@
 The local Docker stack was stopped while this change was implemented, so no running WordPress/WooCommerce/SCF version, route, record, or session fixture was available to snapshot. Do not enable this plugin in a production-like installation before recording the following in the deployment ticket:
 
 - WordPress, WooCommerce, and SCF versions; active plugins; registered custom types/routes; and representative API responses.
-- Counts/statuses/authors and SCF metadata for `slider`, `banner`, `gifts`, `hero`, and `occasion`.
+- Counts/statuses/authors and SCF metadata for `slider`, `banner`, `hero`, and `occasion`.
 - Existing consumers of the legacy custom-post REST routes.
 - The customer identity provider, WordPress cookie/nonce bridge, guest policy, gateways, shipping, tax, coupons, and occasion retention policy.
 
@@ -13,7 +13,7 @@ The selected retention behavior in this implementation is WordPress trash (not p
 
 ## Installation and migration
 
-1. Start the stack, install/activate a compatible Secure Custom Fields release and WooCommerce, then activate **Kadochi Core** under Plugins. The Docker compose file mounts it at `wp-content/plugins/kadochi-core`.
+1. Start the stack, activate the provisioned **Secure Custom Fields** release and WooCommerce, then activate **Kadochi Core** under Plugins. The Docker compose file mounts it at `wp-content/plugins/kadochi-core`.
 2. Confirm the `kadochi/v1/health` response as an administrator. Resolve any SCF notice before publishing content.
 3. Snapshot representative records before activation. Existing post-type registrations are adopted rather than re-registered; the plugin only registers missing types. Existing `occasion` registrations are force-hardened: no public/query/search/rewrite/default REST access remains.
 4. Confirm the normalized public route at `GET /wp-json/kadochi/v1/content/home`. Keep existing editorial REST routes during the compatibility audit; do not disable them until their consumers have migrated.

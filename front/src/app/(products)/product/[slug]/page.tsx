@@ -14,6 +14,7 @@ import { ProductReviews } from "@/features/products/components/product-reviews";
 import { ProductReview } from "@/features/products/components/product-review";
 import { ProductsSliderSkeleton, ProductReviewsSkeleton } from "@/features/products/components/product-detail-skeleton";
 import { ProductSpecs } from "@/features/products/components/product-specs";
+import { ProductTags } from "@/features/products/components/product-tags";
 import { SimilarProducts } from "@/features/products/components/similar-products";
 import { getProductBySlug } from "@/features/products/services/products.server";
 import { productBreadcrumbs } from "@/features/products/utils/product-breadcrumbs";
@@ -77,12 +78,19 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
 
   return (
     <>
-      <ProductGallery images={product.images} title={product.name} />
+      <ProductGallery images={product.images} productId={product.id} title={product.name} />
       <ProductInfo product={product} />
       <Divider variant="spacer" />
       <ProductDescription product={product} />
       <Divider variant="spacer" />
       <ProductSpecs attributes={product.attributes} />
+
+      {product.tags.length ? (
+        <>
+          <Divider variant="spacer" />
+          <ProductTags tags={product.tags} />
+        </>
+      ) : null}
       <Divider variant="spacer" />
 
       <Suspense fallback={<ProductsSliderSkeleton />}>

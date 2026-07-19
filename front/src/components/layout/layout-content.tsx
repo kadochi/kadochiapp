@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BottomNavigation } from "./bottom-navigation";
 import { Footer } from "./footer";
 import { Header, type HeaderProps } from "./header";
 import { cn } from "@/lib/utils";
@@ -8,6 +9,8 @@ export type LayoutContentProps = {
   className?: string;
   mainClassName?: string;
   headerProps?: HeaderProps;
+  /** Shows the mobile-only bottom navigation for this page. */
+  showBottomNav?: boolean;
 };
 
 /**
@@ -21,12 +24,14 @@ function LayoutContent({
   className,
   mainClassName,
   headerProps,
+  showBottomNav = false,
 }: Readonly<LayoutContentProps>) {
   return (
     <div className={cn("flex min-h-dvh flex-col", className)}>
       <Header {...headerProps} />
       <main className={cn("flex-1", mainClassName)}>{children}</main>
       <Footer />
+      {showBottomNav ? <BottomNavigation /> : null}
     </div>
   );
 }

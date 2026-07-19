@@ -19,7 +19,7 @@ WordPress owns OTP verification and JWT issuance in every environment. In `local
 
 For production, set `WP_ENVIRONMENT_TYPE=production` and configure `MELIPAYAMAK_OTP_URL`. The WordPress plugin calls the relay with `{ "to": "0912..." }`, requires `{ "code": "1234" }`, stores only an HMAC OTP digest in WordPress transients, rate-limits sends, and signs seven-day JWTs from the WordPress authentication salt. No Redis instance, WooCommerce REST credential, or Next.js JWT secret is required. See [the environment template](.env.example) for the full contract.
 
-On first launch, complete WordPress's installation wizard and activate **Kadochi Headless Admin Theme** in Appearance → Themes. The stack provisions **ZarinPal for WooCommerce** automatically; activate it under Plugins, then enter its merchant credentials under WooCommerce → Settings → Payments. Source edits in `front/` hot reload; edits in `theme/` are immediately mounted into WordPress.
+On first launch, complete WordPress's installation wizard and activate **Kadochi Headless Admin Theme** in Appearance → Themes. The stack provisions **Secure Custom Fields (SCF)** and **ZarinPal for WooCommerce** automatically; activate them under Plugins. Then enter the ZarinPal merchant credentials under WooCommerce → Settings → Payments. Source edits in `front/` hot reload; edits in `theme/` are immediately mounted into WordPress.
 
 ## Services and storage
 

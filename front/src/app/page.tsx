@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Divider } from "@/components/ui/divider";
 import { AboutKadochi } from "@/features/landing/components/about-kadochi";
 import { CategoryRail } from "@/features/landing/components/category-rail";
-import { EditorialGiftRail } from "@/features/landing/components/editorial-gift-rail";
 import { LandingProductRail } from "@/features/landing/components/landing-product-rail";
 import { OccasionPrompt } from "@/features/landing/components/occasion-prompt";
 import { UpcomingOccasionRail } from "@/features/landing/components/upcoming-occasion-rail";
@@ -44,7 +43,6 @@ export const metadata: Metadata = {
 
 const emptyContent: HomepageContent = {
   banners: [],
-  gifts: [],
   heroes: [],
   sliders: [],
 };
@@ -138,7 +136,7 @@ export default async function Homepage() {
   };
 
   return (
-    <LayoutContent mainClassName="mx-auto w-full max-w-[1440px]">
+    <LayoutContent mainClassName="mx-auto w-full max-w-[1440px]" showBottomNav>
       <h1 className="sr-only">کادوچی | خرید کادو، گل و کیک با ارسال سریع</h1>
       <HeroSlider initialSlides={heroSlides.length ? heroSlides : undefined} />
       <ServicesNav items={[...services]} />
@@ -152,7 +150,7 @@ export default async function Homepage() {
       />
 
       <Divider size="lg" variant="spacer" />
-      <section aria-labelledby="occasion-calendar-heading">
+      <section aria-labelledby="occasion-calendar-heading" id="occasions">
         <SectionHeader
           as="h2"
           leftSlot={
@@ -192,20 +190,6 @@ export default async function Homepage() {
         subtitle="اگر خیلی سریع به دنبال یک کادو هستین"
         title="کادوهای ارسال روز"
       />
-
-      {content.gifts.length ? (
-        <>
-          <Divider size="lg" variant="spacer" />
-          <section aria-labelledby="editorial-gifts-heading">
-            <SectionHeader
-              as="h2"
-              subtitle="پیشنهادهایی که از طریق محتوای کادوچی به‌روز می‌شوند"
-              title={<span id="editorial-gifts-heading">پیشنهادهای منتخب</span>}
-            />
-            <EditorialGiftRail items={content.gifts} />
-          </section>
-        </>
-      ) : null}
 
       <Divider size="lg" variant="spacer" />
       <AboutKadochi />

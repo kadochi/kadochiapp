@@ -70,7 +70,7 @@ final class Kadochi_Core {
 	}
 
 	private static function grant_editorial_capabilities() {
-		$types = array( 'slider' => array( 'slider', 'sliders' ), 'banner' => array( 'banner', 'banners' ), 'gifts' => array( 'gift', 'gifts' ), 'hero' => array( 'hero', 'heroes' ), 'occasion' => array( 'occasion', 'occasions' ) );
+		$types = array( 'slider' => array( 'slider', 'sliders' ), 'banner' => array( 'banner', 'banners' ), 'hero' => array( 'hero', 'heroes' ), 'occasion' => array( 'occasion', 'occasions' ) );
 		foreach ( array( 'administrator', 'editor', 'shop_manager' ) as $role_name ) {
 			$role = get_role( $role_name );
 			if ( ! $role ) {
@@ -85,19 +85,24 @@ final class Kadochi_Core {
 	}
 
 	public function register_post_types() {
-		$this->register_post_type( 'slider', 'Sliders', 'Slider', array( 'title', 'editor', 'thumbnail' ), true );
-		$this->register_post_type( 'banner', 'Banners', 'Banner', array( 'title', 'editor', 'thumbnail' ), true );
-		$this->register_post_type( 'gifts', 'Gifts', 'Gift', array( 'title', 'editor', 'thumbnail' ), true );
-		$this->register_post_type( 'hero', 'Heroes', 'Hero', array( 'title', 'editor', 'thumbnail' ), true );
-		$this->register_post_type( 'occasion', 'Occasions', 'Occasion', array( 'title', 'editor', 'thumbnail', 'author' ), false );
+		$this->register_post_type( 'slider', 'Sliders', 'Slider', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-images-alt2' );
+		$this->register_post_type( 'banner', 'Banners', 'Banner', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-megaphone' );
+		$this->register_post_type( 'hero', 'Heroes', 'Hero', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-superhero' );
+		$this->register_post_type( 'occasion', 'Occasions', 'Occasion', array( 'title', 'editor', 'thumbnail', 'author' ), false, 'dashicons-calendar-alt' );
 	}
 
-	private function register_post_type( $slug, $plural_label, $singular_label, $supports, $legacy_public ) {
+	private function register_post_type( $slug, $plural_label, $singular_label, $supports, $legacy_public, $menu_icon ) {
 		if ( post_type_exists( $slug ) ) {
 			return;
 		}
-		$singular = 'gifts' === $slug ? 'gift' : $slug;
-		$plural   = $slug;
+		$capability_bases = array(
+			'slider'   => array( 'slider', 'sliders' ),
+			'banner'   => array( 'banner', 'banners' ),
+			'hero'     => array( 'hero', 'heroes' ),
+			'occasion' => array( 'occasion', 'occasions' ),
+		);
+		$singular = $capability_bases[ $slug ][0];
+		$plural   = $capability_bases[ $slug ][1];
 		register_post_type(
 			$slug,
 			array(
@@ -112,6 +117,7 @@ final class Kadochi_Core {
 				'has_archive' => false,
 				'rewrite' => $legacy_public,
 				'query_var' => $legacy_public,
+				'menu_icon' => $menu_icon,
 				'supports' => $supports,
 				'capability_type' => array( $singular, $plural ),
 				'capabilities' => self::post_type_capabilities( $singular, $plural ),
@@ -175,7 +181,6 @@ final class Kadochi_Core {
 		$image_url = array( 'return_format' => 'url', 'library' => 'all', 'preview_size' => 'medium' );
 		return array(
 			array( 'key' => 'group_684b373196d67', 'title' => 'Banner', 'fields' => array( $this->field( 'field_684b3731a9469', 'Title', 'title', 'text' ), $this->field( 'field_684b3761a946a', 'Subtitle', 'subtitle', 'text' ), $this->field( 'field_684b376ca946b', 'CTA Text', 'cta_text', 'text' ), $this->field( 'field_684b377ba946c', 'CTA Link', 'cta_link', 'url' ), $this->field( 'field_684b3788a946d', 'Background Gradient', 'background_gradient', 'text' ), $this->field( 'field_684b37cea946e', 'Background Image', 'background_image', 'image', $image_url ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'banner' ) ) ), 'active' => true, 'show_in_rest' => 0 ),
-			array( 'key' => 'group_686d3471a96bc', 'title' => 'Gifts', 'fields' => array( $this->field( 'field_686d347151270', 'Image', 'image', 'image', $image_url ), $this->field( 'field_686d348351271', 'Price', 'price', 'number' ), $this->field( 'field_686d349151272', 'Title', 'title', 'text' ), $this->field( 'field_686ed667a9d8a', 'Description', 'description', 'textarea' ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'gifts' ) ) ), 'active' => true, 'show_in_rest' => 0 ),
 			array( 'key' => 'group_68ff3b5e2403e', 'title' => 'Hero', 'fields' => array( $this->field( 'field_68ff3b5e2bc20', 'Title', 'title', 'text' ), $this->field( 'field_68ff3b5e2bccb', 'CTA Text', 'cta_text', 'text' ), $this->field( 'field_68ff3b5e2bd1c', 'CTA Link', 'cta_link', 'url' ), $this->field( 'field_68ff3b5e2bdb4', 'Background Image', 'background_image', 'image', $image_url ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'hero' ) ) ), 'active' => true, 'show_in_rest' => 0 ),
 			array( 'key' => 'group_684ada15be887', 'title' => 'Image Slider', 'fields' => array( $this->field( 'field_684ada1598922', 'Background Image', 'background_image', 'image', array( 'return_format' => 'array', 'library' => 'all', 'preview_size' => 'medium' ) ), $this->field( 'field_684ada7298923', 'Slider Title', 'slider_title', 'text' ), $this->field( 'field_684adaa998924', 'Slider Button Text', 'slider_button_text', 'text' ), $this->field( 'field_684adabd98925', 'Slider Link', 'slider_link', 'link', array( 'return_format' => 'url' ) ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'slider' ) ) ), 'active' => true, 'show_in_rest' => 0 ),
 			array( 'key' => 'group_68690d0e375df', 'title' => 'Occasion', 'fields' => array( $this->field( 'field_68690d0e8d04d', 'title', 'title', 'text' ), $this->field( 'field_68690d148d04e', 'occasion date', 'occasion_date', 'date_picker', array( 'display_format' => 'Y-m-d', 'return_format' => 'Y-m-d', 'first_day' => 6, 'default_to_current_date' => 0 ) ), $this->field( 'field_699c24f932f43', 'user', 'user', 'user', array( 'return_format' => 'id', 'multiple' => 0, 'allow_null' => 0 ) ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'occasion' ) ) ), 'active' => true, 'show_in_rest' => 0 ),
@@ -281,6 +286,16 @@ final class Kadochi_Core {
 
 	private function auth_error( $code, $message, $status ) {
 		return new WP_Error( $code, $message, array( 'status' => $status ) );
+	}
+
+	/**
+	 * Counts user-entered text without splitting multibyte characters such as
+	 * Persian letters. `wp_strlen()` is not a WordPress core function, so keep
+	 * a small fallback for hosts without the mbstring extension.
+	 */
+	private function string_length( $value ) {
+		$value = (string) $value;
+		return function_exists( 'mb_strlen' ) ? mb_strlen( $value, 'UTF-8' ) : strlen( $value );
 	}
 
 	private function local_auth_enabled() {
@@ -709,7 +724,7 @@ final class Kadochi_Core {
 		if ( self::CHECKOUT_FIELD_PACKAGING === $field_key && ! in_array( $field_value, array( 'gift', 'normal' ), true ) ) {
 			$errors->add( 'kadochi_invalid_packaging', __( 'Choose a valid packaging option.', 'kadochi-core' ) );
 		}
-		if ( self::CHECKOUT_FIELD_POSTCARD === $field_key && ( ! is_string( $field_value ) || wp_strlen( $field_value ) > 500 ) ) {
+		if ( self::CHECKOUT_FIELD_POSTCARD === $field_key && ( ! is_string( $field_value ) || $this->string_length( $field_value ) > 500 ) ) {
 			$errors->add( 'kadochi_invalid_postcard', __( 'The postcard message is too long.', 'kadochi-core' ) );
 		}
 		if ( self::CHECKOUT_FIELD_OPERATION === $field_key && ( ! is_string( $field_value ) || ! preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i', $field_value ) ) ) {
@@ -891,8 +906,9 @@ final class Kadochi_Core {
 		}
 
 		$content = trim( wp_kses_post( (string) $request->get_param( 'content' ) ) );
+		$content_length = $this->string_length( wp_strip_all_tags( $content ) );
 		$rating = absint( $request->get_param( 'rating' ) );
-		if ( wp_strlen( wp_strip_all_tags( $content ) ) < 3 || wp_strlen( wp_strip_all_tags( $content ) ) > 1000 || $rating < 1 || $rating > 5 ) {
+		if ( $content_length < 3 || $content_length > 1000 || $rating < 1 || $rating > 5 ) {
 			return $this->auth_error( 'kadochi_invalid_review', __( 'The review content or rating is invalid.', 'kadochi-core' ), 400 );
 		}
 
@@ -951,8 +967,7 @@ final class Kadochi_Core {
 		$banners = array_map( function ( $post ) { return array( 'id' => (int) $post->ID, 'title' => sanitize_text_field( $this->value( $post->ID, 'title' ) ?: $post->post_title ), 'subtitle' => sanitize_text_field( $this->value( $post->ID, 'subtitle' ) ), 'ctaText' => sanitize_text_field( $this->value( $post->ID, 'cta_text' ) ), 'ctaLink' => $this->safe_url( $this->value( $post->ID, 'cta_link' ) ), 'backgroundGradient' => $this->safe_gradient( $this->value( $post->ID, 'background_gradient' ) ), 'backgroundImage' => $this->image( $this->value( $post->ID, 'background_image' ) ) ); }, $this->published( 'banner' ) );
 		$heroes = array_map( function ( $post ) { return array( 'id' => (int) $post->ID, 'title' => sanitize_text_field( $this->value( $post->ID, 'title' ) ?: $post->post_title ), 'ctaText' => sanitize_text_field( $this->value( $post->ID, 'cta_text' ) ), 'ctaLink' => $this->safe_url( $this->value( $post->ID, 'cta_link' ) ), 'backgroundImage' => $this->image( $this->value( $post->ID, 'background_image' ) ) ); }, $this->published( 'hero' ) );
 		$sliders = array_map( function ( $post ) { return array( 'id' => (int) $post->ID, 'sliderTitle' => sanitize_text_field( $this->value( $post->ID, 'slider_title' ) ), 'sliderButtonText' => sanitize_text_field( $this->value( $post->ID, 'slider_button_text' ) ), 'sliderLink' => $this->safe_url( $this->value( $post->ID, 'slider_link' ) ), 'backgroundImage' => $this->image( $this->value( $post->ID, 'background_image' ) ) ); }, $this->published( 'slider' ) );
-		$gifts = array_map( function ( $post ) { $price = $this->value( $post->ID, 'price' ); return array( 'id' => (int) $post->ID, 'title' => sanitize_text_field( $this->value( $post->ID, 'title' ) ?: $post->post_title ), 'description' => wp_kses_post( (string) $this->value( $post->ID, 'description' ) ), 'image' => $this->image( $this->value( $post->ID, 'image' ) ), 'price' => '' === $price || null === $price ? null : sanitize_text_field( (string) $price ) ); }, $this->published( 'gifts' ) );
-		return rest_ensure_response( compact( 'banners', 'heroes', 'sliders', 'gifts' ) );
+		return rest_ensure_response( compact( 'banners', 'heroes', 'sliders' ) );
 	}
 
 	private function valid_date( $date ) {
