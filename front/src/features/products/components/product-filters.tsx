@@ -34,7 +34,7 @@ import { useProductFilterNavigation } from "../hooks/useProductFilterNavigation"
 
 type CategoryOption = { id: number; name: string; slug: string };
 type SortId = "latest" | "oldest" | "popular";
-type FilterSheetView = "all" | "sort" | "category" | "delivery" | "occasion" | "price";
+type FilterSheetView = "all" | "sort" | "category" | "occasion" | "price";
 
 type Occasion = {
   key: "none" | "birthday" | "anniversary" | "newyear" | "yalda" | "graduation" | "valentine" | "parents";
@@ -178,20 +178,7 @@ export function ProductFilters({ categories }: Readonly<ProductFiltersProps>) {
   };
 
   const clearSheetFilters = () => {
-    if (sheetView === "all") {
-      clearFilters();
-    } else if (sheetView === "sort") {
-      replaceFilters({ orderby: null, order: null });
-    } else if (sheetView === "category") {
-      replaceFilters({ category: null });
-    } else if (sheetView === "delivery") {
-      replaceFilters({ tag: joinTags(tags.filter((tag) => tag !== "fast-delivery")) || null });
-    } else if (sheetView === "occasion") {
-      replaceFilters({ tag: joinTags(tags.filter((tag) => !occasionTags.has(tag))) || null });
-    } else if (sheetView === "price") {
-      replaceFilters({ min_price: null, max_price: null });
-    }
-
+    clearFilters();
     setSheetView(null);
   };
 
@@ -262,20 +249,11 @@ export function ProductFilters({ categories }: Readonly<ProductFiltersProps>) {
               <Chip leadingIcon={<BadgePercent />} variant="outline">بازه قیمت</Chip>
             </ChipButton>
           )}
-          {fastDelivery ? (
-            <RemovableFilterChip
-              leadingIcon={<Truck />}
-              onClick={() => setSheetView("delivery")}
-              onRemove={toggleFastDelivery}
-              removeLabel="حذف فیلتر ارسال سریع امروز"
-            >
+          <ChipButton aria-pressed={fastDelivery} onClick={toggleFastDelivery}>
+            <Chip leadingIcon={<Truck />} variant={fastDelivery ? "selected" : "outline"}>
               ارسال سریع امروز
-            </RemovableFilterChip>
-          ) : (
-            <ChipButton onClick={() => setSheetView("delivery")}>
-              <Chip leadingIcon={<Truck />} variant="outline">ارسال سریع امروز</Chip>
-            </ChipButton>
-          )}
+            </Chip>
+          </ChipButton>
         </div>
       </nav>
 
@@ -285,10 +263,7 @@ export function ProductFilters({ categories }: Readonly<ProductFiltersProps>) {
           categories={categories}
           onClear={clearSheetFilters}
           onClose={() => setSheetView(null)}
-          onApply={(filters) => {
-            replaceFilters(filters);
-            setSheetView(null);
-          }}
+          onApply={replaceFilters}
           values={{ category, tags, minPrice: minPrice ?? "", maxPrice: maxPrice ?? "", sort }}
           view={sheetView}
         />
@@ -306,6 +281,15 @@ type FiltersSheetProps = {
   view: FilterSheetView;
 };
 
+function FilterSectionDivider() {
+  return (
+    <>
+      <Divider className="lg:hidden" size="md" variant="spacer" />
+      <Divider className="hidden lg:block" inset />
+    </>
+  );
+}
+
 function FiltersSheet({ categories, onClose, onClear, onApply, values, view }: Readonly<FiltersSheetProps>) {
   const [category, setCategory] = useState(values.category);
   const [tags, setTags] = useState<string[]>([...values.tags]);
@@ -316,107 +300,132 @@ function FiltersSheet({ categories, onClose, onClear, onApply, values, view }: R
   const occasion = selectedOccasion(tags);
   const fastDelivery = tags.includes("fast-delivery");
   const allActiveCount = Number(category !== "") + Number(occasion !== "none") + Number(fastDelivery) + Number(minPrice !== "" || maxPrice !== "") + Number(sort !== "latest");
-  const activeCount = view === "all"
-    ? allActiveCount
-    : Number(
-        (view === "sort" && sort !== "latest") ||
-        (view === "category" && category !== "") ||
-        (view === "delivery" && fastDelivery) ||
-        (view === "occasion" && occasion !== "none") ||
-        (view === "price" && (minPrice !== "" || maxPrice !== "")),
-      );
+
+  const applyIndividualFilter = (filters: Record<string, string | null>) => {
+    if (view !== "all" && view !== "price") {
+      onApply(filters);
+      onClose();
+    }
+  };
 
   const setOccasion = (next: Occasion["key"]) => {
     const nonOccasionTags = tags.filter((tag) => !occasionTags.has(tag));
     const item = occasions.find((current) => current.key === next);
-    setTags([...nonOccasionTags, ...(item?.tags ?? [])]);
-  };
-
-  const toggleFast = (checked: boolean) => {
-    setTags((current) => checked ? [...current.filter((tag) => tag !== "fast-delivery"), "fast-delivery"] : current.filter((tag) => tag !== "fast-delivery"));
+    const nextTags = [...nonOccasionTags, ...(item?.tags ?? [])];
+    setTags(nextTags);
+    applyIndividualFilter({ tag: joinTags(nextTags) || null });
   };
 
   const apply = () => {
-    const sortParams = sortToParams(sort);
-    if (view === "sort") return onApply(sortParams);
-    if (view === "category") return onApply({ category: category || null });
-    if (view === "delivery" || view === "occasion") return onApply({ tag: joinTags(tags) || null });
     if (view === "price") {
-      return onApply({
+      onApply({
         min_price: onlyDigits(minPrice) || null,
         max_price: onlyDigits(maxPrice) || null,
       });
+      onClose();
+      return;
     }
 
-    return onApply({
+    const sortParams = sortToParams(sort);
+    onApply({
       category: category || null,
       tag: joinTags(tags) || null,
       min_price: onlyDigits(minPrice) || null,
       max_price: onlyDigits(maxPrice) || null,
       ...sortParams,
     });
+    onClose();
   };
 
   const sheetTitle = {
     all: "فیلترها",
     sort: "مرتب‌سازی",
     category: "دسته‌بندی",
-    delivery: "ارسال سریع امروز",
     occasion: "مناسبت",
     price: "بازه قیمت",
   }[view];
 
-  const clearLabel = view === "all" ? "حذف همه فیلترها" : `حذف فیلتر ${sheetTitle}`;
+  const clearLabel = "حذف همه فیلترها";
 
   return (
     <BottomSheet open onOpenChange={(open) => !open && onClose()}>
-      <BottomSheetContent aria-describedby={undefined} size="md">
+      <BottomSheetContent
+        aria-describedby={undefined}
+        footer={view === "all" || view === "price" ? (
+          <div className="flex items-center gap-12 border-t border-border-low-emphasis bg-surface-background p-16 pb-[max(env(safe-area-inset-bottom),1rem)]">
+            {view === "all" && allActiveCount ? (
+              <Button
+                aria-label={clearLabel}
+                className="size-56 shrink-0 px-0"
+                onClick={onClear}
+                size="large"
+                title={clearLabel}
+                variant="tertiary-outline"
+              >
+                <Trash2 aria-hidden />
+              </Button>
+            ) : null}
+            <Button className="flex-1" loading={false} onClick={apply} size="large" variant="secondary-filled">
+              {view === "price" ? "اعمال بازه قیمت" : allActiveCount ? `اعمال فیلترها (${allActiveCount})` : "نمایش محصولات"}
+            </Button>
+          </div>
+        ) : undefined}
+        size="md"
+      >
         <BottomSheetHeader className="sticky top-0 z-10 flex-row items-center justify-between border-b border-border-low-emphasis bg-surface-background py-16">
           <BottomSheetTitle className="text-title-18 font-bold text-text-primary">{sheetTitle}</BottomSheetTitle>
         </BottomSheetHeader>
 
-        <div className="grid gap-24 px-20 pb-24 [direction:rtl]">
+        <div className="grid gap-16 py-16 [direction:rtl]">
           {view === "all" || view === "sort" ? (
-            <section aria-labelledby={view === "all" ? "sort-heading" : undefined}>
+            <section aria-labelledby={view === "all" ? "sort-heading" : undefined} className="px-20 py-8">
               {view === "all" ? <h3 id="sort-heading" className="mb-12 text-title-16 font-bold text-text-primary">مرتب‌سازی</h3> : null}
-              <SegmentSelector items={sortItems} value={sort} onValueChange={(value) => setSort(value as SortId)} />
+              <SegmentSelector
+                items={sortItems}
+                value={sort}
+                onValueChange={(value) => {
+                  const nextSort = value as SortId;
+                  setSort(nextSort);
+                  applyIndividualFilter(sortToParams(nextSort));
+                }}
+              />
             </section>
           ) : null}
 
-          {view === "all" ? <Divider inset /> : null}
+          {view === "all" ? <FilterSectionDivider /> : null}
 
           {view === "all" || view === "category" ? (
-            <section aria-labelledby={view === "all" ? "category-heading" : undefined}>
+            <section aria-labelledby={view === "all" ? "category-heading" : undefined} className="px-20 py-8">
               {view === "all" ? <h3 id="category-heading" className="mb-12 text-title-16 font-bold text-text-primary">دسته‌بندی</h3> : null}
               <div className="flex flex-wrap gap-8">
-                <ChipButton onClick={() => setCategory("")}><Chip size="sm" variant={category ? "outline" : "selected"}>همه دسته‌بندی‌ها</Chip></ChipButton>
+                <ChipButton
+                  onClick={() => {
+                    setCategory("");
+                    applyIndividualFilter({ category: null });
+                  }}
+                >
+                  <Chip size="md" variant={category ? "outline" : "selected"}>همه دسته‌بندی‌ها</Chip>
+                </ChipButton>
                 {categories.map((item) => (
-                  <ChipButton key={item.id} onClick={() => setCategory(String(item.id))}>
-                    <Chip size="sm" variant={category === String(item.id) ? "selected" : "outline"}>{item.name}</Chip>
+                  <ChipButton
+                    key={item.id}
+                    onClick={() => {
+                      const nextCategory = String(item.id);
+                      setCategory(nextCategory);
+                      applyIndividualFilter({ category: nextCategory });
+                    }}
+                  >
+                    <Chip size="md" variant={category === String(item.id) ? "selected" : "outline"}>{item.name}</Chip>
                   </ChipButton>
                 ))}
               </div>
             </section>
           ) : null}
 
-          {view === "all" ? <Divider inset /> : null}
-
-          {view === "all" || view === "delivery" ? (
-            <section aria-labelledby={view === "all" ? "delivery-heading" : undefined}>
-              <div className="flex items-center justify-between gap-16">
-                <div>
-                  {view === "all" ? <h3 id="delivery-heading" className="text-title-16 font-bold text-text-primary">ارسال سریع امروز</h3> : null}
-                  <p className="mt-4 text-label-12 text-text-secondary">فقط هدایای قابل ارسال امروز</p>
-                </div>
-                <Toggle checked={fastDelivery} onCheckedChange={toggleFast} aria-label="ارسال سریع امروز" />
-              </div>
-            </section>
-          ) : null}
-
-          {view === "all" ? <Divider inset /> : null}
+          {view === "all" ? <FilterSectionDivider /> : null}
 
           {view === "all" || view === "occasion" ? (
-            <section aria-labelledby={view === "all" ? "occasion-heading" : undefined}>
+            <section aria-labelledby={view === "all" ? "occasion-heading" : undefined} className="px-20 py-8">
               {view === "all" ? <h3 id="occasion-heading" className="mb-12 text-title-16 font-bold text-text-primary">مناسبت</h3> : null}
               <div className="grid grid-cols-2 gap-8 min-[540px]:grid-cols-4">
                 {occasions.map((item) => {
@@ -441,36 +450,56 @@ function FiltersSheet({ categories, onClose, onClear, onApply, values, view }: R
             </section>
           ) : null}
 
-          {view === "all" ? <Divider inset /> : null}
+          {view === "all" ? <FilterSectionDivider /> : null}
+
+          {view === "all" ? (
+            <section aria-labelledby="fast-delivery-heading" className="flex items-center justify-between gap-16 px-20 py-8">
+              <h3 id="fast-delivery-heading" className="text-title-16 font-bold text-text-primary">ارسال سریع امروز</h3>
+              <Toggle
+                aria-label="ارسال سریع امروز"
+                checked={fastDelivery}
+                onCheckedChange={(checked) => {
+                  setTags((current) => checked
+                    ? [...current.filter((tag) => tag !== "fast-delivery"), "fast-delivery"]
+                    : current.filter((tag) => tag !== "fast-delivery"));
+                }}
+              />
+            </section>
+          ) : null}
+
+          {view === "all" ? <FilterSectionDivider /> : null}
 
           {view === "all" || view === "price" ? (
-            <section aria-labelledby={view === "all" ? "price-heading" : undefined}>
+            <section aria-labelledby={view === "all" ? "price-heading" : undefined} className="px-20 py-8">
               {view === "all" ? <h3 id="price-heading" className="mb-12 text-title-16 font-bold text-text-primary">بازه قیمت</h3> : null}
               <div className="grid grid-cols-2 gap-12">
-                <Input dir="ltr" inputMode="numeric" label="از قیمت (تومان)" placeholder="۰" value={minPrice} onChange={(event) => setMinPrice(formatPrice(event.currentTarget.value))} />
-                <Input dir="ltr" inputMode="numeric" label="تا قیمت (تومان)" placeholder="۰" value={maxPrice} onChange={(event) => setMaxPrice(formatPrice(event.currentTarget.value))} />
+                <Input
+                  dir="ltr"
+                  inputMode="numeric"
+                  label="از قیمت (تومان)"
+                  placeholder="۰"
+                  value={minPrice}
+                  onChange={(event) => {
+                    const nextMinPrice = formatPrice(event.currentTarget.value);
+                    setMinPrice(nextMinPrice);
+                  }}
+                />
+                <Input
+                  dir="ltr"
+                  inputMode="numeric"
+                  label="تا قیمت (تومان)"
+                  placeholder="۰"
+                  value={maxPrice}
+                  onChange={(event) => {
+                    const nextMaxPrice = formatPrice(event.currentTarget.value);
+                    setMaxPrice(nextMaxPrice);
+                  }}
+                />
               </div>
             </section>
           ) : null}
         </div>
 
-        <div className="sticky bottom-0 flex items-center gap-12 border-t border-border-low-emphasis bg-surface-background p-16">
-          {activeCount ? (
-            <Button
-              aria-label={clearLabel}
-              className="size-56 shrink-0 px-0"
-              onClick={onClear}
-              size="large"
-              title={clearLabel}
-              variant="tertiary-outline"
-            >
-              <Trash2 aria-hidden />
-            </Button>
-          ) : null}
-          <Button className="flex-1" loading={false} onClick={apply} size="large" variant="secondary-filled">
-            {activeCount ? `اعمال فیلترها (${activeCount})` : "نمایش محصولات"}
-          </Button>
-        </div>
       </BottomSheetContent>
     </BottomSheet>
   );

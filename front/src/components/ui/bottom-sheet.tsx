@@ -6,12 +6,12 @@ import { cn } from "../../lib/utils";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 const bottomSheetOverlayVariants = cva(
-  "fixed inset-0 z-50 bg-surface-scrim",
+  "fixed inset-0 z-[1100] bg-surface-scrim",
 );
 
 const bottomSheetContentVariants = cva(
   [
-    "fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full max-h-[calc(100svh-4rem)] flex-col overflow-hidden",
+    "fixed inset-x-0 bottom-0 z-[1100] mx-auto flex w-full max-h-[calc(100svh-4rem)] flex-col overflow-hidden",
     "rounded-t-xl bg-surface-background text-text-primary shadow-[0_-8px_24px_rgb(0_0_0_/_0.08)] outline-none",
   ],
   {
@@ -34,6 +34,8 @@ type BottomSheetContentProps = ComponentPropsWithoutRef<typeof Dialog.Content> &
   VariantProps<typeof bottomSheetContentVariants> & {
     /** Shows the visual drag affordance above the scrollable content. */
     showHandle?: boolean;
+    /** Keeps sheet actions visible while the body scrolls. */
+    footer?: ReactNode;
   };
 
 function BottomSheet(props: BottomSheetProps) {
@@ -53,6 +55,7 @@ function BottomSheetClose(props: ComponentPropsWithoutRef<typeof Dialog.Close>) 
 function BottomSheetContent({
   children,
   className,
+  footer,
   showHandle = true,
   size,
   ...props
@@ -69,9 +72,15 @@ function BottomSheetContent({
             <span className="h-6 w-128 rounded-rounded bg-border-mid-emphasis" />
           </div>
         ) : null}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[max(env(safe-area-inset-bottom),1rem)]">
+        <div
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto overscroll-contain",
+            footer ? "pb-0" : "pb-[max(env(safe-area-inset-bottom),1rem)]",
+          )}
+        >
           {children}
         </div>
+        {footer}
       </Dialog.Content>
     </Dialog.Portal>
   );
