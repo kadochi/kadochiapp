@@ -5,5 +5,5 @@ export default function ProductsLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <LayoutContent showBottomNav>{children}</LayoutContent>;
+  return <LayoutContent>{children}</LayoutContent>;
 }

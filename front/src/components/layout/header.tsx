@@ -197,6 +197,11 @@ function DefaultHeader({
   const shouldShowBack = showBack || pathname.startsWith("/product/");
 
   const handleBack = () => {
+    if (pathname.startsWith("/product/")) {
+      router.push("/products");
+      return;
+    }
+
     if (backHref) {
       router.push(backHref);
       return;

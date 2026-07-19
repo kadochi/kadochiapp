@@ -30,7 +30,7 @@ const navigationItems = [
   },
   {
     label: "مناسبت‌ها",
-    href: "/#occasions",
+    href: "/occasions",
     icon: "/icons/occasions.svg",
     activeIcon: "/icons/occasions-active.svg",
   },

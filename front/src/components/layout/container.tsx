@@ -158,7 +158,7 @@ function responsiveClasses(
 function Container({
   asChild = false,
   size,
-  px = "xl",
+  px = "md",
   py,
   sm,
   md,

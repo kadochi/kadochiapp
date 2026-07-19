@@ -11,9 +11,10 @@ export type ExpandableContentProps = {
   children: ReactNode;
 };
 
-/** Clamps server-rendered children to 10 lines with a toggle to expand. */
+/** Clamps server-rendered children to ten lines with a fade and a toggle to expand. */
 export function ExpandableContent({ children }: Readonly<ExpandableContentProps>) {
   const { contentRef, isExpanded, canExpand, toggle } = useExpandable<HTMLDivElement>();
+  const shouldFade = canExpand && !isExpanded;
 
   return (
     <>
@@ -24,6 +25,10 @@ export function ExpandableContent({ children }: Readonly<ExpandableContentProps>
           "font-sans text-body-14 font-regular leading-[var(--text-body-14--line-height)] text-surface-neutral-mid-emphasis",
           !isExpanded && "max-h-[calc(var(--text-body-14--line-height)*10)]",
         )}
+        style={shouldFade ? {
+          WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 20%, transparent 100%)",
+          maskImage: "linear-gradient(to bottom, black 0%, black 20%, transparent 100%)",
+        } : undefined}
       >
         {children}
       </div>

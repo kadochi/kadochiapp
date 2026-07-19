@@ -29,7 +29,7 @@ function LayoutContent({
   return (
     <div className={cn("flex min-h-dvh flex-col", className)}>
       <Header {...headerProps} />
-      <main className={cn("flex-1", mainClassName)}>{children}</main>
+      <main className={cn("mx-auto w-full max-w-[1440px] flex-1", mainClassName)}>{children}</main>
       <Footer />
       {showBottomNav ? <BottomNavigation /> : null}
     </div>
