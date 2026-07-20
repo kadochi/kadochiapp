@@ -42,15 +42,17 @@ const progressStepVariants = cva("relative min-w-0", {
 
 const progressIndicatorVariants = cva(
   [
-    "relative z-10 inline-flex size-[var(--progress-indicator-size)] shrink-0 items-center justify-center rounded-rounded bg-surface-background font-bold leading-none",
+    "relative z-10 inline-flex size-[var(--progress-indicator-size)] shrink-0 items-center justify-center rounded-rounded font-bold leading-none",
     "ring-inset",
   ],
   {
     variants: {
       status: {
         complete: "bg-secondary text-on-secondary",
-        current: "text-secondary ring-2 ring-secondary",
-        upcoming: "text-border-high-emphasis ring-1 ring-border-high-emphasis",
+        current:
+          "bg-surface-background text-secondary ring-2 ring-secondary",
+        upcoming:
+          "bg-surface-background text-border-high-emphasis ring-1 ring-border-high-emphasis",
         disabled: "bg-disable-container text-on-disable ring-1 ring-disable",
       },
     },
