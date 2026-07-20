@@ -8,6 +8,10 @@ const nameSchema = z.string().trim().max(100, "نام نمی‌تواند بیش
 export const updateProfileSchema = z.object({
   firstName: nameSchema,
   lastName: nameSchema,
+  /** A client-cropped 512px JPEG data URL. It is optional when only names change. */
+  avatarData: z.string().regex(/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/, "تصویر پروفایل معتبر نیست.").max(1_500_000, "حجم تصویر پروفایل زیاد است.").nullable().optional(),
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تاریخ تولد معتبر نیست.").nullable().optional(),
+  gender: z.enum(["female", "male", "undisclosed"]).nullable().optional(),
 }).strict();
 
 export const profileOrderItemSchema = z.object({

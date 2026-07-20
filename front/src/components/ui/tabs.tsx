@@ -10,12 +10,11 @@ import {
 import { Tabs as TabsPrimitive } from "radix-ui";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
-import { segmentSelectorVariants } from "./segment-selector";
 
 const tabsTriggerVariants = cva(
   [
-    "group relative flex min-w-0 flex-1 cursor-pointer items-center justify-center whitespace-nowrap border-e border-border-high-emphasis px-8 text-surface-neutral-high-emphasis last:border-e-0",
-    "transition-[background-color,color,box-shadow] duration-150 ease-out",
+    "group relative flex min-w-0 flex-1 cursor-pointer items-center justify-center whitespace-nowrap rounded-rounded bg-surface-background px-16 text-label-14 font-regular text-surface-neutral-high-emphasis",
+    "transition-all duration-[250ms] ease",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset",
     "disabled:cursor-not-allowed disabled:bg-disable-container disabled:text-on-disable",
   ],
@@ -24,12 +23,12 @@ const tabsTriggerVariants = cva(
       tone: {
         primary: [
           "enabled:hover:bg-surface",
-          "data-[state=active]:bg-primary-container data-[state=active]:text-on-primary-container",
+          "data-[state=active]:bg-primary data-[state=active]:text-on-primary",
           "focus-visible:ring-primary/40",
         ],
         secondary: [
           "enabled:hover:bg-surface",
-          "data-[state=active]:bg-secondary-container data-[state=active]:text-on-secondary-container",
+          "data-[state=active]:bg-secondary data-[state=active]:text-on-secondary",
           "focus-visible:ring-secondary/40",
         ],
       },
@@ -82,7 +81,10 @@ const TabsList = forwardRef<
     <TabsPrimitive.List
       {...props}
       ref={ref}
-      className={cn(segmentSelectorVariants(), className)}
+      className={cn(
+        "inline-flex w-full items-center justify-center gap-12 rounded-rounded border border-secondary-container bg-surface-background p-8 font-sans",
+        className,
+      )}
     />
   );
 });

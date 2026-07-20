@@ -42,6 +42,12 @@ final class Kadochi_Core {
 		add_action( 'woocommerce_store_api_checkout_update_order_from_request', array( $this, 'validate_store_checkout_order' ), 10, 2 );
 		add_action( 'woocommerce_store_api_checkout_order_processed', array( $this, 'lock_store_checkout_order' ), 1 );
 		add_filter( 'woocommerce_get_return_url', array( $this, 'checkout_return_url' ), 20, 2 );
+		add_action( 'show_user_profile', array( $this, 'render_customer_profile_fields' ) );
+		add_action( 'edit_user_profile', array( $this, 'render_customer_profile_fields' ) );
+		add_action( 'personal_options_update', array( $this, 'save_customer_profile_fields' ) );
+		add_action( 'edit_user_profile_update', array( $this, 'save_customer_profile_fields' ) );
+		add_filter( 'manage_users_columns', array( $this, 'add_customer_user_columns' ) );
+		add_filter( 'manage_users_custom_column', array( $this, 'render_customer_user_column' ), 10, 3 );
 		add_action( 'admin_notices', array( $this, 'render_admin_notices' ) );
 	}
 
@@ -479,9 +485,202 @@ final class Kadochi_Core {
 			'displayName' => $display_name,
 			'firstName' => $first_name,
 			'lastName' => $last_name,
+			'avatarSrc' => $this->customer_avatar_url( $user->ID ),
+			'birthDate' => $this->customer_birth_date( $user->ID ),
+			'gender' => $this->customer_gender( $user->ID ),
 			'phone' => $phone,
 			'roles' => array_values( $user->roles ),
 		);
+	}
+
+	private function valid_customer_birth_date( $value ) {
+		if ( ! is_string( $value ) || ! preg_match( '/^(\\d{4})-(\\d{2})-(\\d{2})$/D', $value, $matches ) ) {
+			return false;
+		}
+		return (int) $matches[1] >= 1900 && $value <= gmdate( 'Y-m-d' ) && checkdate( (int) $matches[2], (int) $matches[3], (int) $matches[1] );
+	}
+
+	private function customer_birth_date( $user_id ) {
+		$value = get_user_meta( (int) $user_id, 'kadochi_birth_date', true );
+		return $this->valid_customer_birth_date( $value ) ? $value : null;
+	}
+
+	private function customer_gender( $user_id ) {
+		$value = get_user_meta( (int) $user_id, 'kadochi_gender', true );
+		return in_array( $value, array( 'female', 'male', 'undisclosed' ), true ) ? $value : null;
+	}
+
+	private function customer_gender_label( $gender ) {
+		$labels = array(
+			'female'     => __( 'Female', 'kadochi-core' ),
+			'male'       => __( 'Male', 'kadochi-core' ),
+			'undisclosed' => __( 'Prefer not to say', 'kadochi-core' ),
+		);
+		return isset( $labels[ $gender ] ) ? $labels[ $gender ] : '';
+	}
+
+	/** Returns only the image managed by this plugin, never a third-party avatar URL. */
+	private function customer_avatar_url( $user_id ) {
+		$attachment_id = absint( get_user_meta( (int) $user_id, 'kadochi_avatar_attachment_id', true ) );
+		if ( ! $attachment_id || ! function_exists( 'wp_get_attachment_url' ) ) {
+			return null;
+		}
+		$url = wp_get_attachment_url( $attachment_id );
+		return is_string( $url ) && '' !== $url ? esc_url_raw( $url ) : null;
+	}
+
+	/**
+	 * Stores a pre-cropped JPEG submitted by the account owner. The API accepts
+	 * data URLs so the BFF can keep using its existing JSON-only authenticated
+	 * profile update route.
+	 */
+	private function save_customer_avatar( $user_id, $avatar_data ) {
+		if ( ! is_string( $avatar_data ) || ! preg_match( '/^data:image\\/jpeg;base64,([A-Za-z0-9+\\/=]+)$/D', $avatar_data, $matches ) ) {
+			return new WP_Error( 'kadochi_invalid_avatar', __( 'Avatar image is invalid.', 'kadochi-core' ) );
+		}
+
+		$binary = base64_decode( $matches[1], true );
+		if ( false === $binary || strlen( $binary ) < 100 || strlen( $binary ) > 1100000 ) {
+			return new WP_Error( 'kadochi_invalid_avatar', __( 'Avatar image is invalid.', 'kadochi-core' ) );
+		}
+
+		$image_size = function_exists( 'getimagesizefromstring' ) ? @getimagesizefromstring( $binary ) : false;
+		if ( ! is_array( $image_size ) || ! isset( $image_size[0], $image_size[1], $image_size[2] ) || IMAGETYPE_JPEG !== $image_size[2] || $image_size[0] < 1 || $image_size[1] < 1 || $image_size[0] > 2048 || $image_size[1] > 2048 ) {
+			return new WP_Error( 'kadochi_invalid_avatar', __( 'Avatar image is invalid.', 'kadochi-core' ) );
+		}
+
+		$filename = 'kadochi-avatar-' . absint( $user_id ) . '-' . wp_generate_password( 12, false, false ) . '.jpg';
+		$upload = wp_upload_bits( $filename, null, $binary );
+		if ( ! empty( $upload['error'] ) || empty( $upload['file'] ) || empty( $upload['url'] ) ) {
+			return new WP_Error( 'kadochi_avatar_upload_failed', __( 'Avatar image could not be saved.', 'kadochi-core' ) );
+		}
+
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+		$attachment_id = wp_insert_attachment( array(
+			'post_mime_type' => 'image/jpeg',
+			'post_title' => sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) ),
+			'post_content' => '',
+			'post_status' => 'inherit',
+		), $upload['file'] );
+		if ( is_wp_error( $attachment_id ) || ! $attachment_id ) {
+			@unlink( $upload['file'] );
+			return new WP_Error( 'kadochi_avatar_upload_failed', __( 'Avatar image could not be saved.', 'kadochi-core' ) );
+		}
+
+		$metadata = wp_generate_attachment_metadata( $attachment_id, $upload['file'] );
+		if ( is_array( $metadata ) ) {
+			wp_update_attachment_metadata( $attachment_id, $metadata );
+		}
+		update_post_meta( $attachment_id, '_kadochi_customer_avatar', (int) $user_id );
+
+		$previous_attachment_id = absint( get_user_meta( (int) $user_id, 'kadochi_avatar_attachment_id', true ) );
+		update_user_meta( (int) $user_id, 'kadochi_avatar_attachment_id', $attachment_id );
+		if ( $previous_attachment_id && $previous_attachment_id !== $attachment_id && (int) get_post_meta( $previous_attachment_id, '_kadochi_customer_avatar', true ) === (int) $user_id ) {
+			wp_delete_attachment( $previous_attachment_id, true );
+		}
+
+		return $attachment_id;
+	}
+
+	private function remove_customer_avatar( $user_id ) {
+		$attachment_id = absint( get_user_meta( (int) $user_id, 'kadochi_avatar_attachment_id', true ) );
+		delete_user_meta( (int) $user_id, 'kadochi_avatar_attachment_id' );
+		if ( $attachment_id && (int) get_post_meta( $attachment_id, '_kadochi_customer_avatar', true ) === (int) $user_id ) {
+			wp_delete_attachment( $attachment_id, true );
+		}
+	}
+
+	/** Shows app-managed customer fields in WordPress's native user edit screen. */
+	public function render_customer_profile_fields( $user ) {
+		if ( ! ( $user instanceof WP_User ) ) {
+			return;
+		}
+
+		$attachment_id = absint( get_user_meta( $user->ID, 'kadochi_avatar_attachment_id', true ) );
+		$birth_date = $this->customer_birth_date( $user->ID );
+		$gender = $this->customer_gender( $user->ID );
+		$avatar = $attachment_id ? wp_get_attachment_image( $attachment_id, array( 96, 96 ), false, array( 'class' => 'kadochi-customer-avatar', 'style' => 'border-radius:50%;height:96px;width:96px;object-fit:cover;', 'alt' => sprintf( __( '%s profile picture', 'kadochi-core' ), $user->display_name ) ) ) : '';
+		$attachment_url = $attachment_id ? get_edit_post_link( $attachment_id ) : '';
+		?>
+		<h2><?php esc_html_e( 'Kadochi customer profile', 'kadochi-core' ); ?></h2>
+		<?php wp_nonce_field( 'kadochi_customer_profile_update', 'kadochi_customer_profile_nonce' ); ?>
+		<table class="form-table" role="presentation">
+			<tr>
+				<th><?php esc_html_e( 'Profile picture', 'kadochi-core' ); ?></th>
+				<td>
+					<?php if ( $avatar ) : ?>
+						<?php echo $avatar; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- WordPress creates this image markup. ?>
+						<?php if ( $attachment_url ) : ?>
+							<p><a href="<?php echo esc_url( $attachment_url ); ?>"><?php esc_html_e( 'View in Media Library', 'kadochi-core' ); ?></a></p>
+						<?php endif; ?>
+					<?php else : ?>
+						<p class="description"><?php esc_html_e( 'No profile picture has been uploaded.', 'kadochi-core' ); ?></p>
+					<?php endif; ?>
+					<p class="description"><?php esc_html_e( 'Profile pictures are uploaded and managed from the Kadochi app.', 'kadochi-core' ); ?></p>
+				</td>
+			</tr>
+			<tr>
+				<th><label for="kadochi_birth_date"><?php esc_html_e( 'Birth date', 'kadochi-core' ); ?></label></th>
+				<td><input class="regular-text" id="kadochi_birth_date" max="<?php echo esc_attr( gmdate( 'Y-m-d' ) ); ?>" name="kadochi_birth_date" type="date" value="<?php echo esc_attr( $birth_date ); ?>" /></td>
+			</tr>
+			<tr>
+				<th><label for="kadochi_gender"><?php esc_html_e( 'Gender', 'kadochi-core' ); ?></label></th>
+				<td>
+					<select id="kadochi_gender" name="kadochi_gender">
+						<option value=""><?php esc_html_e( 'Not provided', 'kadochi-core' ); ?></option>
+						<option value="female" <?php selected( $gender, 'female' ); ?>><?php esc_html_e( 'Female', 'kadochi-core' ); ?></option>
+						<option value="male" <?php selected( $gender, 'male' ); ?>><?php esc_html_e( 'Male', 'kadochi-core' ); ?></option>
+						<option value="undisclosed" <?php selected( $gender, 'undisclosed' ); ?>><?php esc_html_e( 'Prefer not to say', 'kadochi-core' ); ?></option>
+					</select>
+				</td>
+			</tr>
+		</table>
+		<?php
+	}
+
+	/** Allows authorised administrators to correct the non-image app profile fields. */
+	public function save_customer_profile_fields( $user_id ) {
+		if ( ! current_user_can( 'edit_user', $user_id ) || empty( $_POST['kadochi_customer_profile_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['kadochi_customer_profile_nonce'] ) ), 'kadochi_customer_profile_update' ) ) {
+			return;
+		}
+
+		$birth_date = isset( $_POST['kadochi_birth_date'] ) ? sanitize_text_field( wp_unslash( $_POST['kadochi_birth_date'] ) ) : '';
+		if ( '' === $birth_date ) {
+			delete_user_meta( $user_id, 'kadochi_birth_date' );
+		} elseif ( $this->valid_customer_birth_date( $birth_date ) ) {
+			update_user_meta( $user_id, 'kadochi_birth_date', $birth_date );
+		}
+
+		$gender = isset( $_POST['kadochi_gender'] ) ? sanitize_key( wp_unslash( $_POST['kadochi_gender'] ) ) : '';
+		if ( '' === $gender ) {
+			delete_user_meta( $user_id, 'kadochi_gender' );
+		} elseif ( in_array( $gender, array( 'female', 'male', 'undisclosed' ), true ) ) {
+			update_user_meta( $user_id, 'kadochi_gender', $gender );
+		}
+	}
+
+	/** Adds app-managed profile values to the WordPress Users list. */
+	public function add_customer_user_columns( $columns ) {
+		$columns['kadochi_avatar'] = __( 'Profile picture', 'kadochi-core' );
+		$columns['kadochi_birth_date'] = __( 'Birth date', 'kadochi-core' );
+		$columns['kadochi_gender'] = __( 'Gender', 'kadochi-core' );
+		return $columns;
+	}
+
+	public function render_customer_user_column( $value, $column_name, $user_id ) {
+		if ( 'kadochi_avatar' === $column_name ) {
+			$attachment_id = absint( get_user_meta( $user_id, 'kadochi_avatar_attachment_id', true ) );
+			return $attachment_id ? wp_get_attachment_image( $attachment_id, array( 40, 40 ), false, array( 'style' => 'border-radius:50%;height:40px;width:40px;object-fit:cover;', 'alt' => '' ) ) : '&mdash;';
+		}
+		if ( 'kadochi_birth_date' === $column_name ) {
+			$birth_date = $this->customer_birth_date( $user_id );
+			return $birth_date ? esc_html( $birth_date ) : '&mdash;';
+		}
+		if ( 'kadochi_gender' === $column_name ) {
+			$label = $this->customer_gender_label( $this->customer_gender( $user_id ) );
+			return $label ? esc_html( $label ) : '&mdash;';
+		}
+		return $value;
 	}
 
 	private function base64url_encode( $value ) {
@@ -603,13 +802,15 @@ final class Kadochi_Core {
 	/** Updates the small, user-controlled part of a customer record. Phone and email stay owned by authentication. */
 	public function update_customer_profile( WP_REST_Request $request ) {
 		$input = $request->get_json_params();
-		if ( ! is_array( $input ) || ( ! array_key_exists( 'firstName', $input ) && ! array_key_exists( 'lastName', $input ) ) ) {
+		if ( ! is_array( $input ) || ( ! array_key_exists( 'firstName', $input ) && ! array_key_exists( 'lastName', $input ) && ! array_key_exists( 'avatarData', $input ) && ! array_key_exists( 'birthDate', $input ) && ! array_key_exists( 'gender', $input ) ) ) {
 			return $this->auth_error( 'kadochi_invalid_profile', __( 'Provide at least one profile field.', 'kadochi-core' ), 400 );
 		}
 
 		$first_name = array_key_exists( 'firstName', $input ) && is_string( $input['firstName'] ) ? sanitize_text_field( $input['firstName'] ) : null;
 		$last_name = array_key_exists( 'lastName', $input ) && is_string( $input['lastName'] ) ? sanitize_text_field( $input['lastName'] ) : null;
-		if ( ( null !== $first_name && $this->string_length( $first_name ) > 100 ) || ( null !== $last_name && $this->string_length( $last_name ) > 100 ) || ( array_key_exists( 'firstName', $input ) && null === $first_name ) || ( array_key_exists( 'lastName', $input ) && null === $last_name ) ) {
+		$birth_date = array_key_exists( 'birthDate', $input ) && is_string( $input['birthDate'] ) ? trim( $input['birthDate'] ) : null;
+		$gender = array_key_exists( 'gender', $input ) && is_string( $input['gender'] ) ? $input['gender'] : null;
+		if ( ( null !== $first_name && $this->string_length( $first_name ) > 100 ) || ( null !== $last_name && $this->string_length( $last_name ) > 100 ) || ( array_key_exists( 'firstName', $input ) && null === $first_name ) || ( array_key_exists( 'lastName', $input ) && null === $last_name ) || ( array_key_exists( 'birthDate', $input ) && null !== $input['birthDate'] && ! $this->valid_customer_birth_date( $birth_date ) ) || ( array_key_exists( 'gender', $input ) && null !== $input['gender'] && ! in_array( $gender, array( 'female', 'male', 'undisclosed' ), true ) ) ) {
 			return $this->auth_error( 'kadochi_invalid_profile', __( 'Profile fields are invalid.', 'kadochi-core' ), 400 );
 		}
 
@@ -619,6 +820,16 @@ final class Kadochi_Core {
 			return $this->auth_error( 'kadochi_customer_unavailable', __( 'The customer service is unavailable.', 'kadochi-core' ), 503 );
 		}
 
+		if ( array_key_exists( 'avatarData', $input ) ) {
+			if ( null === $input['avatarData'] ) {
+				$this->remove_customer_avatar( $user_id );
+			} else {
+				$saved_avatar = $this->save_customer_avatar( $user_id, $input['avatarData'] );
+				if ( is_wp_error( $saved_avatar ) ) {
+					return $this->auth_error( 'kadochi_invalid_profile', __( 'Avatar image is invalid.', 'kadochi-core' ), 400 );
+				}
+			}
+		}
 		if ( null !== $first_name ) {
 			update_user_meta( $user_id, 'first_name', $first_name );
 			update_user_meta( $user_id, 'billing_first_name', $first_name );
@@ -626,6 +837,20 @@ final class Kadochi_Core {
 		if ( null !== $last_name ) {
 			update_user_meta( $user_id, 'last_name', $last_name );
 			update_user_meta( $user_id, 'billing_last_name', $last_name );
+		}
+		if ( array_key_exists( 'birthDate', $input ) ) {
+			if ( null === $input['birthDate'] ) {
+				delete_user_meta( $user_id, 'kadochi_birth_date' );
+			} else {
+				update_user_meta( $user_id, 'kadochi_birth_date', $birth_date );
+			}
+		}
+		if ( array_key_exists( 'gender', $input ) ) {
+			if ( null === $input['gender'] ) {
+				delete_user_meta( $user_id, 'kadochi_gender' );
+			} else {
+				update_user_meta( $user_id, 'kadochi_gender', $gender );
+			}
 		}
 
 		$next_first_name = null === $first_name ? sanitize_text_field( get_user_meta( $user_id, 'first_name', true ) ) : $first_name;
@@ -952,6 +1177,9 @@ final class Kadochi_Core {
 			'id' => (int) $order->get_id(),
 			'status' => sanitize_key( $order->get_status() ),
 			'createdAt' => ( $created = $order->get_date_created() ) ? $created->date( 'c' ) : gmdate( 'c' ),
+			// Keep the detail response compatible with the order-summary contract.
+			// The frontend validates the shared `total` field before rendering.
+			'total' => $this->order_money( $order ),
 			'sender' => trim( sanitize_text_field( $order->get_billing_first_name() ) . ' ' . sanitize_text_field( $order->get_billing_last_name() ) ),
 			'receiver' => trim( sanitize_text_field( $order->get_shipping_first_name() ) . ' ' . sanitize_text_field( $order->get_shipping_last_name() ) ),
 			'deliverySlot' => ( $slot = $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_DELIVERY_SLOT, true ) ) ? sanitize_text_field( $slot ) : null,

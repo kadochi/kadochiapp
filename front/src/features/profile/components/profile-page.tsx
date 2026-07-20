@@ -81,7 +81,7 @@ export function ProfilePage() {
   return (
     <section className="bg-surface-background pb-[calc(var(--bottom-nav-safe,0px)+var(--spacing-32))]" dir="rtl">
       <div className="flex items-center gap-16 px-24 py-16">
-        <Avatar alt={displayName} size="lg" />
+        <Avatar alt={displayName} size="lg" src={customer.avatarSrc ?? undefined} />
         <div className="grid min-w-0 gap-4">
           <h1 className="m-0 truncate text-title-16 font-bold text-surface-neutral-high-emphasis">{displayName}</h1>
           <p className="m-0 text-body-14 text-surface-neutral-mid-emphasis">حساب کاربری</p>

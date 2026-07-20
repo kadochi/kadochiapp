@@ -36,6 +36,9 @@ export const customerSchema = z.object({
   displayName: z.string(),
   firstName: z.string(),
   lastName: z.string(),
+  avatarSrc: z.string().url().nullable().default(null),
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+  gender: z.enum(["female", "male", "undisclosed"]).nullable().default(null),
   phone: iranianPhoneSchema,
   roles: z.array(z.string()),
 }).strict();

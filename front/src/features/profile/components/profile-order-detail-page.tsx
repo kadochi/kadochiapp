@@ -25,7 +25,17 @@ function formatMoney(money: ProfileOrderDetail["total"]) {
 function formatDateTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) return value;
-  return new Intl.DateTimeFormat("fa-IR", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
+  const day = new Intl.DateTimeFormat("fa-IR", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(date);
+  const time = new Intl.DateTimeFormat("fa-IR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date).replace("٫", ":");
+  return `${day} • ${time}`;
 }
 
 function deliveryLabel(slot: string | null) {
@@ -53,7 +63,29 @@ function DetailRow({ label, value, emphasis = false }: { label: string; value: s
 }
 
 function DetailLoading() {
-  return <div className="grid gap-16 px-16 py-24">{Array.from({ length: 5 }, (_, index) => <div className="h-80 animate-pulse rounded-m bg-surface" key={index} />)}</div>;
+  return (
+    <div className="animate-pulse">
+      <div className="mx-auto h-24 max-w-[400px] rounded-rounded bg-surface px-40 py-16" />
+      <div className="grid gap-8 px-16 py-24"><div className="h-20 w-160 rounded-m bg-surface" /><div className="h-12 w-224 rounded-m bg-surface" /></div>
+      <Divider size="md" variant="spacer" />
+      <div className="grid gap-8 px-16 py-24"><div className="h-20 w-160 rounded-m bg-surface" /><div className="h-12 w-224 rounded-m bg-surface" /></div>
+      <div className="px-16 pb-16">{Array.from({ length: 4 }, (_, index) => <div className="h-48 border-b border-border-low-emphasis bg-surface last:border-0" key={index} />)}</div>
+      <Divider size="md" variant="spacer" />
+      <div className="grid gap-8 px-16 py-24"><div className="h-20 w-160 rounded-m bg-surface" /><div className="h-12 w-224 rounded-m bg-surface" /></div>
+      <div className="flex gap-12 px-16 pb-28"><div className="size-64 rounded-xl bg-surface" /><div className="size-64 rounded-xl bg-surface" /><div className="size-64 rounded-xl bg-surface" /></div>
+    </div>
+  );
+}
+
+function OrderItemThumbnail({ item }: { item: ProfileOrderDetail["items"][number] }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const imageUrl = imageFailed ? null : item.imageUrl;
+
+  return (
+    <div className="grid size-64 shrink-0 place-items-center overflow-hidden rounded-xl border border-border-low-emphasis bg-surface-background">
+      {imageUrl ? <img alt={item.name || ""} className="size-full object-cover" loading="lazy" onError={() => setImageFailed(true)} src={imageUrl} /> : <PackageOpen aria-hidden className="size-24 text-surface-neutral-mid-emphasis" />}
+    </div>
+  );
 }
 
 export function ProfileOrderDetailPage({ orderId }: { orderId: number }) {
@@ -86,7 +118,7 @@ export function ProfileOrderDetailPage({ orderId }: { orderId: number }) {
 
   return (
     <div className="min-h-dvh bg-surface-background" dir="rtl">
-      <Header backUrl="/profile/orders" title="جزئیات سفارش" variant="internal" />
+      <Header backUrl="/profile/orders" title={`جزئیات سفارش #${orderId}`} variant="internal" />
       <main className="mx-auto w-full max-w-[720px]">
         {status === "loading" || (status === "authenticated" && !order && !error) ? <DetailLoading /> : null}
         {status === "anonymous" ? <StateMessage imageSrc="/images/login-illustration.png" subtitle="برای دیدن جزئیات سفارش وارد شوید." title="ورود لازم است" /> : null}
@@ -97,7 +129,7 @@ export function ProfileOrderDetailPage({ orderId }: { orderId: number }) {
           <SectionHeader
             leftSlot={<span className={cn("inline-flex h-28 items-center rounded-rounded px-12 text-label-12", orderStatus(order.status).className)}>{orderStatus(order.status).label}</span>}
             subtitle={formatDateTime(order.createdAt)}
-            title={`شماره سفارش: #${new Intl.NumberFormat("fa-IR").format(order.id)}`}
+            title={`شماره سفارش: #${order.id}`}
           />
           <Divider size="md" variant="spacer" />
           <SectionHeader subtitle="مشخصات فرستنده و گیرنده" title="جزئیات ارسال" />
@@ -112,10 +144,8 @@ export function ProfileOrderDetailPage({ orderId }: { orderId: number }) {
           </div>
           <Divider size="md" variant="spacer" />
           <SectionHeader subtitle="لیست محصولات" title="اقلام سفارش" />
-          <div className="flex gap-12 overflow-x-auto px-16 pb-16">
-            {order.items.slice(0, 8).map((item) => <div className="grid size-64 shrink-0 place-items-center overflow-hidden rounded-xl border border-border-low-emphasis bg-surface-background" key={item.id}>
-              {item.imageUrl ? <img alt={item.name || ""} className="size-full object-cover" loading="lazy" src={item.imageUrl} /> : <PackageOpen aria-hidden className="size-24 text-surface-neutral-mid-emphasis" />}
-            </div>)}
+          <div className="flex gap-12 overflow-x-auto px-16 py-12 pb-28">
+            {order.items.slice(0, 8).map((item) => <OrderItemThumbnail item={item} key={item.id} />)}
           </div>
           <Divider size="md" variant="spacer" />
           <SectionHeader subtitle="مشخصات هزینه‌های سفارش" title="جزئیات پرداخت" />
