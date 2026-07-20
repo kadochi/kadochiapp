@@ -1,4 +1,10 @@
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+"use client";
+
+import {
+  useState,
+  type ComponentPropsWithoutRef,
+  type ReactNode,
+} from "react";
 import { Check } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
@@ -86,14 +92,24 @@ type ProgressStep = {
   label: ReactNode;
   /** Optional supporting content. */
   description?: ReactNode;
-  /** Visual and semantic state for this step. */
-  status?: StepStatus;
+  /** Opt-out for non-linear / cancelled edges; overrides derived status. */
+  disabled?: boolean;
 };
 
-type ProgressStepperProps = Omit<ComponentPropsWithoutRef<"ol">, "children"> &
+type ProgressStepperProps = Omit<
+  ComponentPropsWithoutRef<"ol">,
+  "children" | "defaultValue"
+> &
   VariantProps<typeof progressStepperVariants> & {
     /** Ordered steps in the progress flow. */
     steps: readonly ProgressStep[];
+    /**
+     * 0-based current step index (controlled).
+     * Use `steps.length` when every step is complete.
+     */
+    value?: number;
+    /** Uncontrolled initial index. Defaults to `0`. */
+    defaultValue?: number;
     /** Shows an ordinal number in non-complete indicators. */
     showStepNumber?: boolean;
   };
@@ -105,8 +121,21 @@ const statusText: Record<StepStatus, string> = {
   disabled: "Disabled",
 };
 
+function resolveStepStatus(
+  index: number,
+  current: number,
+  disabled?: boolean,
+): StepStatus {
+  if (disabled) return "disabled";
+  if (index < current) return "complete";
+  if (index === current) return "current";
+  return "upcoming";
+}
+
 function ProgressStepper({
   steps,
+  value,
+  defaultValue = 0,
   orientation,
   size,
   showStepNumber = true,
@@ -116,8 +145,19 @@ function ProgressStepper({
   ...props
 }: ProgressStepperProps) {
   const resolvedOrientation = orientation ?? "horizontal";
+  const [uncontrolledValue] = useState(() =>
+    Number.isFinite(defaultValue) ? Math.max(0, defaultValue) : 0,
+  );
+  const current =
+    value !== undefined && Number.isFinite(value)
+      ? Math.max(0, value)
+      : uncontrolledValue;
 
-  const isActiveStatus = (status: StepStatus) =>
+  const statuses = steps.map((step, index) =>
+    resolveStepStatus(index, current, step.disabled),
+  );
+
+  const isReached = (status: StepStatus) =>
     status === "complete" || status === "current";
 
   return (
@@ -128,7 +168,7 @@ function ProgressStepper({
       dir={dir}
     >
       {steps.map((step, index) => {
-        const status = step.status ?? "upcoming";
+        const status = statuses[index]!;
         const isFirstStep = index === 0;
         const isLastStep = index === steps.length - 1;
         // Horizontal connectors are drawn on the incoming edge (coloured by this
@@ -136,10 +176,11 @@ function ProgressStepper({
         // cell so the line stays continuous next to tall labels.
         const showConnector =
           resolvedOrientation === "horizontal" ? !isFirstStep : !isLastStep;
-        const isConnectorActive =
+        const destinationStatus =
           resolvedOrientation === "horizontal"
-            ? isActiveStatus(status)
-            : isActiveStatus(steps[index + 1]?.status ?? "upcoming");
+            ? status
+            : (statuses[index + 1] ?? "upcoming");
+        const isConnectorActive = isReached(destinationStatus);
 
         return (
           <li

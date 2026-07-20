@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 
@@ -19,6 +19,12 @@ import type { CheckoutState } from "../types";
 import { checkoutResultAction } from "../utils/checkout-result";
 
 type RecipientKind = "self" | "other";
+
+const CHECKOUT_STEPS = [
+  { id: "details", label: "مشخصات" },
+  { id: "delivery", label: "ارسال" },
+  { id: "payment", label: "پرداخت" },
+] as const;
 
 export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) {
   const router = useRouter();
@@ -41,12 +47,6 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   const [reconciliationUnknown, setReconciliationUnknown] = useState(false);
   const submissionLock = useRef(false);
   const operationId = useRef<string | null>(null);
-
-  const steps = useMemo(() => [
-    { id: "details", label: "مشخصات", status: step > 0 ? "complete" as const : "current" as const },
-    { id: "delivery", label: "ارسال", status: step > 1 ? "complete" as const : step === 1 ? "current" as const : "upcoming" as const },
-    { id: "payment", label: "پرداخت", status: step === 2 ? "current" as const : "upcoming" as const },
-  ], [step]);
 
   const validateDetails = () => {
     if (!senderFirstName.trim() || !senderLastName.trim()) return "نام و نام خانوادگی فرستنده را وارد کنید.";
@@ -138,7 +138,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
 
   return (
     <div className="mx-auto w-full max-w-[640px] px-16 pb-128 pt-16 [direction:rtl]">
-      <ProgressStepper aria-label="مراحل ثبت سفارش" size="sm" steps={steps} />
+      <ProgressStepper aria-label="مراحل ثبت سفارش" size="sm" steps={CHECKOUT_STEPS} value={step} />
       {error ? <Alert className="mt-20" tone="error">{error}</Alert> : null}
 
       <section className="mt-24 rounded-l border border-border-low-emphasis bg-surface-background p-16">

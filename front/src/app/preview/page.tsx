@@ -239,33 +239,36 @@ const stepperVariants = [
 const stepperSizes = ["sm", "md"] as const;
 
 const progressStepperSizes = ["sm", "md", "lg"] as const;
+const progressStepperBaseSteps = [
+  { label: "سبد خرید" },
+  { label: "اطلاعات ارسال" },
+  { label: "پرداخت" },
+  { label: "تأیید سفارش" },
+] as const;
 const progressStepperStates = [
   {
     name: "در حال انجام",
-    steps: [
-      { label: "سبد خرید", status: "complete" as const },
-      { label: "اطلاعات ارسال", status: "current" as const },
-      { label: "پرداخت", status: "upcoming" as const },
-      { label: "تأیید سفارش", status: "upcoming" as const },
-    ],
+    value: 1,
+    steps: progressStepperBaseSteps,
   },
   {
     name: "تکمیل‌شده",
-    steps: [
-      { label: "سبد خرید", status: "complete" as const },
-      { label: "اطلاعات ارسال", status: "complete" as const },
-      { label: "پرداخت", status: "complete" as const },
-      { label: "تأیید سفارش", status: "complete" as const },
-    ],
+    value: 4,
+    steps: progressStepperBaseSteps,
   },
   {
     name: "مراحل غیرفعال",
+    value: 1,
     steps: [
-      { label: "سبد خرید", status: "complete" as const },
-      { label: "اطلاعات ارسال", status: "current" as const },
-      { label: "پرداخت", status: "disabled" as const },
-      { label: "تأیید سفارش", status: "disabled" as const },
+      { label: "سبد خرید" },
+      { label: "اطلاعات ارسال" },
+      { label: "پرداخت", disabled: true },
+      { label: "تأیید سفارش", disabled: true },
     ],
+  },
+  {
+    name: "پیش‌فرض",
+    steps: progressStepperBaseSteps,
   },
 ];
 
@@ -1553,7 +1556,7 @@ export default function HomePage() {
                 </tr>
               </thead>
               <tbody>
-                {progressStepperStates.map(({ name, steps }, index) => (
+                {progressStepperStates.map(({ name, steps, value }, index) => (
                   <tr
                     key={name}
                     className={index === progressStepperStates.length - 1 ? "" : "border-b border-border-low-emphasis"}
@@ -1563,7 +1566,7 @@ export default function HomePage() {
                     </th>
                     {progressStepperSizes.map((size) => (
                       <td key={size} className="min-w-96 px-5 py-5 align-top">
-                        <ProgressStepper size={size} steps={steps} />
+                        <ProgressStepper size={size} steps={steps} value={value} />
                       </td>
                     ))}
                   </tr>
@@ -1580,10 +1583,11 @@ export default function HomePage() {
               <ProgressStepper
                 orientation="vertical"
                 steps={[
-                  { label: "ثبت‌نام", description: "حساب شما ساخته شد", status: "complete" },
-                  { label: "تأیید شماره", description: "کد را وارد کنید", status: "current" },
-                  { label: "تکمیل پروفایل", status: "upcoming" },
+                  { label: "ثبت‌نام", description: "حساب شما ساخته شد" },
+                  { label: "تأیید شماره", description: "کد را وارد کنید" },
+                  { label: "تکمیل پروفایل" },
                 ]}
+                value={1}
               />
             </div>
 
@@ -1595,10 +1599,11 @@ export default function HomePage() {
                 dir="ltr"
                 showStepNumber={false}
                 steps={[
-                  { label: "Account", status: "complete" },
-                  { label: "Verification", status: "current" },
-                  { label: "Finish", status: "upcoming" },
+                  { label: "Account" },
+                  { label: "Verification" },
+                  { label: "Finish" },
                 ]}
+                value={1}
               />
             </div>
           </div>

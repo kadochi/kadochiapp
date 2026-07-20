@@ -9,7 +9,7 @@ import SectionHeader from "@/components/layout/section-header";
 import StateMessage from "@/components/layout/state-message";
 import { Button } from "@/components/ui/button";
 import { Divider } from "@/components/ui/divider";
-import { ProgressStepper, type ProgressStep } from "@/components/ui/progress-stepper";
+import { ProgressStepper } from "@/components/ui/progress-stepper";
 import { useAuth } from "@/features/auth/auth-provider";
 import { tomanAmount } from "@/features/cart/utils/money";
 import { ServiceError } from "@/lib/http/errors";
@@ -17,6 +17,15 @@ import { cn } from "@/lib/utils";
 import { getProfileOrder } from "../services/profile";
 import type { ProfileOrderDetail } from "../types";
 import { orderStatus } from "./profile-orders-page";
+
+const ORDER_PROGRESS_LABELS = ["بررسی", "آماده‌سازی", "تحویل"] as const;
+const CANCELLED_ORDER_STATUSES = new Set([
+  "cancelled",
+  "canceled",
+  "refunded",
+  "failed",
+  "draft",
+]);
 
 function formatMoney(money: ProfileOrderDetail["total"]) {
   return `${new Intl.NumberFormat("fa-IR").format(tomanAmount(money))} تومان`;
@@ -48,14 +57,11 @@ function deliveryLabel(slot: string | null) {
   return `${new Intl.DateTimeFormat("fa-IR", { year: "numeric", month: "long", day: "numeric" }).format(date)}، ساعت ${starts[match[2]]} تا ${ends[match[2]]}`;
 }
 
-function progressSteps(status: string): ProgressStep[] {
-  const current = status === "completed" ? 3 : status === "processing" ? 2 : status === "on-hold" ? 1 : 0;
-  const cancelled = ["cancelled", "canceled", "refunded", "failed", "draft"].includes(status);
-  return ["بررسی", "آماده‌سازی", "تحویل"].map((label, index) => ({
-    id: label,
-    label,
-    status: cancelled ? "disabled" : index < current ? "complete" : index === current ? "current" : "upcoming",
-  }));
+function progressStepIndex(status: string) {
+  if (status === "completed") return ORDER_PROGRESS_LABELS.length;
+  if (status === "processing") return 2;
+  if (status === "on-hold") return 1;
+  return 0;
 }
 
 function DetailRow({ label, value, emphasis = false }: { label: string; value: string; emphasis?: boolean }) {
@@ -114,7 +120,17 @@ export function ProfileOrderDetailPage({ orderId }: { orderId: number }) {
     if (status === "anonymous") router.replace(`/login?next=/profile/orders/${orderId}`);
   }, [orderId, router, status]);
 
-  const steps = useMemo(() => progressSteps(order?.status ?? "pending"), [order?.status]);
+  const orderStatusValue = order?.status ?? "pending";
+  const orderCancelled = CANCELLED_ORDER_STATUSES.has(orderStatusValue);
+  const steps = useMemo(
+    () =>
+      ORDER_PROGRESS_LABELS.map((label) => ({
+        id: label,
+        label,
+        disabled: orderCancelled,
+      })),
+    [orderCancelled],
+  );
 
   return (
     <div className="min-h-dvh bg-surface-background" dir="rtl">
@@ -125,7 +141,7 @@ export function ProfileOrderDetailPage({ orderId }: { orderId: number }) {
         {status === "error" ? <StateMessage imageSrc="/images/illustration-failed.png" subtitle="دریافت وضعیت حساب کاربری با مشکل مواجه شد. دوباره تلاش کنید." title="خطا در بارگذاری" /> : null}
         {error && !order ? <StateMessage actions={error === "generic" ? <Button onClick={() => setRequestVersion((current) => current + 1)} variant="secondary-filled">تلاش مجدد</Button> : undefined} imageSrc={error === "notFound" ? "/images/order-list-empty.png" : "/images/illustration-failed.png"} subtitle={error === "notFound" ? "این سفارش پیدا نشد یا به حساب شما تعلق ندارد." : "لطفاً دوباره تلاش کنید."} title={error === "notFound" ? "سفارش پیدا نشد" : "خطا در بارگذاری"} /> : null}
         {order ? <>
-          <div className="mx-auto max-w-[400px] px-40 py-16"><ProgressStepper aria-label="وضعیت سفارش" dir="ltr" showStepNumber={false} size="md" steps={steps} /></div>
+          <div className="mx-auto max-w-[400px] px-40 py-16"><ProgressStepper aria-label="وضعیت سفارش" dir="ltr" showStepNumber={false} size="md" steps={steps} value={progressStepIndex(orderStatusValue)} /></div>
           <SectionHeader
             leftSlot={<span className={cn("inline-flex h-28 items-center rounded-rounded px-12 text-label-12", orderStatus(order.status).className)}>{orderStatus(order.status).label}</span>}
             subtitle={formatDateTime(order.createdAt)}
