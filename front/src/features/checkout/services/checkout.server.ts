@@ -22,6 +22,7 @@ const cartTokenCookie = "kadochi_cart_token";
 const deliveryField = "kadochi/delivery-slot";
 const packagingField = "kadochi/packaging";
 const postcardField = "kadochi/postcard";
+const locationField = "kadochi/location";
 const operationField = "kadochi/operation-id";
 
 async function authenticatedCustomer(requestId: string) {
@@ -84,7 +85,6 @@ function checkoutAddresses(input: ReturnType<typeof submitCheckoutSchema.parse>,
     address_2: input.address.address2 ?? "",
     city: "تهران",
     country: "IR",
-    postcode: input.address.postcode ?? "",
   };
   return {
     billing_address: {
@@ -107,6 +107,9 @@ function additionalFields(input: ReturnType<typeof submitCheckoutSchema.parse>) 
     [deliveryField]: input.deliverySlotId,
     [packagingField]: input.packagingId,
     [postcardField]: input.postcardText,
+    [locationField]: input.address.location
+      ? `${input.address.location.latitude},${input.address.location.longitude}`
+      : "",
     [operationField]: input.operationId,
   };
 }

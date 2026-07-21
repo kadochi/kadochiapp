@@ -49,7 +49,10 @@ const recipientSchema = z.discriminatedUnion("kind", [
 const deliveryAddressSchema = z.object({
   address1: z.string().trim().min(5, "نشانی گیرنده را وارد کنید.").max(200),
   address2: z.string().trim().max(200).optional(),
-  postcode: z.string().trim().regex(/^\d{10}$/, "کدپستی باید ۱۰ رقم باشد."),
+  location: z.object({
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+  }).strict().optional(),
 }).strict();
 
 /** Browser payload deliberately excludes totals, payment gateway, phone/email, country, and city. */

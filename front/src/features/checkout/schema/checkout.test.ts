@@ -5,7 +5,7 @@ import { submitCheckoutSchema } from "./checkout";
 const validInput = {
   sender: { firstName: "A", lastName: "B" },
   recipient: { kind: "self" as const },
-  address: { address1: "Tehran address", postcode: "1234567890" },
+  address: { address1: "Tehran address" },
   deliverySlotId: "2026-07-18-10",
   packagingId: "gift" as const,
   postcardText: "Happy birthday",
@@ -25,7 +25,7 @@ describe("submitCheckoutSchema", () => {
 
   it("rejects malformed addresses, delivery slots, and operation IDs", () => {
     expect(() => submitCheckoutSchema.parse({ ...validInput, address: { address1: "x" } })).toThrow();
-    expect(() => submitCheckoutSchema.parse({ ...validInput, address: { address1: "Tehran address" } })).toThrow();
+    expect(() => submitCheckoutSchema.parse({ ...validInput, address: { address1: "Tehran address", location: { latitude: 100, longitude: 51 } } })).toThrow();
     expect(() => submitCheckoutSchema.parse({ ...validInput, deliverySlotId: "tomorrow" })).toThrow();
     expect(() => submitCheckoutSchema.parse({ ...validInput, operationId: "duplicate" })).toThrow();
   });

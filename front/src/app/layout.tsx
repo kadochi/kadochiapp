@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import { Direction } from "radix-ui";
 import { Toaster } from "../components/ui/toaster";
 import { AuthProvider } from "../features/auth/auth-provider";
+import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
 const iranSans = localFont({

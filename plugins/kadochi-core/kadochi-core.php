@@ -21,6 +21,7 @@ final class Kadochi_Core {
 	const CHECKOUT_FIELD_DELIVERY_SLOT = 'kadochi/delivery-slot';
 	const CHECKOUT_FIELD_PACKAGING = 'kadochi/packaging';
 	const CHECKOUT_FIELD_POSTCARD = 'kadochi/postcard';
+	const CHECKOUT_FIELD_LOCATION = 'kadochi/location';
 	const CHECKOUT_FIELD_OPERATION = 'kadochi/operation-id';
 
 	/** @var array<string, string> */
@@ -885,6 +886,7 @@ final class Kadochi_Core {
 			array( 'id' => self::CHECKOUT_FIELD_DELIVERY_SLOT, 'label' => __( 'Delivery slot', 'kadochi-core' ), 'location' => 'order', 'required' => true, 'sanitize_callback' => 'sanitize_text_field' ),
 			array( 'id' => self::CHECKOUT_FIELD_PACKAGING, 'label' => __( 'Packaging', 'kadochi-core' ), 'location' => 'order', 'required' => true, 'type' => 'select', 'options' => array( array( 'value' => 'gift', 'label' => __( 'Gift packaging', 'kadochi-core' ) ), array( 'value' => 'normal', 'label' => __( 'Normal packaging', 'kadochi-core' ) ) ) ),
 			array( 'id' => self::CHECKOUT_FIELD_POSTCARD, 'label' => __( 'Postcard message', 'kadochi-core' ), 'optionalLabel' => __( 'Postcard message', 'kadochi-core' ), 'location' => 'order', 'required' => false, 'sanitize_callback' => 'sanitize_textarea_field' ),
+			array( 'id' => self::CHECKOUT_FIELD_LOCATION, 'label' => __( 'Delivery location', 'kadochi-core' ), 'optionalLabel' => __( 'Delivery location', 'kadochi-core' ), 'location' => 'order', 'required' => false, 'sanitize_callback' => 'sanitize_text_field' ),
 			array( 'id' => self::CHECKOUT_FIELD_OPERATION, 'label' => __( 'Kadochi checkout operation', 'kadochi-core' ), 'location' => 'order', 'required' => true, 'sanitize_callback' => 'sanitize_text_field' ),
 		);
 		foreach ( $fields as $field ) {
@@ -1025,6 +1027,9 @@ final class Kadochi_Core {
 		}
 		if ( self::CHECKOUT_FIELD_POSTCARD === $field_key && ( ! is_string( $field_value ) || $this->string_length( $field_value ) > 500 ) ) {
 			$errors->add( 'kadochi_invalid_postcard', __( 'The postcard message is too long.', 'kadochi-core' ) );
+		}
+		if ( self::CHECKOUT_FIELD_LOCATION === $field_key && '' !== $field_value && ( ! is_string( $field_value ) || ! preg_match( '/^-?\d{1,2}(?:\.\d{1,6})?,-?\d{1,3}(?:\.\d{1,6})?$/', $field_value ) ) ) {
+			$errors->add( 'kadochi_invalid_location', __( 'The delivery location is invalid.', 'kadochi-core' ) );
 		}
 		if ( self::CHECKOUT_FIELD_OPERATION === $field_key && ( ! is_string( $field_value ) || ! preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i', $field_value ) ) ) {
 			$errors->add( 'kadochi_invalid_operation', __( 'The checkout operation is invalid.', 'kadochi-core' ) );

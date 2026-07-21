@@ -12,9 +12,11 @@
   },
   "dependencies": {
     "@next/third-parties": "^16.2.10",
+    "@types/leaflet": "^1.9.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.21",
+    "leaflet": "^1.9.4",
     "lucide-react": "^1.24.0",
     "next": "16.2.10",
     "radix-ui": "^1.6.2",

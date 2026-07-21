@@ -95,7 +95,7 @@ function input() {
   return {
     sender: { firstName: "Sender", lastName: "Name" },
     recipient: { kind: "other" as const, firstName: "Recipient", lastName: "Person" },
-    address: { address1: "Tehran delivery address", address2: "Unit 2", postcode: "1234567890" },
+    address: { address1: "Tehran delivery address", address2: "Unit 2" },
     deliverySlotId: createDeliverySlots({ items: [{ fastDeliveryEligible: true }] } as Parameters<typeof createDeliverySlots>[0])[0]!.id,
     packagingId: "gift" as const,
     postcardText: "Enjoy",
@@ -148,6 +148,7 @@ describe("checkout service", () => {
         "kadochi/delivery-slot": input().deliverySlotId,
         "kadochi/packaging": "gift",
         "kadochi/postcard": "Enjoy",
+        "kadochi/location": "",
         "kadochi/operation-id": operationId,
       },
     });

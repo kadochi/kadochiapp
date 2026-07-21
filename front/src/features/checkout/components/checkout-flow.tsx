@@ -18,6 +18,7 @@ import SectionHeader from "@/components/layout/section-header";
 import { TextArea } from "@/components/ui/textarea";
 import { applyCoupon, removeCoupon, selectShippingRate, updateCustomer } from "@/features/cart/services/cart";
 import { formatIrrAsToman } from "@/features/cart/utils/money";
+import { LocationPickerMap, type DeliveryLocation } from "./location-picker-map";
 import { submitCheckoutSchema } from "../schema/checkout";
 import { submitCheckout } from "../services/checkout";
 import type { CheckoutState } from "../types";
@@ -57,7 +58,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   const [recipientLastName, setRecipientLastName] = useState("");
   const [address1, setAddress1] = useState("");
   const [address2, setAddress2] = useState("");
-  const [postcode, setPostcode] = useState("");
+  const [deliveryLocation, setDeliveryLocation] = useState<DeliveryLocation | null>(null);
   const [deliverySlotId, setDeliverySlotId] = useState(initialState.deliverySlots[0]?.id ?? "");
   const [packagingId, setPackagingId] = useState<"gift" | "normal">(
     initialState.packagingOptions.find((option) => option.default)?.id ?? "gift",
@@ -80,7 +81,6 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
     if (!senderFirstName.trim() || !senderLastName.trim()) return "نام و نام خانوادگی فرستنده را وارد کنید.";
     if (recipientKind === "other" && (!recipientFirstName.trim() || !recipientLastName.trim())) return "نام و نام خانوادگی گیرنده را وارد کنید.";
     if (address1.trim().length < 5) return "نشانی گیرنده را کامل وارد کنید.";
-    if (!/^\d{10}$/.test(postcode)) return "کدپستی باید ۱۰ رقم باشد.";
     return null;
   };
 
@@ -104,7 +104,6 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
             address2: address2 || undefined,
             city: "تهران",
             country: "IR",
-            postcode,
             email: state.customer.email,
             phone: state.customer.phone,
           },
@@ -114,7 +113,6 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
             address2: address2 || undefined,
             city: "تهران",
             country: "IR",
-            postcode,
           },
         });
         setState((current) => ({ ...current, cart }));
@@ -224,7 +222,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         recipient: recipientKind === "self"
           ? { kind: "self" }
           : { kind: "other", firstName: recipientFirstName, lastName: recipientLastName },
-        address: { address1, address2: address2 || undefined, postcode: postcode || undefined },
+        address: { address1, address2: address2 || undefined, location: deliveryLocation ?? undefined },
         deliverySlotId,
         packagingId,
         postcardText,
@@ -266,10 +264,10 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         customer={state.customer}
         senderFirstName={senderFirstName} senderLastName={senderLastName}
         recipientKind={recipientKind} recipientFirstName={recipientFirstName} recipientLastName={recipientLastName}
-        address1={address1} address2={address2} postcode={postcode}
+        address1={address1} address2={address2} deliveryLocation={deliveryLocation}
         onSenderFirstName={setSenderFirstName} onSenderLastName={setSenderLastName}
         onRecipientKind={setRecipientKind} onRecipientFirstName={setRecipientFirstName} onRecipientLastName={setRecipientLastName}
-        onAddress1={setAddress1} onAddress2={setAddress2} onPostcode={setPostcode}
+        onAddress1={setAddress1} onAddress2={setAddress2} onDeliveryLocation={setDeliveryLocation}
       /> : null}
       {step === 1 ? <DeliveryStep
         state={state} deliverySlotId={deliverySlotId} packagingId={packagingId} postcardText={postcardText}
@@ -294,8 +292,8 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
 
 function DetailsStep(props: {
   customer: CheckoutState["customer"];
-  senderFirstName: string; senderLastName: string; recipientKind: RecipientKind; recipientFirstName: string; recipientLastName: string; address1: string; address2: string; postcode: string;
-  onSenderFirstName: (value: string) => void; onSenderLastName: (value: string) => void; onRecipientKind: (value: RecipientKind) => void; onRecipientFirstName: (value: string) => void; onRecipientLastName: (value: string) => void; onAddress1: (value: string) => void; onAddress2: (value: string) => void; onPostcode: (value: string) => void;
+  senderFirstName: string; senderLastName: string; recipientKind: RecipientKind; recipientFirstName: string; recipientLastName: string; address1: string; address2: string; deliveryLocation: DeliveryLocation | null;
+  onSenderFirstName: (value: string) => void; onSenderLastName: (value: string) => void; onRecipientKind: (value: RecipientKind) => void; onRecipientFirstName: (value: string) => void; onRecipientLastName: (value: string) => void; onAddress1: (value: string) => void; onAddress2: (value: string) => void; onDeliveryLocation: (value: DeliveryLocation) => void;
 }) {
   const receiverIsSender = props.recipientKind === "self";
   return <>
@@ -329,10 +327,8 @@ function DetailsStep(props: {
     <section className="space-y-12 px-16 pb-16">
       <Input description="در حال حاضر کادوچی فقط در شهر تهران فعال است." disabled label="انتخاب شهر" value="تهران" />
       <TextArea label="آدرس گیرنده" maxLength={200} placeholder="خیابان، کوچه، پلاک، واحد…" required showCount value={props.address1} onChange={(event) => props.onAddress1(event.target.value)} />
-      <div className="grid gap-12 min-[460px]:grid-cols-2">
-        <Input label="پلاک، واحد یا توضیحات تکمیلی" value={props.address2} onChange={(event) => props.onAddress2(event.target.value)} />
-        <Input dir="ltr" inputMode="numeric" label="کدپستی" maxLength={10} required value={props.postcode} onChange={(event) => props.onPostcode(event.target.value.replace(/\D/g, ""))} />
-      </div>
+      <Input label="توضیحات" value={props.address2} onChange={(event) => props.onAddress2(event.target.value)} />
+      <LocationPickerMap value={props.deliveryLocation} onChange={props.onDeliveryLocation} />
     </section>
   </>;
 }
