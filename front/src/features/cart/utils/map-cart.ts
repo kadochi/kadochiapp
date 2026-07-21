@@ -51,6 +51,7 @@ export function mapCart(cart: UpstreamCart) {
       hasCalculatedShipping: cart.has_calculated_shipping,
     },
     paymentMethodIds: cart.payment_methods,
+    coupons: cart.coupons.map((coupon) => ({ code: coupon.code })),
     shippingRates: cart.shipping_rates.map((group) => ({
       packageId: group.package_id,
       selectedRate: group.shipping_rates.find((rate) => rate.selected)?.rate_id ?? null,

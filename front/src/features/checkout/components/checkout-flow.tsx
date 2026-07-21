@@ -8,13 +8,15 @@ import { z } from "zod";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Chip } from "@/components/ui/chip";
 import { Divider } from "@/components/ui/divider";
 import { Input } from "@/components/ui/input";
 import { ProgressStepper } from "@/components/ui/progress-stepper";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio";
+import { useToast } from "@/components/ui/toaster";
 import SectionHeader from "@/components/layout/section-header";
 import { TextArea } from "@/components/ui/textarea";
-import { selectShippingRate } from "@/features/cart/services/cart";
+import { applyCoupon, removeCoupon, selectShippingRate, updateCustomer } from "@/features/cart/services/cart";
 import { formatIrrAsToman } from "@/features/cart/utils/money";
 import { submitCheckoutSchema } from "../schema/checkout";
 import { submitCheckout } from "../services/checkout";
@@ -45,6 +47,7 @@ function deliveryDate(date: string) {
 
 export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [state, setState] = useState(initialState);
   const [step, setStep] = useState(0);
   const [recipientKind, setRecipientKind] = useState<RecipientKind>("other");
@@ -61,7 +64,9 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   );
   const [postcardText, setPostcardText] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [savingAddress, setSavingAddress] = useState(false);
   const [pendingRate, setPendingRate] = useState<string | null>(null);
+  const [pendingCoupon, setPendingCoupon] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [reconciliationUnknown, setReconciliationUnknown] = useState(false);
   const submissionLock = useRef(false);
@@ -81,11 +86,44 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
 
   const detailsValid = validateDetails() === null;
 
-  const next = () => {
+  const next = async () => {
     setError(null);
     if (step === 0) {
       const validationError = validateDetails();
       if (validationError) return setError(validationError);
+      const recipient = recipientKind === "self"
+        ? { firstName: senderFirstName, lastName: senderLastName }
+        : { firstName: recipientFirstName, lastName: recipientLastName };
+      setSavingAddress(true);
+      try {
+        const cart = await updateCustomer({
+          billingAddress: {
+            firstName: senderFirstName,
+            lastName: senderLastName,
+            address1,
+            address2: address2 || undefined,
+            city: "تهران",
+            country: "IR",
+            postcode,
+            email: state.customer.email,
+            phone: state.customer.phone,
+          },
+          shippingAddress: {
+            ...recipient,
+            address1,
+            address2: address2 || undefined,
+            city: "تهران",
+            country: "IR",
+            postcode,
+          },
+        });
+        setState((current) => ({ ...current, cart }));
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "محاسبه هزینه ارسال و مالیات انجام نشد.");
+        return;
+      } finally {
+        setSavingAddress(false);
+      }
     }
     if (step === 1 && !deliverySlotId) return setError("یک بازه ارسال انتخاب کنید.");
     setStep((current) => Math.min(2, current + 1));
@@ -107,6 +145,59 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
       setError(caught instanceof Error ? caught.message : "انتخاب روش ارسال ذخیره نشد.");
     } finally {
       setPendingRate(null);
+    }
+  };
+
+  const addCoupon = async (code: string) => {
+    if (pendingCoupon) return false;
+    if (state.cart.coupons.length > 0) {
+      toast({
+        tone: "error",
+        title: "ابتدا کد تخفیف قبلی را حذف کنید",
+      });
+      return false;
+    }
+    setPendingCoupon("apply");
+    try {
+      const cart = await applyCoupon({ code });
+      setState((current) => ({ ...current, cart }));
+      toast({
+        tone: "success",
+        title: "کد تخفیف اعمال شد",
+        description: `کد ${code} با موفقیت اعمال شد.`,
+      });
+      return true;
+    } catch (caught) {
+      toast({
+        tone: "error",
+        title: "اعمال کد تخفیف ناموفق بود",
+        description: caught instanceof Error ? caught.message : undefined,
+      });
+      return false;
+    } finally {
+      setPendingCoupon(null);
+    }
+  };
+
+  const deleteCoupon = async (code: string) => {
+    if (pendingCoupon) return;
+    setPendingCoupon(code);
+    try {
+      const cart = await removeCoupon(code);
+      setState((current) => ({ ...current, cart }));
+      toast({
+        tone: "success",
+        title: "کد تخفیف حذف شد",
+        description: `کد ${code} با موفقیت حذف شد.`,
+      });
+    } catch (caught) {
+      toast({
+        tone: "error",
+        title: "حذف کد تخفیف ناموفق بود",
+        description: caught instanceof Error ? caught.message : undefined,
+      });
+    } finally {
+      setPendingCoupon(null);
     }
   };
 
@@ -185,13 +276,14 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         pendingRate={pendingRate}
         onDeliverySlot={setDeliverySlotId} onPackaging={setPackagingId} onPostcard={setPostcardText} onShippingRate={chooseShippingRate}
       /> : null}
-      {step === 2 ? <PaymentStep state={state} /> : null}
+      {step === 2 ? <PaymentStep state={state} couponPending={pendingCoupon} onApplyCoupon={addCoupon} onRemoveCoupon={deleteCoupon} /> : null}
 
       <CheckoutFooter
         canContinue={step === 0 ? detailsValid : Boolean(deliverySlotId)}
         onNext={next}
         onPay={pay}
         onPrevious={previous}
+        nextPending={savingAddress}
         reconciliationUnknown={reconciliationUnknown}
         step={step}
         submitting={submitting}
@@ -318,7 +410,17 @@ function DeliveryStep(props: {
   </>;
 }
 
-function PaymentStep({ state }: { state: CheckoutState }) {
+function PaymentStep({ state, couponPending, onApplyCoupon, onRemoveCoupon }: {
+  state: CheckoutState; couponPending: string | null; onApplyCoupon: (code: string) => Promise<boolean>; onRemoveCoupon: (code: string) => Promise<void>;
+}) {
+  const [couponCode, setCouponCode] = useState("");
+  const hasCoupon = state.cart.coupons.length > 0;
+  const submitCoupon = async () => {
+    const code = couponCode.trim();
+    if (!code) return;
+    if (await onApplyCoupon(code)) setCouponCode("");
+  };
+
   return <>
     <SectionHeader as="h2" title="شیوه پرداخت" />
     <section className="px-16 pb-16">
@@ -332,11 +434,47 @@ function PaymentStep({ state }: { state: CheckoutState }) {
     </section>
 
     <Divider size="md" variant="spacer" />
+    <SectionHeader as="h2" title="کد تخفیف" />
+    <section className="px-16 pb-16">
+      {!hasCoupon ? <div className="flex items-end gap-12">
+        <Input
+          aria-label="کد تخفیف"
+          className="min-w-0 flex-1"
+          dir="ltr"
+          placeholder="WELCOME10"
+          value={couponCode}
+          onChange={(event) => setCouponCode(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void submitCoupon();
+            }
+          }}
+        />
+        <Button disabled={!couponCode.trim() || couponPending !== null} loading={couponPending === "apply"} size="large" variant="secondary-tonal" onClick={() => void submitCoupon()}>
+          اعمال
+        </Button>
+      </div> : null}
+      {hasCoupon ? <div className="flex flex-wrap gap-8" aria-label="کدهای تخفیف اعمال‌شده">
+        {state.cart.coupons.map((coupon) => <Chip
+          key={coupon.code}
+          disabled={couponPending !== null}
+          removeLabel={`حذف کد تخفیف ${coupon.code}`}
+          size="md"
+          variant="selected"
+          onRemove={() => void onRemoveCoupon(coupon.code)}
+        >{coupon.code}</Chip>)}
+      </div> : null}
+    </section>
+
+    <Divider size="md" variant="spacer" />
     <SectionHeader as="h2" subtitle="مشخصات هزینه‌های سفارش" title="جزئیات پرداخت" />
     <section className="px-16 pb-16 text-body-14">
       <PaymentRow label="جمع سفارش‌ها" value={formatIrrAsToman(state.cart.totals.totalItems)} />
       <Divider />
       <PaymentRow label="هزینه ارسال" value={formatIrrAsToman(state.cart.totals.totalShipping)} />
+      <Divider />
+      <PaymentRow label="مالیات بر ارزش افزوده (۱۰٪)" value={formatIrrAsToman(state.cart.totals.totalTax)} />
       {state.cart.totals.totalDiscount.amount !== "0" ? <><Divider /><PaymentRow className="text-success" label="تخفیف" value={`− ${formatIrrAsToman(state.cart.totals.totalDiscount)}`} /></> : null}
       <Divider />
       <PaymentRow bold label="جمع کل" value={formatIrrAsToman(state.cart.totals.totalPrice)} />
@@ -348,13 +486,13 @@ function PaymentRow({ label, value, bold = false, className = "" }: { label: str
   return <div className={`flex min-h-56 items-center justify-between gap-16 ${bold ? "text-title-18 font-bold" : ""} ${className}`}><span>{label}</span><span className="text-left">{value}</span></div>;
 }
 
-function CheckoutFooter({ canContinue, onNext, onPay, onPrevious, reconciliationUnknown, step, submitting }: {
-  canContinue: boolean; onNext: () => void; onPay: () => void; onPrevious: () => void; reconciliationUnknown: boolean; step: number; submitting: boolean;
+function CheckoutFooter({ canContinue, nextPending, onNext, onPay, onPrevious, reconciliationUnknown, step, submitting }: {
+  canContinue: boolean; nextPending: boolean; onNext: () => void | Promise<void>; onPay: () => void; onPrevious: () => void; reconciliationUnknown: boolean; step: number; submitting: boolean;
 }) {
   const isPayment = step === 2;
   return <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border-mid-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-16))] pt-16 shadow-[0_-8px_24px_rgba(0,0,0,.04)]">
     <div className={isPayment || step > 0 ? "mx-auto grid max-w-[580px] grid-cols-[minmax(0,1fr)_106px] gap-12" : "mx-auto max-w-[580px]"}>
-      <Button className="w-full" disabled={isPayment ? reconciliationUnknown : !canContinue} loading={isPayment && submitting} onClick={isPayment ? onPay : onNext} size="large" variant="primary-filled">
+      <Button className="w-full" disabled={isPayment ? reconciliationUnknown : !canContinue || nextPending} loading={isPayment ? submitting : nextPending} onClick={isPayment ? onPay : onNext} size="large" variant="primary-filled">
         {isPayment ? "پرداخت" : "مرحله بعد"}
       </Button>
       {step > 0 ? <Button disabled={submitting} onClick={onPrevious} size="large" variant="tertiary-outline">مرحله قبل</Button> : null}

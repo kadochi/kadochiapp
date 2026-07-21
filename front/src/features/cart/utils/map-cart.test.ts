@@ -33,6 +33,7 @@ const rawCart = {
   needs_shipping: true,
   has_calculated_shipping: false,
   payment_methods: ["zarinpal"],
+  coupons: [{ code: "WELCOME10" }],
   shipping_rates: [],
 };
 
@@ -48,6 +49,7 @@ describe("mapCart", () => {
     });
     expect(cart.totals.totalShipping.amount).toBe("0");
     expect(cart.paymentMethodIds).toEqual(["zarinpal"]);
+    expect(cart.coupons).toEqual([{ code: "WELCOME10" }]);
   });
 
   it("formats authoritative IRR amounts as Toman", () => {

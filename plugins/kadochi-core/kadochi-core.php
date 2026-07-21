@@ -41,6 +41,8 @@ final class Kadochi_Core {
 		add_action( 'woocommerce_validate_additional_field', array( $this, 'validate_checkout_field' ), 10, 3 );
 		add_action( 'woocommerce_store_api_checkout_update_order_from_request', array( $this, 'validate_store_checkout_order' ), 10, 2 );
 		add_action( 'woocommerce_store_api_checkout_order_processed', array( $this, 'lock_store_checkout_order' ), 1 );
+		add_filter( 'woocommerce_package_rates', array( $this, 'limit_shipping_to_tehran' ), 10, 2 );
+		add_filter( 'woocommerce_customer_taxable_address', array( $this, 'limit_tax_to_tehran' ), 10, 2 );
 		add_filter( 'woocommerce_get_return_url', array( $this, 'checkout_return_url' ), 20, 2 );
 		add_action( 'show_user_profile', array( $this, 'render_customer_profile_fields' ) );
 		add_action( 'edit_user_profile', array( $this, 'render_customer_profile_fields' ) );
@@ -948,6 +950,31 @@ final class Kadochi_Core {
 		return true;
 	}
 
+	private function tehran_destination( $country, $city ) {
+		$country = strtoupper( sanitize_text_field( $country ) );
+		$city = str_replace( array( 'ي', 'ى', 'ك' ), array( 'ی', 'ی', 'ک' ), trim( sanitize_text_field( $city ) ) );
+		return 'IR' === $country && in_array( $city, array( 'تهران', 'Tehran', 'TEHRAN' ), true );
+	}
+
+	/** WooCommerce owns shipping prices; Kadochi only limits their availability to Tehran. */
+	public function limit_shipping_to_tehran( $rates, $package ) {
+		$destination = is_array( $package ) && isset( $package['destination'] ) && is_array( $package['destination'] ) ? $package['destination'] : array();
+		$country = isset( $destination['country'] ) ? $destination['country'] : '';
+		$city = isset( $destination['city'] ) ? $destination['city'] : '';
+		if ( ! $this->tehran_destination( $country, $city ) ) {
+			return array();
+		}
+		return $rates;
+	}
+
+	/** The WooCommerce standard tax rate is available only to Tehran delivery addresses. */
+	public function limit_tax_to_tehran( $address, $customer ) {
+		if ( ! is_array( $address ) || ! $this->tehran_destination( isset( $address[0] ) ? $address[0] : '', isset( $address[3] ) ? $address[3] : '' ) ) {
+			return array( '', '', '', '' );
+		}
+		return $address;
+	}
+
 	/** The exact slots are recomputed for every Store API validation in Tehran time. */
 	private function delivery_slots() {
 		$timezone = new DateTimeZone( 'Asia/Tehran' );
@@ -1187,7 +1214,6 @@ final class Kadochi_Core {
 			'items' => $items,
 			'summary' => array(
 				'subtotal' => $this->money_value( $order->get_subtotal(), $order->get_currency() ),
-				'tax' => $this->money_value( $order->get_total_tax(), $order->get_currency() ),
 				'shipping' => $this->money_value( $order->get_shipping_total(), $order->get_currency() ),
 				'service' => $this->money_value( $fees, $order->get_currency() ),
 				'total' => $this->order_money( $order ),

@@ -41,6 +41,11 @@ export const selectShippingRateSchema = z.object({
   rateId: z.string().trim().min(1).max(200),
 }).strict();
 
+/** Coupon codes are normalized by WooCommerce; keep browser input bounded before forwarding it. */
+export const couponCodeSchema = z.object({
+  code: z.string().trim().min(1, "کد تخفیف را وارد کنید.").max(100),
+}).strict();
+
 export const moneySchema = z.object({
   amount: z.string().regex(/^\d+$/),
   currencyCode: z.string().length(3),
@@ -83,6 +88,9 @@ export const cartSchema = z.object({
     hasCalculatedShipping: z.boolean(),
   }).strict(),
   paymentMethodIds: z.array(z.string().min(1)),
+  coupons: z.array(z.object({
+    code: z.string().min(1),
+  }).strict()),
   shippingRates: z.array(z.object({
     packageId: z.number().int().nonnegative(),
     selectedRate: z.string().nullable(),
@@ -141,6 +149,9 @@ export const upstreamCartSchema = z.object({
   needs_shipping: z.boolean().default(false),
   has_calculated_shipping: z.boolean().default(false),
   payment_methods: z.array(z.string()).default([]),
+  coupons: z.array(z.object({
+    code: z.string(),
+  }).passthrough()).default([]),
   shipping_rates: z.array(z.object({
     package_id: z.number().int().nonnegative(),
     shipping_rates: z.array(z.object({

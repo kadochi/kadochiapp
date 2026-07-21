@@ -168,8 +168,6 @@ export function ProfileOrderDetailPage({ orderId }: { orderId: number }) {
           <div className="px-16 pb-16">
             <DetailRow label="جمع سفارش‌ها" value={formatMoney(order.summary.subtotal)} />
             <Divider />
-            <DetailRow label="۱۰٪ مالیات بر ارزش افزوده" value={formatMoney(order.summary.tax)} />
-            <Divider />
             <DetailRow label="هزینه ارسال" value={tomanAmount(order.summary.shipping) ? formatMoney(order.summary.shipping) : "رایگان"} />
             <Divider />
             <DetailRow label="هزینه بسته‌بندی و خدمات" value={formatMoney(order.summary.service)} />

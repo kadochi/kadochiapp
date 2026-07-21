@@ -1,6 +1,6 @@
 import { bffJson } from "@/lib/http/browser";
-import { cartSchema, addItemSchema, selectShippingRateSchema, updateCustomerSchema, updateQuantitySchema } from "../schema/cart";
-import type { AddItemInput, CustomerAddresses, ShippingRateInput } from "../types";
+import { cartSchema, addItemSchema, couponCodeSchema, selectShippingRateSchema, updateCustomerSchema, updateQuantitySchema } from "../schema/cart";
+import type { AddItemInput, CouponCodeInput, CustomerAddresses, ShippingRateInput } from "../types";
 
 export const cartChangedEvent = "kadochi:cart-changed";
 
@@ -26,3 +26,13 @@ export async function removeItem(itemKey: string) {
 }
 export const updateCustomer = (addresses: CustomerAddresses) => bffJson("/api/cart/customer", { method: "PATCH", body: JSON.stringify(updateCustomerSchema.parse(addresses)) }, (value) => cartSchema.parse(value));
 export const selectShippingRate = (input: ShippingRateInput) => bffJson("/api/cart/shipping-rate", { method: "POST", body: JSON.stringify(selectShippingRateSchema.parse(input)) }, (value) => cartSchema.parse(value));
+export async function applyCoupon(input: CouponCodeInput) {
+  const cart = await bffJson("/api/cart/coupons", { method: "POST", body: JSON.stringify(couponCodeSchema.parse(input)) }, (value) => cartSchema.parse(value));
+  announceCartChange();
+  return cart;
+}
+export async function removeCoupon(code: string) {
+  const cart = await bffJson(`/api/cart/coupons/${encodeURIComponent(code)}`, { method: "DELETE" }, (value) => cartSchema.parse(value));
+  announceCartChange();
+  return cart;
+}

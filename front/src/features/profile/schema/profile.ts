@@ -44,7 +44,6 @@ export const profileOrderDetailSchema = profileOrderSchema.extend({
   address: z.string(),
   summary: z.object({
     subtotal: moneySchema,
-    tax: moneySchema,
     shipping: moneySchema,
     service: moneySchema,
     total: moneySchema,
