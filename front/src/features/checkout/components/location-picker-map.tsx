@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, type MutableRefObject } from "react";
+import { LocateFixed } from "lucide-react";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
 
 export type DeliveryLocation = {
   latitude: number;
@@ -53,6 +54,8 @@ export function LocationPickerMap({
   const markerRef = useRef<import("leaflet").CircleMarker | null>(null);
   const onChangeRef = useRef(onChange);
   const valueRef = useRef(value);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -106,16 +109,55 @@ export function LocationPickerMap({
     setMarker(leafletRef.current, mapRef.current, markerRef, value);
   }, [value]);
 
+  const locateUser = () => {
+    if (!navigator.geolocation) {
+      setLocationError("مرورگر شما از تشخیص موقعیت مکانی پشتیبانی نمی‌کند.");
+      return;
+    }
+    setLocating(true);
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const location = roundedLocation(coords.latitude, coords.longitude);
+        valueRef.current = location;
+        if (leafletRef.current && mapRef.current) {
+          setMarker(leafletRef.current, mapRef.current, markerRef, location);
+          mapRef.current.flyTo([location.latitude, location.longitude], 16);
+        }
+        onChangeRef.current(location);
+        setLocating(false);
+      },
+      () => {
+        setLocationError("دسترسی به موقعیت مکانی ممکن نشد. اجازه دسترسی را بررسی کنید.");
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+  };
+
   return <div className="grid gap-8">
     <p className="m-0 text-label-14 text-surface-neutral-mid-emphasis">
       برای تعیین دقیق محل تحویل، روی نقطه موردنظر در نقشه بزنید.
     </p>
-    <div
-      aria-label="نقشه OpenStreetMap برای انتخاب محل تحویل"
-      className="h-[280px] overflow-hidden rounded-m border border-border-high-emphasis [direction:ltr]"
-      ref={containerRef}
-      role="application"
-    />
+    <div className="relative">
+      <div
+        aria-label="نقشه OpenStreetMap برای انتخاب محل تحویل"
+        className="h-[280px] overflow-hidden rounded-m border border-border-high-emphasis [direction:ltr]"
+        ref={containerRef}
+        role="application"
+      />
+      <button
+        aria-label="تشخیص موقعیت فعلی من روی نقشه"
+        className="absolute bottom-12 end-12 z-[500] inline-flex h-40 items-center gap-6 rounded-m bg-surface-background px-12 text-label-14 font-bold text-surface-neutral-high-emphasis shadow-md ring-1 ring-border-high-emphasis transition-colors hover:bg-surface-neutral-low-emphasis focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={locating}
+        type="button"
+        onClick={locateUser}
+      >
+        <LocateFixed aria-hidden="true" className="size-16" />
+        {locating ? "در حال تشخیص…" : "موقعیت فعلی من"}
+      </button>
+    </div>
+    {locationError ? <p className="m-0 text-label-12 text-error" role="alert">{locationError}</p> : null}
     <p aria-live="polite" className="m-0 text-label-12 text-surface-neutral-mid-emphasis">
       {value
         ? `موقعیت انتخاب‌شده: ${value.latitude.toFixed(6)}، ${value.longitude.toFixed(6)}`

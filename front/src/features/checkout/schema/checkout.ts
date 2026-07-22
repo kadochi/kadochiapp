@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { customerSchema } from "../../auth/schema/auth";
+import { customerSchema, iranianPhoneSchema } from "../../auth/schema/auth";
 import { cartSchema, moneySchema } from "../../cart/schema/cart";
 
 export const deliverySlotSchema = z.object({
@@ -43,6 +43,7 @@ const recipientSchema = z.discriminatedUnion("kind", [
     kind: z.literal("other"),
     firstName: z.string().trim().min(1, "نام گیرنده را وارد کنید.").max(100),
     lastName: z.string().trim().min(1, "نام خانوادگی گیرنده را وارد کنید.").max(100),
+    phone: iranianPhoneSchema,
   }).strict(),
 ]);
 
@@ -55,7 +56,7 @@ const deliveryAddressSchema = z.object({
   }).strict().optional(),
 }).strict();
 
-/** Browser payload deliberately excludes totals, payment gateway, phone/email, country, and city. */
+/** Browser payload deliberately excludes totals, payment gateway, sender phone/email, country, and city. */
 export const submitCheckoutSchema = z.object({
   sender: senderSchema,
   recipient: recipientSchema,

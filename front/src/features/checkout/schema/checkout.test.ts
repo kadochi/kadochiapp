@@ -29,4 +29,11 @@ describe("submitCheckoutSchema", () => {
     expect(() => submitCheckoutSchema.parse({ ...validInput, deliverySlotId: "tomorrow" })).toThrow();
     expect(() => submitCheckoutSchema.parse({ ...validInput, operationId: "duplicate" })).toThrow();
   });
+
+  it("requires a valid phone number when the recipient is someone else", () => {
+    const otherRecipient = { kind: "other" as const, firstName: "Recipient", lastName: "Person" };
+    expect(() => submitCheckoutSchema.parse({ ...validInput, recipient: otherRecipient })).toThrow();
+    expect(() => submitCheckoutSchema.parse({ ...validInput, recipient: { ...otherRecipient, phone: "not-a-phone" } })).toThrow();
+    expect(submitCheckoutSchema.parse({ ...validInput, recipient: { ...otherRecipient, phone: "09121234567" } }).recipient).toMatchObject({ phone: "+989121234567" });
+  });
 });

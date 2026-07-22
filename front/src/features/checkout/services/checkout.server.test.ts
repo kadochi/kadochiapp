@@ -94,7 +94,7 @@ function response(body: unknown, cartToken?: string, status = 200) {
 function input() {
   return {
     sender: { firstName: "Sender", lastName: "Name" },
-    recipient: { kind: "other" as const, firstName: "Recipient", lastName: "Person" },
+    recipient: { kind: "other" as const, firstName: "Recipient", lastName: "Person", phone: "+989121234567" },
     address: { address1: "Tehran delivery address", address2: "Unit 2" },
     deliverySlotId: createDeliverySlots({ items: [{ fastDeliveryEligible: true }] } as Parameters<typeof createDeliverySlots>[0])[0]!.id,
     packagingId: "gift" as const,
@@ -142,7 +142,7 @@ describe("checkout service", () => {
     expect(postOptions.headers).toMatchObject({ "Cart-Token": "cart-2", "Idempotency-Key": operationId });
     expect(JSON.parse(postOptions.body as string)).toMatchObject({
       billing_address: { first_name: "Sender", email: customer.email, phone: customer.phone, country: "IR", city: "تهران" },
-      shipping_address: { first_name: "Recipient", last_name: "Person", country: "IR", city: "تهران" },
+      shipping_address: { first_name: "Recipient", last_name: "Person", phone: "+989121234567", country: "IR", city: "تهران" },
       payment_method: "WC_ZPal",
       additional_fields: {
         "kadochi/delivery-slot": input().deliverySlotId,

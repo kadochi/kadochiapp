@@ -78,8 +78,8 @@ function unavailableSlot(requestId: string) {
 
 function checkoutAddresses(input: ReturnType<typeof submitCheckoutSchema.parse>, customer: Awaited<ReturnType<typeof authenticatedCustomer>>) {
   const recipient = input.recipient.kind === "self"
-    ? input.sender
-    : { firstName: input.recipient.firstName, lastName: input.recipient.lastName };
+    ? { ...input.sender, phone: customer.phone }
+    : { firstName: input.recipient.firstName, lastName: input.recipient.lastName, phone: input.recipient.phone };
   const sharedAddress = {
     address_1: input.address.address1,
     address_2: input.address.address2 ?? "",
@@ -97,6 +97,7 @@ function checkoutAddresses(input: ReturnType<typeof submitCheckoutSchema.parse>,
     shipping_address: {
       first_name: recipient.firstName,
       last_name: recipient.lastName,
+      phone: recipient.phone,
       ...sharedAddress,
     },
   };
