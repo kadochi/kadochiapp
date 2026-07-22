@@ -38,7 +38,10 @@ export function updateProductAction(productId: number, action: "like" | "save", 
 }
 
 /** Fetches a subsequent public catalog page through the same-origin BFF. */
-export function fetchProductsPage(query: ProductQuery): Promise<ProductListResult> {
+export function fetchProductsPage(
+  query: ProductQuery,
+  options: Pick<RequestInit, "signal"> = {},
+): Promise<ProductListResult> {
   const input = productQuerySchema.parse(query);
   const params = new URLSearchParams({
     page: String(input.page),
@@ -55,7 +58,7 @@ export function fetchProductsPage(query: ProductQuery): Promise<ProductListResul
 
   return bffJson(
     `/api/products?${params}`,
-    { method: "GET" },
+    { method: "GET", ...options },
     (value) => productListResultSchema.parse(value),
   );
 }

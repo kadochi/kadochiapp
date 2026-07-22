@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ComponentPropsWithoutRef,
   type ReactNode,
@@ -31,6 +33,7 @@ import { SegmentSelector } from "@/components/ui/segment-selector";
 import { Toggle } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
 import { useProductFilterNavigation } from "../hooks/useProductFilterNavigation";
+import { ProductSearch } from "./product-search";
 
 type CategoryOption = { id: number; name: string; slug: string };
 type SortId = "latest" | "oldest" | "popular";
@@ -163,6 +166,9 @@ type ProductFiltersProps = { categories: readonly CategoryOption[] };
 export function ProductFilters({ categories }: Readonly<ProductFiltersProps>) {
   const { replaceFilters, clearFilters, searchParams } = useProductFilterNavigation();
   const [sheetView, setSheetView] = useState<FilterSheetView | null>(null);
+  const [isSearchVisible, setIsSearchVisible] = useState(true);
+  const previousScrollY = useRef(0);
+  const searchVisibility = useRef(true);
   const tags = useMemo(() => parseTags(searchParams.get("tag")), [searchParams]);
   const category = searchParams.get("category") ?? "";
   const minPrice = searchParams.get("min_price");
@@ -182,10 +188,84 @@ export function ProductFilters({ categories }: Readonly<ProductFiltersProps>) {
     setSheetView(null);
   };
 
+  useEffect(() => {
+    let frame: number | undefined;
+    let settleTimer: number | undefined;
+    let isTransitioning = false;
+
+    const setSearchVisibility = (visible: boolean) => {
+      if (visible === searchVisibility.current) return;
+
+      searchVisibility.current = visible;
+      isTransitioning = true;
+      setIsSearchVisible(visible);
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(() => {
+        // Collapsing the sticky area can emit a scroll event of its own. Reset
+        // the baseline after the transition so that event cannot reverse it.
+        previousScrollY.current = window.scrollY;
+        isTransitioning = false;
+      }, 220);
+    };
+
+    const updateSearchVisibility = () => {
+      const currentScrollY = window.scrollY;
+
+      if (isTransitioning) {
+        previousScrollY.current = currentScrollY;
+        frame = undefined;
+        return;
+      }
+
+      const scrollDelta = currentScrollY - previousScrollY.current;
+      let nextVisibility: boolean | undefined;
+
+      if (currentScrollY <= 8) {
+        nextVisibility = true;
+      } else if (scrollDelta >= 8) {
+        nextVisibility = false;
+      } else if (scrollDelta <= -8) {
+        nextVisibility = true;
+      }
+
+      if (nextVisibility !== undefined) {
+        previousScrollY.current = currentScrollY;
+        setSearchVisibility(nextVisibility);
+      }
+
+      frame = undefined;
+    };
+
+    const handleScroll = () => {
+      if (frame === undefined) frame = window.requestAnimationFrame(updateSearchVisibility);
+    };
+
+    previousScrollY.current = window.scrollY;
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+      window.clearTimeout(settleTimer);
+    };
+  }, []);
+
   return (
     <>
-      <nav aria-label="فیلتر محصولات" className="overflow-x-auto px-16 py-12 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex w-max items-center gap-8">
+      <div className="sticky top-88 z-40 bg-surface-background">
+        <div
+          aria-hidden={!isSearchVisible}
+          className={cn(
+            "grid overflow-hidden [overflow-anchor:none] transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+            isSearchVisible ? "grid-rows-[1fr] opacity-100" : "pointer-events-none grid-rows-[0fr] opacity-0",
+          )}
+          inert={!isSearchVisible}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <ProductSearch />
+          </div>
+        </div>
+        <nav aria-label="فیلتر محصولات" className="overflow-x-auto px-16 py-12 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-max items-center gap-8">
           <ChipButton onClick={() => setSheetView("all")}>
             <Chip badge={activeCount || undefined} leadingIcon={<Filter />} variant={activeCount ? "selected" : "outline"}>
               فیلترها
@@ -254,8 +334,9 @@ export function ProductFilters({ categories }: Readonly<ProductFiltersProps>) {
               ارسال سریع امروز
             </Chip>
           </ChipButton>
-        </div>
-      </nav>
+          </div>
+        </nav>
+      </div>
 
       {sheetView ? (
         <FiltersSheet

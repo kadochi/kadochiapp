@@ -93,8 +93,7 @@ const trustBadges = [
   },
 ] as const satisfies readonly TrustBadge[];
 
-const categoryEndpoint =
-  "/api/store/categories?per_page=100&hide_empty=true";
+const categoryEndpoint = "/api/categories?perPage=100&hideEmpty=true";
 
 const footerListClassName = "m-0 grid list-none gap-12 p-0";
 const footerLinkClassName =
