@@ -8,7 +8,6 @@ import { Plus } from "lucide-react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { BottomSheet, BottomSheetContent, BottomSheetDescription, BottomSheetHeader, BottomSheetTitle } from "@/components/ui/bottom-sheet";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Chip } from "@/components/ui/chip";
 import { Divider } from "@/components/ui/divider";
@@ -20,23 +19,16 @@ import SectionHeader from "@/components/layout/section-header";
 import { TextArea } from "@/components/ui/textarea";
 import { applyCoupon, removeCoupon, selectShippingRate, updateCustomer } from "@/features/cart/services/cart";
 import { formatIrrAsToman } from "@/features/cart/utils/money";
-import { LocationPickerMap, type DeliveryLocation } from "./location-picker-map";
+import { AddressEditorSheet } from "./address-editor-sheet";
+import { SavedAddressCard } from "./saved-address-card";
 import { submitCheckoutSchema } from "../schema/checkout";
-import { submitCheckout } from "../services/checkout";
-import type { CheckoutState } from "../types";
+import { createSavedAddress, deleteSavedAddress, submitCheckout, updateSavedAddress } from "../services/checkout";
+import type { CheckoutState, SavedAddress } from "../types";
 import { checkoutResultAction } from "../utils/checkout-result";
 import { iranianPhoneSchema } from "../../auth/schema/auth";
 
 type RecipientKind = "self" | "other";
 type DetailsErrors = Partial<Record<"senderFirstName" | "senderLastName" | "recipientFirstName" | "recipientLastName" | "recipientPhone", string>>;
-
-type SavedAddress = {
-  id: string;
-  title: string;
-  address1: string;
-  address2: string;
-  location: DeliveryLocation | null;
-};
 
 const CHECKOUT_STEPS = [
   { id: "details", label: "تکمیل اطلاعات" },
@@ -70,9 +62,11 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   const [recipientLastName, setRecipientLastName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
   const [detailsErrors, setDetailsErrors] = useState<DetailsErrors>({});
-  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
-  const [selectedAddressId, setSelectedAddressId] = useState("");
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(initialState.savedAddresses);
+  const [selectedAddressId, setSelectedAddressId] = useState(initialState.savedAddresses[0]?.id ?? "");
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<SavedAddress | null>(null);
+  const [removingAddressId, setRemovingAddressId] = useState<string | null>(null);
   const [deliverySlotId, setDeliverySlotId] = useState(initialState.deliverySlots[0]?.id ?? "");
   const [packagingId, setPackagingId] = useState<"gift" | "normal">(
     initialState.packagingOptions.find((option) => option.default)?.id ?? "gift",
@@ -87,6 +81,27 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   const submissionLock = useRef(false);
   const operationId = useRef<string | null>(null);
   const selectedAddress = savedAddresses.find((address) => address.id === selectedAddressId);
+
+  const openNewAddress = () => {
+    setEditingAddress(null);
+    setAddressSheetOpen(true);
+  };
+
+  const removeAddress = async (address: SavedAddress) => {
+    if (removingAddressId) return;
+    setRemovingAddressId(address.id);
+    try {
+      await deleteSavedAddress(address.id);
+      const nextAddresses = savedAddresses.filter((item) => item.id !== address.id);
+      setSavedAddresses(nextAddresses);
+      if (selectedAddressId === address.id) setSelectedAddressId(nextAddresses[0]?.id ?? "");
+      toast({ tone: "success", title: "آدرس حذف شد" });
+    } catch (caught) {
+      toast({ tone: "error", title: "حذف آدرس انجام نشد", description: caught instanceof Error ? caught.message : undefined });
+    } finally {
+      setRemovingAddressId(null);
+    }
+  };
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -307,7 +322,8 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         addresses={savedAddresses} selectedAddressId={selectedAddressId}
         onSenderFirstName={(value) => { setSenderFirstName(value); clearDetailsError("senderFirstName"); }} onSenderLastName={(value) => { setSenderLastName(value); clearDetailsError("senderLastName"); }}
         onRecipientKind={(value) => { setRecipientKind(value); setDetailsErrors({}); }} onRecipientFirstName={(value) => { setRecipientFirstName(value); clearDetailsError("recipientFirstName"); }} onRecipientLastName={(value) => { setRecipientLastName(value); clearDetailsError("recipientLastName"); }} onRecipientPhone={(value) => { setRecipientPhone(value); clearDetailsError("recipientPhone"); }}
-        onAddressSheetOpen={setAddressSheetOpen} onSelectAddress={setSelectedAddressId}
+        onAddressSheetOpen={openNewAddress} onSelectAddress={setSelectedAddressId}
+        onEditAddress={(address) => { setEditingAddress(address); setAddressSheetOpen(true); }} onDeleteAddress={removeAddress} removingAddressId={removingAddressId}
       /> : null}
       {step === 1 ? <DeliveryStep
         state={state} deliverySlotId={deliverySlotId} packagingId={packagingId} postcardText={postcardText}
@@ -327,12 +343,19 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         submitting={submitting}
       />
 
-      <AddAddressSheet
+      <AddressEditorSheet
+        address={editingAddress}
         open={addressSheetOpen}
-        onOpenChange={setAddressSheetOpen}
-        onSave={(address) => {
-          setSavedAddresses((current) => [...current, address]);
-          setSelectedAddressId(address.id);
+        onOpenChange={(open) => { setAddressSheetOpen(open); if (!open) setEditingAddress(null); }}
+        onSave={async (address) => {
+          if (editingAddress) {
+            const saved = await updateSavedAddress(editingAddress.id, address);
+            setSavedAddresses((current) => current.map((item) => item.id === saved.id ? saved : item));
+          } else {
+            const saved = await createSavedAddress(address);
+            setSavedAddresses((current) => [saved, ...current]);
+            setSelectedAddressId(saved.id);
+          }
         }}
       />
     </div>
@@ -343,7 +366,7 @@ function DetailsStep(props: {
   customer: CheckoutState["customer"];
   senderFirstName: string; senderLastName: string; recipientKind: RecipientKind; recipientFirstName: string; recipientLastName: string; recipientPhone: string; errors: DetailsErrors; addresses: SavedAddress[]; selectedAddressId: string;
   onSenderFirstName: (value: string) => void; onSenderLastName: (value: string) => void; onRecipientKind: (value: RecipientKind) => void; onRecipientFirstName: (value: string) => void; onRecipientLastName: (value: string) => void; onRecipientPhone: (value: string) => void;
-  onAddressSheetOpen: (open: boolean) => void; onSelectAddress: (id: string) => void;
+  onAddressSheetOpen: () => void; onSelectAddress: (id: string) => void; onEditAddress: (address: SavedAddress) => void; onDeleteAddress: (address: SavedAddress) => void; removingAddressId: string | null;
 }) {
   const receiverIsSender = props.recipientKind === "self";
   return <>
@@ -376,76 +399,17 @@ function DetailsStep(props: {
 
     <SectionHeader
       as="h2"
-      leftSlot={<Button size="small" variant="tertiary-outline" onClick={() => props.onAddressSheetOpen(true)}><Plus aria-hidden="true" /> افزودن آدرس جدید</Button>}
+      leftSlot={<Button size="small" variant="tertiary-outline" onClick={props.onAddressSheetOpen}><Plus aria-hidden="true" /> افزودن آدرس جدید</Button>}
       subtitle="نشانی که کادو به آن ارسال می‌شود."
       title="آدرس دریافت سفارش"
     />
     <section className="px-16 pb-16">
       <p className="mb-12 mt-0 text-label-14 text-surface-neutral-mid-emphasis">انتخاب آدرس</p>
       {props.addresses.length ? <RadioGroup value={props.selectedAddressId} onValueChange={props.onSelectAddress}>
-        {props.addresses.map((address) => <RadioGroupItem
-          key={address.id}
-          className="w-full rounded-m border border-border-high-emphasis p-16 has-[[data-state=checked]]:border-2 has-[[data-state=checked]]:border-secondary has-[[data-state=checked]]:shadow-[0_0_0_4px_var(--color-secondary-container)]"
-          label={<span className="grid gap-4"><span className="text-title-14 font-bold">{address.title}</span><span className="text-label-12 leading-20 text-surface-neutral-mid-emphasis">{["تهران", address.address1, address.address2].filter(Boolean).join("، ")}</span></span>}
-          value={address.id}
-        />)}
+        {props.addresses.map((address) => <SavedAddressCard key={address.id} address={address} busy={props.removingAddressId === address.id} onDelete={props.onDeleteAddress} onEdit={props.onEditAddress} selectable />)}
       </RadioGroup> : <div className="rounded-m border border-dashed border-border-high-emphasis px-16 py-20 text-label-14 text-surface-neutral-mid-emphasis">هنوز نشانی‌ای ثبت نکرده‌اید. برای ادامه، یک آدرس جدید اضافه کنید.</div>}
     </section>
   </>;
-}
-
-function AddAddressSheet({ open, onOpenChange, onSave }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSave: (address: SavedAddress) => void;
-}) {
-  const [title, setTitle] = useState("");
-  const [address1, setAddress1] = useState("");
-  const [address2, setAddress2] = useState("");
-  const [location, setLocation] = useState<DeliveryLocation | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const save = () => {
-    const normalizedAddress = address1.trim();
-    if (normalizedAddress.length < 5) {
-      setError("نشانی گیرنده را کامل وارد کنید.");
-      return;
-    }
-    const fallbackTitle = normalizedAddress.split(/[،,]/)[0]?.trim() || normalizedAddress;
-    onSave({
-      id: crypto.randomUUID(),
-      title: title.trim() || fallbackTitle,
-      address1: normalizedAddress,
-      address2: address2.trim(),
-      location,
-    });
-    setTitle("");
-    setAddress1("");
-    setAddress2("");
-    setLocation(null);
-    setError(null);
-    onOpenChange(false);
-  };
-
-  return <BottomSheet open={open} onOpenChange={onOpenChange}>
-    <BottomSheetContent
-      footer={<div className="border-t border-border-mid-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-16))] pt-16"><Button className="w-full" size="large" variant="primary-filled" onClick={save}>ذخیره آدرس</Button></div>}
-      size="md"
-    >
-      <BottomSheetHeader>
-        <BottomSheetTitle className="m-0 text-title-18 font-bold">افزودن آدرس جدید</BottomSheetTitle>
-        <BottomSheetDescription className="m-0 text-label-14 text-surface-neutral-mid-emphasis">نشانی دریافت سفارش را وارد کنید.</BottomSheetDescription>
-      </BottomSheetHeader>
-      <div className="space-y-16 px-16 pb-16">
-        {error ? <Alert tone="error">{error}</Alert> : null}
-        <Input label="عنوان آدرس" placeholder="مثلاً خانه، محل کار" value={title} onChange={(event) => setTitle(event.target.value)} />
-        <Input description="در حال حاضر کادوچی فقط در شهر تهران فعال است." disabled label="انتخاب شهر" value="تهران" />
-        <TextArea label="آدرس گیرنده" maxLength={200} placeholder="خیابان، کوچه، پلاک، واحد…" required showCount value={address1} onChange={(event) => setAddress1(event.target.value)} />
-        <Input label="توضیحات" value={address2} onChange={(event) => setAddress2(event.target.value)} />
-        <LocationPickerMap value={location} onChange={setLocation} />
-      </div>
-    </BottomSheetContent>
-  </BottomSheet>;
 }
 
 function DeliveryStep(props: {

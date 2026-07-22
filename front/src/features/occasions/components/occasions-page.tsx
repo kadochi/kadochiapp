@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -11,11 +11,14 @@ import { useToast } from "@/components/ui/toaster";
 import { useAuth } from "@/features/auth/auth-provider";
 import {
   createOccasion,
+  deleteOccasion,
   listOccasions,
+  updateOccasion,
 } from "@/features/occasions/services/occasions";
 import type { Occasion } from "@/features/occasions/types";
 import {
   PERSIAN_MONTHS,
+  occasionDateForPersianYear,
   getPersianDateParts,
   getPersianMonthDates,
   getPersianWeekday,
@@ -55,6 +58,8 @@ export function OccasionsPage() {
   });
   const [occasions, setOccasions] = useState<Occasion[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [editingOccasion, setEditingOccasion] = useState<Occasion | null>(null);
+  const [deletingOccasionId, setDeletingOccasionId] = useState<number | null>(null);
   const [showFloatingAction, setShowFloatingAction] = useState(false);
   const sectionHeaderRef = useRef<HTMLDivElement>(null);
 
@@ -96,14 +101,20 @@ export function OccasionsPage() {
   const occasionsByDate = useMemo(() => {
     const map = new Map<string, Occasion[]>();
     if (status !== "authenticated") return map;
-    occasions.forEach((occasion) =>
-      map.set(occasion.occasionDate, [
-        ...(map.get(occasion.occasionDate) ?? []),
-        occasion,
-      ]),
-    );
+    occasions.forEach((occasion) => {
+      const occasionDate = occasion.repeatsAnnually
+        ? occasionDateForPersianYear(occasion.occasionDate, visibleMonth.year)
+        : occasion.occasionDate;
+      const displayOccasion = occasionDate === occasion.occasionDate
+        ? occasion
+        : { ...occasion, occasionDate };
+      map.set(occasionDate, [
+        ...(map.get(occasionDate) ?? []),
+        displayOccasion,
+      ]);
+    });
     return map;
-  }, [occasions, status]);
+  }, [occasions, status, visibleMonth.year]);
   const days = useMemo(
     () => getPersianMonthDates(visibleMonth.year, visibleMonth.month),
     [visibleMonth],
@@ -114,25 +125,48 @@ export function OccasionsPage() {
       router.push("/login?next=/occasions");
       return;
     }
+    setEditingOccasion(null);
     setSheetOpen(true);
   }
 
-  async function handleCreate(input: { title: string; occasionDate: string }) {
+  async function handleSubmit(input: { title: string; occasionDate: string; repeatsAnnually: boolean }) {
     try {
-      const created = await createOccasion(input);
-      setOccasions((current) => [created, ...current]);
+      if (editingOccasion) {
+        const updated = await updateOccasion(editingOccasion.id, input, editingOccasion.version);
+        setOccasions((current) => current.map((occasion) => occasion.id === updated.id ? updated : occasion));
+      } else {
+        const created = await createOccasion(input);
+        setOccasions((current) => [created, ...current]);
+      }
       toast({
-        description: "مناسبت جدید به تقویم شما اضافه شد.",
+        description: editingOccasion ? "مناسبت شما به‌روزرسانی شد." : "مناسبت جدید به تقویم شما اضافه شد.",
         tone: "success",
-        title: "ثبت شد",
+        title: editingOccasion ? "ذخیره شد" : "ثبت شد",
       });
     } catch {
       toast({
-        description: "ثبت مناسبت انجام نشد. دوباره تلاش کنید.",
+        description: editingOccasion ? "ویرایش مناسبت انجام نشد. دوباره تلاش کنید." : "ثبت مناسبت انجام نشد. دوباره تلاش کنید.",
         tone: "error",
         title: "خطا",
       });
       throw new Error("Unable to create occasion.");
+    }
+  }
+
+  async function handleDelete(occasion: Occasion) {
+    if (!window.confirm(`مناسبت «${occasion.title}» حذف شود؟`)) return;
+
+    try {
+      setDeletingOccasionId(occasion.id);
+      await deleteOccasion(occasion.id, occasion.version);
+      setOccasions((current) => current.filter((item) => item.id !== occasion.id));
+      toast({ title: "مناسبت حذف شد", tone: "success" });
+      setSheetOpen(false);
+      setEditingOccasion(null);
+    } catch {
+      toast({ description: "حذف مناسبت انجام نشد. دوباره تلاش کنید.", title: "خطا", tone: "error" });
+    } finally {
+      setDeletingOccasionId(null);
     }
   }
 
@@ -210,15 +244,20 @@ export function OccasionsPage() {
                   <div className="grid min-h-56 content-center gap-8">
                     {dayOccasions.map((occasion) => (
                       <div
-                        className="grid grid-cols-[1fr_auto] items-center gap-12 rounded-s bg-secondary-container px-12 py-8"
+                        className={`flex min-h-48 items-center gap-12 rounded-m px-12 py-8 [direction:rtl] ${occasion.isPersonal ? "bg-success-container text-on-success-container" : "bg-secondary-container text-on-secondary-container"}`}
                         key={occasion.id}
                       >
-                        <strong className="truncate text-label-16 text-on-secondary-container">
+                        <strong className="min-w-0 flex-1 truncate text-right text-label-16" dir="rtl">
                           {occasion.title}
                         </strong>
-                        <span className="whitespace-nowrap text-label-12 text-surface-neutral-mid-emphasis">
+                        <span className="shrink-0 whitespace-nowrap text-label-12 text-surface-neutral-mid-emphasis" dir="rtl">
                           {remainingLabel(occasion.occasionDate)}
                         </span>
+                        {occasion.isPersonal ? (
+                          <Button aria-label={`ویرایش ${occasion.title}`} className="size-32 shrink-0 p-0" onClick={() => { setEditingOccasion(occasion); setSheetOpen(true); }} size="small" variant="link-ghost">
+                            <Pencil aria-hidden />
+                          </Button>
+                        ) : null}
                       </div>
                     ))}
                     {!dayOccasions.length ? (
@@ -249,8 +288,12 @@ export function OccasionsPage() {
         </Button>
       ) : null}
       <AddOccasionSheet
-        onOpenChange={setSheetOpen}
-        onSubmit={handleCreate}
+        key={`${sheetOpen}-${editingOccasion?.id ?? "new"}`}
+        occasion={editingOccasion}
+        onOpenChange={(open) => { setSheetOpen(open); if (!open) setEditingOccasion(null); }}
+        onDelete={editingOccasion ? () => handleDelete(editingOccasion) : undefined}
+        deleting={deletingOccasionId === editingOccasion?.id}
+        onSubmit={handleSubmit}
         open={sheetOpen}
       />
     </>

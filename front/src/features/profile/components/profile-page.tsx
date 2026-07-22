@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, CircleHelp, LogIn, LogOut, Package, UserRound } from "lucide-react";
+import { Bookmark, ChevronLeft, CircleHelp, Heart, LogIn, LogOut, MapPin, Package, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Avatar } from "@/components/ui/avatar";
@@ -94,6 +94,12 @@ export function ProfilePage() {
         <ProfileMenuItem href="/profile/info" icon={UserRound} subtitle="مشخصات و اطلاعات شخصی" title="اطلاعات حساب کاربری" />
         <Divider />
         <ProfileMenuItem href="/profile/orders" icon={Package} subtitle="سفارش‌های در انتظار و تکمیل‌شده" title="سفارش‌های من" />
+        <Divider />
+        <ProfileMenuItem href="/profile/addresses" icon={MapPin} subtitle="افزودن و مدیریت نشانی‌های دریافت سفارش" title="آدرس‌ها" />
+        <Divider />
+        <ProfileMenuItem href="/profile/wishlist" icon={Bookmark} subtitle="محصول‌هایی که برای بعد ذخیره کرده‌اید" title="لیست آرزوها" />
+        <Divider />
+        <ProfileMenuItem href="/profile/favorites" icon={Heart} subtitle="محصول‌هایی که پسندیده‌اید" title="مورد علاقه‌ها" />
         <Divider />
         <ProfileMenuItem
           onClick={() => {

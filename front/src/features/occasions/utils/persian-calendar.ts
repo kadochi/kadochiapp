@@ -68,6 +68,19 @@ export function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** Projects an annual occasion onto the same Persian-calendar date in another year. */
+export function occasionDateForPersianYear(
+  isoDate: string,
+  year: number,
+): string {
+  const source = getPersianDateParts(new Date(`${isoDate}T00:00:00Z`));
+  const occurrence = getPersianMonthDates(year, source.month).find(
+    (date) => getPersianDateParts(date).day === source.day,
+  );
+
+  return occurrence ? toIsoDate(occurrence) : isoDate;
+}
+
 export function movePersianMonth(
   year: number,
   month: number,

@@ -23,6 +23,8 @@ final class Kadochi_Core {
 	const CHECKOUT_FIELD_POSTCARD = 'kadochi/postcard';
 	const CHECKOUT_FIELD_LOCATION = 'kadochi/location';
 	const CHECKOUT_FIELD_OPERATION = 'kadochi/operation-id';
+	const PRODUCT_ACTIONS_DB_VERSION = '1';
+	const PRODUCT_VIEW_COUNT_META_KEY = '_kadochi_product_view_count';
 
 	/** @var array<string, string> */
 	private $health = array();
@@ -30,6 +32,7 @@ final class Kadochi_Core {
 	private $bearer_error = null;
 
 	public function boot() {
+		self::maybe_install_product_actions_table();
 		add_action( 'init', array( $this, 'register_post_types' ), 5 );
 		add_action( 'init', array( $this, 'harden_existing_occasion_type' ), 99 );
 		add_action( 'acf/init', array( $this, 'register_scf_fields' ) );
@@ -45,18 +48,48 @@ final class Kadochi_Core {
 		add_filter( 'woocommerce_package_rates', array( $this, 'limit_shipping_to_tehran' ), 10, 2 );
 		add_filter( 'woocommerce_customer_taxable_address', array( $this, 'limit_tax_to_tehran' ), 10, 2 );
 		add_filter( 'woocommerce_get_return_url', array( $this, 'checkout_return_url' ), 20, 2 );
+		add_filter( 'get_avatar_url', array( $this, 'customer_avatar_url_filter' ), 10, 3 );
 		add_action( 'show_user_profile', array( $this, 'render_customer_profile_fields' ) );
 		add_action( 'edit_user_profile', array( $this, 'render_customer_profile_fields' ) );
 		add_action( 'personal_options_update', array( $this, 'save_customer_profile_fields' ) );
 		add_action( 'edit_user_profile_update', array( $this, 'save_customer_profile_fields' ) );
 		add_filter( 'manage_users_columns', array( $this, 'add_customer_user_columns' ) );
 		add_filter( 'manage_users_custom_column', array( $this, 'render_customer_user_column' ), 10, 3 );
+		add_filter( 'manage_edit-product_columns', array( $this, 'add_product_engagement_columns' ), 20 );
+		add_filter( 'hidden_columns', array( $this, 'keep_product_views_column_visible' ), 10, 2 );
+		add_action( 'manage_product_posts_custom_column', array( $this, 'render_product_engagement_column' ), 10, 2 );
+		add_action( 'admin_head-edit.php', array( $this, 'style_product_engagement_columns' ) );
 		add_action( 'admin_notices', array( $this, 'render_admin_notices' ) );
 	}
 
 	public static function activate() {
 		self::grant_editorial_capabilities();
+		self::install_product_actions_table();
 		flush_rewrite_rules();
+	}
+
+	/** Stores one durable like/save row per authenticated customer and product. */
+	private static function install_product_actions_table() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'kadochi_product_actions';
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		dbDelta( "CREATE TABLE {$table} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			user_id bigint(20) unsigned NOT NULL,
+			product_id bigint(20) unsigned NOT NULL,
+			action_type varchar(10) NOT NULL,
+			created_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY user_product_action (user_id,product_id,action_type),
+			KEY product_action (product_id,action_type)
+		) {$wpdb->get_charset_collate()};" );
+		update_option( 'kadochi_product_actions_db_version', self::PRODUCT_ACTIONS_DB_VERSION, false );
+	}
+
+	private static function maybe_install_product_actions_table() {
+		if ( self::PRODUCT_ACTIONS_DB_VERSION !== get_option( 'kadochi_product_actions_db_version' ) ) {
+			self::install_product_actions_table();
+		}
 	}
 
 	private static function post_type_capabilities( $singular, $plural ) {
@@ -192,7 +225,7 @@ final class Kadochi_Core {
 			array( 'key' => 'group_684b373196d67', 'title' => 'Banner', 'fields' => array( $this->field( 'field_684b3731a9469', 'Title', 'title', 'text' ), $this->field( 'field_684b3761a946a', 'Subtitle', 'subtitle', 'text' ), $this->field( 'field_684b376ca946b', 'CTA Text', 'cta_text', 'text' ), $this->field( 'field_684b377ba946c', 'CTA Link', 'cta_link', 'url' ), $this->field( 'field_684b3788a946d', 'Background Gradient', 'background_gradient', 'text' ), $this->field( 'field_684b37cea946e', 'Background Image', 'background_image', 'image', $image_url ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'banner' ) ) ), 'active' => true, 'show_in_rest' => 0 ),
 			array( 'key' => 'group_68ff3b5e2403e', 'title' => 'Hero', 'fields' => array( $this->field( 'field_68ff3b5e2bc20', 'Title', 'title', 'text' ), $this->field( 'field_68ff3b5e2bccb', 'CTA Text', 'cta_text', 'text' ), $this->field( 'field_68ff3b5e2bd1c', 'CTA Link', 'cta_link', 'url' ), $this->field( 'field_68ff3b5e2bdb4', 'Background Image', 'background_image', 'image', $image_url ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'hero' ) ) ), 'active' => true, 'show_in_rest' => 0 ),
 			array( 'key' => 'group_684ada15be887', 'title' => 'Image Slider', 'fields' => array( $this->field( 'field_684ada1598922', 'Background Image', 'background_image', 'image', array( 'return_format' => 'array', 'library' => 'all', 'preview_size' => 'medium' ) ), $this->field( 'field_684ada7298923', 'Slider Title', 'slider_title', 'text' ), $this->field( 'field_684adaa998924', 'Slider Button Text', 'slider_button_text', 'text' ), $this->field( 'field_684adabd98925', 'Slider Link', 'slider_link', 'link', array( 'return_format' => 'url' ) ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'slider' ) ) ), 'active' => true, 'show_in_rest' => 0 ),
-			array( 'key' => 'group_68690d0e375df', 'title' => 'Occasion', 'fields' => array( $this->field( 'field_68690d0e8d04d', 'title', 'title', 'text' ), $this->field( 'field_68690d148d04e', 'occasion date', 'occasion_date', 'date_picker', array( 'display_format' => 'Y-m-d', 'return_format' => 'Y-m-d', 'first_day' => 6, 'default_to_current_date' => 0 ) ), $this->field( 'field_699c24f932f43', 'user', 'user', 'user', array( 'return_format' => 'id', 'multiple' => 0, 'allow_null' => 0 ) ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'occasion' ) ) ), 'active' => true, 'show_in_rest' => 0 ),
+			array( 'key' => 'group_68690d0e375df', 'title' => 'Occasion', 'fields' => array( $this->field( 'field_68690d0e8d04d', 'title', 'title', 'text' ), $this->field( 'field_68690d148d04e', 'occasion date', 'occasion_date', 'date_picker', array( 'display_format' => 'Y-m-d', 'return_format' => 'Y-m-d', 'first_day' => 6, 'default_to_current_date' => 0 ) ), $this->field( 'field_6a0c001e8d04f', 'Repeat annually', 'repeat_annually', 'true_false', array( 'default_value' => 1, 'ui' => 1 ) ), $this->field( 'field_699c24f932f43', 'user', 'user', 'user', array( 'return_format' => 'id', 'multiple' => 0, 'allow_null' => 0 ) ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'occasion' ) ) ), 'active' => true, 'show_in_rest' => 0 ),
 		);
 	}
 
@@ -215,13 +248,34 @@ final class Kadochi_Core {
 			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'customer' ), 'permission_callback' => array( $this, 'authenticated' ) ),
 			array( 'methods' => 'PATCH', 'callback' => array( $this, 'update_customer_profile' ), 'permission_callback' => array( $this, 'authenticated' ) ),
 		) );
+		register_rest_route( self::REST_NAMESPACE, '/customer/addresses', array(
+			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_customer_addresses' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'create_customer_address' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+		) );
+		register_rest_route( self::REST_NAMESPACE, '/customer/addresses/(?P<id>[a-f0-9-]{36})', array(
+			array( 'methods' => 'PUT', 'callback' => array( $this, 'update_customer_address' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+			array( 'methods' => WP_REST_Server::DELETABLE, 'callback' => array( $this, 'delete_customer_address' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+		) );
 		register_rest_route( self::REST_NAMESPACE, '/profile/orders', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_profile_orders' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
 		register_rest_route( self::REST_NAMESPACE, '/profile/orders/(?P<id>\\d+)', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'profile_order_detail' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
+		register_rest_route( self::REST_NAMESPACE, '/profile/product-actions', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_profile_product_actions' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
+		register_rest_route( self::REST_NAMESPACE, '/personal-profile', array(
+			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'personal_profile' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+			array( 'methods' => 'PUT', 'callback' => array( $this, 'update_personal_profile' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+		) );
+		register_rest_route( self::REST_NAMESPACE, '/public-profiles/(?P<username>[a-z0-9-]+)', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'public_personal_profile' ), 'permission_callback' => '__return_true' ) );
 		register_rest_route( self::REST_NAMESPACE, '/orders/(?P<id>\\d+)', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'order_summary' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
 		register_rest_route( self::REST_NAMESPACE, '/checkout/operations/(?P<operation>[a-f0-9-]{36})', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'operation_summary' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
 		register_rest_route( self::REST_NAMESPACE, '/reviews', array(
 			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_reviews' ), 'permission_callback' => '__return_true' ),
 			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'create_review' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+		) );
+		register_rest_route( self::REST_NAMESPACE, '/product-actions', array(
+			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'product_actions' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+			array( 'methods' => 'PUT', 'callback' => array( $this, 'update_product_action' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+		) );
+		register_rest_route( self::REST_NAMESPACE, '/product-views', array(
+			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'record_product_view' ), 'permission_callback' => '__return_true' ),
 		) );
 		register_rest_route( self::REST_NAMESPACE, '/occasions', array(
 			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_occasions' ), 'permission_callback' => array( $this, 'authenticated' ) ),
@@ -532,6 +586,33 @@ final class Kadochi_Core {
 		return is_string( $url ) && '' !== $url ? esc_url_raw( $url ) : null;
 	}
 
+	/** Resolves WordPress's flexible avatar argument to a local user ID when possible. */
+	private function avatar_user_id( $id_or_email ) {
+		if ( $id_or_email instanceof WP_User ) {
+			return (int) $id_or_email->ID;
+		}
+		if ( $id_or_email instanceof WP_Comment ) {
+			return (int) $id_or_email->user_id;
+		}
+		if ( is_object( $id_or_email ) && isset( $id_or_email->user_id ) ) {
+			return absint( $id_or_email->user_id );
+		}
+		if ( is_numeric( $id_or_email ) ) {
+			return absint( $id_or_email );
+		}
+		if ( is_string( $id_or_email ) && is_email( $id_or_email ) ) {
+			return (int) email_exists( $id_or_email );
+		}
+		return 0;
+	}
+
+	/** Uses the image uploaded in Kadochi wherever WordPress requests this user's avatar. */
+	public function customer_avatar_url_filter( $url, $id_or_email, $args ) {
+		$user_id = $this->avatar_user_id( $id_or_email );
+		$avatar = $user_id ? $this->customer_avatar_url( $user_id ) : null;
+		return $avatar ?: $url;
+	}
+
 	/**
 	 * Stores a pre-cropped JPEG submitted by the account owner. The API accepts
 	 * data URLs so the BFF can keep using its existing JSON-only authenticated
@@ -591,6 +672,130 @@ final class Kadochi_Core {
 		if ( $attachment_id && (int) get_post_meta( $attachment_id, '_kadochi_customer_avatar', true ) === (int) $user_id ) {
 			wp_delete_attachment( $attachment_id, true );
 		}
+	}
+
+	private function saved_customer_address_dto( $address ) {
+		if ( ! is_array( $address ) || empty( $address['id'] ) || ! is_string( $address['id'] ) || ! preg_match( '/^[a-f0-9-]{36}$/i', $address['id'] ) ) {
+			return null;
+		}
+		$title = isset( $address['title'] ) && is_string( $address['title'] ) ? sanitize_text_field( $address['title'] ) : '';
+		$address_1 = isset( $address['address1'] ) && is_string( $address['address1'] ) ? sanitize_text_field( $address['address1'] ) : '';
+		$address_2 = isset( $address['address2'] ) && is_string( $address['address2'] ) ? sanitize_text_field( $address['address2'] ) : '';
+		if ( '' === $title || '' === $address_1 ) {
+			return null;
+		}
+		$location = null;
+		if ( isset( $address['location'] ) && is_array( $address['location'] ) && isset( $address['location']['latitude'], $address['location']['longitude'] ) && is_numeric( $address['location']['latitude'] ) && is_numeric( $address['location']['longitude'] ) ) {
+			$latitude = (float) $address['location']['latitude'];
+			$longitude = (float) $address['location']['longitude'];
+			if ( $latitude >= -90 && $latitude <= 90 && $longitude >= -180 && $longitude <= 180 ) {
+				$location = array( 'latitude' => $latitude, 'longitude' => $longitude );
+			}
+		}
+		return array( 'id' => $address['id'], 'title' => $title, 'address1' => $address_1, 'address2' => $address_2, 'location' => $location );
+	}
+
+	private function saved_customer_addresses( $user_id ) {
+		$stored = get_user_meta( (int) $user_id, 'kadochi_saved_addresses', true );
+		if ( ! is_array( $stored ) ) {
+			return array();
+		}
+		$addresses = array();
+		foreach ( $stored as $address ) {
+			$dto = $this->saved_customer_address_dto( $address );
+			if ( $dto ) {
+				$addresses[] = $dto;
+			}
+		}
+		return array_slice( $addresses, 0, 20 );
+	}
+
+	public function list_customer_addresses() {
+		return rest_ensure_response( array( 'items' => $this->saved_customer_addresses( get_current_user_id() ) ) );
+	}
+
+	/** Persists checkout addresses on the account immediately, before an order is paid. */
+	public function create_customer_address( WP_REST_Request $request ) {
+		$input = $request->get_json_params();
+		if ( ! is_array( $input ) || ! isset( $input['title'], $input['address1'] ) || ! is_string( $input['title'] ) || ! is_string( $input['address1'] ) || ( isset( $input['address2'] ) && ! is_string( $input['address2'] ) ) ) {
+			return $this->auth_error( 'kadochi_invalid_address', __( 'Address details are invalid.', 'kadochi-core' ), 400 );
+		}
+		$title = sanitize_text_field( $input['title'] );
+		$address_1 = sanitize_text_field( $input['address1'] );
+		$address_2 = isset( $input['address2'] ) ? sanitize_text_field( $input['address2'] ) : '';
+		if ( '' === $title || '' === $address_1 || $this->string_length( $title ) > 100 || $this->string_length( $address_1 ) < 5 || $this->string_length( $address_1 ) > 200 || $this->string_length( $address_2 ) > 200 ) {
+			return $this->auth_error( 'kadochi_invalid_address', __( 'Address details are invalid.', 'kadochi-core' ), 400 );
+		}
+		$location = null;
+		if ( array_key_exists( 'location', $input ) && null !== $input['location'] ) {
+			if ( ! is_array( $input['location'] ) || ! isset( $input['location']['latitude'], $input['location']['longitude'] ) || ! is_numeric( $input['location']['latitude'] ) || ! is_numeric( $input['location']['longitude'] ) ) {
+				return $this->auth_error( 'kadochi_invalid_address', __( 'Address location is invalid.', 'kadochi-core' ), 400 );
+			}
+			$latitude = (float) $input['location']['latitude'];
+			$longitude = (float) $input['location']['longitude'];
+			if ( $latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180 ) {
+				return $this->auth_error( 'kadochi_invalid_address', __( 'Address location is invalid.', 'kadochi-core' ), 400 );
+			}
+			$location = array( 'latitude' => $latitude, 'longitude' => $longitude );
+		}
+		$user_id = get_current_user_id();
+		$address = array( 'id' => wp_generate_uuid4(), 'title' => $title, 'address1' => $address_1, 'address2' => $address_2, 'location' => $location );
+		$addresses = $this->saved_customer_addresses( $user_id );
+		array_unshift( $addresses, $address );
+		update_user_meta( $user_id, 'kadochi_saved_addresses', array_slice( $addresses, 0, 20 ) );
+		return rest_ensure_response( $address );
+	}
+
+	/** Updates an address owned by the currently authenticated customer. */
+	public function update_customer_address( WP_REST_Request $request ) {
+		$input = $request->get_json_params();
+		if ( ! is_array( $input ) || ! isset( $input['title'], $input['address1'] ) || ! is_string( $input['title'] ) || ! is_string( $input['address1'] ) || ( isset( $input['address2'] ) && ! is_string( $input['address2'] ) ) ) {
+			return $this->auth_error( 'kadochi_invalid_address', __( 'Address details are invalid.', 'kadochi-core' ), 400 );
+		}
+		$title = sanitize_text_field( $input['title'] );
+		$address_1 = sanitize_text_field( $input['address1'] );
+		$address_2 = isset( $input['address2'] ) ? sanitize_text_field( $input['address2'] ) : '';
+		if ( '' === $title || '' === $address_1 || $this->string_length( $title ) > 100 || $this->string_length( $address_1 ) < 5 || $this->string_length( $address_1 ) > 200 || $this->string_length( $address_2 ) > 200 ) {
+			return $this->auth_error( 'kadochi_invalid_address', __( 'Address details are invalid.', 'kadochi-core' ), 400 );
+		}
+		$location = null;
+		if ( array_key_exists( 'location', $input ) && null !== $input['location'] ) {
+			if ( ! is_array( $input['location'] ) || ! isset( $input['location']['latitude'], $input['location']['longitude'] ) || ! is_numeric( $input['location']['latitude'] ) || ! is_numeric( $input['location']['longitude'] ) ) {
+				return $this->auth_error( 'kadochi_invalid_address', __( 'Address location is invalid.', 'kadochi-core' ), 400 );
+			}
+			$latitude = (float) $input['location']['latitude'];
+			$longitude = (float) $input['location']['longitude'];
+			if ( $latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180 ) {
+				return $this->auth_error( 'kadochi_invalid_address', __( 'Address location is invalid.', 'kadochi-core' ), 400 );
+			}
+			$location = array( 'latitude' => $latitude, 'longitude' => $longitude );
+		}
+		$id = $request->get_param( 'id' );
+		$addresses = $this->saved_customer_addresses( get_current_user_id() );
+		foreach ( $addresses as $index => $address ) {
+			if ( $id !== $address['id'] ) {
+				continue;
+			}
+			$updated = array( 'id' => $address['id'], 'title' => $title, 'address1' => $address_1, 'address2' => $address_2, 'location' => $location );
+			$addresses[ $index ] = $updated;
+			update_user_meta( get_current_user_id(), 'kadochi_saved_addresses', $addresses );
+			return rest_ensure_response( $updated );
+		}
+		return $this->auth_error( 'kadochi_address_not_found', __( 'Address not found.', 'kadochi-core' ), 404 );
+	}
+
+	/** Deletes an address owned by the currently authenticated customer. */
+	public function delete_customer_address( WP_REST_Request $request ) {
+		$id = $request->get_param( 'id' );
+		$addresses = $this->saved_customer_addresses( get_current_user_id() );
+		$remaining = array_values( array_filter( $addresses, function( $address ) use ( $id ) {
+			return $address['id'] !== $id;
+		} ) );
+		if ( count( $remaining ) === count( $addresses ) ) {
+			return $this->auth_error( 'kadochi_address_not_found', __( 'Address not found.', 'kadochi-core' ), 404 );
+		}
+		update_user_meta( get_current_user_id(), 'kadochi_saved_addresses', $remaining );
+		return new WP_REST_Response( null, 204 );
 	}
 
 	/** Shows app-managed customer fields in WordPress's native user edit screen. */
@@ -684,6 +889,260 @@ final class Kadochi_Core {
 			return $label ? esc_html( $label ) : '&mdash;';
 		}
 		return $value;
+	}
+
+	/** Adds WooCommerce product-list metrics for reviews and app engagement. */
+	public function add_product_engagement_columns( $columns ) {
+		// Put the most useful metric next to the product name. Other engagement
+		// columns remain at the end, where WooCommerce normally places extras.
+		$columns_without_views = $columns;
+		unset( $columns_without_views['kadochi_views'] );
+		$columns = array();
+		$views_added = false;
+		foreach ( $columns_without_views as $column_name => $label ) {
+			$columns[ $column_name ] = $label;
+			if ( ! $views_added && in_array( $column_name, array( 'name', 'title' ), true ) ) {
+				$columns['kadochi_views'] = __( 'Views', 'kadochi-core' );
+				$views_added = true;
+			}
+		}
+		if ( ! $views_added ) {
+			$columns['kadochi_views'] = __( 'Views', 'kadochi-core' );
+		}
+		$columns['kadochi_review_count'] = __( 'Reviews', 'kadochi-core' );
+		$columns['kadochi_average_rating'] = __( 'Rating', 'kadochi-core' );
+		$columns['kadochi_saves'] = __( 'Saves', 'kadochi-core' );
+		$columns['kadochi_likes'] = __( 'Likes', 'kadochi-core' );
+		return $columns;
+	}
+
+	/** Keeps the Views metric discoverable even when a saved Screen Options preference predates it. */
+	public function keep_product_views_column_visible( $hidden, $screen ) {
+		if ( ! $screen || 'edit-product' !== $screen->id || ! is_array( $hidden ) ) {
+			return $hidden;
+		}
+		return array_values( array_diff( $hidden, array( 'kadochi_views' ) ) );
+	}
+
+	/** Keep the added metrics readable instead of allowing WP's fixed table layout to crush them. */
+	public function style_product_engagement_columns() {
+		$screen = get_current_screen();
+		if ( ! $screen || 'edit-product' !== $screen->id ) {
+			return;
+		}
+		?>
+		<style>
+			.post-type-product .wp-list-table { min-width: 1780px; table-layout: auto; }
+			.post-type-product .column-kadochi_review_count,
+			.post-type-product .column-kadochi_average_rating,
+			.post-type-product .column-kadochi_views,
+			.post-type-product .column-kadochi_saves,
+			.post-type-product .column-kadochi_likes { min-width: 64px; text-align: center; white-space: nowrap; }
+			.post-type-product .column-kadochi_average_rating { min-width: 76px; }
+		</style>
+		<?php
+	}
+
+	public function render_product_engagement_column( $column_name, $post_id ) {
+		if ( ! in_array( $column_name, array( 'kadochi_review_count', 'kadochi_average_rating', 'kadochi_views', 'kadochi_saves', 'kadochi_likes' ), true ) ) {
+			return;
+		}
+		$product = function_exists( 'wc_get_product' ) ? wc_get_product( $post_id ) : null;
+		if ( 'kadochi_review_count' === $column_name ) {
+			echo $product ? esc_html( (string) $product->get_review_count() ) : '&mdash;'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- entity is intentional.
+			return;
+		}
+		if ( 'kadochi_average_rating' === $column_name ) {
+			echo $product ? esc_html( number_format_i18n( (float) $product->get_average_rating(), 1 ) ) : '&mdash;'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- entity is intentional.
+			return;
+		}
+		if ( 'kadochi_views' === $column_name ) {
+			echo esc_html( number_format_i18n( $this->product_view_count( $post_id ) ) );
+			return;
+		}
+		echo esc_html( (string) $this->product_action_count( $post_id, 'kadochi_saves' === $column_name ? 'save' : 'like' ) );
+	}
+
+	private function product_view_count( $product_id ) {
+		return max( 0, absint( get_post_meta( absint( $product_id ), self::PRODUCT_VIEW_COUNT_META_KEY, true ) ) );
+	}
+
+	/** Records a storefront detail-page visit without counting server renders or metadata requests. */
+	public function record_product_view( WP_REST_Request $request ) {
+		$product = $this->action_product( $request->get_param( 'productId' ) );
+		if ( is_wp_error( $product ) || 'publish' !== $product->get_status() ) {
+			return $this->auth_error( 'kadochi_product_not_found', __( 'The product was not found.', 'kadochi-core' ), 404 );
+		}
+
+		$product_id = $product->get_id();
+		if ( '' === get_post_meta( $product_id, self::PRODUCT_VIEW_COUNT_META_KEY, true ) ) {
+			add_post_meta( $product_id, self::PRODUCT_VIEW_COUNT_META_KEY, 0, true );
+		}
+		global $wpdb;
+		$wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->postmeta} SET meta_value = CAST(meta_value AS UNSIGNED) + 1 WHERE post_id = %d AND meta_key = %s", $product_id, self::PRODUCT_VIEW_COUNT_META_KEY ) );
+
+		return rest_ensure_response( array( 'views' => $this->product_view_count( $product_id ) ) );
+	}
+
+	private function product_actions_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'kadochi_product_actions';
+	}
+
+	private function product_action_count( $product_id, $action_type ) {
+		global $wpdb;
+		return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$this->product_actions_table()} WHERE product_id = %d AND action_type = %s", absint( $product_id ), $action_type ) );
+	}
+
+	private function action_product( $product_id ) {
+		$product = function_exists( 'wc_get_product' ) ? wc_get_product( absint( $product_id ) ) : null;
+		return $product ? $product : $this->auth_error( 'kadochi_product_not_found', __( 'The product was not found.', 'kadochi-core' ), 404 );
+	}
+
+	/** Lists the current customer's saved or liked product IDs, newest first. */
+	public function list_profile_product_actions( WP_REST_Request $request ) {
+		$action_type = sanitize_key( $request->get_param( 'action' ) );
+		if ( ! in_array( $action_type, array( 'like', 'save' ), true ) ) {
+			return $this->auth_error( 'kadochi_invalid_product_action', __( 'The product action is invalid.', 'kadochi-core' ), 400 );
+		}
+		$page = min( 100000, max( 1, absint( $request->get_param( 'page' ) ?: 1 ) ) );
+		$per_page = min( 50, max( 1, absint( $request->get_param( 'perPage' ) ?: 20 ) ) );
+		global $wpdb;
+		$table = $this->product_actions_table();
+		$user_id = get_current_user_id();
+		$product_ids = $wpdb->get_col( $wpdb->prepare( "SELECT product_id FROM {$table} WHERE user_id = %d AND action_type = %s ORDER BY created_at DESC, id DESC LIMIT %d OFFSET %d", $user_id, $action_type, $per_page, ( $page - 1 ) * $per_page ) );
+		$total = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE user_id = %d AND action_type = %s", $user_id, $action_type ) );
+		return rest_ensure_response( array(
+			'productIds' => array_map( 'absint', $product_ids ),
+			'page' => $page,
+			'perPage' => $per_page,
+			'total' => $total,
+			'totalPages' => $total ? (int) ceil( $total / $per_page ) : 0,
+		) );
+	}
+
+	private function valid_personal_profile_username( $username ) {
+		return is_string( $username ) && preg_match( '/^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$/D', $username );
+	}
+
+	private function personal_profile_dto( $user_id ) {
+		$username = get_user_meta( (int) $user_id, 'kadochi_personal_profile_username', true );
+		return array(
+			'username' => $this->valid_personal_profile_username( $username ) ? $username : null,
+			'enabled' => '1' === get_user_meta( (int) $user_id, 'kadochi_personal_profile_enabled', true ),
+			'showAvatar' => '0' !== get_user_meta( (int) $user_id, 'kadochi_personal_profile_show_avatar', true ),
+			'showFirstName' => '0' !== get_user_meta( (int) $user_id, 'kadochi_personal_profile_show_first_name', true ),
+			'showLastName' => '0' !== get_user_meta( (int) $user_id, 'kadochi_personal_profile_show_last_name', true ),
+			'showBirthDate' => '1' === get_user_meta( (int) $user_id, 'kadochi_personal_profile_show_birth_date', true ),
+			'showWishlist' => '0' !== get_user_meta( (int) $user_id, 'kadochi_personal_profile_show_wishlist', true ),
+		);
+	}
+
+	public function personal_profile() {
+		return rest_ensure_response( $this->personal_profile_dto( get_current_user_id() ) );
+	}
+
+	/** Saves a user's explicitly selected public-profile fields without exposing account data. */
+	public function update_personal_profile( WP_REST_Request $request ) {
+		$input = $request->get_json_params();
+		if ( ! is_array( $input ) || ! isset( $input['enabled'], $input['showAvatar'], $input['showFirstName'], $input['showLastName'], $input['showBirthDate'], $input['showWishlist'] ) || ! is_bool( $input['enabled'] ) || ! is_bool( $input['showAvatar'] ) || ! is_bool( $input['showFirstName'] ) || ! is_bool( $input['showLastName'] ) || ! is_bool( $input['showBirthDate'] ) || ! is_bool( $input['showWishlist'] ) ) {
+			return $this->auth_error( 'kadochi_invalid_personal_profile', __( 'Profile settings are invalid.', 'kadochi-core' ), 400 );
+		}
+
+		$user_id = get_current_user_id();
+		$current = $this->personal_profile_dto( $user_id );
+		$username = array_key_exists( 'username', $input ) && is_string( $input['username'] ) ? strtolower( trim( $input['username'] ) ) : $current['username'];
+		if ( $input['enabled'] && ! $this->valid_personal_profile_username( $username ) ) {
+			return $this->auth_error( 'kadochi_invalid_personal_profile_username', __( 'Choose a valid profile username.', 'kadochi-core' ), 400 );
+		}
+		if ( null !== $username && ! $this->valid_personal_profile_username( $username ) ) {
+			return $this->auth_error( 'kadochi_invalid_personal_profile_username', __( 'Choose a valid profile username.', 'kadochi-core' ), 400 );
+		}
+		if ( $username && $username !== $current['username'] ) {
+			$matches = get_users( array( 'meta_key' => 'kadochi_personal_profile_username', 'meta_value' => $username, 'exclude' => array( $user_id ), 'number' => 1, 'fields' => 'ids' ) );
+			if ( ! empty( $matches ) ) {
+				return $this->auth_error( 'kadochi_personal_profile_username_taken', __( 'That profile username is already taken.', 'kadochi-core' ), 409 );
+			}
+			update_user_meta( $user_id, 'kadochi_personal_profile_username', $username );
+		}
+
+		$settings = array(
+			'kadochi_personal_profile_enabled' => $input['enabled'],
+			'kadochi_personal_profile_show_avatar' => $input['showAvatar'],
+			'kadochi_personal_profile_show_first_name' => $input['showFirstName'],
+			'kadochi_personal_profile_show_last_name' => $input['showLastName'],
+			'kadochi_personal_profile_show_birth_date' => $input['showBirthDate'],
+			'kadochi_personal_profile_show_wishlist' => $input['showWishlist'],
+		);
+		foreach ( $settings as $key => $value ) {
+			update_user_meta( $user_id, $key, $value ? '1' : '0' );
+		}
+		return rest_ensure_response( $this->personal_profile_dto( $user_id ) );
+	}
+
+	public function public_personal_profile( WP_REST_Request $request ) {
+		$username = strtolower( trim( (string) $request->get_param( 'username' ) ) );
+		if ( ! $this->valid_personal_profile_username( $username ) ) {
+			return $this->auth_error( 'kadochi_public_profile_not_found', __( 'The public profile was not found.', 'kadochi-core' ), 404 );
+		}
+		$users = get_users( array( 'meta_key' => 'kadochi_personal_profile_username', 'meta_value' => $username, 'number' => 1 ) );
+		$user = ! empty( $users ) ? $users[0] : null;
+		$settings = $user instanceof WP_User ? $this->personal_profile_dto( $user->ID ) : null;
+		if ( ! $user || ! $settings || ! $settings['enabled'] || $settings['username'] !== $username ) {
+			return $this->auth_error( 'kadochi_public_profile_not_found', __( 'The public profile was not found.', 'kadochi-core' ), 404 );
+		}
+
+		$first_name = $settings['showFirstName'] ? sanitize_text_field( get_user_meta( $user->ID, 'first_name', true ) ) : '';
+		$last_name = $settings['showLastName'] ? sanitize_text_field( get_user_meta( $user->ID, 'last_name', true ) ) : '';
+		$display_name = trim( $first_name . ' ' . $last_name );
+		global $wpdb;
+		$product_ids = array();
+		if ( $settings['showWishlist'] ) {
+			$product_ids = $wpdb->get_col( $wpdb->prepare( "SELECT product_id FROM {$this->product_actions_table()} WHERE user_id = %d AND action_type = %s ORDER BY created_at DESC, id DESC LIMIT 50", $user->ID, 'save' ) );
+		}
+		return rest_ensure_response( array(
+			'username' => $username,
+			'displayName' => '' !== $display_name ? $display_name : $username,
+			'avatarSrc' => $settings['showAvatar'] ? $this->customer_avatar_url( $user->ID ) : null,
+			'birthDate' => $settings['showBirthDate'] ? $this->customer_birth_date( $user->ID ) : null,
+			'showWishlist' => $settings['showWishlist'],
+			'productIds' => array_map( 'absint', $product_ids ),
+		) );
+	}
+
+	public function product_actions( WP_REST_Request $request ) {
+		$product = $this->action_product( $request->get_param( 'productId' ) );
+		if ( is_wp_error( $product ) ) {
+			return $product;
+		}
+		global $wpdb;
+		$actions = $wpdb->get_col( $wpdb->prepare( "SELECT action_type FROM {$this->product_actions_table()} WHERE user_id = %d AND product_id = %d", get_current_user_id(), $product->get_id() ) );
+		return rest_ensure_response( array( 'liked' => in_array( 'like', $actions, true ), 'saved' => in_array( 'save', $actions, true ) ) );
+	}
+
+	public function update_product_action( WP_REST_Request $request ) {
+		$product = $this->action_product( $request->get_param( 'productId' ) );
+		if ( is_wp_error( $product ) ) {
+			return $product;
+		}
+		$action_type = sanitize_key( $request->get_param( 'action' ) );
+		if ( null === $request->get_param( 'active' ) || ! in_array( $action_type, array( 'like', 'save' ), true ) ) {
+			return $this->auth_error( 'kadochi_invalid_product_action', __( 'The product action is invalid.', 'kadochi-core' ), 400 );
+		}
+		$active = rest_sanitize_boolean( $request->get_param( 'active' ) );
+		global $wpdb;
+		$table = $this->product_actions_table();
+		if ( $active ) {
+			$wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$table} (user_id, product_id, action_type, created_at) VALUES (%d, %d, %s, UTC_TIMESTAMP())", get_current_user_id(), $product->get_id(), $action_type ) );
+		} else {
+			$wpdb->delete( $table, array( 'user_id' => get_current_user_id(), 'product_id' => $product->get_id(), 'action_type' => $action_type ), array( '%d', '%d', '%s' ) );
+		}
+		return rest_ensure_response( array( 'liked' => 'like' === $action_type ? $active : $this->has_product_action( $product->get_id(), 'like' ), 'saved' => 'save' === $action_type ? $active : $this->has_product_action( $product->get_id(), 'save' ) ) );
+	}
+
+	private function has_product_action( $product_id, $action_type ) {
+		global $wpdb;
+		return (bool) $wpdb->get_var( $wpdb->prepare( "SELECT 1 FROM {$this->product_actions_table()} WHERE user_id = %d AND product_id = %d AND action_type = %s", get_current_user_id(), absint( $product_id ), $action_type ) );
 	}
 
 	private function base64url_encode( $value ) {
@@ -1373,15 +1832,34 @@ final class Kadochi_Core {
 		return $parsed && $parsed->format( 'Y-m-d' ) === $date;
 	}
 
-	private function owned_occasion( $id ) {
+	/** Admin-authored occasions are public; every other occasion belongs only to its author. */
+	private function public_occasion( $post ) {
+		return $post && user_can( (int) $post->post_author, 'manage_options' );
+	}
+
+	private function public_occasion_author_ids() {
+		static $ids = null;
+		if ( null === $ids ) {
+			$ids = array_map( 'absint', get_users( array( 'capability' => 'manage_options', 'fields' => 'ids', 'number' => -1 ) ) );
+		}
+		return $ids;
+	}
+
+	private function visible_occasion( $id ) {
 		$post = get_post( (int) $id );
-		if ( ! $post || 'occasion' !== $post->post_type || (int) $post->post_author !== get_current_user_id() ) return new WP_Error( 'kadochi_occasion_not_found', __( 'Occasion not found.', 'kadochi-core' ), array( 'status' => 404 ) );
+		if ( ! $post || 'occasion' !== $post->post_type || ( 'publish' !== $post->post_status ) || ( ! $this->public_occasion( $post ) && (int) $post->post_author !== get_current_user_id() ) ) return new WP_Error( 'kadochi_occasion_not_found', __( 'Occasion not found.', 'kadochi-core' ), array( 'status' => 404 ) );
+		return $post;
+	}
+
+	private function owned_personal_occasion( $id ) {
+		$post = $this->visible_occasion( $id );
+		if ( is_wp_error( $post ) || $this->public_occasion( $post ) || (int) $post->post_author !== get_current_user_id() ) return new WP_Error( 'kadochi_occasion_not_found', __( 'Occasion not found.', 'kadochi-core' ), array( 'status' => 404 ) );
 		return $post;
 	}
 
 	private function occasion_dto( $post ) {
 		$title = $this->value( $post->ID, 'title' );
-		return array( 'id' => (int) $post->ID, 'title' => sanitize_text_field( $title ?: $post->post_title ), 'occasionDate' => sanitize_text_field( (string) $this->value( $post->ID, 'occasion_date' ) ), 'version' => get_post_modified_time( 'c', true, $post ) );
+		return array( 'id' => (int) $post->ID, 'title' => sanitize_text_field( $title ?: $post->post_title ), 'occasionDate' => sanitize_text_field( (string) $this->value( $post->ID, 'occasion_date' ) ), 'isPersonal' => ! $this->public_occasion( $post ), 'repeatsAnnually' => '1' === (string) $this->value( $post->ID, 'repeat_annually' ), 'version' => get_post_modified_time( 'c', true, $post ) );
 	}
 
 	private function params( WP_REST_Request $request ) { $params = $request->get_json_params(); return is_array( $params ) ? $params : array(); }
@@ -1389,33 +1867,35 @@ final class Kadochi_Core {
 	public function list_occasions( WP_REST_Request $request ) {
 		$page = max( 1, min( 100, (int) $request->get_param( 'page' ) ) );
 		$per_page = max( 1, min( 50, (int) $request->get_param( 'per_page' ) ?: 20 ) );
-		$query = new WP_Query( array( 'post_type' => 'occasion', 'post_status' => 'publish', 'author' => get_current_user_id(), 'paged' => $page, 'posts_per_page' => $per_page, 'orderby' => 'date', 'order' => 'DESC', 'no_found_rows' => false ) );
+		$authors = array_unique( array_merge( array( get_current_user_id() ), $this->public_occasion_author_ids() ) );
+		$query = new WP_Query( array( 'post_type' => 'occasion', 'post_status' => 'publish', 'author__in' => $authors, 'paged' => $page, 'posts_per_page' => $per_page, 'orderby' => 'date', 'order' => 'DESC', 'no_found_rows' => false ) );
 		return rest_ensure_response( array( 'items' => array_map( array( $this, 'occasion_dto' ), $query->posts ), 'page' => $page, 'perPage' => $per_page, 'total' => (int) $query->found_posts, 'totalPages' => (int) $query->max_num_pages ) );
 	}
 
-	public function get_occasion( WP_REST_Request $request ) { $post = $this->owned_occasion( $request['id'] ); return is_wp_error( $post ) ? $post : rest_ensure_response( $this->occasion_dto( $post ) ); }
+	public function get_occasion( WP_REST_Request $request ) { $post = $this->visible_occasion( $request['id'] ); return is_wp_error( $post ) ? $post : rest_ensure_response( $this->occasion_dto( $post ) ); }
 
 	public function create_occasion( WP_REST_Request $request ) {
-		$input = $this->params( $request ); $title = isset( $input['title'] ) ? sanitize_text_field( $input['title'] ) : ''; $date = isset( $input['occasionDate'] ) ? $input['occasionDate'] : '';
-		if ( '' === $title || strlen( $title ) > 120 || ! $this->valid_date( $date ) ) return new WP_Error( 'kadochi_invalid_occasion', __( 'A title and a valid occasion date are required.', 'kadochi-core' ), array( 'status' => 400 ) );
+		$input = $this->params( $request ); $title = isset( $input['title'] ) ? sanitize_text_field( $input['title'] ) : ''; $date = isset( $input['occasionDate'] ) ? $input['occasionDate'] : ''; $repeats_annually = ! isset( $input['repeatsAnnually'] ) || true === $input['repeatsAnnually'];
+		if ( '' === $title || strlen( $title ) > 120 || ! $this->valid_date( $date ) || ( isset( $input['repeatsAnnually'] ) && ! is_bool( $input['repeatsAnnually'] ) ) ) return new WP_Error( 'kadochi_invalid_occasion', __( 'A title and a valid occasion date are required.', 'kadochi-core' ), array( 'status' => 400 ) );
 		$id = wp_insert_post( array( 'post_type' => 'occasion', 'post_status' => 'publish', 'post_title' => $title, 'post_author' => get_current_user_id() ), true );
 		if ( is_wp_error( $id ) ) return $id;
-		update_post_meta( $id, 'title', $title ); update_post_meta( $id, 'occasion_date', $date ); update_post_meta( $id, 'user', get_current_user_id() );
+		update_post_meta( $id, 'title', $title ); update_post_meta( $id, 'occasion_date', $date ); update_post_meta( $id, 'repeat_annually', $repeats_annually ? '1' : '0' ); update_post_meta( $id, 'user', get_current_user_id() );
 		return new WP_REST_Response( $this->occasion_dto( get_post( $id ) ), 201 );
 	}
 
 	private function check_version( $post, $input ) { return isset( $input['version'] ) && hash_equals( get_post_modified_time( 'c', true, $post ), (string) $input['version'] ); }
 	public function update_occasion( WP_REST_Request $request ) {
-		$post = $this->owned_occasion( $request['id'] ); if ( is_wp_error( $post ) ) return $post; $input = $this->params( $request );
+		$post = $this->owned_personal_occasion( $request['id'] ); if ( is_wp_error( $post ) ) return $post; $input = $this->params( $request );
 		if ( ! $this->check_version( $post, $input ) ) return new WP_Error( 'kadochi_occasion_conflict', __( 'The occasion has changed. Refresh and try again.', 'kadochi-core' ), array( 'status' => 409 ) );
 		if ( isset( $input['title'] ) ) { $title = sanitize_text_field( $input['title'] ); if ( '' === $title || strlen( $title ) > 120 ) return new WP_Error( 'kadochi_invalid_occasion', __( 'A valid title is required.', 'kadochi-core' ), array( 'status' => 400 ) ); wp_update_post( array( 'ID' => $post->ID, 'post_title' => $title ) ); update_post_meta( $post->ID, 'title', $title ); }
 		if ( isset( $input['occasionDate'] ) ) { if ( ! $this->valid_date( $input['occasionDate'] ) ) return new WP_Error( 'kadochi_invalid_occasion', __( 'A valid occasion date is required.', 'kadochi-core' ), array( 'status' => 400 ) ); update_post_meta( $post->ID, 'occasion_date', $input['occasionDate'] ); }
+		if ( isset( $input['repeatsAnnually'] ) ) { if ( ! is_bool( $input['repeatsAnnually'] ) ) return new WP_Error( 'kadochi_invalid_occasion', __( 'The annual repeat setting is invalid.', 'kadochi-core' ), array( 'status' => 400 ) ); update_post_meta( $post->ID, 'repeat_annually', $input['repeatsAnnually'] ? '1' : '0' ); }
 		update_post_meta( $post->ID, 'user', get_current_user_id() );
 		return rest_ensure_response( $this->occasion_dto( get_post( $post->ID ) ) );
 	}
 
 	public function delete_occasion( WP_REST_Request $request ) {
-		$post = $this->owned_occasion( $request['id'] ); if ( is_wp_error( $post ) ) return $post; $input = $this->params( $request );
+		$post = $this->owned_personal_occasion( $request['id'] ); if ( is_wp_error( $post ) ) return $post; $input = $this->params( $request );
 		if ( ! $this->check_version( $post, $input ) ) return new WP_Error( 'kadochi_occasion_conflict', __( 'The occasion has changed. Refresh and try again.', 'kadochi-core' ), array( 'status' => 409 ) );
 		$result = wp_trash_post( $post->ID ); if ( ! $result ) return new WP_Error( 'kadochi_delete_failed', __( 'The occasion could not be deleted.', 'kadochi-core' ), array( 'status' => 500 ) );
 		return rest_ensure_response( $this->occasion_dto( $post ) );

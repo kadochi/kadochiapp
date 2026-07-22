@@ -12,8 +12,11 @@ import { createDeliverySlots } from "../utils/delivery-slots";
 import {
   checkoutResultSchema,
   checkoutStateSchema,
+  createSavedAddressSchema,
   mapCheckoutResult,
   orderSummarySchema,
+  savedAddressListSchema,
+  savedAddressSchema,
   submitCheckoutSchema,
   upstreamCheckoutDraftSchema,
 } from "../schema/checkout";
@@ -128,6 +131,10 @@ export async function checkoutState(requestId: string) {
   const initialHeaders = await checkoutHeaders();
   const { cart: currentCart, cartToken } = await cartForCheckout(initialHeaders, requestId);
   const cart = checkoutCart(requestId, currentCart);
+  const addressesResponse = await wordpressFetch("/wp-json/kadochi/v1/customer/addresses", {
+    headers: await wordpressBearerHeaders(), cache: "no-store", requestId,
+  });
+  const savedAddresses = await parseUpstreamJson(addressesResponse, (value) => savedAddressListSchema.parse(value), requestId);
   const state = checkoutStateSchema.parse({
     cart,
     customer,
@@ -137,8 +144,52 @@ export async function checkoutState(requestId: string) {
       { id: "normal", label: "بسته‌بندی معمولی", imageUrl: "/images/normal-pack.png", fee: { amount: "0", currencyCode: "IRR", minorUnit: 0 }, default: false },
     ],
     paymentMethod: paymentMethod(requestId, cart.paymentMethodIds),
+    savedAddresses: savedAddresses.items,
   });
   return { state, cartToken };
+}
+
+export async function createSavedAddress(input: unknown, requestId: string) {
+  const address = createSavedAddressSchema.parse(input);
+  const response = await wordpressFetch("/wp-json/kadochi/v1/customer/addresses", {
+    method: "POST",
+    body: JSON.stringify(address),
+    headers: { ...await wordpressBearerHeaders(), "Content-Type": "application/json" },
+    cache: "no-store",
+    requestId,
+  });
+  return parseUpstreamJson(response, (value) => savedAddressSchema.parse(value), requestId);
+}
+
+export async function listSavedAddresses(requestId: string) {
+  const response = await wordpressFetch("/wp-json/kadochi/v1/customer/addresses", {
+    headers: await wordpressBearerHeaders(), cache: "no-store", requestId,
+  });
+  return parseUpstreamJson(response, (value) => savedAddressListSchema.parse(value), requestId);
+}
+
+export async function updateSavedAddress(addressId: string, input: unknown, requestId: string) {
+  const address = createSavedAddressSchema.parse(input);
+  const response = await wordpressFetch(`/wp-json/kadochi/v1/customer/addresses/${encodeURIComponent(addressId)}`, {
+    method: "PUT",
+    body: JSON.stringify(address),
+    headers: { ...await wordpressBearerHeaders(), "Content-Type": "application/json" },
+    cache: "no-store",
+    requestId,
+  });
+  return parseUpstreamJson(response, (value) => savedAddressSchema.parse(value), requestId);
+}
+
+export async function deleteSavedAddress(addressId: string, requestId: string) {
+  const response = await wordpressFetch(`/wp-json/kadochi/v1/customer/addresses/${encodeURIComponent(addressId)}`, {
+    method: "DELETE",
+    headers: await wordpressBearerHeaders(),
+    cache: "no-store",
+    requestId,
+  });
+  if (!response.ok && response.status !== 204) {
+    await parseUpstreamJson(response, () => undefined, requestId);
+  }
 }
 
 export async function orderSummary(orderId: number, requestId: string) {

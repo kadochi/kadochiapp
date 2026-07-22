@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { profileOrderDetailSchema } from "./profile";
+import { profileOrderDetailSchema, updatePersonalProfileSchema } from "./profile";
 
 const money = { amount: "1250000", currencyCode: "IRR", minorUnit: 0 };
 
@@ -32,5 +32,23 @@ describe("profileOrderDetailSchema", () => {
       items: [],
       summary: { subtotal: money, shipping: money, service: money, total: money },
     })).toThrow();
+  });
+});
+
+describe("updatePersonalProfileSchema", () => {
+  const visibleSettings = {
+    showAvatar: true,
+    showFirstName: true,
+    showLastName: true,
+    showBirthDate: false,
+    showWishlist: true,
+  };
+
+  it("normalizes a public-profile username before it is sent to the server", () => {
+    expect(updatePersonalProfileSchema.parse({ ...visibleSettings, enabled: true, username: "AIDIN-Test" }).username).toBe("aidin-test");
+  });
+
+  it("requires a username before making a profile public", () => {
+    expect(() => updatePersonalProfileSchema.parse({ ...visibleSettings, enabled: true, username: null })).toThrow();
   });
 });

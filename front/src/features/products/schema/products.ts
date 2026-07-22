@@ -7,6 +7,8 @@ export const productQuerySchema = z.object({
   category: z.coerce.number().int().positive().optional(),
   slug: z.string().trim().min(1).max(200).optional(),
   exclude: z.array(z.coerce.number().int().positive()).max(20).optional(),
+  /** Explicit product IDs, used by authenticated profile collections. */
+  include: z.array(z.coerce.number().int().positive()).max(50).optional(),
   /** Product tag IDs resolved by the PLP before querying the Store API. */
   tags: z.array(z.coerce.number().int().positive()).min(1).max(20).optional(),
   tagOperator: z.enum(["in", "and"]).optional(),
@@ -154,3 +156,14 @@ export const productReviewSubmissionSchema = z.object({
   id: z.number().int().positive(),
   status: z.literal("pending"),
 });
+
+export const productActionsSchema = z.object({
+  liked: z.boolean(),
+  saved: z.boolean(),
+});
+
+export const updateProductActionInputSchema = z.object({
+  productId: z.coerce.number().int().positive(),
+  action: z.enum(["like", "save"]),
+  active: z.boolean(),
+}).strict();

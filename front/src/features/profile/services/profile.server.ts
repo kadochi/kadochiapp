@@ -2,11 +2,18 @@ import "server-only";
 
 import { wordpressBearerHeaders } from "@/features/auth/services/auth.server";
 import { parseUpstreamJson, wordpressFetch } from "@/lib/http/upstream";
+import { listProducts } from "@/features/products/services/products.server";
 
 import {
   customerSchema,
   profileOrderDetailSchema,
   profileOrderListSchema,
+  profileProductActionListSchema,
+  profileProductActionSchema,
+  profileProductListSchema,
+  personalProfileSchema,
+  publicPersonalProfileSchema,
+  updatePersonalProfileSchema,
   updateProfileSchema,
 } from "../schema/profile";
 
@@ -39,4 +46,50 @@ export async function getProfileOrder(orderId: number, requestId: string) {
     requestId,
   });
   return parseUpstreamJson(response, (value) => profileOrderDetailSchema.parse(value), requestId);
+}
+
+export async function listProfileProducts(action: unknown, page: number, perPage: number, requestId: string) {
+  const actionType = profileProductActionSchema.parse(action);
+  const query = new URLSearchParams({ action: actionType, page: String(page), perPage: String(perPage) });
+  const response = await wordpressFetch(`/wp-json/kadochi/v1/profile/product-actions?${query}`, {
+    headers: await wordpressBearerHeaders(), cache: "no-store", requestId,
+  });
+  const actions = await parseUpstreamJson(response, (value) => profileProductActionListSchema.parse(value), requestId);
+  if (!actions.productIds.length) return profileProductListSchema.parse({ items: [], page: actions.page, perPage: actions.perPage, total: actions.total, totalPages: actions.totalPages });
+
+  const products = await listProducts({ include: actions.productIds, perPage: actions.productIds.length });
+  const productsById = new Map(products.items.map((product) => [product.id, product]));
+  return profileProductListSchema.parse({
+    items: actions.productIds.flatMap((id) => {
+      const product = productsById.get(id);
+      return product ? [product] : [];
+    }),
+    page: actions.page,
+    perPage: actions.perPage,
+    total: actions.total,
+    totalPages: actions.totalPages,
+  });
+}
+
+export async function getPersonalProfile(requestId: string) {
+  const response = await wordpressFetch("/wp-json/kadochi/v1/personal-profile", {
+    headers: await wordpressBearerHeaders(), cache: "no-store", requestId,
+  });
+  return parseUpstreamJson(response, (value) => personalProfileSchema.parse(value), requestId);
+}
+
+export async function updatePersonalProfile(input: unknown, requestId: string) {
+  const body = updatePersonalProfileSchema.parse(input);
+  const response = await wordpressFetch("/wp-json/kadochi/v1/personal-profile", {
+    method: "PUT", body: JSON.stringify(body), headers: { ...await wordpressBearerHeaders(), "Content-Type": "application/json" }, cache: "no-store", requestId,
+  });
+  return parseUpstreamJson(response, (value) => personalProfileSchema.parse(value), requestId);
+}
+
+/** Public profile data is intentionally fetched without the visitor's session. */
+export async function getPublicPersonalProfile(username: string, requestId: string) {
+  const response = await wordpressFetch(`/wp-json/kadochi/v1/public-profiles/${encodeURIComponent(username)}`, {
+    cache: "no-store", requestId,
+  });
+  return parseUpstreamJson(response, (value) => publicPersonalProfileSchema.parse(value), requestId);
 }

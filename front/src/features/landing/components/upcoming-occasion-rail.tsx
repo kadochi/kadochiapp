@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useOptionalAuth } from "@/features/auth/auth-provider";
 import { listOccasions } from "@/features/occasions/services/occasions";
 import type { Occasion } from "@/features/occasions/types";
+import { getPersianDateParts, occasionDateForPersianYear, toIsoDate } from "@/features/occasions/utils/persian-calendar";
 
 function daysUntil(date: string) {
   const target = new Date(`${date}T00:00:00`);
@@ -24,6 +25,20 @@ const persianDate = new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
   day: "numeric",
   month: "long",
 });
+
+function upcomingOccurrence(occasion: Occasion): Occasion {
+  if (!occasion.repeatsAnnually) return occasion;
+
+  const today = new Date();
+  const todayIso = toIsoDate(today);
+  const currentYear = getPersianDateParts(today).year;
+  const thisYearDate = occasionDateForPersianYear(occasion.occasionDate, currentYear);
+  const occasionDate = thisYearDate >= todayIso
+    ? thisYearDate
+    : occasionDateForPersianYear(occasion.occasionDate, currentYear + 1);
+
+  return { ...occasion, occasionDate };
+}
 
 function OccasionCard({ occasion }: { occasion: Occasion }) {
   const remainingDays = daysUntil(occasion.occasionDate);
@@ -84,7 +99,7 @@ export function UpcomingOccasionRail() {
     void listOccasions({ page: 1, perPage: 20 })
       .then((response) => {
         if (!cancelled) {
-          setItems(response.items.filter((item) => daysUntil(item.occasionDate) >= 0));
+          setItems(response.items.map(upcomingOccurrence).filter((item) => daysUntil(item.occasionDate) >= 0));
         }
       })
       .catch(() => {

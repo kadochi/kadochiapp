@@ -190,6 +190,7 @@ function DefaultHeader({
     firstName: auth.customer.firstName,
     lastName: auth.customer.lastName,
     phone: auth.customer.phone,
+    avatarSrc: auth.customer.avatarSrc,
   } : null;
   const accountUser = controlledUser !== undefined ? controlledUser : providerUser;
   const isAuthenticated = controlledAuthentication ?? (auth ? auth.status === "authenticated" : Boolean(accountUser));

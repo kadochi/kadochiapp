@@ -24,12 +24,27 @@ export const paymentMethodSchema = z.object({
   title: z.string().min(1),
 }).strict();
 
+export const savedAddressSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().trim().min(1).max(100),
+  address1: z.string().trim().min(5).max(200),
+  address2: z.string().trim().max(200),
+  location: z.object({
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+  }).strict().nullable(),
+}).strict();
+
+export const createSavedAddressSchema = savedAddressSchema.omit({ id: true });
+export const savedAddressListSchema = z.object({ items: z.array(savedAddressSchema).max(20) }).strict();
+
 export const checkoutStateSchema = z.object({
   cart: cartSchema,
   customer: customerSchema,
   deliverySlots: z.array(deliverySlotSchema).max(9),
   packagingOptions: z.array(packagingOptionSchema).length(2),
   paymentMethod: paymentMethodSchema,
+  savedAddresses: z.array(savedAddressSchema).max(20),
 }).strict();
 
 const senderSchema = z.object({

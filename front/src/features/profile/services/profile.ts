@@ -4,9 +4,13 @@ import {
   customerSchema,
   profileOrderDetailSchema,
   profileOrderListSchema,
+  profileProductActionSchema,
+  profileProductListSchema,
+  personalProfileSchema,
+  updatePersonalProfileSchema,
   updateProfileSchema,
 } from "../schema/profile";
-import type { UpdateProfileInput } from "../types";
+import type { UpdatePersonalProfileInput, UpdateProfileInput } from "../types";
 
 export function updateProfile(input: UpdateProfileInput) {
   return bffJson(
@@ -23,4 +27,21 @@ export function listProfileOrders(page = 1, perPage = 20) {
 
 export function getProfileOrder(orderId: number) {
   return bffJson(`/api/profile/orders/${orderId}`, { method: "GET" }, (value) => profileOrderDetailSchema.parse(value));
+}
+
+export function listProfileProducts(action: "save" | "like", page = 1, perPage = 20) {
+  const query = new URLSearchParams({ action: profileProductActionSchema.parse(action), page: String(page), perPage: String(perPage) });
+  return bffJson(`/api/profile/product-actions?${query}`, { method: "GET" }, (value) => profileProductListSchema.parse(value));
+}
+
+export function getPersonalProfile() {
+  return bffJson("/api/profile/personal", { method: "GET" }, (value) => personalProfileSchema.parse(value));
+}
+
+export function updatePersonalProfile(input: UpdatePersonalProfileInput) {
+  return bffJson(
+    "/api/profile/personal",
+    { method: "PUT", body: JSON.stringify(updatePersonalProfileSchema.parse(input)) },
+    (value) => personalProfileSchema.parse(value),
+  );
 }

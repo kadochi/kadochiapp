@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { customerSchema } from "@/features/auth/schema/auth";
 import { moneySchema } from "@/features/cart/schema/cart";
+import { productListResultSchema } from "@/features/products/schema/products";
 
 const nameSchema = z.string().trim().max(100, "نام نمی‌تواند بیشتر از ۱۰۰ کاراکتر باشد.");
 
@@ -48,6 +49,49 @@ export const profileOrderDetailSchema = profileOrderSchema.extend({
     service: moneySchema,
     total: moneySchema,
   }).strict(),
+}).strict();
+
+export const profileProductActionSchema = z.enum(["save", "like"]);
+export const profileProductActionListSchema = z.object({
+  productIds: z.array(z.number().int().positive()),
+  page: z.number().int().positive(),
+  perPage: z.number().int().positive().max(50),
+  total: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
+}).strict();
+
+/** Product cards resolved server-side from the customer's ordered action records. */
+export const profileProductListSchema = productListResultSchema;
+
+const personalProfileUsernameSchema = z.string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$/, "نام کاربری باید ۳ تا ۳۰ کاراکتر انگلیسی، عدد یا خط تیره باشد.");
+
+export const personalProfileSchema = z.object({
+  username: personalProfileUsernameSchema.nullable(),
+  enabled: z.boolean(),
+  showAvatar: z.boolean(),
+  showFirstName: z.boolean(),
+  showLastName: z.boolean(),
+  showBirthDate: z.boolean(),
+  showWishlist: z.boolean(),
+}).strict();
+
+export const updatePersonalProfileSchema = personalProfileSchema.superRefine((profile, context) => {
+  if (profile.enabled && !profile.username) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["username"], message: "برای ساخت صفحه عمومی، نام کاربری را وارد کنید." });
+  }
+});
+
+/** The deliberately limited data returned from a public profile URL. */
+export const publicPersonalProfileSchema = z.object({
+  username: personalProfileUsernameSchema,
+  displayName: z.string().min(1),
+  avatarSrc: z.string().url().nullable(),
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  showWishlist: z.boolean(),
+  productIds: z.array(z.number().int().positive()),
 }).strict();
 
 export { customerSchema };

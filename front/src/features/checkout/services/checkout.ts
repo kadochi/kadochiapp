@@ -1,6 +1,10 @@
 import { bffJson } from "@/lib/http/browser";
-import { checkoutResultSchema, checkoutStateSchema, orderSummarySchema, submitCheckoutSchema } from "../schema/checkout";
-import type { SubmitCheckoutInput } from "../types";
+import { checkoutResultSchema, checkoutStateSchema, createSavedAddressSchema, orderSummarySchema, savedAddressListSchema, savedAddressSchema, submitCheckoutSchema } from "../schema/checkout";
+import type { CreateSavedAddressInput, SubmitCheckoutInput } from "../types";
 export const getCheckoutState = () => bffJson("/api/checkout", { method: "GET" }, (value) => checkoutStateSchema.parse(value));
 export const submitCheckout = (input: SubmitCheckoutInput) => bffJson("/api/checkout", { method: "POST", body: JSON.stringify(submitCheckoutSchema.parse(input)) }, (value) => checkoutResultSchema.parse(value));
 export const getOrderSummary = (orderId: number) => bffJson(`/api/checkout/orders/${orderId}`, { method: "GET" }, (value) => orderSummarySchema.parse(value));
+export const createSavedAddress = (input: CreateSavedAddressInput) => bffJson("/api/checkout/addresses", { method: "POST", body: JSON.stringify(createSavedAddressSchema.parse(input)) }, (value) => savedAddressSchema.parse(value));
+export const listSavedAddresses = () => bffJson("/api/checkout/addresses", { method: "GET" }, (value) => savedAddressListSchema.parse(value));
+export const updateSavedAddress = (addressId: string, input: CreateSavedAddressInput) => bffJson(`/api/checkout/addresses/${encodeURIComponent(addressId)}`, { method: "PUT", body: JSON.stringify(createSavedAddressSchema.parse(input)) }, (value) => savedAddressSchema.parse(value));
+export const deleteSavedAddress = (addressId: string) => bffJson(`/api/checkout/addresses/${encodeURIComponent(addressId)}`, { method: "DELETE" }, () => undefined);

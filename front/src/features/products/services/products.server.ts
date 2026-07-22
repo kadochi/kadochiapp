@@ -16,11 +16,14 @@ import {
   upstreamProductsSchema,
   upstreamReviewsSchema,
   productReviewSubmissionSchema,
+  productActionsSchema,
+  updateProductActionInputSchema,
 } from "../schema/products";
 import { wordpressBearerHeaders } from "@/features/auth/services/auth.server";
 import type {
   CategoryQuery,
   CreateProductReviewInput,
+  ProductActions,
   ProductListResult,
   ProductQuery,
   ReviewQuery,
@@ -46,6 +49,7 @@ function productParams(query: ProductQuery): string {
   if (input.minPrice) params.set("min_price", String(Number(input.minPrice) * 10));
   if (input.maxPrice) params.set("max_price", String(Number(input.maxPrice) * 10));
   if (input.exclude?.length) params.set("exclude", input.exclude.join(","));
+  if (input.include?.length) params.set("include", input.include.join(","));
   return params.toString();
 }
 
@@ -114,6 +118,36 @@ export async function createProductReview(input: CreateProductReviewInput, reque
     requestId,
   });
   return parseUpstreamJson(response, (value) => productReviewSubmissionSchema.parse(value), requestId);
+}
+
+/** Reads and changes the signed-in customer's durable product likes and saves. */
+export async function getProductActions(productId: number, requestId: string): Promise<ProductActions> {
+  const id = z.coerce.number().int().positive().parse(productId);
+  const response = await wordpressFetch(`/wp-json/kadochi/v1/product-actions?productId=${id}`, {
+    headers: await wordpressBearerHeaders(), cache: "no-store", requestId,
+  });
+  return parseUpstreamJson(response, (value) => productActionsSchema.parse(value), requestId);
+}
+
+export async function updateProductAction(input: unknown, requestId: string): Promise<ProductActions> {
+  const action = updateProductActionInputSchema.parse(input);
+  const response = await wordpressFetch("/wp-json/kadochi/v1/product-actions", {
+    method: "PUT", body: JSON.stringify(action), headers: { "Content-Type": "application/json", ...(await wordpressBearerHeaders()) }, cache: "no-store", requestId,
+  });
+  return parseUpstreamJson(response, (value) => productActionsSchema.parse(value), requestId);
+}
+
+/** Records a client-rendered product detail visit for the WooCommerce admin metric. */
+export async function recordProductView(productId: number, requestId: string): Promise<void> {
+  const id = z.coerce.number().int().positive().parse(productId);
+  const response = await wordpressFetch("/wp-json/kadochi/v1/product-views", {
+    method: "POST",
+    body: JSON.stringify({ productId: id }),
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    requestId,
+  });
+  await parseUpstreamJson(response, (value) => z.object({ views: z.number().int().nonnegative() }).parse(value), requestId);
 }
 
 export async function listSimilarProducts({ categoryId, excludeId, perPage = 8 }: SimilarProductsQuery) {
