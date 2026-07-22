@@ -68,7 +68,7 @@ function AddressEditorSheetForm({
 
   return <BottomSheet open={open} onOpenChange={onOpenChange}>
     <BottomSheetContent
-      footer={<div className="border-t border-border-mid-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-16))] pt-16"><Button className="w-full" loading={saving} size="large" variant="primary-filled" onClick={() => void save()}>{editing ? "ذخیره تغییرات" : "ذخیره آدرس"}</Button></div>}
+      footer={<div className="border-t border-border-mid-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))] pt-16"><Button className="w-full" loading={saving} size="large" variant="primary-filled" onClick={() => void save()}>{editing ? "ذخیره تغییرات" : "ذخیره آدرس"}</Button></div>}
       size="md"
     >
       <BottomSheetHeader>

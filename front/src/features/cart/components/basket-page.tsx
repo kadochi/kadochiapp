@@ -30,7 +30,7 @@ export function BasketPage({ initialCart, loadError }: { initialCart: Cart | nul
   }
 
   return (
-    <div className="mx-auto w-full max-w-[580px] pb-[calc(var(--spacing-128)+var(--spacing-32)+env(safe-area-inset-bottom))] [direction:rtl]">
+    <div className="mx-auto w-full max-w-[580px] pb-[calc(var(--spacing-128)+max(env(safe-area-inset-bottom),var(--spacing-24)))] [direction:rtl]">
       <div className="space-y-12 px-16 pt-12">
         {loadError || error ? <Alert tone="error" onDismiss={dismissError}>{error ?? loadError}</Alert> : null}
         {cart.items.map((item) => {
@@ -67,7 +67,7 @@ export function BasketPage({ initialCart, loadError }: { initialCart: Cart | nul
           );
         })}
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border-mid-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-32))] pt-16">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border-mid-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))] pt-16">
         <div className="mx-auto max-w-[580px]">
           <SumPrice amount={tomanAmount(cart.totals.totalPrice)} label="جمع کل" separate />
           <Button asChild className="mt-12 w-full" size="large" variant="primary-filled">

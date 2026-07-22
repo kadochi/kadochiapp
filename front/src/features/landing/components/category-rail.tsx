@@ -37,7 +37,7 @@ export function CategoryRail({ items }: Readonly<CategoryRailProps>) {
               <SwiperSlide className="h-auto" key={`placeholder-${index}`}>
                 <div
                   aria-hidden
-                  className="h-256 rounded-xxl bg-[linear-gradient(90deg,var(--color-surface-soft)_0%,var(--color-surface-dim)_50%,var(--color-surface-soft)_100%)] bg-[length:200%_100%] [animation:hero-skeleton-shimmer_1.2s_linear_infinite] min-[864px]:h-240"
+                  className="h-[256px] rounded-xxl bg-[linear-gradient(90deg,var(--color-surface-soft)_0%,var(--color-surface-dim)_50%,var(--color-surface-soft)_100%)] bg-[length:200%_100%] [animation:hero-skeleton-shimmer_1.2s_linear_infinite] min-[864px]:h-[240px]"
                 />
               </SwiperSlide>
             ))
@@ -45,7 +45,7 @@ export function CategoryRail({ items }: Readonly<CategoryRailProps>) {
               <SwiperSlide className="h-auto" key={category.id}>
                 <Link
                   aria-label={`مشاهده ${category.name}`}
-                  className="group relative block h-256 overflow-hidden rounded-xl bg-[linear-gradient(to_top,var(--color-secondary),var(--color-secondary-gradient))] no-underline min-[864px]:h-240"
+                  className="group relative block h-[256px] overflow-hidden rounded-xl bg-[linear-gradient(to_top,var(--color-secondary),var(--color-secondary-gradient))] no-underline min-[864px]:h-[240px]"
                   href={`/products?category=${encodeURIComponent(category.slug)}`}
                 >
                   {category.imageUrl ? (

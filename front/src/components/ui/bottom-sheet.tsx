@@ -137,7 +137,7 @@ function BottomSheetContent({
           <div
             className={cn(
               "min-h-0 flex-1 overflow-y-auto overscroll-contain",
-              footer ? "pb-0" : "pb-[max(env(safe-area-inset-bottom),1rem)]",
+              footer ? "pb-0" : "pb-[max(env(safe-area-inset-bottom),var(--spacing-24))]",
             )}
           >
             {children}

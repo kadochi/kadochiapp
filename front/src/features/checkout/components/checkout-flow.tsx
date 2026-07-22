@@ -308,7 +308,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   };
 
   return (
-    <div className="mx-auto w-full max-w-[580px] pb-128 [direction:rtl]">
+    <div className="mx-auto w-full max-w-[580px] pb-[calc(var(--spacing-128)+max(env(safe-area-inset-bottom),var(--spacing-24)))] [direction:rtl]">
       <div className="px-16 pb-12 pt-12">
         <ProgressStepper aria-label="مراحل ثبت سفارش" showStepNumber={false} size="md" steps={CHECKOUT_STEPS} value={step} />
       </div>
@@ -565,7 +565,7 @@ function CheckoutFooter({ canContinue, nextPending, onNext, onPay, onPrevious, r
   canContinue: boolean; nextPending: boolean; onNext: () => void | Promise<void>; onPay: () => void; onPrevious: () => void; reconciliationUnknown: boolean; step: number; submitting: boolean;
 }) {
   const isPayment = step === 2;
-  return <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border-mid-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-16))] pt-16 shadow-[0_-8px_24px_rgba(0,0,0,.04)]">
+  return <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border-mid-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))] pt-16 shadow-[0_-8px_24px_rgba(0,0,0,.04)]">
     <div className={isPayment || step > 0 ? "mx-auto grid max-w-[580px] grid-cols-[minmax(0,1fr)_106px] gap-12" : "mx-auto max-w-[580px]"}>
       <Button className="w-full" disabled={isPayment ? reconciliationUnknown : !canContinue || nextPending} loading={isPayment ? submitting : nextPending} onClick={isPayment ? onPay : onNext} size="large" variant="primary-filled">
         {isPayment ? "پرداخت" : "مرحله بعد"}

@@ -69,7 +69,7 @@ function ProfileInfoForm({
       </RadioGroup>
     </fieldset>
     <Input disabled dir="ltr" label="شماره موبایل" name="phone" value={customer.phone} />
-    <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center border-t border-border-mid-emphasis bg-surface-background p-16 pb-[calc(var(--spacing-32)+env(safe-area-inset-bottom))]">
+    <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center border-t border-border-mid-emphasis bg-surface-background p-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))]">
       <Button className="w-full max-w-[580px]" loading={saving} size="large" type="submit">ثبت اطلاعات</Button>
     </div>
   </form>;
@@ -86,7 +86,7 @@ export function ProfileInfoPage() {
   return (
     <div className="min-h-dvh bg-surface-background" dir="rtl">
       <Header backUrl="/profile" title="اطلاعات حساب کاربری" variant="internal" />
-      <main className="mx-auto w-full max-w-[600px] px-16 py-16 pb-[calc(var(--spacing-128)+env(safe-area-inset-bottom))]">
+      <main className="mx-auto w-full max-w-[600px] px-16 py-16 pb-[calc(var(--spacing-128)+max(env(safe-area-inset-bottom),var(--spacing-24)))]">
         {status === "error" ? (
           <div className="grid place-items-center py-48 text-center text-body-14 text-surface-neutral-mid-emphasis">دریافت اطلاعات حساب کاربری با مشکل مواجه شد. دوباره تلاش کنید.</div>
         ) : status === "loading" || !customer ? (

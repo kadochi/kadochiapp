@@ -172,7 +172,7 @@ export function OccasionsPage() {
 
   return (
     <>
-      <section aria-label="تقویم مناسبت‌ها">
+      <section aria-label="تقویم مناسبت‌ها" className="pb-88 lg:pb-0">
         <div ref={sectionHeaderRef}>
           <SectionHeader
             as="h1"

@@ -50,7 +50,7 @@ export function LandingProductRail({
           </Button>
         }
         subtitle={subtitle}
-        title={<span id={`${title}-heading`}>{title}</span>}
+        title={<span className="whitespace-nowrap" id={`${title}-heading`}>{title}</span>}
       />
       <ProductsSlider items={items} />
     </section>

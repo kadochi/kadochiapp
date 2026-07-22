@@ -244,3 +244,65 @@
     background-position: 200% 0;
   }
 }
+
+@keyframes hero-pagination-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+[data-component="hero-slider"] .swiper-pagination {
+  bottom: var(--spacing-48);
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-4);
+  direction: ltr;
+}
+
+[data-component="hero-slider"] .hero-slider__pagination-segment {
+  display: block;
+  width: var(--spacing-80);
+  height: var(--spacing-2);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  border: 0;
+  border-radius: var(--radius-rounded);
+  background: color-mix(in srgb, var(--color-on-primary) 48%, transparent);
+  opacity: 1;
+}
+
+[data-component="hero-slider"] .hero-slider__pagination-progress {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform: scaleX(0);
+  transform-origin: left;
+  background: var(--color-on-primary);
+}
+
+[data-component="hero-slider"] .swiper-pagination-bullet-active .hero-slider__pagination-progress {
+  animation: hero-pagination-fill 10s linear forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="hero-slider"] .swiper-pagination-bullet-active .hero-slider__pagination-progress {
+    animation: none;
+    transform: scaleX(1);
+  }
+}
+
+/* Mobile navigation is fixed above the document, so reserve its full height
+ * after page content. This also keeps the final interactive element reachable
+ * on devices with a home-indicator inset. */
+@media (max-width: 1023px) {
+  body[data-bottom-nav="active"] {
+    padding-bottom: var(--bottom-nav-safe);
+  }
+}

@@ -56,7 +56,7 @@ function ServicesNav({ items, className }: Readonly<ServicesNavProps>) {
 
             <span
               aria-hidden="true"
-              className="grid size-72 place-items-center rounded-l border-[1.5px] border-secondary-container bg-surface-background data-[wide=true]:w-full min-[576px]:data-[wide=true]:w-72"
+              className="grid size-72 place-items-center rounded-[var(--radius-l)] border-[1.5px] border-secondary-container bg-surface-background data-[wide=true]:w-full min-[576px]:data-[wide=true]:w-72"
               data-wide={item.variant === "wide" || undefined}
             >
               {/* Keep the legacy image behavior: service icon URLs may be arbitrary. */}

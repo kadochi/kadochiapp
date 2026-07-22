@@ -48,7 +48,7 @@ const labelVariants = cva(
         variant: "success",
         appearance: "gradient",
         className:
-          "bg-success text-on-success [background-image:linear-gradient(to_left,var(--color-success),var(--color-success-container))]",
+          "bg-success text-on-success [background-image:linear-gradient(to_left,var(--color-primary),var(--color-primary-gradient))]",
       },
       {
         variant: "secondary",
@@ -80,7 +80,7 @@ const labelVariants = cva(
         variant: "warning",
         appearance: "gradient",
         className:
-          "bg-warning text-on-warning [background-image:linear-gradient(to_left,var(--color-warning),var(--color-warning-container))]",
+          "bg-warning text-on-warning [background-image:linear-gradient(to_left,var(--color-warning),var(--color-on-warning-container))]",
       },
       {
         variant: "danger",
@@ -96,7 +96,7 @@ const labelVariants = cva(
         variant: "danger",
         appearance: "gradient",
         className:
-          "bg-error text-on-error [background-image:linear-gradient(to_left,var(--color-error),var(--color-error-container))]",
+          "bg-error text-on-error [background-image:linear-gradient(to_left,var(--color-error),var(--color-on-error-container))]",
       },
       {
         variant: "neutral",
@@ -112,7 +112,7 @@ const labelVariants = cva(
         variant: "neutral",
         appearance: "gradient",
         className:
-          "bg-disable text-on-disable [background-image:linear-gradient(to_left,var(--color-disable),var(--color-disable-container))]",
+          "bg-disable text-on-disable [background-image:linear-gradient(to_left,var(--color-on-disable),var(--color-on-disable-container))]",
       },
     ],
     defaultVariants: {
@@ -159,7 +159,7 @@ function Label({
       {leadingIcon ? (
         <span
           aria-hidden="true"
-          className="inline-flex shrink-0 items-center justify-center [&>svg]:size-[var(--label-icon-size)]"
+          className="inline-flex shrink-0 items-center justify-center [&>img]:size-[var(--label-icon-size)] [&>svg]:size-[var(--label-icon-size)]"
         >
           {leadingIcon}
         </span>

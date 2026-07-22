@@ -64,6 +64,7 @@ function toHeroSlides(content: HomepageContent): HeroSlide[] {
           ctaLink: hero.ctaLink,
           ctaText: hero.ctaText,
           id: hero.id,
+          subtitle: hero.subtitle,
           title: hero.title,
         }]
       : [],
@@ -80,6 +81,7 @@ function toHeroSlides(content: HomepageContent): HeroSlide[] {
               ctaLink: banner.ctaLink,
               ctaText: banner.ctaText,
               id: banner.id,
+              subtitle: banner.subtitle,
               title: banner.title,
             }]
           : [],

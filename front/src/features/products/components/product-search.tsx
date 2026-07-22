@@ -145,7 +145,7 @@ export function ProductSearch() {
             </Dialog.Close>
           </header>
 
-          <div className="mx-auto flex w-full max-w-[720px] min-h-0 flex-1 flex-col px-16 pb-[max(env(safe-area-inset-bottom),1rem)] pt-16">
+          <div className="mx-auto flex w-full max-w-[720px] min-h-0 flex-1 flex-col px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))] pt-16">
             <Input
               aria-label="جستجو در محصولات"
               autoComplete="off"

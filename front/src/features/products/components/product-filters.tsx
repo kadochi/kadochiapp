@@ -433,7 +433,7 @@ function FiltersSheet({ categories, onClose, onClear, onApply, values, view }: R
       <BottomSheetContent
         aria-describedby={undefined}
         footer={view === "all" || view === "price" ? (
-          <div className="flex items-center gap-12 border-t border-border-low-emphasis bg-surface-background p-16 pb-[max(env(safe-area-inset-bottom),1rem)]">
+          <div className="flex items-center gap-12 border-t border-border-low-emphasis bg-surface-background p-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))]">
             {view === "all" && allActiveCount ? (
               <Button
                 aria-label={clearLabel}
