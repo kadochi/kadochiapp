@@ -72,7 +72,7 @@ const upstreamProductSchema = z.object({
 
 export const upstreamProductsSchema = z.array(upstreamProductSchema);
 export const upstreamProductSchemaExport = upstreamProductSchema;
-export const upstreamCategoriesSchema = z.array(z.object({ id: z.number().int().positive(), name: z.string(), slug: z.string(), parent: z.number().int().nonnegative().default(0), count: z.number().int().nonnegative().default(0), image: imageSchema.nullable().optional() }));
+export const upstreamCategoriesSchema = z.array(z.object({ id: z.number().int().positive(), name: z.string(), slug: z.string(), description: z.string().default(""), parent: z.number().int().nonnegative().default(0), count: z.number().int().nonnegative().default(0), image: imageSchema.nullable().optional() }));
 export const upstreamProductTagsSchema = z.array(z.object({
   id: z.number().int().positive(),
   name: z.string(),
@@ -109,7 +109,7 @@ export const productListResultSchema = z.object({
   total: z.number().int().nonnegative(),
   totalPages: z.number().int().nonnegative(),
 });
-export const categorySchema = z.object({ id: z.number().int().positive(), name: z.string(), slug: z.string(), parentId: z.number().int().nonnegative(), productCount: z.number().int().nonnegative(), imageUrl: z.string().url().optional() });
+export const categorySchema = z.object({ id: z.number().int().positive(), name: z.string(), slug: z.string(), description: z.string(), parentId: z.number().int().nonnegative(), productCount: z.number().int().nonnegative(), imageUrl: z.string().url().optional() });
 export const productTagSchema = z.object({
   id: z.number().int().positive(),
   name: z.string(),

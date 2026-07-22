@@ -13,7 +13,7 @@ export function ProductCardSkeleton() {
     <div aria-hidden className="w-full [direction:rtl]">
       <div className={shimmer("aspect-[1/1.2] w-full rounded-[var(--radius-l)]")} />
 
-      <div className="pt-8 pb-16 px-16 text-center">
+      <div className="p-16 text-center">
         <div className={shimmer("mx-auto mt-8 h-[var(--text-label-14--line-height)] w-[58%] rounded-rounded")} />
         <div className={shimmer("mx-auto mt-4 h-[var(--text-label-14--line-height)] w-[72%] rounded-rounded")} />
         <div className={shimmer("mx-auto mt-8 h-[var(--text-label-14--line-height)] w-[44%] rounded-rounded")} />

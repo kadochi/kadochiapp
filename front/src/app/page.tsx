@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 
 import HeroSlider, { type HeroSlide } from "@/components/layout/hero-slider";
 import LayoutContent from "@/components/layout/layout-content";
@@ -93,13 +94,14 @@ async function getLandingData() {
     fallback(listCategories({ hideEmpty: true, perPage: 12 }), [] as ProductCategory[]),
     fallback(listProductTags(), []),
   ]);
-  const fastDeliveryTag = tags.find((tag) => tag.slug === "fast-delivery");
-  const fastDelivery = fastDeliveryTag
-    ? await fallback(
-        listProducts({ order: "desc", orderby: "date", perPage: 12, tags: [fastDeliveryTag.id] }),
-        { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 },
-      )
-    : { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 };
+  // Kadochi.Old used the long-standing fast-delivery tag (ID 25) directly.
+  // Resolve its slug when available, but retain the legacy ID so this rail is
+  // not removed merely because the tags endpoint is temporarily unavailable.
+  const fastDeliveryTagId = tags.find((tag) => tag.slug === "fast-delivery")?.id ?? 25;
+  const fastDelivery = await fallback(
+    listProducts({ order: "desc", orderby: "date", perPage: 12, tags: [fastDeliveryTagId] }),
+    { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 },
+  );
 
   return { categories, content, fastDelivery: fastDelivery.items, latest: latest.items, popular: popular.items };
 }
@@ -141,7 +143,7 @@ export default async function Homepage() {
       <HeroSlider initialSlides={heroSlides.length ? heroSlides : undefined} />
       <ServicesNav items={[...services]} />
 
-      <Divider size="lg" variant="spacer" />
+      <Divider size="md" variant="spacer" />
       <LandingProductRail
         href="/products?orderby=date&order=desc"
         items={latest}
@@ -149,22 +151,25 @@ export default async function Homepage() {
         title="جدیدترین کادوها"
       />
 
-      <Divider size="lg" variant="spacer" />
+      <Divider size="md" variant="spacer" />
       <section aria-labelledby="occasion-calendar-heading" id="occasions">
         <SectionHeader
           as="h2"
           leftSlot={
             <Button asChild size="small" variant="link-ghost">
-              <Link aria-label="مشاهده تقویم مناسبت‌ها" href="/occasions">مشاهده تقویم</Link>
+              <Link aria-label="مشاهده تقویم مناسبت‌ها" href="/occasions">
+                مشاهده تقویم
+                <ChevronLeft aria-hidden />
+              </Link>
             </Button>
           }
-          subtitle="برای هر بهانه‌ای، یک هدیه به‌یادماندنی پیدا کنید"
+          subtitle="تقویم مناسبت‌های شخصی و عمومی"
           title={<span id="occasion-calendar-heading">مناسبت‌های پیش‌رو</span>}
         />
         <UpcomingOccasionRail />
       </section>
 
-      <Divider size="lg" variant="spacer" />
+      <Divider size="md" variant="spacer" />
       <LandingProductRail
         href="/products?orderby=popularity&order=desc"
         items={popular}
@@ -172,7 +177,7 @@ export default async function Homepage() {
         title="محبوب‌ترین کادوها"
       />
 
-      <Divider size="lg" variant="spacer" />
+      <Divider size="md" variant="spacer" />
       <section aria-labelledby="just-because-heading">
         <SectionHeader
           as="h2"
@@ -182,7 +187,7 @@ export default async function Homepage() {
         <OccasionPrompt />
       </section>
 
-      <Divider size="lg" variant="spacer" />
+      <Divider size="md" variant="spacer" />
       <LandingProductRail
         badge="fast-delivery"
         href="/products?tag=fast-delivery"
@@ -191,7 +196,7 @@ export default async function Homepage() {
         title="کادوهای ارسال روز"
       />
 
-      <Divider size="lg" variant="spacer" />
+      <Divider size="md" variant="spacer" />
       <AboutKadochi />
       <CategoryRail items={categories} />
       <script dangerouslySetInnerHTML={{ __html: JSON.stringify(siteLd) }} type="application/ld+json" />

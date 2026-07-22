@@ -31,6 +31,7 @@ import type {
 } from "../types";
 import { mapProduct } from "../utils/map-product";
 import { mapReview } from "../utils/map-review";
+import { stripHtml } from "../utils/strip-html";
 
 function productParams(query: ProductQuery): string {
   const input = productQuerySchema.parse(query);
@@ -167,7 +168,7 @@ export async function listCategories(query: CategoryQuery = {}) {
   const params = new URLSearchParams({ page: String(input.page), per_page: String(input.perPage), hide_empty: String(input.hideEmpty) });
   const id = randomUUID();
   const response = await wordpressFetch(`/wp-json/wc/store/v1/products/categories?${params}`, { requestId: id, next: { revalidate: 300, tags: ["product-categories"] } });
-  return (await parseUpstreamJson(response, (value) => upstreamCategoriesSchema.parse(value), id)).map((category) => categorySchema.parse({ id: category.id, name: category.name, slug: category.slug, parentId: category.parent, productCount: category.count, imageUrl: category.image?.src }));
+  return (await parseUpstreamJson(response, (value) => upstreamCategoriesSchema.parse(value), id)).map((category) => categorySchema.parse({ id: category.id, name: category.name, slug: category.slug, description: stripHtml(category.description), parentId: category.parent, productCount: category.count, imageUrl: category.image?.src }));
 }
 
 /** Lists public product tags so URL-friendly PLP filters can resolve to IDs. */

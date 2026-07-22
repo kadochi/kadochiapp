@@ -31,7 +31,7 @@ export function ProductCard({
       )}
       href={href ?? `/product/${product.slug}`}
     >
-      <div className="relative grid aspect-[1/1.2] w-full place-items-center overflow-hidden rounded-[var(--radius-l)] bg-surface">
+      <div className="relative grid aspect-[1/1.2] w-full place-items-center overflow-hidden rounded-[var(--radius-l)]">
         {image ? (
           <img
             alt={image.alt || product.name}
@@ -43,9 +43,9 @@ export function ProductCard({
         ) : null}
       </div>
 
-      <div className="pt-8 pb-16 px-16 text-center">
+      <div className="p-16 text-center">
         <div
-          className="mb-12 line-clamp-2 h-[calc(var(--text-label-14--line-height)*2)] font-sans text-label-14 font-bold leading-[var(--text-label-14--line-height)] text-surface-neutral-high-emphasis"
+          className="mb-8 line-clamp-2 h-[calc(var(--text-label-14--line-height)*2)] font-sans text-label-14 font-bold leading-[var(--text-label-14--line-height)] text-surface-neutral-high-emphasis"
           title={product.name}
         >
           {product.name}

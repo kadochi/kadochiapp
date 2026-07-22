@@ -25,8 +25,6 @@ export function LandingProductRail({
   items,
   badge,
 }: Readonly<LandingProductRailProps>) {
-  if (!items.length) return null;
-
   return (
     <section aria-labelledby={`${title}-heading`}>
       <SectionHeader
