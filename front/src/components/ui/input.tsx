@@ -212,7 +212,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           id={inputId}
           aria-describedby={describedBy || undefined}
           aria-invalid={status === "error" || ariaInvalid || undefined}
-          className="h-full w-full min-w-0 flex-1 border-0 bg-transparent p-0 font-sans text-label-16 font-regular text-surface-neutral-high-emphasis outline-none placeholder:text-surface-neutral-mid-emphasis disabled:cursor-not-allowed disabled:text-on-disable"
+          className="h-full w-full min-w-0 flex-1 border-0 bg-transparent p-0 font-sans text-label-16 font-regular text-surface-neutral-high-emphasis outline-none placeholder:text-surface-neutral-low-emphasis focus:placeholder:text-transparent disabled:cursor-not-allowed disabled:text-on-disable"
           disabled={disabled}
           required={required}
           dir={dir}

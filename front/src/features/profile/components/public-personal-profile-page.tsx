@@ -60,7 +60,7 @@ export function PublicPersonalProfilePage({ profile, products }: { profile: Publ
                 {products.map((product, index) => <ProductCard key={product.id} priority={index < 2} product={product} />)}
               </div>
             ) : (
-              <StateMessage imageSrc="/images/illustration-empty.png" subtitle="هنوز محصولی در این لیست قرار نگرفته است." title="لیست آرزوها خالی است" />
+              <StateMessage imageSrc="/images/wishlist.png" subtitle="هنوز محصولی در این لیست قرار نگرفته است." title="لیست آرزوها خالی است" />
             )}
             </section>
           </>

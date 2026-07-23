@@ -201,7 +201,7 @@ export function ProfileProductActionsPage({ action }: { action: ProfileProductAc
         {!loading && !error && status === "authenticated" && !products.length ? (
           <StateMessage
             actions={<Button asChild size="large" variant="primary-filled"><Link href="/products">مشاهده محصولات</Link></Button>}
-            imageSrc="/images/illustration-empty.png"
+            imageSrc={action === "save" ? "/images/wishlist.png" : "/images/illustration-empty.png"}
             subtitle={copy.emptySubtitle}
             title={copy.emptyTitle}
           />

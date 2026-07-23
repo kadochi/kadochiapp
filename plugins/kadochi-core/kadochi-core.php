@@ -16,7 +16,8 @@ final class Kadochi_Core {
 	const OTP_TTL_SECONDS = 180;
 	const OTP_RESEND_SECONDS = 60;
 	const OTP_MAX_ATTEMPTS = 5;
-	const OTP_SEND_LIMIT_PER_HOUR = 3;
+	const OTP_RESEND_LIMIT_PER_HOUR = 3;
+	const OTP_SEND_LIMIT_PER_HOUR = self::OTP_RESEND_LIMIT_PER_HOUR + 1;
 	const JWT_TTL_SECONDS = 604800;
 	const CHECKOUT_FIELD_DELIVERY_SLOT = 'kadochi/delivery-slot';
 	const CHECKOUT_FIELD_PACKAGING = 'kadochi/packaging';
@@ -25,6 +26,8 @@ final class Kadochi_Core {
 	const CHECKOUT_FIELD_OPERATION = 'kadochi/operation-id';
 	const PRODUCT_ACTIONS_DB_VERSION = '1';
 	const PRODUCT_VIEW_COUNT_META_KEY = '_kadochi_product_view_count';
+	const DRAFT_ORDER_EXPIRATION_SECONDS = 3600;
+	const DRAFT_ORDER_EXPIRY_HOOK = 'kadochi_expire_draft_orders';
 
 	/** @var array<string, string> */
 	private $health = array();
@@ -34,6 +37,9 @@ final class Kadochi_Core {
 	public function boot() {
 		self::maybe_install_product_actions_table();
 		add_action( 'init', array( $this, 'register_post_types' ), 5 );
+		add_action( 'init', array( $this, 'schedule_draft_order_expiry' ) );
+		add_action( self::DRAFT_ORDER_EXPIRY_HOOK, array( $this, 'expire_stale_draft_orders' ) );
+		add_filter( 'cron_schedules', array( $this, 'draft_order_expiry_schedule' ) );
 		add_action( 'init', array( $this, 'harden_existing_occasion_type' ), 99 );
 		add_action( 'acf/init', array( $this, 'register_scf_fields' ) );
 		add_action( 'rest_api_init', array( $this, 'register_routes' ) );
@@ -255,6 +261,7 @@ final class Kadochi_Core {
 		) );
 		register_rest_route( self::REST_NAMESPACE, '/profile/orders', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_profile_orders' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
 		register_rest_route( self::REST_NAMESPACE, '/profile/orders/(?P<id>\\d+)', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'profile_order_detail' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
+		register_rest_route( self::REST_NAMESPACE, '/profile/orders/(?P<id>\\d+)/retry-payment', array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'retry_profile_order_payment' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
 		register_rest_route( self::REST_NAMESPACE, '/profile/product-actions', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_profile_product_actions' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
 		register_rest_route( self::REST_NAMESPACE, '/personal-profile', array(
 			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'personal_profile' ), 'permission_callback' => array( $this, 'authenticated' ) ),
@@ -1502,7 +1509,10 @@ final class Kadochi_Core {
 		if ( 'POST' !== $request->get_method() ) {
 			return;
 		}
-		$method = sanitize_key( (string) $request->get_param( 'payment_method' ) );
+		// Payment gateway IDs are case-sensitive. `sanitize_key()` lowercases the
+		// official Zarinpal ID (`WC_ZPal`) and consequently rejects it before Woo
+		// can create the redirect URL.
+		$method = sanitize_text_field( (string) $request->get_param( 'payment_method' ) );
 		if ( $this->payment_method_id() !== $method ) {
 			throw new Exception( __( 'The selected payment method is unavailable.', 'kadochi-core' ) );
 		}
@@ -1582,6 +1592,60 @@ final class Kadochi_Core {
 		return $order;
 	}
 
+	private function is_draft_order( $order ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'get_status' ) ) {
+			return false;
+		}
+		return in_array( sanitize_key( $order->get_status() ), array( 'draft', 'checkout-draft' ), true );
+	}
+
+	private function expire_draft_order_if_needed( $order ) {
+		if ( ! $this->is_draft_order( $order ) || ! method_exists( $order, 'get_date_created' ) ) {
+			return false;
+		}
+		$created = $order->get_date_created();
+		if ( ! $created || $created->getTimestamp() > time() - self::DRAFT_ORDER_EXPIRATION_SECONDS ) {
+			return false;
+		}
+		$order->update_status( 'cancelled', __( 'Unpaid draft expired after one hour.', 'kadochi-core' ) );
+		return true;
+	}
+
+	/** Runs frequently enough to expire drafts promptly; request paths also enforce this rule. */
+	public function schedule_draft_order_expiry() {
+		if ( ! wp_next_scheduled( self::DRAFT_ORDER_EXPIRY_HOOK ) ) {
+			wp_schedule_event( time() + 300, 'kadochi_every_five_minutes', self::DRAFT_ORDER_EXPIRY_HOOK );
+		}
+	}
+
+	public function draft_order_expiry_schedule( $schedules ) {
+		$schedules['kadochi_every_five_minutes'] = array( 'interval' => 300, 'display' => __( 'Every five minutes', 'kadochi-core' ) );
+		return $schedules;
+	}
+
+	public function expire_stale_draft_orders() {
+		if ( ! function_exists( 'wc_get_orders' ) ) {
+			return;
+		}
+		foreach ( array( 'draft', 'checkout-draft' ) as $status ) {
+			$page = 1;
+			do {
+				$result = wc_get_orders( array(
+					'status' => $status,
+					'limit' => 100,
+					'page' => $page,
+					'paginate' => true,
+					'date_created' => '<' . ( time() - self::DRAFT_ORDER_EXPIRATION_SECONDS ),
+				) );
+				$orders = is_object( $result ) && isset( $result->orders ) && is_array( $result->orders ) ? $result->orders : array();
+				foreach ( $orders as $order ) {
+					$this->expire_draft_order_if_needed( $order );
+				}
+				$page++;
+			} while ( ! empty( $orders ) && is_object( $result ) && isset( $result->max_num_pages ) && $page <= (int) $result->max_num_pages );
+		}
+	}
+
 	private function order_summary_dto( $order ) {
 		$created = $order->get_date_created();
 		return array(
@@ -1647,6 +1711,7 @@ final class Kadochi_Core {
 		$orders = is_object( $result ) && isset( $result->orders ) && is_array( $result->orders ) ? $result->orders : array();
 		$items = array();
 		foreach ( $orders as $order ) {
+			$this->expire_draft_order_if_needed( $order );
 			$items[] = $this->profile_order_summary_dto( $order );
 		}
 		$total = is_object( $result ) && isset( $result->total ) ? max( 0, (int) $result->total ) : count( $items );
@@ -1684,7 +1749,39 @@ final class Kadochi_Core {
 
 	public function profile_order_detail( WP_REST_Request $request ) {
 		$order = $this->owned_order( $request['id'] );
-		return is_wp_error( $order ) ? $order : rest_ensure_response( $this->profile_order_detail_dto( $order ) );
+		if ( is_wp_error( $order ) ) {
+			return $order;
+		}
+		$this->expire_draft_order_if_needed( $order );
+		return rest_ensure_response( $this->profile_order_detail_dto( $order ) );
+	}
+
+	/** Restarts the configured gateway only for the owner's still-active unpaid order. */
+	public function retry_profile_order_payment( WP_REST_Request $request ) {
+		$order = $this->owned_order( $request['id'] );
+		if ( is_wp_error( $order ) ) {
+			return $order;
+		}
+		$this->expire_draft_order_if_needed( $order );
+		if ( ! in_array( sanitize_key( $order->get_status() ), array( 'draft', 'checkout-draft', 'pending', 'pending-payment' ), true ) ) {
+			return $this->auth_error( 'kadochi_order_not_payable', __( 'This order is no longer awaiting payment.', 'kadochi-core' ), 409 );
+		}
+		if ( $order->is_paid() || $this->payment_method_id() !== $order->get_payment_method() ) {
+			return $this->auth_error( 'kadochi_order_not_payable', __( 'This order cannot be paid with the configured gateway.', 'kadochi-core' ), 409 );
+		}
+		$woocommerce = function_exists( 'WC' ) ? WC() : null;
+		$gateway_manager = is_object( $woocommerce ) && method_exists( $woocommerce, 'payment_gateways' ) ? $woocommerce->payment_gateways() : null;
+		$gateways = is_object( $gateway_manager ) && method_exists( $gateway_manager, 'payment_gateways' ) ? $gateway_manager->payment_gateways() : array();
+		$gateway = isset( $gateways[ $this->payment_method_id() ] ) ? $gateways[ $this->payment_method_id() ] : null;
+		if ( ! $gateway || ! method_exists( $gateway, 'process_payment' ) ) {
+			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway is unavailable.', 'kadochi-core' ), 503 );
+		}
+		$result = $gateway->process_payment( $order->get_id() );
+		$redirect = is_array( $result ) && isset( $result['redirect'] ) ? esc_url_raw( $result['redirect'], array( 'http', 'https' ) ) : '';
+		if ( ! $redirect ) {
+			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway could not start a payment.', 'kadochi-core' ), 502 );
+		}
+		return rest_ensure_response( array( 'redirectUrl' => $redirect ) );
 	}
 
 	public function operation_summary( WP_REST_Request $request ) {

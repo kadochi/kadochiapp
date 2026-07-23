@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -61,6 +62,7 @@ export function OtpVerificationForm({
   const [secondsLeft, setSecondsLeft] = useState(Math.ceil(initialRetryAfter));
   const [resendCount, setResendCount] = useState(0);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const verifyingRef = useRef(false);
 
   useEffect(() => {
     inputRefs.current[0]?.focus();
@@ -85,6 +87,7 @@ export function OtpVerificationForm({
     );
     setCode(next);
     setError(null);
+    if (digits.length === otpLength) void submitCode(digits);
     inputRefs.current[
       Math.min(digits.length, otpLength) - 1
     ]?.focus();
@@ -107,15 +110,15 @@ export function OtpVerificationForm({
       inputRefs.current[index - 1]?.focus();
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const joined = code.join("");
+  const submitCode = useCallback(async (joined: string) => {
     if (joined.length !== otpLength) {
       setError(`کد تأیید ${otpLength} رقمی را کامل وارد کنید.`);
       return;
     }
+    if (verifyingRef.current) return;
 
     try {
+      verifyingRef.current = true;
       setLoading(true);
       setError(null);
       await verifyOtp({ phone, code: joined });
@@ -125,8 +128,14 @@ export function OtpVerificationForm({
       setCode(Array.from({ length: otpLength }, () => ""));
       window.setTimeout(() => inputRefs.current[0]?.focus(), 0);
     } finally {
+      verifyingRef.current = false;
       setLoading(false);
     }
+  }, [onVerified, otpLength, phone, verifyOtp]);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void submitCode(code.join(""));
   }
 
   async function handleResend() {
@@ -138,8 +147,9 @@ export function OtpVerificationForm({
       const nextLength = challenge.codeLength ?? otpLength;
       if (nextLength !== otpLength) {
         setOtpLength(nextLength);
-        setCode(Array.from({ length: nextLength }, () => ""));
       }
+      setCode(Array.from({ length: nextLength }, () => ""));
+      window.setTimeout(() => inputRefs.current[0]?.focus(), 0);
       setSecondsLeft(Math.ceil(challenge.retryAfter ?? 60));
       setResendCount((current) => current + 1);
     } catch (caught) {
@@ -200,15 +210,19 @@ export function OtpVerificationForm({
                   inputMode="numeric"
                   maxLength={1}
                   onChange={(event) => {
-                    const value = latinDigits(event.currentTarget.value)
-                      .replace(/\D/g, "")
-                      .slice(-1);
-                    setCode((current) =>
-                      current.map((item, itemIndex) =>
+                    const digits = latinDigits(event.currentTarget.value)
+                      .replace(/\D/g, "");
+                    if (digits.length > 1) {
+                      writeCode(digits);
+                      return;
+                    }
+                    const value = digits;
+                    const next = code.map((item, itemIndex) =>
                         itemIndex === index ? value : item,
-                      ),
                     );
+                    setCode(next);
                     setError(null);
+                    if (next.every(Boolean)) void submitCode(next.join(""));
                     if (value && index < otpLength - 1)
                       inputRefs.current[index + 1]?.focus();
                   }}
@@ -229,7 +243,7 @@ export function OtpVerificationForm({
           ) : null}
         </fieldset>
 
-        <div className="grid min-h-24 w-full justify-items-start gap-8 px-24 text-body-16 text-surface-neutral-mid-emphasis">
+        <div className="grid min-h-24 w-full justify-items-center gap-8 px-24 text-center text-body-16 text-surface-neutral-mid-emphasis">
           {secondsLeft > 0 ? (
             <p className="m-0">امکان ارسال مجدد تا {secondsLeft} ثانیه دیگر</p>
           ) : resendCount < 3 ? (

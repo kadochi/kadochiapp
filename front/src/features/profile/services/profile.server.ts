@@ -8,6 +8,7 @@ import {
   customerSchema,
   profileOrderDetailSchema,
   profileOrderListSchema,
+  profileOrderRetryPaymentSchema,
   profileProductActionListSchema,
   profileProductActionSchema,
   profileProductListSchema,
@@ -46,6 +47,16 @@ export async function getProfileOrder(orderId: number, requestId: string) {
     requestId,
   });
   return parseUpstreamJson(response, (value) => profileOrderDetailSchema.parse(value), requestId);
+}
+
+export async function retryProfileOrderPayment(orderId: number, requestId: string) {
+  const response = await wordpressFetch(`/wp-json/kadochi/v1/profile/orders/${orderId}/retry-payment`, {
+    method: "POST",
+    headers: await wordpressBearerHeaders(),
+    cache: "no-store",
+    requestId,
+  });
+  return parseUpstreamJson(response, (value) => profileOrderRetryPaymentSchema.parse(value), requestId);
 }
 
 export async function listProfileProducts(action: unknown, page: number, perPage: number, requestId: string) {

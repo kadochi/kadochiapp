@@ -4,6 +4,7 @@ import {
   customerSchema,
   profileOrderDetailSchema,
   profileOrderListSchema,
+  profileOrderRetryPaymentSchema,
   profileProductActionSchema,
   profileProductListSchema,
   personalProfileSchema,
@@ -27,6 +28,10 @@ export function listProfileOrders(page = 1, perPage = 20) {
 
 export function getProfileOrder(orderId: number) {
   return bffJson(`/api/profile/orders/${orderId}`, { method: "GET" }, (value) => profileOrderDetailSchema.parse(value));
+}
+
+export function retryProfileOrderPayment(orderId: number) {
+  return bffJson(`/api/profile/orders/${orderId}/retry-payment`, { method: "POST" }, (value) => profileOrderRetryPaymentSchema.parse(value));
 }
 
 export function listProfileProducts(action: "save" | "like", page = 1, perPage = 20) {

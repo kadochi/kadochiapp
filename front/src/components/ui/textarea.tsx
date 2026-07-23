@@ -144,7 +144,7 @@ const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
             aria-describedby={describedBy || undefined}
             aria-invalid={status === "error" || ariaInvalid || undefined}
             className={cn(
-              "h-full min-h-0 w-full resize-none overflow-y-auto border-0 bg-transparent p-0 font-sans text-label-16 font-regular text-surface-neutral-high-emphasis outline-none placeholder:text-surface-neutral-mid-emphasis disabled:cursor-not-allowed disabled:text-on-disable",
+              "h-full min-h-0 w-full resize-none overflow-y-auto border-0 bg-transparent p-0 font-sans text-label-16 font-regular text-surface-neutral-high-emphasis outline-none placeholder:text-surface-neutral-low-emphasis focus:placeholder:text-transparent disabled:cursor-not-allowed disabled:text-on-disable",
               leadingIcon && "ps-24",
               className,
             )}
@@ -164,7 +164,7 @@ const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
         </div>
 
         {hasDescription || showCount ? (
-          <div className="flex min-h-14 items-start justify-between gap-16">
+          <div className="flex items-start justify-between gap-16">
             {hasDescription ? (
               <p
                 className={textAreaMessageVariants({ status })}

@@ -23,5 +23,5 @@ export default async function CheckoutSuccessRoute({ searchParams }: Props) {
     return <><Header variant="internal" title="سفارش شما" backUrl="/products" /><StateMessage imageSrc="/images/illustration-failed.png" title="وضعیت سفارش در دسترس نیست" subtitle="لطفاً چند دقیقه دیگر دوباره وضعیت سفارش را بررسی کنید." /></>;
   }
   if (!summary.paid) redirect(`/checkout/failure?order=${summary.id}`);
-  return <><Header variant="internal" title="سفارش شما" backUrl="/products" /><OrderResult order={summary} paid /></>;
+  return <><Header /><OrderResult order={summary} paid /></>;
 }

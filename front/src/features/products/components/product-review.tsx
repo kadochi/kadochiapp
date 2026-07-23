@@ -104,7 +104,7 @@ export function ProductReview({
   });
 
   return (
-    <section aria-label="نقد و بررسی کاربران">
+    <section className="pb-16" aria-label="نقد و بررسی کاربران">
       <SectionHeader
         as="h3"
         title="نقد و بررسی"
@@ -132,11 +132,11 @@ export function ProductReview({
 
       {auth.status === "loading" ? (
         <div
-          className="mx-16 h-112 animate-pulse rounded-xxl bg-surface"
+          className="mx-16 h-[176px] animate-pulse rounded-xxl bg-surface-soft"
           aria-label="در حال بررسی ورود"
         />
       ) : auth.status !== "authenticated" ? (
-        <div className="mx-16 rounded-xxl bg-surface px-16 py-48 text-center [direction:rtl]">
+        <div className="mx-16 rounded-xxl bg-surface-soft px-16 py-48 text-center [direction:rtl]">
           <p className="m-0 font-sans text-label-14 text-surface-neutral-high-emphasis">
             برای درج نظر وارد حساب کاربری خود شوید.
           </p>
@@ -151,7 +151,7 @@ export function ProductReview({
         </div>
       ) : (
         <form
-          className="mx-16 flex flex-col gap-8 pb-16 [direction:rtl]"
+          className="mx-16 flex flex-col gap-8 [direction:rtl]"
           noValidate
           onSubmit={handleSubmit}
         >

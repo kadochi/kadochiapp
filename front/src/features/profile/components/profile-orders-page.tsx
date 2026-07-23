@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/features/auth/auth-provider";
 import { tomanAmount } from "@/features/cart/utils/money";
-import { listProfileOrders } from "../services/profile";
+import { listProfileOrders, retryProfileOrderPayment } from "../services/profile";
 import type { ProfileOrder } from "../types";
 
 type OrderGroup = "current" | "completed" | "cancelled";
@@ -27,7 +27,7 @@ const orderGroups: Array<{ id: OrderGroup; label: string }> = [
 
 function orderGroup(status: string): OrderGroup {
   if (status === "completed") return "completed";
-  if (["cancelled", "canceled", "refunded", "failed", "draft"].includes(status))
+  if (["cancelled", "canceled", "refunded", "failed"].includes(status))
     return "cancelled";
   return "current";
 }
@@ -36,6 +36,8 @@ function orderStatus(status: string) {
   switch (status) {
     case "pending":
     case "pending-payment":
+    case "draft":
+    case "checkout-draft":
       return {
         label: "در انتظار پرداخت",
         variant: "danger" as const,
@@ -85,12 +87,25 @@ function OrderCard({ order }: { order: ProfileOrder }) {
   const status = orderStatus(order.status);
   const visibleItems = order.items.slice(0, 2);
   const hiddenItemCount = Math.max(0, order.items.length - visibleItems.length);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const canRetryPayment = ["draft", "checkout-draft", "pending", "pending-payment"].includes(order.status);
+
+  async function retryPayment() {
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      const { redirectUrl } = await retryProfileOrderPayment(order.id);
+      window.location.assign(redirectUrl);
+    } catch {
+      setRetryError("شروع دوباره پرداخت ممکن نشد. لطفاً دوباره تلاش کنید.");
+      setRetrying(false);
+    }
+  }
 
   return (
-    <Link
-      className="grid gap-16 border-b border-border-low-emphasis bg-surface-background py-24 text-surface-neutral-high-emphasis no-underline transition-colors hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary"
-      href={`/profile/orders/${order.id}`}
-    >
+    <div className="grid gap-16 border-b border-border-low-emphasis bg-surface-background py-24 text-surface-neutral-high-emphasis">
+      <Link className="grid gap-16 no-underline transition-colors hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary" href={`/profile/orders/${order.id}`}>
       <div className="flex items-center justify-between gap-12">
         <div className="grid gap-4">
           <strong className="text-title-16 font-bold leading-[var(--text-title-16--line-height)] text-surface-neutral-high-emphasis">
@@ -147,7 +162,16 @@ function OrderCard({ order }: { order: ProfileOrder }) {
           ) : null}
         </div>
       </div>
-    </Link>
+      </Link>
+      {canRetryPayment ? (
+        <div className="grid gap-8">
+          <Button loading={retrying} onClick={() => void retryPayment()} variant="secondary-filled">
+            پرداخت مجدد
+          </Button>
+          {retryError ? <p className="text-label-12 text-error">{retryError}</p> : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

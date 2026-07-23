@@ -38,6 +38,10 @@ export const profileOrderListSchema = z.object({
   totalPages: z.number().int().nonnegative(),
 }).strict();
 
+export const profileOrderRetryPaymentSchema = z.object({
+  redirectUrl: z.string().url(),
+}).strict();
+
 export const profileOrderDetailSchema = profileOrderSchema.extend({
   sender: z.string(),
   receiver: z.string(),

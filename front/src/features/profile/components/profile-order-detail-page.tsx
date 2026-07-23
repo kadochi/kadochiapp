@@ -24,7 +24,6 @@ const CANCELLED_ORDER_STATUSES = new Set([
   "canceled",
   "refunded",
   "failed",
-  "draft",
 ]);
 
 function formatMoney(money: ProfileOrderDetail["total"]) {

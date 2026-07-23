@@ -4,6 +4,7 @@ import type {
   profileOrderDetailSchema,
   profileOrderItemSchema,
   profileOrderListSchema,
+  profileOrderRetryPaymentSchema,
   profileOrderSchema,
   profileProductActionSchema,
   profileProductListSchema,
@@ -17,6 +18,7 @@ export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type ProfileOrderItem = z.infer<typeof profileOrderItemSchema>;
 export type ProfileOrder = z.infer<typeof profileOrderSchema>;
 export type ProfileOrderList = z.infer<typeof profileOrderListSchema>;
+export type ProfileOrderRetryPayment = z.infer<typeof profileOrderRetryPaymentSchema>;
 export type ProfileOrderDetail = z.infer<typeof profileOrderDetailSchema>;
 export type ProfileProductAction = z.infer<typeof profileProductActionSchema>;
 export type ProfileProductList = z.infer<typeof profileProductListSchema>;
