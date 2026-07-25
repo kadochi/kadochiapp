@@ -418,8 +418,8 @@ function DeliveryStep(props: {
 }) {
   return <>
     <SectionHeader as="h2" subtitle="بازه زمانی تحویل را انتخاب کنید." title="انتخاب زمان دریافت" />
-    <section className="pb-16">
-      <div className="flex snap-x snap-mandatory gap-16 overflow-x-auto px-16 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <section className="px-16 pb-16">
+      <div className="flex snap-x snap-mandatory gap-16 overflow-x-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {props.state.deliverySlots.map((slot) => {
           const selected = slot.id === props.deliverySlotId;
           const date = deliveryDate(slot.date);

@@ -11,10 +11,13 @@ import { Divider } from "@/components/ui/divider";
 import { AboutKadochi } from "@/features/landing/components/about-kadochi";
 import { CategoryRail } from "@/features/landing/components/category-rail";
 import { LandingProductRail } from "@/features/landing/components/landing-product-rail";
+import { MagazineRail } from "@/features/landing/components/magazine-rail";
 import { OccasionPrompt } from "@/features/landing/components/occasion-prompt";
 import { UpcomingOccasionRail } from "@/features/landing/components/upcoming-occasion-rail";
 import { getHomepageContent } from "@/features/content/services/content.server";
 import type { HomepageContent } from "@/features/content/types";
+import { listMagazineArticles } from "@/features/magazine/services/magazine.server";
+import type { MagazineArticle } from "@/features/magazine/types";
 import {
   listCategories,
   listProducts,
@@ -89,12 +92,13 @@ function toHeroSlides(content: HomepageContent): HeroSlide[] {
 }
 
 async function getLandingData() {
-  const [content, latest, popular, categories, tags] = await Promise.all([
+  const [content, latest, popular, categories, tags, magazine] = await Promise.all([
     fallback(getHomepageContent(), emptyContent),
     fallback(listProducts({ order: "desc", orderby: "date", perPage: 12 }), { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 }),
     fallback(listProducts({ order: "desc", orderby: "popularity", perPage: 12 }), { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 }),
     fallback(listCategories({ hideEmpty: true, perPage: 12 }), [] as ProductCategory[]),
     fallback(listProductTags(), []),
+    fallback(listMagazineArticles({ perPage: 4 }), { items: [] as MagazineArticle[], page: 1, perPage: 4, total: 0, totalPages: 0 }),
   ]);
   // Kadochi.Old used the long-standing fast-delivery tag (ID 25) directly.
   // Resolve its slug when available, but retain the legacy ID so this rail is
@@ -105,7 +109,7 @@ async function getLandingData() {
     { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 },
   );
 
-  return { categories, content, fastDelivery: fastDelivery.items, latest: latest.items, popular: popular.items };
+  return { categories, content, fastDelivery: fastDelivery.items, latest: latest.items, magazine: magazine.items, popular: popular.items };
 }
 
 const services = [
@@ -118,7 +122,7 @@ const services = [
 ] as const;
 
 export default async function Homepage() {
-  const { categories, content, fastDelivery, latest, popular } = await getLandingData();
+  const { categories, content, fastDelivery, latest, magazine, popular } = await getLandingData();
   const heroSlides = toHeroSlides(content);
   const siteLd = {
     "@context": "https://schema.org",
@@ -201,6 +205,9 @@ export default async function Homepage() {
       <Divider size="md" variant="spacer" />
       <AboutKadochi />
       <CategoryRail items={categories} />
+
+      <Divider size="md" variant="spacer" />
+      <MagazineRail articles={magazine} />
       <script dangerouslySetInnerHTML={{ __html: JSON.stringify(siteLd) }} type="application/ld+json" />
       <script dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationLd) }} type="application/ld+json" />
     </LayoutContent>

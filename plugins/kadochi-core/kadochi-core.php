@@ -25,6 +25,7 @@ final class Kadochi_Core {
 	const CHECKOUT_FIELD_LOCATION = 'kadochi/location';
 	const CHECKOUT_FIELD_OPERATION = 'kadochi/operation-id';
 	const PRODUCT_ACTIONS_DB_VERSION = '1';
+	const EDITORIAL_CAPABILITIES_VERSION = '2';
 	const PRODUCT_VIEW_COUNT_META_KEY = '_kadochi_product_view_count';
 	const DRAFT_ORDER_EXPIRATION_SECONDS = 3600;
 	const DRAFT_ORDER_EXPIRY_HOOK = 'kadochi_expire_draft_orders';
@@ -36,6 +37,7 @@ final class Kadochi_Core {
 
 	public function boot() {
 		self::maybe_install_product_actions_table();
+		self::maybe_grant_editorial_capabilities();
 		add_action( 'init', array( $this, 'register_post_types' ), 5 );
 		add_action( 'init', array( $this, 'schedule_draft_order_expiry' ) );
 		add_action( self::DRAFT_ORDER_EXPIRY_HOOK, array( $this, 'expire_stale_draft_orders' ) );
@@ -70,6 +72,7 @@ final class Kadochi_Core {
 
 	public static function activate() {
 		self::grant_editorial_capabilities();
+		update_option( 'kadochi_editorial_capabilities_version', self::EDITORIAL_CAPABILITIES_VERSION, false );
 		self::install_product_actions_table();
 		flush_rewrite_rules();
 	}
@@ -118,7 +121,7 @@ final class Kadochi_Core {
 	}
 
 	private static function grant_editorial_capabilities() {
-		$types = array( 'slider' => array( 'slider', 'sliders' ), 'banner' => array( 'banner', 'banners' ), 'hero' => array( 'hero', 'heroes' ), 'occasion' => array( 'occasion', 'occasions' ) );
+		$types = array( 'slider' => array( 'slider', 'sliders' ), 'banner' => array( 'banner', 'banners' ), 'hero' => array( 'hero', 'heroes' ), 'magazine' => array( 'magazine', 'magazines' ), 'occasion' => array( 'occasion', 'occasions' ) );
 		foreach ( array( 'administrator', 'editor', 'shop_manager' ) as $role_name ) {
 			$role = get_role( $role_name );
 			if ( ! $role ) {
@@ -132,10 +135,22 @@ final class Kadochi_Core {
 		}
 	}
 
+	/** Applies capabilities on plugin upgrades as well as first activation. */
+	private static function maybe_grant_editorial_capabilities() {
+		if ( self::EDITORIAL_CAPABILITIES_VERSION === get_option( 'kadochi_editorial_capabilities_version' ) ) {
+			return;
+		}
+		self::grant_editorial_capabilities();
+		update_option( 'kadochi_editorial_capabilities_version', self::EDITORIAL_CAPABILITIES_VERSION, false );
+	}
+
 	public function register_post_types() {
 		$this->register_post_type( 'slider', 'Sliders', 'Slider', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-images-alt2' );
 		$this->register_post_type( 'banner', 'Banners', 'Banner', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-megaphone' );
 		$this->register_post_type( 'hero', 'Heroes', 'Hero', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-superhero' );
+		// Editorial articles are separate from WordPress posts so store content and
+		// Magazine publishing can be managed independently in wp-admin.
+		$this->register_post_type( 'magazine', 'Magazine', 'مقاله', array( 'title', 'editor', 'thumbnail', 'author', 'excerpt' ), true, 'dashicons-welcome-write-blog' );
 		$this->register_post_type( 'occasion', 'Occasions', 'Occasion', array( 'title', 'editor', 'thumbnail', 'author' ), false, 'dashicons-calendar-alt' );
 	}
 
@@ -147,6 +162,7 @@ final class Kadochi_Core {
 			'slider'   => array( 'slider', 'sliders' ),
 			'banner'   => array( 'banner', 'banners' ),
 			'hero'     => array( 'hero', 'heroes' ),
+			'magazine' => array( 'magazine', 'magazines' ),
 			'occasion' => array( 'occasion', 'occasions' ),
 		);
 		$singular = $capability_bases[ $slug ][0];
@@ -165,6 +181,8 @@ final class Kadochi_Core {
 				'has_archive' => false,
 				'rewrite' => $legacy_public,
 				'query_var' => $legacy_public,
+				// Reuse the familiar WordPress category editor for Magazine topics.
+				'taxonomies' => 'magazine' === $slug ? array( 'category' ) : array(),
 				'menu_icon' => $menu_icon,
 				'supports' => $supports,
 				'capability_type' => array( $singular, $plural ),

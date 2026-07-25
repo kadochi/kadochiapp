@@ -71,6 +71,7 @@ const navigationItems: readonly NavigationItem[] = [
   { href: "/products?category=flower", label: "گل" },
   { href: "/products?category=chocolate", label: "کیک تولد" },
   { href: "/occasions", label: "مناسبت‌ها" },
+  { href: "/magazine", label: "مجله" },
 ];
 
 function getAccountLabel(user: HeaderUser | null) {

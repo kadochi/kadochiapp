@@ -44,6 +44,7 @@ const primaryLinks = [
   { label: "خرید گل", href: "/products?category=flower" },
   { label: "خرید کیک تولد", href: "/products?category=chocolate" },
   { label: "تقویم مناسبت‌ها", href: "/occasions" },
+  { label: "مجله کادوچی", href: "/magazine" },
 ] as const satisfies readonly FooterLink[];
 
 const occasionLinks = [

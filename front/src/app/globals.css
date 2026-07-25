@@ -306,3 +306,69 @@
     padding-bottom: var(--bottom-nav-safe);
   }
 }
+
+/* WordPress authoring remains flexible, while published Magazine content
+ * inherits the storefront's measured type, spacing, and green link language. */
+.magazine-content > :first-child {
+  margin-top: 0;
+}
+
+.magazine-content > :last-child {
+  margin-bottom: 0;
+}
+
+.magazine-content p,
+.magazine-content ul,
+.magazine-content ol,
+.magazine-content blockquote,
+.magazine-content figure,
+.magazine-content pre {
+  margin-top: var(--spacing-20);
+  margin-bottom: var(--spacing-20);
+}
+
+.magazine-content h2,
+.magazine-content h3,
+.magazine-content h4 {
+  margin-top: var(--spacing-40);
+  margin-bottom: var(--spacing-12);
+  color: var(--color-surface-neutral-high-emphasis);
+  font-weight: var(--font-weight-bold);
+}
+
+.magazine-content h2 {
+  font-size: var(--text-heading-24);
+  line-height: var(--text-heading-24--line-height);
+}
+
+.magazine-content h3 {
+  font-size: var(--text-title-18);
+  line-height: var(--text-title-18--line-height);
+}
+
+.magazine-content a {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+.magazine-content ul,
+.magazine-content ol {
+  padding-right: var(--spacing-24);
+  padding-left: 0;
+}
+
+.magazine-content blockquote {
+  border-right: var(--spacing-4) solid var(--color-primary);
+  padding: var(--spacing-12) var(--spacing-16);
+  color: var(--color-surface-neutral-high-emphasis);
+  background: var(--color-primary-container);
+  border-radius: var(--radius-s);
+}
+
+.magazine-content img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: var(--spacing-24) auto;
+  border-radius: var(--radius-l);
+}

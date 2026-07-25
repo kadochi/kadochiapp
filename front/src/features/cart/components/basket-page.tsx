@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Divider } from "@/components/ui/divider";
 import { InputStepper } from "@/components/ui/input-stepper";
 import { NormalPrice, SumPrice } from "@/components/layout/price";
 import StateMessage from "@/components/layout/state-message";
@@ -31,39 +32,42 @@ export function BasketPage({ initialCart, loadError }: { initialCart: Cart | nul
 
   return (
     <div className="mx-auto w-full max-w-[580px] pb-[calc(var(--spacing-128)+max(env(safe-area-inset-bottom),var(--spacing-24)))] [direction:rtl]">
-      <div className="space-y-12 px-16 pt-12">
-        {loadError || error ? <Alert tone="error" onDismiss={dismissError}>{error ?? loadError}</Alert> : null}
-        {cart.items.map((item) => {
+      <div className="px-16 pt-12">
+        {loadError || error ? <Alert className="mb-12" tone="error" onDismiss={dismissError}>{error ?? loadError}</Alert> : null}
+        {cart.items.map((item, index) => {
           const pending = pendingItems.has(item.key);
           const disabled = pending || !item.quantityLimits.editable;
           return (
-            <article key={item.key} className="flex flex-row-reverse items-center gap-8 rounded-l border-b border-border-low-emphasis bg-surface-background py-12">
-              <InputStepper
-                aria-label={`تعداد ${item.name}`}
-                decrementLabel="کاهش تعداد"
-                disabled={disabled}
-                incrementLabel="افزایش تعداد"
-                max={item.quantityLimits.maximum}
-                min={item.quantityLimits.minimum}
-                onRemove={() => remove(item.key)}
-                onValueChange={(quantity) => changeQuantity(item.key, quantity)}
-                removeLabel={`حذف ${item.name}`}
-                size="sm"
-                step={item.quantityLimits.multipleOf}
-                value={item.quantity}
-                variant="subtle"
-              />
-              <div className="min-w-0 flex-1">
-                <h2 className="line-clamp-2 text-title-14 font-bold text-surface-neutral-high-emphasis">{item.name}</h2>
-                {item.fastDeliveryEligible ? <p className="mt-4 text-label-12 text-success">ارسال سریع در تهران</p> : null}
-                <div className="mt-4">
-                  <NormalPrice amount={tomanAmount(item.lineTotal)} size="M" />
+            <div key={item.key}>
+              <article className="flex flex-row-reverse items-center gap-8 bg-surface-background py-12">
+                <InputStepper
+                  aria-label={`تعداد ${item.name}`}
+                  decrementLabel="کاهش تعداد"
+                  disabled={disabled}
+                  incrementLabel="افزایش تعداد"
+                  max={item.quantityLimits.maximum}
+                  min={item.quantityLimits.minimum}
+                  onRemove={() => remove(item.key)}
+                  onValueChange={(quantity) => changeQuantity(item.key, quantity)}
+                  removeLabel={`حذف ${item.name}`}
+                  size="sm"
+                  step={item.quantityLimits.multipleOf}
+                  value={item.quantity}
+                  variant="subtle"
+                />
+                <div className="min-w-0 flex-1">
+                  <h2 className="line-clamp-2 text-title-14 font-bold text-surface-neutral-high-emphasis">{item.name}</h2>
+                  {item.fastDeliveryEligible ? <p className="mt-4 text-label-12 text-success">ارسال سریع در تهران</p> : null}
+                  <div className="mt-4">
+                    <NormalPrice amount={tomanAmount(item.lineTotal)} size="M" />
+                  </div>
                 </div>
-              </div>
-              <div className="flex size-64 shrink-0 items-center justify-center overflow-hidden rounded-m bg-surface-soft">
-                {item.imageUrl ? <img alt="" className="size-full object-cover" src={item.imageUrl} /> : null}
-              </div>
-            </article>
+                <div className="flex size-64 shrink-0 items-center justify-center overflow-hidden rounded-m bg-surface-soft">
+                  {item.imageUrl ? <img alt="" className="size-full object-cover" src={item.imageUrl} /> : null}
+                </div>
+              </article>
+              {index < cart.items.length - 1 ? <Divider /> : null}
+            </div>
           );
         })}
       </div>

@@ -120,7 +120,7 @@ export function ProductSearch() {
       <div className="px-16 pb-4 pt-16">
         <button
           aria-haspopup="dialog"
-          className="flex h-56 w-full cursor-text items-center gap-12 rounded-rounded border border-border-high-emphasis bg-surface-background px-16 text-start text-label-16 text-surface-neutral-mid-emphasis transition-[border-color,box-shadow] hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+          className="flex h-48 w-full cursor-text items-center gap-12 rounded-rounded border border-border-high-emphasis bg-surface-background px-16 text-start text-label-16 text-surface-neutral-mid-emphasis transition-[border-color,box-shadow] hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
           onClick={() => setIsOpen(true)}
           type="button"
         >
@@ -150,7 +150,7 @@ export function ProductSearch() {
               aria-label="جستجو در محصولات"
               autoComplete="off"
               autoFocus
-              className="[&>div]:rounded-rounded"
+              className="[&>div]:h-48 [&>div]:rounded-rounded"
               inputMode="search"
               leadingIcon={<Search />}
               onChange={(event) => updateQuery(event.target.value)}
