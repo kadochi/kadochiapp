@@ -10,14 +10,19 @@ import { ProductCardSkeleton } from "./product-card-skeleton";
 
 export type ProductsSliderProps = {
   items: readonly Product[];
+  /** Carousels normally omit unavailable products; New Products opts in. */
+  showOutOfStock?: boolean;
 };
 
 /** Renders supplied products in the catalog's responsive, right-to-left carousel. */
-export function ProductsSlider({ items }: Readonly<ProductsSliderProps>) {
+export function ProductsSlider({ items, showOutOfStock = false }: Readonly<ProductsSliderProps>) {
+  const visibleItems = showOutOfStock ? items : items.filter((product) => product.inStock);
   const { hasMultipleSlides, slides, swiperBreakpoints } =
-    useProductsSlider(items);
-  const isLoading = slides.length === 0;
+    useProductsSlider(visibleItems);
+  const isLoading = items.length === 0;
   const placeholderCount = 8;
+
+  if (!isLoading && slides.length === 0) return null;
 
   return (
     <section

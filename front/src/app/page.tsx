@@ -159,6 +159,7 @@ export default async function Homepage() {
       <LandingProductRail
         href="/products?orderby=date&order=desc"
         items={latest}
+        showOutOfStock
         subtitle="محصولاتی که به تازگی اضافه شده‌اند"
         title="جدیدترین کادوها"
       />

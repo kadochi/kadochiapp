@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { cva } from "class-variance-authority";
+import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 type SideMenuItem = {
@@ -187,16 +188,7 @@ function SideMenu({
           onClick={onClose}
         >
           <div className="flex flex-row-reverse items-center gap-12">
-            <div className="grid size-48 place-items-center overflow-hidden rounded-rounded bg-secondary-container">
-              <img
-                alt=""
-                className="size-24"
-                height={40}
-                loading="lazy"
-                src={profileUser?.avatarSrc || "/icons/user-purple.svg"}
-                width={40}
-              />
-            </div>
+            <Avatar alt={displayName} size="lg" src={profileUser?.avatarSrc ?? undefined} />
             <div className="text-right">
               <div className="font-sans text-label-16 font-bold leading-[var(--text-label-16--line-height)] text-text-primary">
                 {displayName}

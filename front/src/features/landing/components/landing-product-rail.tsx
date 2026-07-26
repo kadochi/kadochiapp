@@ -15,6 +15,7 @@ type LandingProductRailProps = {
   href: string;
   items: readonly Product[];
   badge?: "fast-delivery";
+  showOutOfStock?: boolean;
 };
 
 /** A homepage product rail composed from the catalog card and slider primitives. */
@@ -24,7 +25,11 @@ export function LandingProductRail({
   href,
   items,
   badge,
+  showOutOfStock = false,
 }: Readonly<LandingProductRailProps>) {
+  const visibleItems = showOutOfStock ? items : items.filter((product) => product.inStock);
+  if (!visibleItems.length) return null;
+
   return (
     <section aria-labelledby={`${title}-heading`}>
       <SectionHeader
@@ -52,7 +57,7 @@ export function LandingProductRail({
         subtitle={subtitle}
         title={<span className="whitespace-nowrap" id={`${title}-heading`}>{title}</span>}
       />
-      <ProductsSlider items={items} />
+      <ProductsSlider items={visibleItems} showOutOfStock={showOutOfStock} />
     </section>
   );
 }

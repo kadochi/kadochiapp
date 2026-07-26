@@ -34,13 +34,14 @@ import { mapReview } from "../utils/map-review";
 import { isProductIdIdentifier } from "../utils/product-identifier";
 import { decodeProductSlug, wordpressProductSlug } from "../utils/product-slug";
 import { stripHtml } from "../utils/strip-html";
+import { availabilityFirstPage, type AvailabilityPartition } from "../utils/availability-pagination";
 
 // The WordPress REST lookup is occasionally slower while its PHP workers are
 // busy. PDP data is public and cacheable, so it can wait longer than cart and
 // authentication requests without turning a temporary delay into a page error.
 const productReadTimeoutMs = 20_000;
 
-function productParams(query: ProductQuery): string {
+function productParams(query: ProductQuery, stockStatus?: readonly string[]): string {
   const input = productQuerySchema.parse(query);
   const params = new URLSearchParams({ page: String(input.page), per_page: String(input.perPage) });
   if (input.search) params.set("search", input.search);
@@ -58,14 +59,28 @@ function productParams(query: ProductQuery): string {
   if (input.maxPrice) params.set("max_price", String(Number(input.maxPrice) * 10));
   if (input.exclude?.length) params.set("exclude", input.exclude.join(","));
   if (input.include?.length) params.set("include", input.include.join(","));
+  stockStatus?.forEach((status) => params.append("stock_status[]", status));
   return params.toString();
 }
 
-/** Public, cacheable Woo Store API reads. Each method validates upstream data before returning it. */
-export async function listProducts(query: ProductQuery = {}): Promise<ProductListResult> {
-  const input = productQuerySchema.parse(query);
+const availabilityStockStatuses: Record<AvailabilityPartition, readonly string[]> = {
+  // WooCommerce considers products accepting backorders purchasable, matching
+  // the Store API's is_in_stock flag used by the catalog card.
+  available: ["instock", "onbackorder"],
+  unavailable: ["outofstock"],
+};
+
+async function listProductsByAvailability(
+  query: ProductQuery,
+  partition: AvailabilityPartition,
+  page: number,
+): Promise<ProductListResult> {
+  const input = productQuerySchema.parse({ ...query, page });
   const id = randomUUID();
-  const response = await wordpressFetch(`/wp-json/wc/store/v1/products?${productParams(input)}`, { requestId: id, next: { revalidate: 60, tags: ["products"] } });
+  const response = await wordpressFetch(
+    `/wp-json/wc/store/v1/products?${productParams(input, availabilityStockStatuses[partition])}`,
+    { requestId: id, next: { revalidate: 60, tags: ["products", `products:${partition}`] } },
+  );
   const total = Number(response.headers.get("x-wp-total"));
   const totalPages = Number(response.headers.get("x-wp-totalpages"));
   const items = (await parseUpstreamJson(response, (value) => upstreamProductsSchema.parse(value), id)).map(mapProduct);
@@ -75,6 +90,47 @@ export async function listProducts(query: ProductQuery = {}): Promise<ProductLis
     perPage: input.perPage,
     total: Number.isSafeInteger(total) && total >= 0 ? total : items.length,
     totalPages: Number.isSafeInteger(totalPages) && totalPages >= 0 ? totalPages : (items.length ? 1 : 0),
+  };
+}
+
+/** Public, cacheable Woo Store API reads. Each method validates upstream data before returning it. */
+export async function listProducts(query: ProductQuery = {}): Promise<ProductListResult> {
+  const input = productQuerySchema.parse(query);
+  const firstPages = await Promise.all([
+    listProductsByAvailability(input, "available", 1),
+    listProductsByAvailability(input, "unavailable", 1),
+  ]);
+  const partitions: Record<AvailabilityPartition, ProductListResult> = {
+    available: firstPages[0],
+    unavailable: firstPages[1],
+  };
+  const { segments, total, totalPages } = availabilityFirstPage({
+    page: input.page,
+    perPage: input.perPage,
+    availableTotal: partitions.available.total,
+    unavailableTotal: partitions.unavailable.total,
+  });
+  const pages = new Map<AvailabilityPartition, Map<number, ProductListResult>>([
+    ["available", new Map([[1, partitions.available]])],
+    ["unavailable", new Map([[1, partitions.unavailable]])],
+  ]);
+  const segmentResults = await Promise.all(segments.map(async (segment) => {
+    const partitionPages = pages.get(segment.partition)!;
+    let result = partitionPages.get(segment.page);
+    if (!result) {
+      result = await listProductsByAvailability(input, segment.partition, segment.page);
+      partitionPages.set(segment.page, result);
+    }
+    return { result, segment };
+  }));
+  const items = segmentResults.flatMap(({ result, segment }) => result.items.slice(segment.offset, segment.offset + segment.take));
+
+  return {
+    items,
+    page: input.page,
+    perPage: input.perPage,
+    total,
+    totalPages,
   };
 }
 

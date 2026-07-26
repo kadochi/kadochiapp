@@ -11,6 +11,7 @@ export type SimilarProductsProps = {
 /** Fetches related products and hands them to the existing slider. */
 export async function SimilarProducts({ categoryId, excludeId }: Readonly<SimilarProductsProps>) {
   const products = await listSimilarProducts({ categoryId, excludeId });
+  const availableProducts = products.filter((product) => product.inStock);
 
   const allHref = categoryId ? `/products?category=${categoryId}` : "/products?orderby=popularity";
 
@@ -25,8 +26,8 @@ export async function SimilarProducts({ categoryId, excludeId }: Readonly<Simila
           </Button>
         }
       />
-      {products.length ? (
-        <ProductsSlider items={products} />
+      {availableProducts.length ? (
+        <ProductsSlider items={availableProducts} />
       ) : (
         <p className="px-16 py-16 text-center font-sans text-body-14 text-surface-neutral-mid-emphasis">
           محصول مشابه دیگری برای نمایش پیدا نشد.
