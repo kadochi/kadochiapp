@@ -172,8 +172,10 @@ describe("checkout service", () => {
         status: "processing",
         createdAt: "2026-07-18T10:00:00+03:30",
         total: { amount: "58000000", currencyCode: "IRR", minorUnit: 0 },
+        sender: "Sender Name",
         recipient: { firstName: "Recipient", lastName: "Person" },
         deliverySlot: input().deliverySlotId,
+        address: "تهران، Tehran delivery address، Unit 2",
       }));
 
     await expect(checkout(input(), "request-1")).resolves.toMatchObject({

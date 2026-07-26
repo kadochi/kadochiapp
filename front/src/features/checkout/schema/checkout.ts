@@ -98,8 +98,10 @@ export const orderSummarySchema = z.object({
   status: z.string(),
   createdAt: z.string(),
   total: moneySchema,
+  sender: z.string(),
   recipient: z.object({ firstName: z.string(), lastName: z.string() }).strict(),
   deliverySlot: z.string().nullable(),
+  address: z.string(),
 }).strict();
 
 const upstreamCheckoutResultSchema = z.object({

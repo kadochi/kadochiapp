@@ -52,6 +52,7 @@ export function useProductPagination({
     items,
     isLoading,
     hasMore: page < pageCount,
+    page,
     error,
     loadMore,
   };

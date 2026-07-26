@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ProfileOrderDetailPage } from "@/features/profile/components/profile-order-detail-page";
 
 export const metadata: Metadata = {
-  title: "جزئیات سفارش | کادوچی",
+  title: "کادوچی | جزئیات سفارش",
   description: "مشاهده وضعیت و جزئیات سفارش شما در کادوچی.",
 };
 

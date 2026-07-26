@@ -27,7 +27,7 @@ export function CategoryRail({ items }: Readonly<CategoryRailProps>) {
           860: { slidesOffsetAfter: 16, slidesOffsetBefore: 16, slidesPerView: 5.4 },
           1024: { allowTouchMove: false, slidesOffsetAfter: 0, slidesOffsetBefore: 0, slidesPerView: 8 },
         }}
-        className="min-[1024px]:px-16"
+        className="carousel-rail carousel-rail--categories min-[1024px]:px-16"
         dir="rtl"
         spaceBetween={12}
         watchOverflow

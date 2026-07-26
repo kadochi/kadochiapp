@@ -4,27 +4,12 @@ import { Button } from "@/components/ui/button";
 import StateMessage from "@/components/layout/state-message";
 import { formatIrrAsToman } from "@/features/cart/utils/money";
 import { OrderCelebration } from "./order-celebration";
+import { OrderFailure } from "./order-failure";
 import type { OrderSummary } from "../types";
 
 export function OrderResult({ order, paid }: { order: OrderSummary; paid: boolean }) {
   if (paid) return <OrderSuccess order={order} />;
-
-  const recipient = [order.recipient.firstName, order.recipient.lastName].filter(Boolean).join(" ") || "گیرنده سفارش";
-  return (
-    <div className="mx-auto max-w-[640px] [direction:rtl]">
-      <StateMessage
-        imageSrc="/images/illustration-failed.png"
-        title="پرداخت سفارش انجام نشد"
-        subtitle="وضعیت سفارش را درگاه پرداخت تأیید نکرد. از ایجاد پرداخت تکراری خودداری کنید."
-        actions={<Button asChild size="large" variant="primary-filled"><Link href="/products">بازگشت به محصولات</Link></Button>}
-      />
-      <div className="mx-16 rounded-l border border-border-low-emphasis bg-surface-background p-16 text-label-14">
-        <p className="flex justify-between"><span className="text-surface-neutral-mid-emphasis">مبلغ سفارش</span><strong>{formatIrrAsToman(order.total)}</strong></p>
-        <p className="mt-12 flex justify-between"><span className="text-surface-neutral-mid-emphasis">وضعیت</span><strong>{order.status}</strong></p>
-        {order.deliverySlot ? <p className="mt-12 flex justify-between gap-16"><span className="text-surface-neutral-mid-emphasis">بازه ارسال</span><strong className="text-left">{order.deliverySlot}</strong></p> : null}
-      </div>
-    </div>
-  );
+  return <OrderFailure order={order} />;
 }
 
 function OrderSuccess({ order }: { order: OrderSummary }) {

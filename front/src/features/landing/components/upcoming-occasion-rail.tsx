@@ -114,6 +114,7 @@ function OccasionRailLoading() {
     <div className="pb-16 min-[1024px]:px-16 [&_.swiper-wrapper]:items-start">
       <Swiper
         breakpoints={occasionSliderBreakpoints}
+        className="carousel-rail carousel-rail--occasions"
         dir="rtl"
         spaceBetween={12}
         watchOverflow
@@ -173,6 +174,7 @@ export function UpcomingOccasionRail() {
     <div className="pb-16 min-[1024px]:px-16 [&_.swiper-wrapper]:items-start">
       <Swiper
         breakpoints={occasionSliderBreakpoints}
+        className="carousel-rail carousel-rail--occasions"
         dir="rtl"
         spaceBetween={12}
         watchOverflow

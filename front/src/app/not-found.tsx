@@ -6,10 +6,10 @@ import StateMessage from "@/components/layout/state-message";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
-  title: "خطای ۴۰۴ — صفحه پیدا نشد | کادوچی",
+  title: "کادوچی | خطای ۴۰۴ — صفحه پیدا نشد",
   description: "متاسفانه صفحه مورد نظر پیدا نشد.",
   openGraph: {
-    title: "خطای ۴۰۴ — صفحه پیدا نشد | کادوچی",
+    title: "کادوچی | خطای ۴۰۴ — صفحه پیدا نشد",
     description: "متاسفانه صفحه مورد نظر پیدا نشد.",
     url: "/404",
     siteName: "Kadochi",
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "خطای ۴۰۴ — صفحه پیدا نشد | کادوچی",
+    title: "کادوچی | خطای ۴۰۴ — صفحه پیدا نشد",
     description: "متاسفانه صفحه مورد نظر پیدا نشد.",
   },
 };

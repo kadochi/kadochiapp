@@ -25,7 +25,7 @@ export function MagazineSlider({ articles }: Readonly<MagazineSliderProps>) {
       <Swiper
         allowTouchMove={articles.length > 1}
         breakpoints={breakpoints}
-        className="w-full [&_.swiper-wrapper]:items-stretch"
+        className="carousel-rail carousel-rail--magazine w-full [&_.swiper-wrapper]:items-stretch"
         slidesPerView={1.4}
         spaceBetween={12}
         watchOverflow

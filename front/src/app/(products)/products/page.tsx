@@ -1,5 +1,6 @@
 import { cache } from "react";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
 import StateMessage from "@/components/layout/state-message";
 import SectionHeader from "@/components/layout/section-header";
@@ -12,6 +13,9 @@ import { ProductListPagination } from "@/features/products/components/product-li
 import { listCategories, listProducts, listProductTags } from "@/features/products/services/products.server";
 import type { ProductListResult, ProductQuery } from "@/features/products/types";
 import { parseProductListSearchParams, productListSearchKey, type SearchParamValue } from "@/features/products/utils/product-list-search";
+import { productUrl, serializeJsonLd } from "@/features/products/utils/product-seo";
+import { stripHtml } from "@/features/products/utils/strip-html";
+import { env } from "@/lib/server/env";
 
 type ProductsPageProps = {
   searchParams: Promise<Record<string, SearchParamValue>>;
@@ -35,11 +39,12 @@ async function getCatalogPage(searchParams: Record<string, SearchParamValue>) {
   const category = search.category
     ? categories.find((item) => String(item.id) === search.category || item.slug === search.category)
     : undefined;
-  const selectedTags = search.tags.map((reference) =>
-    tags.find((item) => String(item.id) === reference || item.slug === reference),
-  );
-  const hasUnknownFilter = Boolean(search.category && !category) || selectedTags.some((tag) => !tag);
-  const tagIds = selectedTags.flatMap((tag) => (tag ? [tag.id] : []));
+  const selectedTags = search.tags.flatMap((reference) => {
+    const tag = tags.find((item) => String(item.id) === reference || item.slug === reference);
+    return tag ? [tag] : [];
+  });
+  const hasUnknownFilter = Boolean(search.category && !category) || selectedTags.length !== search.tags.length;
+  const tagIds = selectedTags.map((tag) => tag.id);
   const query: ProductQuery = {
     page: search.page,
     perPage: 12,
@@ -54,11 +59,49 @@ async function getCatalogPage(searchParams: Record<string, SearchParamValue>) {
   };
   const result = hasUnknownFilter ? emptyResult(search.page, 12) : await listProducts(query);
 
-  return { search, categories, category, selectedTags: selectedTags.filter(Boolean), query, result };
+  return { hasUnknownFilter, search, categories, category, selectedTags, query, result };
+}
+
+/** Builds one stable query-string order for canonical, pagination, and internal URLs. */
+function catalogPath({
+  search,
+  category,
+  selectedTags,
+  page,
+}: {
+  search: ReturnType<typeof parseProductListSearchParams>;
+  category?: Awaited<ReturnType<typeof listCategories>>[number];
+  selectedTags: Awaited<ReturnType<typeof listProductTags>>;
+  page?: number;
+}) {
+  const params = new URLSearchParams();
+  if (category) params.set("category", category.slug);
+  if (selectedTags.length) params.set("tag", selectedTags.map((tag) => tag.slug).join(","));
+  if (search.search) params.set("q", search.search);
+  if (search.minPrice) params.set("min_price", search.minPrice);
+  if (search.maxPrice) params.set("max_price", search.maxPrice);
+  if (search.orderby !== "date") params.set("orderby", search.orderby);
+  if (search.order !== "desc") params.set("order", search.order);
+  if (page && page > 1) params.set("page", String(page));
+  return `/products${params.size ? `?${params.toString()}` : ""}`;
+}
+
+function listRobots(index: boolean): Metadata["robots"] {
+  return {
+    index,
+    follow: true,
+    googleBot: {
+      index,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  };
 }
 
 export async function generateMetadata({ searchParams }: ProductsPageProps): Promise<Metadata> {
-  const { search, category, selectedTags } = await getCatalogPage(await searchParams);
+  const { hasUnknownFilter, result, search, category, selectedTags } = await getCatalogPage(await searchParams);
   const selectedTag = selectedTags.length === 1 ? selectedTags[0] : undefined;
   const title = category
     ? `خرید کادو ${category.name}`
@@ -68,28 +111,31 @@ export async function generateMetadata({ searchParams }: ProductsPageProps): Pro
         ? `جستجو برای «${search.search}» در کادوچی`
         : "لیست محصولات کادویی";
   const description = category
-    ? `انواع هدیه و کادو در دسته‌بندی ${category.name} با امکان فیلتر بر اساس قیمت و مناسبت.`
+    ? category.description || `خرید انواع هدیه و کادو در دسته‌بندی ${category.name} با امکان فیلتر بر اساس قیمت و مناسبت.`
     : selectedTag
-      ? selectedTag.description || `محصولات کادویی مناسب ${selectedTag.name} با ارسال سریع.`
+      ? stripHtml(selectedTag.description) || `محصولات کادویی مناسب ${selectedTag.name} با ارسال سریع.`
       : search.search
         ? `نتایج جستجو برای «${search.search}» در فروشگاه کادوچی.`
         : "انواع هدایا و کادوهای مناسب برای مناسبت‌های مختلف، با امکان فیلتر بر اساس قیمت و دسته‌بندی.";
-  const canonical = new URLSearchParams();
-  if (search.category) canonical.set("category", search.category);
-  if (search.tags.length) canonical.set("tag", search.tags.join(","));
-  if (search.search) canonical.set("q", search.search);
-  if (search.page > 1) canonical.set("page", String(search.page));
+  const hasNonTaxonomyFacet = Boolean(
+    search.search || search.minPrice || search.maxPrice || search.orderby !== "date" || search.order !== "desc",
+  );
+  const indexable = !hasUnknownFilter && !hasNonTaxonomyFacet && selectedTags.length <= 1 && result.total > 0 && search.page <= result.totalPages;
+  const canonical = catalogPath({ category, page: search.page, search, selectedTags });
 
   return {
-    title,
+    title: `کادوچی | ${title}`,
     description: description.slice(0, 160),
-    alternates: { canonical: `/products${canonical.size ? `?${canonical}` : ""}` },
-    openGraph: { title, description: description.slice(0, 160), locale: "fa_IR", type: "website" },
+    alternates: { canonical },
+    robots: listRobots(indexable),
+    openGraph: { title: `کادوچی | ${title}`, description: description.slice(0, 160), locale: "fa_IR", type: "website", url: canonical },
+    twitter: { card: "summary", title: `کادوچی | ${title}`, description: description.slice(0, 160) },
   };
 }
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  const { search, categories, category, selectedTags, query, result } = await getCatalogPage(await searchParams);
+  const { hasUnknownFilter, search, categories, category, selectedTags, query, result } = await getCatalogPage(await searchParams);
+  if (!hasUnknownFilter && result.totalPages > 0 && search.page > result.totalPages) notFound();
   const selectedTag = selectedTags.length === 1 ? selectedTags[0] : undefined;
   const title = category
     ? `لیست کادوهای ${category.name}`
@@ -109,6 +155,30 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     ...(category ? [{ label: category.name }] : selectedTag ? [{ label: selectedTag.name }] : []),
   ];
   const catalogKey = `${productListSearchKey(search)}:${category?.id ?? ""}:${query.tags?.join(",") ?? ""}`;
+  const paginationBasePath = catalogPath({ category, search, selectedTags });
+  const siteUrl = new URL(env.KADOCHI_FRONTEND_URL);
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: breadcrumbs.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.label,
+      item: new URL(item.href ?? catalogPath({ category, page: search.page, search, selectedTags }), siteUrl).toString(),
+    })),
+  };
+  const itemListLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: title,
+    numberOfItems: result.items.length,
+    itemListElement: result.items.map((product, index) => ({
+      "@type": "ListItem",
+      position: (search.page - 1) * result.perPage + index + 1,
+      url: productUrl(product.slug, siteUrl),
+      name: product.name,
+    })),
+  };
 
   return (
     <>
@@ -134,6 +204,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             key={catalogKey}
             initialItems={result.items}
             initialPage={result.page}
+            paginationBasePath={paginationBasePath}
             query={query}
             totalPages={result.totalPages}
           />
@@ -150,6 +221,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           />
         )}
       </section>
+      <script dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbLd) }} type="application/ld+json" />
+      <script dangerouslySetInnerHTML={{ __html: serializeJsonLd(itemListLd) }} type="application/ld+json" />
     </>
   );
 }

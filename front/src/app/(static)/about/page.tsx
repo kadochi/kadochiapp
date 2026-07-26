@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import { Container } from "@/components/layout/container";
+
+export const metadata: Metadata = {
+  title: "کادوچی | درباره ما",
+  description: "با کادوچی، فروشگاه آنلاین هدیه، گل و کیک با امکان انتخاب آسان، بسته‌بندی اختصاصی و ارسال برای عزیزانتان آشنا شوید.",
+  alternates: { canonical: "/about" },
+};
 
 export default function AboutPage() {
   return (

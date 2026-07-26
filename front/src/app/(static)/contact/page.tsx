@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import { Container } from "@/components/layout/container";
+
+export const metadata: Metadata = {
+  title: "کادوچی | تماس با ما",
+  description: "راه‌های تماس با پشتیبانی کادوچی، شامل شماره تلفن، ایمیل و نشانی دفتر را مشاهده کنید.",
+  alternates: { canonical: "/contact" },
+};
 
 export default function ContactPage() {
   return (

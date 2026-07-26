@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Clock3, UserRound } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { Divider } from "@/components/ui/divider";
 import { MagazineCard } from "@/features/magazine/components/magazine-card";
 import { getMagazineArticleBySlug, listMagazineArticles } from "@/features/magazine/services/magazine.server";
 import { formatMagazineDate } from "@/features/magazine/utils/article-text";
@@ -26,15 +27,15 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { slug } = await params;
   const article = await loadArticle(slug);
   const canonical = `/magazine/${slug}`;
-  if (!article) return { title: "مقاله پیدا نشد | مجله کادوچی", alternates: { canonical } };
+  if (!article) return { title: "کادوچی | مقاله پیدا نشد", alternates: { canonical } };
 
   return {
-    title: `${article.title} | مجله کادوچی`,
+    title: `کادوچی | ${article.title}`,
     description: article.excerpt.slice(0, 160),
     alternates: { canonical },
     openGraph: {
       type: "article",
-      title: article.title,
+      title: `کادوچی | ${article.title}`,
       description: article.excerpt.slice(0, 160),
       locale: "fa_IR",
       publishedTime: article.publishedAt,
@@ -68,22 +69,23 @@ export default async function MagazineArticlePage({ params }: { params: Promise<
 
   return (
     <>
+      <Divider />
       <Breadcrumb items={[{ label: "خانه", href: "/" }, { label: "مجله", href: "/magazine" }, ...(category ? [{ label: category.name, href: `/magazine/category/${category.slug}` }] : []), { label: article.title }]} />
+      <Divider />
       <article className="mx-auto w-full max-w-[900px] px-16 py-32 min-[768px]:py-48">
+        <div className="relative mx-auto aspect-[16/9] max-w-[900px] overflow-hidden rounded-[var(--radius-xl)] bg-primary-container">
+          {article.image ? <img alt={article.image.alt || article.title} className="absolute inset-0 size-full object-cover" fetchPriority="high" src={article.image.url} /> : <span aria-hidden className="absolute inset-0 bg-[linear-gradient(145deg,var(--color-primary),var(--color-secondary))]" />}
+        </div>
+
         <header className="mx-auto max-w-[760px] text-right">
-          {category ? <Link className="font-sans text-label-14 font-bold text-primary no-underline" href={`/magazine/category/${category.slug}`}>{category.name}</Link> : <span className="font-sans text-label-14 font-bold text-primary">مجله کادوچی</span>}
-          <h1 className="mt-12 mb-0 font-sans text-heading-32 font-extrabold leading-[var(--text-heading-32--line-height)] text-surface-neutral-high-emphasis min-[768px]:text-heading-40 min-[768px]:leading-[var(--text-heading-40--line-height)]">{article.title}</h1>
-          {article.excerpt ? <p className="mt-16 mb-0 font-sans text-body-16 leading-[var(--text-body-16--line-height)] text-surface-neutral-mid-emphasis min-[768px]:text-title-18 min-[768px]:leading-[var(--text-title-18--line-height)]">{article.excerpt}</p> : null}
           <div className="mt-20 flex flex-wrap items-center gap-x-16 gap-y-8 font-sans text-label-14 text-surface-neutral-low-emphasis">
+            {category ? <Link className="font-bold text-primary no-underline" href={`/magazine/category/${category.slug}`}>{category.name}</Link> : <span className="font-bold text-primary">مجله کادوچی</span>}
             <span className="inline-flex items-center gap-6"><UserRound aria-hidden size={16} />{article.authorName}</span>
             <time dateTime={article.publishedAt}>{formatMagazineDate(article.publishedAt)}</time>
             <span className="inline-flex items-center gap-6"><Clock3 aria-hidden size={16} />{article.readingTime} دقیقه مطالعه</span>
           </div>
+          <h1 className="mt-12 mb-0 font-sans text-heading-32 font-extrabold leading-[var(--text-heading-32--line-height)] text-surface-neutral-high-emphasis min-[768px]:text-heading-40 min-[768px]:leading-[var(--text-heading-40--line-height)]">{article.title}</h1>
         </header>
-
-        <div className="relative mt-32 aspect-[16/9] overflow-hidden rounded-[var(--radius-xl)] bg-primary-container">
-          {article.image ? <img alt={article.image.alt || article.title} className="absolute inset-0 size-full object-cover" fetchPriority="high" src={article.image.url} /> : <span aria-hidden className="absolute inset-0 bg-[linear-gradient(145deg,var(--color-primary),var(--color-secondary))]" />}
-        </div>
 
         <div className="magazine-content mx-auto mt-32 max-w-[720px] font-sans text-body-16 leading-[2.1] text-surface-neutral-mid-emphasis" dangerouslySetInnerHTML={{ __html: article.content }} />
       </article>

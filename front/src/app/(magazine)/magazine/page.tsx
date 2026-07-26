@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { Divider } from "@/components/ui/divider";
 import { Label } from "@/components/ui/label";
 import { MagazineCard } from "@/features/magazine/components/magazine-card";
 import { listMagazineArticles } from "@/features/magazine/services/magazine.server";
@@ -9,11 +10,11 @@ import { listMagazineArticles } from "@/features/magazine/services/magazine.serv
 export const revalidate = 60;
 
 export const metadata: Metadata = {
-  title: "مجله کادوچی | ایده و راهنمای هدیه",
+  title: "کادوچی | مجله؛ ایده و راهنمای هدیه",
   description: "ایده‌های انتخاب هدیه، راهنمای خرید گل و کیک و نکته‌هایی برای ساختن لحظه‌های به‌یادماندنی در مجله کادوچی.",
   alternates: { canonical: "/magazine" },
   openGraph: {
-    title: "مجله کادوچی | ایده و راهنمای هدیه",
+    title: "کادوچی | مجله؛ ایده و راهنمای هدیه",
     description: "راهنمای انتخاب هدیه، گل و کیک از تحریریه کادوچی.",
     locale: "fa_IR",
     type: "website",
@@ -26,11 +27,14 @@ export default async function MagazinePage() {
     new Map(articles.flatMap((article) => article.categories).map((category) => [category.id, category])).values(),
   );
   const lead = articles[0];
-  const rest = articles.slice(1);
+  const supporting = articles.slice(1, 4);
+  const remaining = articles.slice(4);
 
   return (
     <>
+      <Divider />
       <Breadcrumb items={[{ label: "خانه", href: "/" }, { label: "مجله" }]} />
+      <Divider />
       <section className="border-b border-border-low-emphasis bg-secondary-container px-16 py-32 min-[768px]:py-48" aria-labelledby="magazine-title">
         <div className="mx-auto w-full max-w-[1200px]">
           <div className="inline-flex items-center gap-8 rounded-rounded bg-primary-container px-12 py-8 font-sans text-label-14 text-primary">
@@ -62,18 +66,25 @@ export default async function MagazinePage() {
 
         {lead ? (
           <>
-            <Link className="group grid overflow-hidden rounded-[var(--radius-xl)] bg-surface-soft text-inherit no-underline min-[768px]:grid-cols-[1.05fr_1fr]" href={`/magazine/${lead.slug}`}>
-              <div className="relative aspect-[16/10] overflow-hidden bg-primary-container min-[768px]:order-2 min-[768px]:aspect-auto min-[768px]:min-h-360">
-                {lead.image ? <img alt={lead.image.alt || lead.title} className="absolute inset-0 size-full object-cover transition-transform duration-500 group-hover:scale-105" fetchPriority="high" src={lead.image.url} /> : <span className="absolute inset-0 bg-[linear-gradient(145deg,var(--color-primary),var(--color-secondary))]" />}
-              </div>
-              <div className="flex flex-col justify-center p-24 min-[768px]:order-1 min-[768px]:p-48">
-                {lead.categories[0] ? <span className="font-sans text-label-14 text-primary">{lead.categories[0].name}</span> : null}
-                <h3 className="mt-12 mb-0 font-sans text-heading-24 font-extrabold leading-[var(--text-heading-24--line-height)] text-surface-neutral-high-emphasis min-[768px]:text-heading-32 min-[768px]:leading-[var(--text-heading-32--line-height)]">{lead.title}</h3>
-                <p className="mt-16 mb-0 line-clamp-3 font-sans text-body-16 leading-[var(--text-body-16--line-height)] text-surface-neutral-mid-emphasis">{lead.excerpt}</p>
-                <span className="mt-24 inline-flex items-center gap-8 font-sans text-label-14 font-bold text-primary">خواندن مقاله <ArrowLeft aria-hidden size={18} /></span>
-              </div>
-            </Link>
-            {rest.length ? <div className="mt-24 grid gap-16 min-[640px]:grid-cols-2 min-[1024px]:grid-cols-3">{rest.map((article) => <MagazineCard article={article} key={article.id} />)}</div> : null}
+            <div className="grid gap-16 min-[900px]:grid-cols-12" dir="rtl">
+              <MagazineCard article={lead} className="min-[900px]:col-span-7 [&_a]:min-[900px]:aspect-auto [&_a]:min-[900px]:min-h-[536px]" priority />
+              {supporting.length ? (
+                <div className="grid gap-16 min-[900px]:col-span-5 min-[900px]:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <MagazineCard article={supporting[0]} className="[&_a]:min-[900px]:aspect-auto [&_a]:min-[900px]:min-h-[260px]" />
+                  {supporting.slice(1).length ? (
+                    <div className="grid gap-16 min-[640px]:grid-cols-2">
+                      {supporting.slice(1).map((article) => <MagazineCard article={article} className="[&_a]:min-[900px]:aspect-auto [&_a]:min-[900px]:min-h-[260px]" key={article.id} />)}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            {remaining.length ? (
+              <>
+                <h3 className="mt-40 mb-20 font-sans text-heading-24 font-bold leading-[var(--text-heading-24--line-height)] text-surface-neutral-high-emphasis">بیشتر بخوانید</h3>
+                <div className="grid gap-16 min-[640px]:grid-cols-2 min-[1024px]:grid-cols-3">{remaining.map((article) => <MagazineCard article={article} key={article.id} />)}</div>
+              </>
+            ) : null}
           </>
         ) : (
           <div className="rounded-[var(--radius-l)] border border-dashed border-border-high-emphasis px-24 py-48 text-center">

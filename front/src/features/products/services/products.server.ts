@@ -31,7 +31,14 @@ import type {
 } from "../types";
 import { mapProduct } from "../utils/map-product";
 import { mapReview } from "../utils/map-review";
+import { isProductIdIdentifier } from "../utils/product-identifier";
+import { decodeProductSlug, wordpressProductSlug } from "../utils/product-slug";
 import { stripHtml } from "../utils/strip-html";
+
+// The WordPress REST lookup is occasionally slower while its PHP workers are
+// busy. PDP data is public and cacheable, so it can wait longer than cart and
+// authentication requests without turning a temporary delay into a page error.
+const productReadTimeoutMs = 20_000;
 
 function productParams(query: ProductQuery): string {
   const input = productQuerySchema.parse(query);
@@ -74,21 +81,52 @@ export async function listProducts(query: ProductQuery = {}): Promise<ProductLis
 export async function getProductById(id: number) {
   if (!Number.isSafeInteger(id) || id <= 0) throw new ServiceError({ code: "validation", status: 400, message: "A valid product ID is required.", requestId: randomUUID(), retryable: false });
   const requestId = randomUUID();
-  const response = await wordpressFetch(`/wp-json/wc/store/v1/products/${id}`, { requestId, next: { revalidate: 60, tags: [`product:${id}`] } });
+  const response = await wordpressFetch(`/wp-json/wc/store/v1/products/${id}`, { requestId, timeoutMs: productReadTimeoutMs, next: { revalidate: 60, tags: [`product:${id}`] } });
   return mapProduct(await parseUpstreamJson(response, (value) => upstreamProductSchemaExport.parse(value), requestId));
 }
 
 export async function getProductBySlug(slug: string) {
-  const input = z.string().trim().min(1).max(200).parse(slug);
+  const input = decodeProductSlug(z.string().trim().min(1).max(200).parse(slug));
   const requestId = randomUUID();
   const response = await wordpressFetch(
     `/wp-json/wc/store/v1/products?${productParams({ slug: input, perPage: 5 })}`,
-    { requestId, next: { revalidate: 60, tags: ["products", `product:slug:${input}`] } },
+    { requestId, timeoutMs: productReadTimeoutMs, next: { revalidate: 60, tags: ["products", `product:slug:${input}`] } },
   );
   const products = await parseUpstreamJson(response, (v) => upstreamProductsSchema.parse(v), requestId);
-  const match = products.find((candidate) => candidate.slug === input);
-  if (!match) throw new ServiceError({ code: "not_found", status: 404, message: "Product not found.", requestId, retryable: false });
-  return mapProduct(match);
+  const match = products.find((candidate) => decodeProductSlug(candidate.slug) === input);
+  if (match) return mapProduct(match);
+
+  // The local Store API does not honor `slug` for imported percent-encoded
+  // Persian post names. The core WordPress REST endpoint does, so resolve the
+  // exact ID there and keep Store API as the source of the product contract.
+  const lookupRequestId = randomUUID();
+  const params = new URLSearchParams({ slug: wordpressProductSlug(input), per_page: "5" });
+  const lookupResponse = await wordpressFetch(`/wp-json/wp/v2/product?${params}`, {
+    acceptStatuses: [404],
+    requestId: lookupRequestId,
+    timeoutMs: productReadTimeoutMs,
+    next: { revalidate: 60, tags: ["products", `product:slug:${input}`] },
+  });
+  if (lookupResponse.status !== 404) {
+    const productsBySlug = await parseUpstreamJson(
+      lookupResponse,
+      (value) => z.array(z.object({ id: z.number().int().positive(), slug: z.string() })).parse(value),
+      lookupRequestId,
+    );
+    const product = productsBySlug.find((candidate) => decodeProductSlug(candidate.slug) === input);
+    if (product) return getProductById(product.id);
+  }
+
+  throw new ServiceError({ code: "not_found", status: 404, message: "Product not found.", requestId, retryable: false });
+}
+
+/**
+ * Resolves both public product URL forms. IDs remain supported for existing
+ * links, while all newly generated links use the product slug.
+ */
+export async function getProductByIdentifier(identifier: string) {
+  const input = z.string().trim().min(1).max(200).parse(identifier);
+  return isProductIdIdentifier(input) ? getProductById(Number(input)) : getProductBySlug(input);
 }
 
 export async function listProductReviews(query: ReviewQuery) {

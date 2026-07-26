@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Kadochi Core
  * Description: Durable headless content contracts and protected occasion records for Kadochi.
- * Version: 0.1.1
+ * Version: 0.1.2
  * Requires at least: 6.6
  * Requires PHP: 7.4
  * Text Domain: kadochi-core
@@ -25,7 +25,8 @@ final class Kadochi_Core {
 	const CHECKOUT_FIELD_LOCATION = 'kadochi/location';
 	const CHECKOUT_FIELD_OPERATION = 'kadochi/operation-id';
 	const PRODUCT_ACTIONS_DB_VERSION = '1';
-	const EDITORIAL_CAPABILITIES_VERSION = '2';
+	const EDITORIAL_CAPABILITIES_VERSION = '3';
+	const MAGAZINE_TO_POSTS_MIGRATION_VERSION = '1';
 	const PRODUCT_VIEW_COUNT_META_KEY = '_kadochi_product_view_count';
 	const DRAFT_ORDER_EXPIRATION_SECONDS = 3600;
 	const DRAFT_ORDER_EXPIRY_HOOK = 'kadochi_expire_draft_orders';
@@ -39,6 +40,7 @@ final class Kadochi_Core {
 		self::maybe_install_product_actions_table();
 		self::maybe_grant_editorial_capabilities();
 		add_action( 'init', array( $this, 'register_post_types' ), 5 );
+		add_action( 'init', array( $this, 'maybe_migrate_magazine_articles_to_posts' ), 6 );
 		add_action( 'init', array( $this, 'schedule_draft_order_expiry' ) );
 		add_action( self::DRAFT_ORDER_EXPIRY_HOOK, array( $this, 'expire_stale_draft_orders' ) );
 		add_filter( 'cron_schedules', array( $this, 'draft_order_expiry_schedule' ) );
@@ -46,16 +48,24 @@ final class Kadochi_Core {
 		add_action( 'acf/init', array( $this, 'register_scf_fields' ) );
 		add_action( 'rest_api_init', array( $this, 'register_routes' ) );
 		add_filter( 'rest_endpoints', array( $this, 'remove_default_occasion_routes' ) );
+		add_filter( 'robots_txt', array( $this, 'robots_txt' ), 10, 2 );
+		add_action( 'rest_pre_serve_request', array( $this, 'send_rest_noindex_header' ), 10, 4 );
+		add_action( 'admin_init', array( $this, 'send_noindex_header' ) );
+		add_action( 'login_init', array( $this, 'send_noindex_header' ) );
 		add_filter( 'determine_current_user', array( $this, 'determine_current_user' ), 30 );
 		add_filter( 'rest_authentication_errors', array( $this, 'rest_authentication_errors' ), 30 );
 		add_action( 'woocommerce_init', array( $this, 'register_checkout_fields' ) );
 		add_action( 'woocommerce_blocks_loaded', array( $this, 'register_store_api_data' ) );
 		add_action( 'woocommerce_validate_additional_field', array( $this, 'validate_checkout_field' ), 10, 3 );
+		add_action( 'woocommerce_check_cart_items', array( $this, 'clear_stale_store_api_cart_notices' ), 0 );
 		add_action( 'woocommerce_store_api_checkout_update_order_from_request', array( $this, 'validate_store_checkout_order' ), 10, 2 );
 		add_action( 'woocommerce_store_api_checkout_order_processed', array( $this, 'lock_store_checkout_order' ), 1 );
 		add_filter( 'woocommerce_package_rates', array( $this, 'limit_shipping_to_tehran' ), 10, 2 );
 		add_filter( 'woocommerce_customer_taxable_address', array( $this, 'limit_tax_to_tehran' ), 10, 2 );
 		add_filter( 'woocommerce_get_return_url', array( $this, 'checkout_return_url' ), 20, 2 );
+		// The official ZarinPal gateway sends a cancelled payment to Woo's checkout
+		// URL directly, so handle its API callback before the gateway's own handler.
+		add_action( 'woocommerce_api_wc_zpal', array( $this, 'redirect_cancelled_gateway_payment' ), 1 );
 		add_filter( 'get_avatar_url', array( $this, 'customer_avatar_url_filter' ), 10, 3 );
 		add_action( 'show_user_profile', array( $this, 'render_customer_profile_fields' ) );
 		add_action( 'edit_user_profile', array( $this, 'render_customer_profile_fields' ) );
@@ -70,8 +80,40 @@ final class Kadochi_Core {
 		add_action( 'admin_notices', array( $this, 'render_admin_notices' ) );
 	}
 
+	/** Keeps the headless CMS surface out of search results when its origin is public. */
+	public function robots_txt( $output, $is_public ) {
+		if ( ! $is_public ) {
+			return $output;
+		}
+
+		$directives = array(
+			'User-agent: *',
+			'Disallow: /wp-admin/',
+			'Allow: /wp-admin/admin-ajax.php',
+			'Disallow: /wp-json/',
+			'Disallow: /wp-login.php',
+			'Disallow: /xmlrpc.php',
+		);
+
+		return trim( $output ) . "\n" . implode( "\n", $directives ) . "\n";
+	}
+
+	/** Sends an HTTP robots directive for REST responses, including custom namespaces. */
+	public function send_rest_noindex_header( $served, $result, $request, $server ) {
+		$server->send_header( 'X-Robots-Tag', 'noindex, nofollow' );
+		return $served;
+	}
+
+	/** WordPress admin and login screens should remain unavailable to search engines. */
+	public function send_noindex_header() {
+		if ( ! headers_sent() ) {
+			header( 'X-Robots-Tag: noindex, nofollow', true );
+		}
+	}
+
 	public static function activate() {
 		self::grant_editorial_capabilities();
+		self::revoke_magazine_capabilities();
 		update_option( 'kadochi_editorial_capabilities_version', self::EDITORIAL_CAPABILITIES_VERSION, false );
 		self::install_product_actions_table();
 		flush_rewrite_rules();
@@ -121,7 +163,7 @@ final class Kadochi_Core {
 	}
 
 	private static function grant_editorial_capabilities() {
-		$types = array( 'slider' => array( 'slider', 'sliders' ), 'banner' => array( 'banner', 'banners' ), 'hero' => array( 'hero', 'heroes' ), 'magazine' => array( 'magazine', 'magazines' ), 'occasion' => array( 'occasion', 'occasions' ) );
+		$types = array( 'slider' => array( 'slider', 'sliders' ), 'banner' => array( 'banner', 'banners' ), 'hero' => array( 'hero', 'heroes' ), 'occasion' => array( 'occasion', 'occasions' ) );
 		foreach ( array( 'administrator', 'editor', 'shop_manager' ) as $role_name ) {
 			$role = get_role( $role_name );
 			if ( ! $role ) {
@@ -135,12 +177,26 @@ final class Kadochi_Core {
 		}
 	}
 
+	/** Removes capabilities that only belonged to the retired Magazine post type. */
+	private static function revoke_magazine_capabilities() {
+		foreach ( array( 'administrator', 'editor', 'shop_manager' ) as $role_name ) {
+			$role = get_role( $role_name );
+			if ( ! $role ) {
+				continue;
+			}
+			foreach ( self::post_type_capabilities( 'magazine', 'magazines' ) as $capability ) {
+				$role->remove_cap( $capability );
+			}
+		}
+	}
+
 	/** Applies capabilities on plugin upgrades as well as first activation. */
 	private static function maybe_grant_editorial_capabilities() {
 		if ( self::EDITORIAL_CAPABILITIES_VERSION === get_option( 'kadochi_editorial_capabilities_version' ) ) {
 			return;
 		}
 		self::grant_editorial_capabilities();
+		self::revoke_magazine_capabilities();
 		update_option( 'kadochi_editorial_capabilities_version', self::EDITORIAL_CAPABILITIES_VERSION, false );
 	}
 
@@ -148,10 +204,36 @@ final class Kadochi_Core {
 		$this->register_post_type( 'slider', 'Sliders', 'Slider', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-images-alt2' );
 		$this->register_post_type( 'banner', 'Banners', 'Banner', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-megaphone' );
 		$this->register_post_type( 'hero', 'Heroes', 'Hero', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-superhero' );
-		// Editorial articles are separate from WordPress posts so store content and
-		// Magazine publishing can be managed independently in wp-admin.
-		$this->register_post_type( 'magazine', 'Magazine', 'مقاله', array( 'title', 'editor', 'thumbnail', 'author', 'excerpt' ), true, 'dashicons-welcome-write-blog' );
 		$this->register_post_type( 'occasion', 'Occasions', 'Occasion', array( 'title', 'editor', 'thumbnail', 'author' ), false, 'dashicons-calendar-alt' );
+	}
+
+	/**
+	 * Consolidates legacy Magazine articles into WordPress Posts without
+	 * recreating records, so IDs, featured images, taxonomy terms, post meta,
+	 * authors, and publication dates are retained.
+	 */
+	public function maybe_migrate_magazine_articles_to_posts() {
+		if ( self::MAGAZINE_TO_POSTS_MIGRATION_VERSION === get_option( 'kadochi_magazine_to_posts_migration_version' ) ) {
+			return;
+		}
+
+		global $wpdb;
+		$post_ids = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type = %s", 'magazine' ) );
+		foreach ( $post_ids as $post_id ) {
+			$updated = $wpdb->update(
+				$wpdb->posts,
+				array( 'post_type' => 'post' ),
+				array( 'ID' => (int) $post_id ),
+				array( '%s' ),
+				array( '%d' )
+			);
+			if ( false === $updated ) {
+				return;
+			}
+			clean_post_cache( (int) $post_id );
+		}
+
+		update_option( 'kadochi_magazine_to_posts_migration_version', self::MAGAZINE_TO_POSTS_MIGRATION_VERSION, false );
 	}
 
 	private function register_post_type( $slug, $plural_label, $singular_label, $supports, $legacy_public, $menu_icon ) {
@@ -162,7 +244,6 @@ final class Kadochi_Core {
 			'slider'   => array( 'slider', 'sliders' ),
 			'banner'   => array( 'banner', 'banners' ),
 			'hero'     => array( 'hero', 'heroes' ),
-			'magazine' => array( 'magazine', 'magazines' ),
 			'occasion' => array( 'occasion', 'occasions' ),
 		);
 		$singular = $capability_bases[ $slug ][0];
@@ -181,8 +262,7 @@ final class Kadochi_Core {
 				'has_archive' => false,
 				'rewrite' => $legacy_public,
 				'query_var' => $legacy_public,
-				// Reuse the familiar WordPress category editor for Magazine topics.
-				'taxonomies' => 'magazine' === $slug ? array( 'category' ) : array(),
+				'taxonomies' => array(),
 				'menu_icon' => $menu_icon,
 				'supports' => $supports,
 				'capability_type' => array( $singular, $plural ),
@@ -1517,6 +1597,24 @@ final class Kadochi_Core {
 		}
 	}
 
+	/**
+	 * WooCommerce Store API 10.8+ converts every already-queued WC error notice
+	 * into a checkout conflict during cart validation. A product that was removed
+	 * from a cart earlier can therefore leave a stale notice that prevents a later,
+	 * otherwise valid order from being placed. Clear notices only before the Store
+	 * API runs its fresh cart checks; errors generated by the current check remain.
+	 */
+	public function clear_stale_store_api_cart_notices() {
+		if ( ! defined( 'REST_REQUEST' ) || ! REST_REQUEST || ! function_exists( 'wc_clear_notices' ) ) {
+			return;
+		}
+		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+		if ( false === strpos( $request_uri, '/wp-json/wc/store/' ) ) {
+			return;
+		}
+		wc_clear_notices();
+	}
+
 	private function checkout_operation_meta_key() {
 		return '_wc_other/' . self::CHECKOUT_FIELD_OPERATION;
 	}
@@ -1571,16 +1669,45 @@ final class Kadochi_Core {
 		if ( ! is_object( $order ) || ! method_exists( $order, 'get_payment_method' ) || $this->payment_method_id() !== $order->get_payment_method() ) {
 			return $url;
 		}
+		$frontend_return_url = $this->frontend_checkout_result_url( 'return', $order );
+		return $frontend_return_url ?: $url;
+	}
+
+	/** Redirects an abandoned ZarinPal payment to the frontend's failure screen. */
+	public function redirect_cancelled_gateway_payment() {
+		// The gateway uses any value other than OK when the customer cancels.
+		$status = isset( $_GET['Status'] ) ? sanitize_text_field( wp_unslash( $_GET['Status'] ) ) : '';
+		if ( 'OK' === $status ) {
+			return;
+		}
+		$order_id = isset( $_GET['wc_order'] ) ? absint( wp_unslash( $_GET['wc_order'] ) ) : 0;
+		$order = $order_id && function_exists( 'wc_get_order' ) ? wc_get_order( $order_id ) : false;
+		if ( ! $order || $order->is_paid() || $this->payment_method_id() !== $order->get_payment_method() ) {
+			return;
+		}
+		$failure_url = $this->frontend_checkout_result_url( 'failure', $order );
+		if ( ! $failure_url ) {
+			return;
+		}
+		wp_safe_redirect( $failure_url );
+		exit;
+	}
+
+	/** Builds a trusted frontend result URL for a WooCommerce order. */
+	private function frontend_checkout_result_url( $result, $order ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) || ! in_array( $result, array( 'return', 'failure' ), true ) ) {
+			return false;
+		}
 		$frontend = getenv( 'KADOCHI_FRONTEND_URL' );
 		$frontend = is_string( $frontend ) ? trim( $frontend ) : '';
 		$parts = $frontend ? wp_parse_url( $frontend ) : false;
 		// This is a trusted deployment setting, not an outbound request target.
 		// wp_http_validate_url() rejects the documented localhost development URL.
 		if ( ! is_array( $parts ) || empty( $parts['host'] ) || empty( $parts['scheme'] ) || ! in_array( strtolower( $parts['scheme'] ), array( 'http', 'https' ), true ) || isset( $parts['user'] ) || isset( $parts['pass'] ) ) {
-			return $url;
+			return false;
 		}
 		$frontend = esc_url_raw( $frontend, array( 'http', 'https' ) );
-		return add_query_arg( 'order', absint( $order->get_id() ), trailingslashit( $frontend ) . 'checkout/return' );
+		return add_query_arg( 'order', absint( $order->get_id() ), trailingslashit( $frontend ) . 'checkout/' . $result );
 	}
 
 	private function order_money( $order ) {
@@ -1666,14 +1793,17 @@ final class Kadochi_Core {
 
 	private function order_summary_dto( $order ) {
 		$created = $order->get_date_created();
+		$shipping_parts = array_filter( array( $order->get_shipping_state(), $order->get_shipping_city(), $order->get_shipping_address_1(), $order->get_shipping_address_2() ) );
 		return array(
 			'id' => (int) $order->get_id(),
 			'paid' => (bool) $order->is_paid(),
 			'status' => sanitize_key( $order->get_status() ),
 			'createdAt' => $created ? $created->date( 'c' ) : gmdate( 'c' ),
 			'total' => $this->order_money( $order ),
+			'sender' => trim( sanitize_text_field( $order->get_billing_first_name() ) . ' ' . sanitize_text_field( $order->get_billing_last_name() ) ),
 			'recipient' => array( 'firstName' => sanitize_text_field( $order->get_shipping_first_name() ), 'lastName' => sanitize_text_field( $order->get_shipping_last_name() ) ),
 			'deliverySlot' => ( $slot = $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_DELIVERY_SLOT, true ) ) ? sanitize_text_field( $slot ) : null,
+			'address' => implode( '، ', array_map( 'sanitize_text_field', $shipping_parts ) ),
 		);
 	}
 
@@ -1781,7 +1911,7 @@ final class Kadochi_Core {
 			return $order;
 		}
 		$this->expire_draft_order_if_needed( $order );
-		if ( ! in_array( sanitize_key( $order->get_status() ), array( 'draft', 'checkout-draft', 'pending', 'pending-payment' ), true ) ) {
+		if ( ! in_array( sanitize_key( $order->get_status() ), array( 'draft', 'checkout-draft', 'pending', 'pending-payment', 'failed' ), true ) ) {
 			return $this->auth_error( 'kadochi_order_not_payable', __( 'This order is no longer awaiting payment.', 'kadochi-core' ), 409 );
 		}
 		if ( $order->is_paid() || $this->payment_method_id() !== $order->get_payment_method() ) {

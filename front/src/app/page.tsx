@@ -24,6 +24,8 @@ import {
   listProductTags,
 } from "@/features/products/services/products.server";
 import type { Product, ProductCategory } from "@/features/products/types";
+import { serializeJsonLd } from "@/features/products/utils/product-seo";
+import { env } from "@/lib/server/env";
 
 export const revalidate = 60;
 
@@ -40,6 +42,7 @@ export const metadata: Metadata = {
     url: "/",
   },
   twitter: {
+    card: "summary",
     title: "کادوچی | خرید کادو، گل و کیک با ارسال سریع",
     description: "خرید اینترنتی کادو، گل و کیک با ارسال سریع برای مناسبت‌های مختلف.",
   },
@@ -124,23 +127,26 @@ const services = [
 export default async function Homepage() {
   const { categories, content, fastDelivery, latest, magazine, popular } = await getLandingData();
   const heroSlides = toHeroSlides(content);
+  const siteUrl = new URL(env.KADOCHI_FRONTEND_URL);
   const siteLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
+    "@id": new URL("/#website", siteUrl).toString(),
     name: "کادوچی",
     potentialAction: {
       "@type": "SearchAction",
-      target: "https://kadochi.com/products?q={search_term_string}",
+      target: `${siteUrl.origin}/products?q={search_term_string}`,
       "query-input": "required name=search_term_string",
     },
-    url: "https://kadochi.com/",
+    url: siteUrl.toString(),
   };
   const organizationLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    logo: "https://kadochi.com/images/logo.svg",
+    "@id": new URL("/#organization", siteUrl).toString(),
+    logo: new URL("/pwa/icon-512.png", siteUrl).toString(),
     name: "کادوچی",
-    url: "https://kadochi.com/",
+    url: siteUrl.toString(),
   };
 
   return (
@@ -208,8 +214,8 @@ export default async function Homepage() {
 
       <Divider size="md" variant="spacer" />
       <MagazineRail articles={magazine} />
-      <script dangerouslySetInnerHTML={{ __html: JSON.stringify(siteLd) }} type="application/ld+json" />
-      <script dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationLd) }} type="application/ld+json" />
+      <script dangerouslySetInnerHTML={{ __html: serializeJsonLd(siteLd) }} type="application/ld+json" />
+      <script dangerouslySetInnerHTML={{ __html: serializeJsonLd(organizationLd) }} type="application/ld+json" />
     </LayoutContent>
   );
 }

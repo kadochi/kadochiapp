@@ -20,8 +20,8 @@ export default async function CheckoutFailureRoute({ searchParams }: Props) {
     summary = await orderSummary(orderId, crypto.randomUUID());
   } catch (error) {
     if (hasApiErrorCode(error, "unauthenticated")) redirect(`/login?next=${encodeURIComponent(`/checkout/failure?order=${orderId}`)}`);
-    return <><Header variant="internal" title="وضعیت سفارش" backUrl="/products" /><StateMessage imageSrc="/images/illustration-failed.png" title="وضعیت سفارش در دسترس نیست" subtitle="لطفاً چند دقیقه دیگر دوباره وضعیت سفارش را بررسی کنید." /></>;
+    return <><Header variant="internal" title="وضعیت پرداخت" backUrl="/products" /><StateMessage imageSrc="/images/illustration-failed.png" title="وضعیت سفارش در دسترس نیست" subtitle="لطفاً چند دقیقه دیگر دوباره وضعیت سفارش را بررسی کنید." /></>;
   }
   if (summary.paid) redirect(`/checkout/success?order=${summary.id}`);
-  return <><Header variant="internal" title="وضعیت سفارش" backUrl="/products" /><OrderResult order={summary} paid={false} /></>;
+  return <><Header variant="internal" title="وضعیت پرداخت" backUrl="/products" /><OrderResult order={summary} paid={false} /></>;
 }

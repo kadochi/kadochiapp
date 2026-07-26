@@ -3,7 +3,7 @@ import "server-only";
 import { env } from "../server/env";
 import { errorForStatus, type ApiError } from "./errors";
 
-const timeoutMs = 8_000;
+const defaultTimeoutMs = 8_000;
 
 export class UpstreamError extends Error {
   constructor(public readonly detail: ApiError) {
@@ -17,13 +17,15 @@ type UpstreamOptions = Omit<RequestInit, "body" | "headers"> & {
   headers?: HeadersInit;
   requestId: string;
   acceptStatuses?: readonly number[];
+  /** Use for public, cacheable reads that can occasionally be slow upstream. */
+  timeoutMs?: number;
 };
 
 /** Internal server-only transport. Feature services own endpoint selection and mapping. */
 export async function wordpressFetch(path: string, options: UpstreamOptions): Promise<Response> {
   const controller = new AbortController();
+  const { acceptStatuses = [], requestId, timeoutMs = defaultTimeoutMs, ...requestOptions } = options;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const { acceptStatuses = [], requestId, ...requestOptions } = options;
   try {
     const response = await fetch(new URL(path, env.WORDPRESS_INTERNAL_URL), {
       ...requestOptions,

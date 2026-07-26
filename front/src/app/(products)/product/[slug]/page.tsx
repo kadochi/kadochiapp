@@ -1,6 +1,6 @@
 import { cache, Suspense } from "react";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Divider } from "@/components/ui/divider";
@@ -17,15 +17,23 @@ import { ProductSpecs } from "@/features/products/components/product-specs";
 import { ProductTags } from "@/features/products/components/product-tags";
 import { ProductViewTracker } from "@/features/products/components/product-view-tracker";
 import { SimilarProducts } from "@/features/products/components/similar-products";
-import { getProductBySlug } from "@/features/products/services/products.server";
+import { getProductByIdentifier } from "@/features/products/services/products.server";
 import { productBreadcrumbs } from "@/features/products/utils/product-breadcrumbs";
-import { stripHtml } from "@/features/products/utils/strip-html";
+import { isProductIdIdentifier } from "@/features/products/utils/product-identifier";
+import {
+  productBreadcrumbJsonLd,
+  productDescription,
+  productJsonLd,
+  productPath,
+  serializeJsonLd,
+} from "@/features/products/utils/product-seo";
+import { env } from "@/lib/server/env";
 
 type Params = { slug: string };
 
-const loadProduct = cache(async (slug: string) => {
+const loadProduct = cache(async (identifier: string) => {
   try {
-    return await getProductBySlug(slug);
+    return await getProductByIdentifier(identifier);
   } catch (error) {
     const detail = (error as ServiceError | UpstreamError)?.detail;
     if (detail?.code === "not_found") return null;
@@ -36,36 +44,54 @@ const loadProduct = cache(async (slug: string) => {
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { slug } = await params;
   const product = await loadProduct(slug);
-  const canonical = `/product/${slug}`;
+  const canonical = product ? productPath(product.slug) : productPath(slug);
 
   if (!product) {
     return {
-      title: "محصول پیدا نشد | کادوچی",
+      title: "کادوچی | محصول پیدا نشد",
       description: "این محصول در فروشگاه کادوچی یافت نشد.",
       alternates: { canonical },
+      robots: { index: false, follow: false },
     };
   }
 
-  const description =
-    stripHtml(product.shortDescription || product.description).slice(0, 160) ||
-    "خرید کادو و هدیه با بسته‌بندی شیک و ارسال سریع از فروشگاه کادوچی.";
+  const productSummary = productDescription(product);
+  const description = (
+    productSummary
+      ? `${product.name}؛ ${productSummary}`
+      : `خرید ${product.name} با بسته‌بندی شیک و ارسال سریع از فروشگاه کادوچی.`
+  ).slice(0, 160);
   const image = product.images[0];
 
   return {
-    title: product.name,
+    title: `کادوچی | ${product.name}`,
     description,
     alternates: { canonical },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+        "max-video-preview": -1,
+      },
+    },
     openGraph: {
       type: "website",
       siteName: "کادوچی",
       locale: "fa_IR",
-      title: product.name,
+      url: canonical,
+      title: `کادوچی | ${product.name}`,
       description,
-      images: image ? [{ url: image.url }] : undefined,
+      images: image ? [{ url: image.url, alt: image.alt || product.name }] : undefined,
     },
     twitter: {
-      title: product.name,
+      card: "summary_large_image",
+      title: `کادوچی | ${product.name}`,
       description,
+      images: image ? [{ url: image.url, alt: image.alt || product.name }] : undefined,
     },
   };
 }
@@ -75,7 +101,16 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
   const product = await loadProduct(slug);
   if (!product) notFound();
 
+  // Google already knows the numeric URLs. A permanent redirect retains that
+  // equity while ensuring there is one indexable, descriptive product URL.
+  if (isProductIdIdentifier(slug) && product.slug !== slug) {
+    permanentRedirect(`/product/${product.slug}`);
+  }
+
   const category = product.categories[0];
+  const siteUrl = new URL(env.KADOCHI_FRONTEND_URL);
+  const productLd = productJsonLd(product, siteUrl);
+  const breadcrumbLd = productBreadcrumbJsonLd(product, siteUrl);
 
   return (
     <>
@@ -117,6 +152,14 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
       <Divider />
 
       <ProductActionBar product={product} />
+      <script
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(productLd) }}
+        type="application/ld+json"
+      />
+      <script
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbLd) }}
+        type="application/ld+json"
+      />
     </>
   );
 }

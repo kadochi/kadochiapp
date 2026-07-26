@@ -28,7 +28,7 @@ export function ProductsSlider({ items }: Readonly<ProductsSliderProps>) {
       <Swiper
         allowTouchMove={isLoading || hasMultipleSlides}
         breakpoints={swiperBreakpoints}
-        className="w-full [&_.swiper-wrapper]:items-stretch"
+        className="carousel-rail carousel-rail--products w-full [&_.swiper-wrapper]:items-stretch"
         slidesPerView={1.4}
         spaceBetween={12}
         watchOverflow

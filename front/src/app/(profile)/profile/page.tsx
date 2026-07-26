@@ -4,7 +4,7 @@ import LayoutContent from "@/components/layout/layout-content";
 import ProfilePage from "@/features/profile/components/profile-page";
 
 export const metadata: Metadata = {
-  title: "حساب کاربری | کادوچی",
+  title: "کادوچی | حساب کاربری",
   description: "مدیریت اطلاعات حساب کاربری و سفارش‌های شما در کادوچی.",
 };
 

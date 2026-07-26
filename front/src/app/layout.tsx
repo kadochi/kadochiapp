@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import { Direction } from "radix-ui";
 import { Toaster } from "../components/ui/toaster";
 import { AuthProvider } from "../features/auth/auth-provider";
+import { env } from "../lib/server/env";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
@@ -29,8 +30,30 @@ const iranSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Kadochi",
-  description: "فرانت‌اند هدلس وردپرس"
+  metadataBase: new URL(env.KADOCHI_FRONTEND_URL),
+  title: "کادوچی | خرید کادو، گل و کیک با ارسال سریع",
+  description: "کادوچی، فروشگاه آنلاین خرید کادو، گل و کیک با ارسال سریع و بسته‌بندی مخصوص هدیه.",
+  applicationName: "کادوچی",
+  category: "shopping",
+  openGraph: {
+    locale: "fa_IR",
+    siteName: "کادوچی",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

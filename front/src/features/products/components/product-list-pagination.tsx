@@ -11,7 +11,16 @@ export type ProductListPaginationProps = {
   initialPage: number;
   totalPages: number;
   query: ProductQuery;
+  /** Non-JavaScript pagination fallback and a crawlable next-page URL. */
+  paginationBasePath: string;
 };
+
+function pageHref(basePath: string, page: number) {
+  const [pathname, query = ""] = basePath.split("?", 2);
+  const params = new URLSearchParams(query);
+  params.set("page", String(page));
+  return `${pathname}?${params.toString()}`;
+}
 
 /** Client boundary for optional incremental loading beneath the SSR product grid. */
 export function ProductListPagination({
@@ -19,8 +28,9 @@ export function ProductListPagination({
   initialPage,
   totalPages,
   query,
+  paginationBasePath,
 }: Readonly<ProductListPaginationProps>) {
-  const { items, isLoading, hasMore, error, loadMore } = useProductPagination({
+  const { items, isLoading, hasMore, page, error, loadMore } = useProductPagination({
     initialItems,
     initialPage,
     totalPages,
@@ -36,12 +46,20 @@ export function ProductListPagination({
       {hasMore ? (
         <div className="flex justify-center px-16 pb-32 pt-8">
           <Button
+            asChild
             variant="tertiary-outline"
             size="medium"
             loading={isLoading}
-            onClick={loadMore}
           >
-            نمایش محصولات بیشتر
+            <a
+              href={pageHref(paginationBasePath, page + 1)}
+              onClick={(event) => {
+                event.preventDefault();
+                void loadMore();
+              }}
+            >
+              نمایش محصولات بیشتر
+            </a>
           </Button>
         </div>
       ) : null}

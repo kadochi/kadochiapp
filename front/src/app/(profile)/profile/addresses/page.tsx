@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ProfileAddressesPage } from "@/features/profile/components/profile-addresses-page";
 
 export const metadata: Metadata = {
-  title: "آدرس‌ها | کادوچی",
+  title: "کادوچی | آدرس‌های من",
   description: "مشاهده و مدیریت آدرس‌های دریافت سفارش شما در کادوچی.",
 };
 

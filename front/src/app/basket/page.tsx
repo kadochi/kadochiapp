@@ -1,8 +1,15 @@
+import type { Metadata } from "next";
+
 import { Header } from "@/components/layout/header";
 import { BasketPage } from "@/features/cart/components/basket-page";
 import { executeCart } from "@/features/cart/services/cart.server";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "کادوچی | سبد خرید",
+  robots: { index: false, follow: false },
+};
 
 export default async function BasketRoute() {
   let initialCart = null;

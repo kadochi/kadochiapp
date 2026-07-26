@@ -52,19 +52,12 @@ type MagazineEndpointResult = {
   total: number;
 };
 
-async function listMagazineEndpoint(
-  postType: "magazine" | "posts",
-  query: MagazineQuery,
-): Promise<MagazineEndpointResult> {
+async function listMagazinePosts(query: MagazineQuery): Promise<MagazineEndpointResult> {
   const requestId = randomUUID();
-  const response = await wordpressFetch(`/wp-json/wp/v2/${postType}?${magazineParams(query)}`, {
-    // Existing sites may not have received the Magazine content-type update
-    // yet; standard WordPress posts remain a valid editorial source.
-    acceptStatuses: [404],
+  const response = await wordpressFetch(`/wp-json/wp/v2/posts?${magazineParams(query)}`, {
     cache: "no-store",
     requestId,
   });
-  if (response.status === 404) return { articles: [], total: 0 };
 
   const articles = (await parseUpstreamJson(response, (value) => upstreamMagazinesSchema.parse(value), requestId)).map(mapMagazineArticle);
   const total = Number(response.headers.get("x-wp-total"));
@@ -74,21 +67,10 @@ async function listMagazineEndpoint(
   };
 }
 
-/**
- * Fetches both the dedicated Magazine type and normal WordPress posts. This
- * keeps previously published blog posts visible while editors transition to
- * the dedicated Magazine editor.
- */
+/** Fetches editorial articles from the standard WordPress Posts endpoint. */
 export async function listMagazineArticles(query: MagazineQuery = {}): Promise<MagazineListResult> {
   const input = magazineQuerySchema.parse(query);
-  const [magazine, posts] = await Promise.all([
-    listMagazineEndpoint("magazine", input),
-    listMagazineEndpoint("posts", input),
-  ]);
-  const articles = [...magazine.articles, ...posts.articles]
-    .sort((left, right) => Date.parse(right.publishedAt) - Date.parse(left.publishedAt))
-    .slice(0, input.perPage);
-  const total = magazine.total + posts.total;
+  const { articles, total } = await listMagazinePosts(input);
   return {
     items: articles,
     page: input.page,
@@ -98,15 +80,13 @@ export async function listMagazineArticles(query: MagazineQuery = {}): Promise<M
   };
 }
 
-async function getMagazineArticleFromEndpoint(postType: "magazine" | "posts", slug: string): Promise<MagazineArticle | undefined> {
+async function getMagazineArticleFromPosts(slug: string): Promise<MagazineArticle | undefined> {
   const requestId = randomUUID();
   const params = new URLSearchParams({ _embed: "1", slug, per_page: "1" });
-  const response = await wordpressFetch(`/wp-json/wp/v2/${postType}?${params}`, {
-    acceptStatuses: [404],
+  const response = await wordpressFetch(`/wp-json/wp/v2/posts?${params}`, {
     cache: "no-store",
     requestId,
   });
-  if (response.status === 404) return undefined;
   return (await parseUpstreamJson(response, (value) => upstreamMagazinesSchema.parse(value), requestId))
     .map(mapMagazineArticle)
     .find((item) => item.slug === slug);
@@ -115,11 +95,7 @@ async function getMagazineArticleFromEndpoint(postType: "magazine" | "posts", sl
 export async function getMagazineArticleBySlug(slug: string): Promise<MagazineArticle> {
   const safeSlug = z.string().trim().min(1).max(200).parse(slug);
   const requestId = randomUUID();
-  const [magazine, post] = await Promise.all([
-    getMagazineArticleFromEndpoint("magazine", safeSlug),
-    getMagazineArticleFromEndpoint("posts", safeSlug),
-  ]);
-  const article = magazine ?? post;
+  const article = await getMagazineArticleFromPosts(safeSlug);
   if (!article) {
     throw new ServiceError({ code: "not_found", status: 404, message: "Magazine article not found.", requestId, retryable: false });
   }

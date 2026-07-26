@@ -43,7 +43,7 @@ export function ProductCard({
         ) : null}
       </div>
 
-      <div className="p-16 text-center">
+      <div className="min-h-[104px] p-16 text-center">
         <div
           className="mb-8 line-clamp-2 h-[calc(var(--text-label-14--line-height)*2)] font-sans text-label-14 font-bold leading-[var(--text-label-14--line-height)] text-surface-neutral-high-emphasis"
           title={product.name}

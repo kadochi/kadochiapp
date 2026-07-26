@@ -8,7 +8,7 @@ export function productBreadcrumbs(product: Pick<Product, "name" | "categories">
   return [
     { label: "خانه", href: "/" },
     { label: "محصولات", href: "/products" },
-    ...(category ? [{ label: category.name, href: `/products?category=${category.id}` }] : []),
+    ...(category ? [{ label: category.name, href: `/products?category=${encodeURIComponent(category.slug)}` }] : []),
     { label: product.name },
   ];
 }

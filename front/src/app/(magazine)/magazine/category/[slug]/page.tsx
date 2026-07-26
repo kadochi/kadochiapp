@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { Divider } from "@/components/ui/divider";
 import { MagazineCard } from "@/features/magazine/components/magazine-card";
 import { getMagazineCategoryBySlug, listMagazineArticles } from "@/features/magazine/services/magazine.server";
 
@@ -17,9 +18,9 @@ async function loadCategory(slug: string) {
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { slug } = await params;
   const page = await loadCategory(slug);
-  if (!page) return { title: "موضوع پیدا نشد | مجله کادوچی" };
+  if (!page) return { title: "کادوچی | موضوع پیدا نشد" };
   return {
-    title: `${page.category.name} | مجله کادوچی`,
+    title: `کادوچی | ${page.category.name}`,
     description: `مقاله‌ها و راهنماهای مجله کادوچی در موضوع ${page.category.name}.`,
     alternates: { canonical: `/magazine/category/${page.category.slug}` },
   };
@@ -33,7 +34,9 @@ export default async function MagazineCategoryPage({ params }: { params: Promise
 
   return (
     <>
+      <Divider />
       <Breadcrumb items={[{ label: "خانه", href: "/" }, { label: "مجله", href: "/magazine" }, { label: category.name }]} />
+      <Divider />
       <section className="border-b border-border-low-emphasis bg-surface-soft px-16 py-32 min-[768px]:py-48">
         <div className="mx-auto w-full max-w-[1200px]">
           <Link className="font-sans text-label-14 text-primary no-underline" href="/magazine">مجله کادوچی</Link>

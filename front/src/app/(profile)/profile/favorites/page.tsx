@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ProfileProductActionsPage } from "@/features/profile/components/profile-product-actions-page";
 
 export const metadata: Metadata = {
-  title: "مورد علاقه‌ها | کادوچی",
+  title: "کادوچی | مورد علاقه‌ها",
   description: "محصول‌های مورد علاقه شما در کادوچی.",
 };
 

@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { productSchema, type upstreamProductSchemaExport } from "../schema/products";
+import { decodeProductSlug } from "./product-slug";
 
 type UpstreamProduct = z.infer<typeof upstreamProductSchemaExport>;
 
@@ -13,7 +14,10 @@ export function mapProduct(product: UpstreamProduct) {
   return productSchema.parse({
     id: product.id,
     name: product.name,
-    slug: product.slug,
+    // Woo's Store API exposes imported Persian `post_name` values as percent
+    // encoded strings. Next decodes route segments before passing them to the
+    // page, so product links must use the matching decoded representation.
+    slug: decodeProductSlug(product.slug),
     description: product.description ?? "",
     shortDescription: product.short_description ?? "",
     price: money(product.prices.price, product.prices),

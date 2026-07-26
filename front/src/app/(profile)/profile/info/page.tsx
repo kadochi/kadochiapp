@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ProfileInfoPage } from "@/features/profile/components/profile-info-page";
 
 export const metadata: Metadata = {
-  title: "اطلاعات حساب کاربری | کادوچی",
+  title: "کادوچی | اطلاعات حساب کاربری",
   description: "مشاهده و ویرایش اطلاعات حساب کاربری شما در کادوچی.",
 };
 

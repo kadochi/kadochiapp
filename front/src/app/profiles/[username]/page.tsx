@@ -24,9 +24,9 @@ const loadProfile = cache(async (username: string) => {
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { username } = await params;
   const profile = await loadProfile(username);
-  if (!profile) return { title: "پروفایل پیدا نشد | کادوچی" };
+  if (!profile) return { title: "کادوچی | پروفایل پیدا نشد" };
   return {
-    title: `${profile.displayName} | کادوچی`,
+    title: `کادوچی | ${profile.displayName}`,
     description: `لیست آرزوهای ${profile.displayName} در کادوچی`,
     alternates: { canonical: `/profiles/${profile.username}` },
   };

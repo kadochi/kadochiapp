@@ -1,5 +1,12 @@
+import type { Metadata } from "next";
 import { Container } from "@/components/layout/container";
 import { Accordion } from "@/components/ui/accordion";
+
+export const metadata: Metadata = {
+  title: "کادوچی | سوالات متداول",
+  description: "پاسخ سوالات متداول درباره ثبت سفارش، ارسال هدیه، پرداخت و قوانین کادوچی را بخوانید.",
+  alternates: { canonical: "/faq" },
+};
 
 const items = [
   { value: "order", title: "چطور سفارش ثبت کنم؟", content: "برای ثبت سفارش کافیست وارد صفحه محصول مورد نظر خود شوید و بر روی اضافه به سبد خرید کلیک کنید. سپس در بالای صفحه بر روی آیکون سبد خرید کلیک کرده و مراحل پرداخت را تکمیل نمایید." },

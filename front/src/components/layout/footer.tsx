@@ -210,7 +210,7 @@ function Footer() {
                 <li key={category.id}>
                   <Link
                     className={footerLinkClassName}
-                    href={`/products?category=${encodeURIComponent(category.id)}`}
+                    href={`/products?category=${encodeURIComponent(category.slug)}`}
                   >
                     {category.name}
                   </Link>

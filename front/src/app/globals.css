@@ -254,6 +254,78 @@
   }
 }
 
+/*
+ * Swiper calculates slide widths in JavaScript. Until that happens its base
+ * stylesheet makes every slide 100% wide, which briefly turns card rails into
+ * oversized, stacked content. Mirror each rail's `slidesPerView` formula here
+ * so the HTML sent by the server has the same card dimensions as initialized
+ * Swiper. Swiper's inline width takes over after initialization.
+ */
+.carousel-rail:not(.swiper-initialized) .swiper-wrapper {
+  gap: var(--spacing-12);
+}
+
+.carousel-rail .swiper-slide {
+  width: calc((100% - 4.8px) / 1.4);
+}
+
+@media (min-width: 540px) {
+  .carousel-rail--products .swiper-slide,
+  .carousel-rail--occasions .swiper-slide,
+  .carousel-rail--magazine .swiper-slide {
+    width: calc((100% - 16.8px) / 2.4);
+  }
+}
+
+@media (min-width: 860px) {
+  .carousel-rail--products .swiper-slide,
+  .carousel-rail--occasions .swiper-slide,
+  .carousel-rail--magazine .swiper-slide {
+    width: calc((100% - 28.8px) / 3.4);
+  }
+}
+
+@media (min-width: 1024px) {
+  .carousel-rail--products .swiper-slide {
+    width: calc((100% - 48px) / 5);
+  }
+
+  .carousel-rail--occasions .swiper-slide,
+  .carousel-rail--magazine .swiper-slide {
+    width: calc((100% - 36px) / 4);
+  }
+}
+
+@media (min-width: 320px) {
+  .carousel-rail--categories .swiper-slide {
+    width: calc((100% - 16.8px) / 2.4);
+  }
+}
+
+@media (min-width: 540px) {
+  .carousel-rail--categories .swiper-slide {
+    width: calc((100% - 28.8px) / 3.4);
+  }
+}
+
+@media (min-width: 700px) {
+  .carousel-rail--categories .swiper-slide {
+    width: calc((100% - 40.8px) / 4.4);
+  }
+}
+
+@media (min-width: 860px) {
+  .carousel-rail--categories .swiper-slide {
+    width: calc((100% - 52.8px) / 5.4);
+  }
+}
+
+@media (min-width: 1024px) {
+  .carousel-rail--categories .swiper-slide {
+    width: calc((100% - 84px) / 8);
+  }
+}
+
 [data-component="hero-slider"] .swiper-pagination {
   bottom: var(--spacing-48);
   z-index: 20;
