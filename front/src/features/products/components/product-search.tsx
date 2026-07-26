@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Dialog } from "radix-ui";
 import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, Search, X } from "lucide-react";
@@ -22,13 +23,16 @@ function SearchResult({ onSelect, product }: Readonly<{ onSelect: () => void; pr
       className="flex min-h-96 items-center gap-12 rounded-l px-8 py-8 text-inherit no-underline transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
       href={`/product/${product.slug}`}
       onClick={onSelect}
+      prefetch={false}
     >
-      <div className="grid size-80 shrink-0 place-items-center overflow-hidden rounded-m bg-surface">
+      <div className="relative grid size-80 shrink-0 place-items-center overflow-hidden rounded-m bg-surface">
         {image ? (
-          <img
+          <Image
             alt={image.alt || product.name}
             className="size-full object-cover"
+            fill
             loading="lazy"
+            sizes="80px"
             src={image.url}
           />
         ) : null}

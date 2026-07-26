@@ -4,7 +4,6 @@ import { Direction } from "radix-ui";
 import { Toaster } from "../components/ui/toaster";
 import { AuthProvider } from "../features/auth/auth-provider";
 import { env } from "../lib/server/env";
-import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
 const iranSans = localFont({
@@ -26,6 +25,7 @@ const iranSans = localFont({
     },
   ],
   variable: "--font-iran-sans",
+  // Always swap the local Persian font in after the fallback paints.
   display: "swap",
 });
 

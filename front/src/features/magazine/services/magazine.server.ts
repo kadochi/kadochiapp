@@ -8,6 +8,8 @@ import { magazineArticleSchema, magazineQuerySchema, upstreamMagazineCategoriesS
 import type { MagazineArticle, MagazineCategory, MagazineListResult, MagazineQuery } from "../types";
 import { articleText, readingTime } from "../utils/article-text";
 
+const magazineReadTimeoutMs = 20_000;
+
 function magazineParams(query: MagazineQuery): string {
   const input = magazineQuerySchema.parse(query);
   const params = new URLSearchParams({
@@ -55,8 +57,9 @@ type MagazineEndpointResult = {
 async function listMagazinePosts(query: MagazineQuery): Promise<MagazineEndpointResult> {
   const requestId = randomUUID();
   const response = await wordpressFetch(`/wp-json/wp/v2/posts?${magazineParams(query)}`, {
-    cache: "no-store",
     requestId,
+    timeoutMs: magazineReadTimeoutMs,
+    next: { revalidate: 300, tags: ["magazine-articles"] },
   });
 
   const articles = (await parseUpstreamJson(response, (value) => upstreamMagazinesSchema.parse(value), requestId)).map(mapMagazineArticle);
@@ -84,8 +87,9 @@ async function getMagazineArticleFromPosts(slug: string): Promise<MagazineArticl
   const requestId = randomUUID();
   const params = new URLSearchParams({ _embed: "1", slug, per_page: "1" });
   const response = await wordpressFetch(`/wp-json/wp/v2/posts?${params}`, {
-    cache: "no-store",
     requestId,
+    timeoutMs: magazineReadTimeoutMs,
+    next: { revalidate: 300, tags: ["magazine-articles", `magazine:${slug}`] },
   });
   return (await parseUpstreamJson(response, (value) => upstreamMagazinesSchema.parse(value), requestId))
     .map(mapMagazineArticle)
@@ -108,6 +112,7 @@ export async function getMagazineCategoryBySlug(slug: string): Promise<MagazineC
   const requestId = randomUUID();
   const response = await wordpressFetch(`/wp-json/wp/v2/categories?slug=${encodeURIComponent(safeSlug)}&per_page=1`, {
     requestId,
+    timeoutMs: magazineReadTimeoutMs,
     next: { revalidate: 300, tags: ["magazine-categories"] },
   });
   const category = (await parseUpstreamJson(response, (value) => upstreamMagazineCategoriesSchema.parse(value), requestId))[0];

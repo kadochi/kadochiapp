@@ -29,6 +29,17 @@ On first launch, complete WordPress's installation wizard and activate **Kadochi
 
 WordPress core, uploads, and plugins are persisted in `wordpress_data`. Docker volumes survive ordinary `docker compose down` and container rebuilds. To remove all local site data intentionally, run `docker compose down --volumes`.
 
+## Lighthouse acceptance
+
+Build the frontend in production mode, then run `npm run audit:lighthouse`
+inside `front/`. The audit runs the homepage, catalog, a representative product,
+and magazine landing page three times on mobile and desktop, then verifies the
+two counted Agentic Browsing checks with the current Lighthouse release.
+
+- `AUDIT_BASE_URL` defaults to `http://localhost:3000`.
+- `AUDIT_PRODUCT_PATH` defaults to `/product/1114`.
+- Set `AUDIT_BASE_URL=https://kadochi.com` to verify the deployed frontend.
+
 ## Restore an All-in-One WP Migration backup
 
 1. Start the stack and finish the WordPress installation wizard.

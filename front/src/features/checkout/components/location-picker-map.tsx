@@ -1,5 +1,7 @@
 "use client";
 
+import "leaflet/dist/leaflet.css";
+
 import { LocateFixed } from "lucide-react";
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 

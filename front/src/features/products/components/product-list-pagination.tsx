@@ -1,13 +1,20 @@
 "use client";
 
+import { lazy, Suspense } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { ProductList } from "./product-list";
 import { useProductPagination } from "../hooks/useProductPagination";
-import type { Product, ProductQuery } from "../types";
+import type { ProductQuery } from "../types";
+
+const ProductCard = lazy(
+  () =>
+    import("./product-card").then((module) => ({
+      default: module.ProductCard,
+    })),
+);
 
 export type ProductListPaginationProps = {
-  initialItems: readonly Product[];
+  initialProductIds: readonly number[];
   initialPage: number;
   totalPages: number;
   query: ProductQuery;
@@ -24,14 +31,14 @@ function pageHref(basePath: string, page: number) {
 
 /** Client boundary for optional incremental loading beneath the SSR product grid. */
 export function ProductListPagination({
-  initialItems,
+  initialProductIds,
   initialPage,
   totalPages,
   query,
   paginationBasePath,
 }: Readonly<ProductListPaginationProps>) {
   const { items, isLoading, hasMore, page, error, loadMore } = useProductPagination({
-    initialItems,
+    initialProductIds,
     initialPage,
     totalPages,
     query,
@@ -39,7 +46,18 @@ export function ProductListPagination({
 
   return (
     <>
-      <ProductList items={items} />
+      {items.length ? (
+        <section
+          aria-label="محصولات بیشتر"
+          className="grid grid-cols-2 gap-16 px-16 pb-24 pt-0 min-[640px]:grid-cols-4 min-[1024px]:grid-cols-6 min-[1024px]:gap-20"
+        >
+          <Suspense fallback={null}>
+            {items.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </Suspense>
+        </section>
+      ) : null}
 
       {error ? <Alert className="mx-16 mb-16" tone="error">{error}</Alert> : null}
 

@@ -4,7 +4,6 @@ import type { Product } from "../types";
 
 export type ProductsSliderItem = {
   product: Product;
-  priority: boolean;
 };
 
 const productsSliderBreakpoints = {
@@ -22,7 +21,7 @@ const productsSliderBreakpoints = {
 /** Prepares product slides and responsive Swiper options from supplied products. */
 export function useProductsSlider(items: readonly Product[]) {
   const slides = useMemo<ProductsSliderItem[]>(
-    () => items.map((product, index) => ({ product, priority: index === 0 })),
+    () => items.map((product) => ({ product })),
     [items],
   );
 

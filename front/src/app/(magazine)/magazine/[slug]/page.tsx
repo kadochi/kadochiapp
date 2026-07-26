@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Clock3, UserRound } from "lucide-react";
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Divider } from "@/components/ui/divider";
 import { MagazineCard } from "@/features/magazine/components/magazine-card";
@@ -74,7 +75,16 @@ export default async function MagazineArticlePage({ params }: { params: Promise<
       <Divider />
       <article className="mx-auto w-full max-w-[900px] px-16 py-32 min-[768px]:py-48">
         <div className="relative mx-auto aspect-[16/9] max-w-[900px] overflow-hidden rounded-[var(--radius-xl)] bg-primary-container">
-          {article.image ? <img alt={article.image.alt || article.title} className="absolute inset-0 size-full object-cover" fetchPriority="high" src={article.image.url} /> : <span aria-hidden className="absolute inset-0 bg-[linear-gradient(145deg,var(--color-primary),var(--color-secondary))]" />}
+          {article.image ? (
+            <Image
+              alt={article.image.alt || article.title}
+              className="object-cover"
+              fill
+              preload
+              sizes="100vw"
+              src={article.image.url}
+            />
+          ) : <span aria-hidden className="absolute inset-0 bg-[linear-gradient(145deg,var(--color-primary),var(--color-secondary))]" />}
         </div>
 
         <header className="mx-auto max-w-[760px] text-right">

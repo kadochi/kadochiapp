@@ -30,9 +30,9 @@ export function MagazineSlider({ articles }: Readonly<MagazineSliderProps>) {
         spaceBetween={12}
         watchOverflow
       >
-        {articles.map((article, index) => (
+        {articles.map((article) => (
           <SwiperSlide className="h-auto" key={article.id}>
-            <MagazineCard article={article} priority={index === 0} />
+            <MagazineCard article={article} />
           </SwiperSlide>
         ))}
       </Swiper>

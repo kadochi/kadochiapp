@@ -6,7 +6,7 @@ import { fetchProductsPage } from "../services/products";
 import type { Product, ProductQuery } from "../types";
 
 type UseProductPaginationInput = {
-  initialItems: readonly Product[];
+  initialProductIds: readonly number[];
   initialPage: number;
   totalPages: number;
   query: ProductQuery;
@@ -20,12 +20,12 @@ function mergeProducts(current: readonly Product[], incoming: readonly Product[]
 
 /** Owns only the PLP's progressive loading state; filters remain URL-driven. */
 export function useProductPagination({
-  initialItems,
+  initialProductIds,
   initialPage,
   totalPages,
   query,
 }: UseProductPaginationInput) {
-  const [items, setItems] = useState<Product[]>([...initialItems]);
+  const [items, setItems] = useState<Product[]>([]);
   const [page, setPage] = useState(initialPage);
   const [pageCount, setPageCount] = useState(totalPages);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,7 +38,16 @@ export function useProductPagination({
     setError(null);
     try {
       const result = await fetchProductsPage({ ...query, page: page + 1 });
-      setItems((current) => mergeProducts(current, result.items));
+      setItems((current) => {
+        const seenIds = new Set([
+          ...initialProductIds,
+          ...current.map((product) => product.id),
+        ]);
+        return mergeProducts(
+          current,
+          result.items.filter((product) => !seenIds.has(product.id)),
+        );
+      });
       setPage(result.page);
       setPageCount(result.totalPages);
     } catch {
@@ -46,7 +55,7 @@ export function useProductPagination({
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, page, pageCount, query]);
+  }, [initialProductIds, isLoading, page, pageCount, query]);
 
   return {
     items,

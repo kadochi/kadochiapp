@@ -19,7 +19,7 @@ vi.mock("@/lib/server/env", () => ({
   env: { KADOCHI_FRONTEND_URL: "https://kadochi.example" },
 }));
 
-import ProductPage from "./page";
+import ProductPage, { generateMetadata } from "./page";
 
 const product = {
   id: 42,
@@ -90,5 +90,21 @@ describe("legacy numeric product redirects", () => {
       ProductPage({ params: Promise.resolve({ slug: "gift-box" }) }),
     ).resolves.toBeTruthy();
     expect(mocks.permanentRedirect).not.toHaveBeenCalled();
+  });
+
+  it("emits a canonical URL and non-empty description for product SEO", async () => {
+    mocks.getProductByIdentifier.mockResolvedValue({
+      ...product,
+      name: "باکس هدیه ویژه",
+      slug: "metadata-gift",
+    });
+
+    const metadata = await generateMetadata({
+      params: Promise.resolve({ slug: "metadata-gift" }),
+    });
+
+    expect(metadata.alternates?.canonical).toBe("/product/metadata-gift");
+    expect(metadata.description).toContain("باکس هدیه ویژه");
+    expect(metadata.robots).toMatchObject({ index: true, follow: true });
   });
 });

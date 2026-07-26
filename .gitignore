@@ -6,6 +6,7 @@ front/node_modules/
 front/.next/
 front/tsconfig.tsbuildinfo
 front/.env*.local
+front/.lighthouseci/
 
 # Local backups and WordPress migration archives can be very large.
 *.wpress

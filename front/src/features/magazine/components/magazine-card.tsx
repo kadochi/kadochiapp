@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { BookOpen, ChevronLeft, Clock3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MagazineArticle } from "../types";
@@ -19,13 +20,18 @@ export function MagazineCard({ article, className, priority = false }: Readonly<
         aria-label={`مطالعه ${article.title}`}
         className="group relative flex aspect-[1.35/1] min-h-[220px] w-full overflow-hidden rounded-[var(--radius-xl)] bg-primary-container text-on-primary no-underline shadow-[0_1px_0_0_var(--color-border-low-emphasis)] transition-transform duration-200 hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary motion-reduce:transition-none"
         href={`/magazine/${article.slug}`}
+        prefetch={false}
       >
         {article.image ? (
-          <img
+          <Image
             alt={article.image.alt || article.title}
             className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105 motion-reduce:transition-none"
             fetchPriority={priority ? "high" : "auto"}
-            loading={priority ? "eager" : "lazy"}
+            fill
+            loading={priority ? undefined : "lazy"}
+            preload={priority}
+            quality={60}
+            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
             src={article.image.url}
           />
         ) : (

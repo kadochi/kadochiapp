@@ -31,7 +31,10 @@ export function LandingProductRail({
   if (!visibleItems.length) return null;
 
   return (
-    <section aria-labelledby={`${title}-heading`}>
+    <section
+      aria-labelledby={`${title}-heading`}
+      className="[content-visibility:auto] [contain-intrinsic-size:auto_420px]"
+    >
       <SectionHeader
         as="h2"
         labelSlot={
@@ -48,7 +51,7 @@ export function LandingProductRail({
         }
         leftSlot={
           <Button asChild size="small" variant="link-ghost">
-            <Link aria-label={`مشاهده همه ${title}`} href={href}>
+            <Link aria-label={`مشاهده همه ${title}`} href={href} prefetch={false}>
               مشاهده همه
               <ChevronLeft aria-hidden="true" />
             </Link>

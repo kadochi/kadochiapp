@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { ChevronLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Autoplay, Pagination } from "swiper/modules";
@@ -19,6 +20,7 @@ type HeroBannerProps = {
   ctaLink?: string | null;
   backgroundImage: string;
   className?: string;
+  priority?: boolean;
 };
 
 type HeroSlide = Omit<HeroBannerProps, "className"> & {
@@ -42,6 +44,7 @@ function HeroBanner({
   ctaLink = "#",
   backgroundImage,
   className,
+  priority = false,
 }: HeroBannerProps) {
   return (
     <div
@@ -51,8 +54,18 @@ function HeroBanner({
         className,
       )}
       dir="rtl"
-      style={{ backgroundImage: `url(${backgroundImage})` }}
     >
+      <Image
+        alt=""
+        aria-hidden
+        className="object-cover"
+        fetchPriority={priority ? "high" : "auto"}
+        fill
+        loading={priority ? undefined : "lazy"}
+        preload={priority}
+        sizes="(min-width: 860px) min(100vw, 1440px), calc(100vw - 24px)"
+        src={backgroundImage}
+      />
       <div className="absolute inset-0 z-10 grid content-center justify-items-center gap-16 px-24 pb-32 pt-16 text-center">
         <HeroTitle className="w-[10rem] text-center text-[32px] leading-[40px] min-[860px]:w-auto min-[860px]:max-w-[32rem] min-[860px]:text-[40px] min-[860px]:leading-[48px]" title={title} />
         {subtitle ? (
@@ -99,7 +112,7 @@ function HeroCallToAction({
       size={size}
       variant="link-ghost"
     >
-      <Link href={href || "#"}>
+      <Link href={href || "#"} prefetch={false}>
         {label}
         <ChevronLeft aria-hidden="true" />
       </Link>
@@ -209,7 +222,7 @@ function HeroSlider({ initialSlides }: Readonly<HeroSliderProps>) {
               key={slide.id}
               role="group"
             >
-              <HeroBanner {...slide} />
+              <HeroBanner {...slide} priority={index === 0} />
             </SwiperSlide>
           ))}
         </Swiper>

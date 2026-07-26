@@ -106,7 +106,8 @@ const labelVariants = cva(
       {
         variant: "neutral",
         appearance: "soft",
-        className: "bg-disable-container text-on-disable-container",
+        className:
+          "bg-disable-container text-surface-neutral-high-emphasis",
       },
       {
         variant: "neutral",

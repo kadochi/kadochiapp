@@ -1929,6 +1929,13 @@ final class Kadochi_Core {
 		if ( ! $gateway || ! method_exists( $gateway, 'process_payment' ) ) {
 			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway is unavailable.', 'kadochi-core' ), 503 );
 		}
+		// The official ZarinPal gateway's process_payment() intentionally returns
+		// WooCommerce's order-pay page. Its public handoff method creates the real
+		// ZarinPal authority and responds with the gateway redirect instead.
+		if ( 'WC_ZPal' === $this->payment_method_id() && method_exists( $gateway, 'Send_to_ZarinPal_Gateway' ) ) {
+			$gateway->Send_to_ZarinPal_Gateway( $order->get_id() );
+			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway could not start a payment.', 'kadochi-core' ), 502 );
+		}
 		$result = $gateway->process_payment( $order->get_id() );
 		$redirect = is_array( $result ) && isset( $result['redirect'] ) ? esc_url_raw( $result['redirect'], array( 'http', 'https' ) ) : '';
 		if ( ! $redirect ) {

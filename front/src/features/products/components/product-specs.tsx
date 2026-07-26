@@ -11,7 +11,7 @@ export function ProductSpecs({ attributes }: Readonly<ProductSpecsProps>) {
 
   return (
     <section>
-      <SectionHeader as="h3" title="مشخصات محصول" subtitle="جدول ویژگی‌ها" />
+      <SectionHeader as="h2" title="مشخصات محصول" subtitle="جدول ویژگی‌ها" />
       <div className="mx-16 mt-8 mb-16 overflow-hidden rounded-xl border border-border-mid-emphasis">
         <table className="w-full table-fixed border-collapse [direction:rtl]">
           <tbody>

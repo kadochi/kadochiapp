@@ -15,7 +15,7 @@ export function ProductDescription({ product }: Readonly<ProductDescriptionProps
   return (
     <section>
       <SectionHeader
-        as="h3"
+        as="h2"
         title="درباره محصول"
         subtitle="توضیحات و بررسی"
         leftSlot={

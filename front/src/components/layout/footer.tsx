@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- Third-party trust seals and legacy static icons must retain their original loading behavior. */
 
 import Link from "next/link";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Divider } from "@/components/ui/divider";
 
@@ -111,7 +111,7 @@ function FooterLinkList({ links }: { links: readonly FooterLink[] }) {
     <ul className={footerListClassName}>
       {links.map(({ label, href }) => (
         <li key={href}>
-          <Link className={footerLinkClassName} href={href}>
+          <Link className={footerLinkClassName} href={href} prefetch={false}>
             {label}
           </Link>
         </li>
@@ -146,42 +146,65 @@ function Footer() {
   const pathname = usePathname();
   const isHidden = isFooterHidden(pathname);
   const [categories, setCategories] = useState<StoreCategory[] | null>(null);
+  const footerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (isHidden) {
       return;
     }
 
-    const controller = new AbortController();
+    let controller: AbortController | undefined;
+    const loadCategories = () => {
+      controller = new AbortController();
 
-    void fetch(categoryEndpoint, {
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then((response) => (response.ok ? response.json() : []))
-      .then((data: StoreCategory[]) => {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        setCategories(
-          (data ?? [])
-            .filter((category) => {
-              const name = category.name.trim().toLowerCase();
-              const slug = category.slug.trim().toLowerCase();
-
-              return name !== "بدون دسته‌بندی" && slug !== "uncategorized";
-            })
-            .slice(0, 100),
-        );
+      void fetch(categoryEndpoint, {
+        cache: "no-store",
+        signal: controller.signal,
       })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setCategories([]);
-        }
-      });
+        .then((response) => (response.ok ? response.json() : []))
+        .then((data: StoreCategory[]) => {
+          if (controller?.signal.aborted) {
+            return;
+          }
 
-    return () => controller.abort();
+          setCategories(
+            (data ?? [])
+              .filter((category) => {
+                const name = category.name.trim().toLowerCase();
+                const slug = category.slug.trim().toLowerCase();
+
+                return name !== "بدون دسته‌بندی" && slug !== "uncategorized";
+              })
+              .slice(0, 100),
+          );
+        })
+        .catch(() => {
+          if (!controller?.signal.aborted) {
+            setCategories([]);
+          }
+        });
+    };
+
+    const footer = footerRef.current;
+    if (!footer || !("IntersectionObserver" in window)) {
+      loadCategories();
+      return () => controller?.abort();
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect();
+        loadCategories();
+      },
+      { rootMargin: "600px" },
+    );
+    observer.observe(footer);
+
+    return () => {
+      observer.disconnect();
+      controller?.abort();
+    };
   }, [isHidden]);
 
   if (isHidden) {
@@ -193,6 +216,7 @@ function Footer() {
       aria-labelledby="footer-heading"
       className="hidden border-t border-surface bg-surface-soft font-sans text-text-primary min-[1025px]:block"
       data-component="footer"
+      ref={footerRef}
     >
       <div className="box-border mx-auto w-full max-w-[1440px] px-16 py-32">
         <h2 className="sr-only" id="footer-heading">
@@ -211,6 +235,7 @@ function Footer() {
                   <Link
                     className={footerLinkClassName}
                     href={`/products?category=${encodeURIComponent(category.slug)}`}
+                    prefetch={false}
                   >
                     {category.name}
                   </Link>
@@ -266,10 +291,14 @@ function Footer() {
               target="_blank"
             >
               <img
-                alt="نماد اعتماد الکترونیکی"
+                alt=""
                 className="size-64 cursor-pointer object-contain"
+                decoding="async"
+                height="64"
+                loading="lazy"
                 referrerPolicy="origin"
-                src="https://trustseal.enamad.ir/logo.aspx?id=4427&Code=zAoYDxOli5GGolDnRLIO"
+                src="/images/enamad.png"
+                width="64"
               />
               <span className="mt-4 w-88 text-center font-sans text-label-10 font-regular leading-[var(--text-label-10--line-height)] text-surface-neutral-mid-emphasis">
                 نماد اعتماد الکترونیکی
@@ -285,7 +314,7 @@ function Footer() {
                 target="_blank"
               >
                 <img
-                  alt={label}
+                  alt=""
                   className="size-64 object-contain"
                   decoding="async"
                   loading="lazy"

@@ -1,8 +1,7 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element -- Category image URLs come from the Store API. */
-
 import Link from "next/link";
+import Image from "next/image";
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 
@@ -17,7 +16,7 @@ export function CategoryRail({ items }: Readonly<CategoryRailProps>) {
   const isLoading = items.length === 0;
 
   return (
-    <section aria-label="دسته‌بندی‌های هدیه" className="py-16 [&_.swiper]:mb-24">
+    <section aria-label="دسته‌بندی‌های هدیه" className="py-16 [content-visibility:auto] [contain-intrinsic-size:auto_296px] [&_.swiper]:mb-24">
       <Swiper
         breakpoints={{
           0: { slidesOffsetAfter: 16, slidesOffsetBefore: 16, slidesPerView: 1.4 },
@@ -47,12 +46,16 @@ export function CategoryRail({ items }: Readonly<CategoryRailProps>) {
                   aria-label={`مشاهده ${category.name}`}
                   className="group relative block h-[256px] overflow-hidden rounded-xl bg-[linear-gradient(to_top,var(--color-secondary),var(--color-secondary-gradient))] no-underline min-[864px]:h-[240px]"
                   href={`/products?category=${encodeURIComponent(category.slug)}`}
+                  prefetch={false}
                 >
                   {category.imageUrl ? (
-                    <img
+                    <Image
                       alt=""
                       className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      fill
                       loading="lazy"
+                      quality={55}
+                      sizes="(min-width: 1024px) 12.5vw, (min-width: 860px) 19vw, (min-width: 700px) 23vw, (min-width: 540px) 29vw, 42vw"
                       src={category.imageUrl}
                     />
                   ) : null}

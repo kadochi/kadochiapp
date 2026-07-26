@@ -44,9 +44,12 @@ export function ProductsSlider({ items, showOutOfStock = false }: Readonly<Produ
                 <ProductCardSkeleton />
               </SwiperSlide>
             ))
-          : slides.map(({ product, priority }) => (
+          : slides.map(({ product }) => (
               <SwiperSlide className="h-auto" key={product.id}>
-                <ProductCard priority={priority} product={product} />
+                <ProductCard
+                  product={product}
+                  sizes="(min-width: 1024px) 20vw, (min-width: 860px) 29vw, (min-width: 540px) 42vw, 72vw"
+                />
               </SwiperSlide>
             ))}
       </Swiper>

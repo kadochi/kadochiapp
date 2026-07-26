@@ -154,7 +154,7 @@ export default async function Homepage() {
   return (
     <LayoutContent mainClassName="mx-auto w-full max-w-[1440px]" showBottomNav>
       <h1 className="sr-only">کادوچی | خرید کادو، گل و کیک با ارسال سریع</h1>
-      <HeroSlider initialSlides={heroSlides.length ? heroSlides : undefined} />
+      <HeroSlider initialSlides={heroSlides} />
       <ServicesNav items={[...services]} />
 
       <Divider size="md" variant="spacer" />
@@ -175,7 +175,7 @@ export default async function Homepage() {
           as="h2"
           leftSlot={
             <Button asChild size="small" variant="link-ghost">
-              <Link aria-label="مشاهده تقویم مناسبت‌ها" href="/occasions">
+              <Link aria-label="مشاهده تقویم مناسبت‌ها" href="/occasions" prefetch={false}>
                 مشاهده تقویم
                 <ChevronLeft aria-hidden />
               </Link>

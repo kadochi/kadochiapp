@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 import { Price } from "@/components/layout/price";
 import { cn } from "@/lib/utils";
@@ -9,6 +10,7 @@ type ProductCardProps = {
   product: Product;
   href?: string;
   priority?: boolean;
+  sizes?: string;
   className?: string;
 };
 
@@ -17,6 +19,7 @@ export function ProductCard({
   product,
   href,
   priority = false,
+  sizes = "(min-width: 1024px) 16vw, (min-width: 640px) 25vw, 50vw",
   className,
 }: ProductCardProps) {
   const { current, previous, offPercent } = usePrice(product);
@@ -27,17 +30,23 @@ export function ProductCard({
     <Link
       className={cn(
         "block w-full no-underline text-inherit [direction:rtl]",
+        "[content-visibility:auto] [contain-intrinsic-size:auto_322px]",
         className,
       )}
       href={href ?? `/product/${product.slug}`}
+      prefetch={false}
     >
       <div className="relative grid aspect-[1/1.2] w-full place-items-center overflow-hidden rounded-[var(--radius-l)]">
         {image ? (
-          <img
+          <Image
             alt={image.alt || product.name}
             className="absolute inset-0 size-full object-cover"
             fetchPriority={priority ? "high" : "auto"}
-            loading={priority ? "eager" : "lazy"}
+            fill
+            loading={priority ? undefined : "lazy"}
+            preload={priority}
+            quality={55}
+            sizes={sizes}
             src={image.url}
           />
         ) : null}

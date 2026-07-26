@@ -18,5 +18,10 @@ export function verifyOtp(input: VerifyOtpInput) {
   );
 }
 
-export const getCurrentCustomer = () => bffJson("/api/auth/current", { method: "GET" }, (value) => customerSchema.parse(value));
+export const getCurrentCustomer = () =>
+  bffJson(
+    "/api/auth/current",
+    { method: "GET" },
+    (value) => customerSchema.nullable().parse(value),
+  );
 export const logout = () => bffJson("/api/auth/logout", { method: "POST" }, () => undefined);

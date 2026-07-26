@@ -18,6 +18,7 @@ export function OccasionPrompt() {
           className="flex min-h-128 flex-col items-center justify-center rounded-xl bg-secondary-container px-12 py-32 text-center no-underline transition-[filter,transform] duration-150 hover:-translate-y-1 hover:[filter:saturate(1.05)]"
           href={item.href}
           key={item.href}
+          prefetch={false}
         >
           <span className="text-label-12 font-regular leading-[var(--text-label-12--line-height)] text-secondary">
             {item.label}

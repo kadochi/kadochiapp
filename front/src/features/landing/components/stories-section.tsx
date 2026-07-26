@@ -1,8 +1,7 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element -- Story images are uploaded in WordPress. */
-
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -103,7 +102,7 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
         </h2>
         <Button asChild size="small" variant="tertiary-outline">
           <a href="https://instagram.com/kadochicom" rel="noreferrer" target="_blank">
-            <img alt="" src="/icons/social-instagram.svg" />
+            <Image alt="" height={20} src="/icons/social-instagram.svg" width={20} />
             اینستاگرام کادوچی
           </a>
         </Button>
@@ -120,7 +119,15 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
           >
             <span className="block h-[76px] w-[76px] shrink-0 aspect-square rounded-full bg-[linear-gradient(135deg,#f9ce34,#ee2a7b_48%,#6228d7)] p-[3px]">
               <span className="block size-full aspect-square rounded-full bg-surface-background p-[3px]">
-                <img alt="" className="block size-full aspect-square rounded-full object-cover transition-transform duration-200 group-hover:scale-[1.03]" height={64} src={story.image.url} width={64} />
+                <Image
+                  alt=""
+                  className="block size-full aspect-square rounded-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                  height={64}
+                  loading="lazy"
+                  sizes="64px"
+                  src={story.image.url}
+                  width={64}
+                />
               </span>
             </span>
             <span className="line-clamp-1 w-full">{story.title || "کادوچی"}</span>
@@ -132,7 +139,13 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
         <div aria-label="نمایش استوری کادوچی" aria-modal="true" className="fixed inset-0 z-[110] grid place-items-center bg-black/90 p-0 min-[768px]:p-32" role="dialog">
           <button aria-label="بستن استوری" className="absolute inset-0 cursor-default border-0 bg-transparent" onClick={() => setSelectedId(null)} type="button" />
           <article className="relative isolate h-dvh w-full overflow-hidden bg-black text-white shadow-2xl min-[768px]:h-[min(82dvh,760px)] min-[768px]:w-[min(46.125dvh,428px)] min-[768px]:rounded-xl" dir="rtl">
-            <img alt={selectedStory.image.alt || selectedStory.title} className="absolute inset-0 size-full object-cover" src={selectedStory.image.url} />
+            <Image
+              alt={selectedStory.image.alt || selectedStory.title}
+              className="object-cover"
+              fill
+              sizes="(min-width: 768px) 428px, 100vw"
+              src={selectedStory.image.url}
+            />
             <span className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,.56),transparent_26%,transparent_72%,rgba(0,0,0,.32))]" />
 
             <div className="absolute inset-x-0 top-0 z-20 p-16">
@@ -153,7 +166,7 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
                   <X aria-hidden className="size-24" />
                 </button>
                 <div className="flex min-w-0 flex-1 items-center gap-8 [direction:ltr]">
-                  <img alt="کادوچی" className="block size-64 shrink-0 object-contain" height={64} src="/images/logo.svg" width={64} />
+                  <Image alt="کادوچی" className="block size-64 shrink-0 object-contain" height={64} src="/images/logo.svg" width={64} />
                   <div className="grid min-w-0 gap-1 text-left">
                     <strong className="text-label-14">Kadochi</strong>
                     <span className="text-label-12 text-white/80 [direction:rtl]">{elapsedTime(selectedStory.publishedAt)}</span>

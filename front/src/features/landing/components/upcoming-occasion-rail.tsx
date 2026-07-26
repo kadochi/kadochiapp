@@ -82,7 +82,7 @@ function OccasionCard({ occasion }: { occasion: Occasion }) {
         {persianNumber.format(remainingDays)} روز مانده
       </p>
       <Button asChild size="small" variant="link-ghost">
-        <Link href="/products">
+        <Link href="/products" prefetch={false}>
           خرید کادو
           <ChevronLeft aria-hidden="true" />
         </Link>

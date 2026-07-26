@@ -1,6 +1,7 @@
 import "server-only";
 
 import { wordpressBearerHeaders } from "@/features/auth/services/auth.server";
+import { ServiceError } from "@/lib/http/errors";
 import { parseUpstreamJson, wordpressFetch } from "@/lib/http/upstream";
 import { listProducts } from "@/features/products/services/products.server";
 
@@ -53,9 +54,28 @@ export async function retryProfileOrderPayment(orderId: number, requestId: strin
   const response = await wordpressFetch(`/wp-json/kadochi/v1/profile/orders/${orderId}/retry-payment`, {
     method: "POST",
     headers: await wordpressBearerHeaders(),
+    redirect: "manual",
+    acceptStatuses: [302],
     cache: "no-store",
     requestId,
   });
+  if (response.status === 302) {
+    const redirectUrl = response.headers.get("location");
+    try {
+      const result = profileOrderRetryPaymentSchema.parse({ redirectUrl });
+      const host = new URL(result.redirectUrl).hostname;
+      if (host === "payment.zarinpal.com" || host === "sandbox.zarinpal.com") return result;
+    } catch {
+      // Normalized below so the BFF returns a safe service error.
+    }
+    throw new ServiceError({
+      code: "upstream_failure",
+      status: 502,
+      message: "The payment gateway returned an invalid redirect.",
+      requestId,
+      retryable: true,
+    });
+  }
   return parseUpstreamJson(response, (value) => profileOrderRetryPaymentSchema.parse(value), requestId);
 }
 

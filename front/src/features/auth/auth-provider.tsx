@@ -54,6 +54,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       const nextCustomer = await getCurrentCustomer();
+      if (!nextCustomer) {
+        setCustomer(null);
+        setStatus("anonymous");
+        return null;
+      }
       setCustomer(nextCustomer);
       setStatus("authenticated");
       return nextCustomer;
@@ -72,10 +77,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const requestIdle = (
+      window as Window & {
+        requestIdleCallback?: Window["requestIdleCallback"];
+      }
+    ).requestIdleCallback?.bind(window);
+    let idleId: number | undefined;
     const timer = window.setTimeout(() => {
-      void refresh().catch(() => undefined);
-    }, 0);
-    return () => window.clearTimeout(timer);
+      if (requestIdle) {
+        idleId = requestIdle(() => void refresh().catch(() => undefined));
+      } else {
+        void refresh().catch(() => undefined);
+      }
+    }, 15_000);
+
+    return () => {
+      window.clearTimeout(timer);
+      if (idleId !== undefined) window.cancelIdleCallback(idleId);
+    };
   }, [refresh]);
 
   useEffect(() => {

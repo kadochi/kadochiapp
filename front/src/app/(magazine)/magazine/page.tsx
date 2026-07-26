@@ -22,7 +22,13 @@ export const metadata: Metadata = {
 };
 
 export default async function MagazinePage() {
-  const { items: articles, total } = await listMagazineArticles({ perPage: 12 });
+  const { items: articles, total } = await listMagazineArticles({ perPage: 12 }).catch(() => ({
+    items: [],
+    page: 1,
+    perPage: 12,
+    total: 0,
+    totalPages: 0,
+  }));
   const categories = Array.from(
     new Map(articles.flatMap((article) => article.categories).map((category) => [category.id, category])).values(),
   );
@@ -37,7 +43,7 @@ export default async function MagazinePage() {
       <Divider />
       <section className="border-b border-border-low-emphasis bg-secondary-container px-16 py-32 min-[768px]:py-48" aria-labelledby="magazine-title">
         <div className="mx-auto w-full max-w-[1200px]">
-          <div className="inline-flex items-center gap-8 rounded-rounded bg-primary-container px-12 py-8 font-sans text-label-14 text-primary">
+          <div className="inline-flex items-center gap-8 rounded-rounded bg-primary-container px-12 py-8 font-sans text-label-14 text-on-success-container">
             <BookOpen aria-hidden size={18} /> مجله کادوچی
           </div>
           <h1 className="mt-16 mb-0 font-sans text-heading-32 font-extrabold leading-[var(--text-heading-32--line-height)] text-surface-neutral-high-emphasis min-[768px]:text-heading-40 min-[768px]:leading-[var(--text-heading-40--line-height)]" id="magazine-title">
@@ -49,7 +55,7 @@ export default async function MagazinePage() {
           {categories.length ? (
             <nav aria-label="موضوع‌های مجله" className="mt-20 flex flex-wrap gap-8">
               {categories.map((category) => (
-                <Link className="rounded-rounded border border-border-mid-emphasis bg-surface-background px-12 py-8 font-sans text-label-14 text-surface-neutral-mid-emphasis no-underline transition-colors hover:border-primary hover:text-primary" href={`/magazine/category/${category.slug}`} key={category.id}>
+                <Link className="rounded-rounded border border-border-mid-emphasis bg-surface-background px-12 py-8 font-sans text-label-14 text-surface-neutral-mid-emphasis no-underline transition-colors hover:border-primary hover:text-primary" href={`/magazine/category/${category.slug}`} key={category.id} prefetch={false}>
                   {category.name}
                 </Link>
               ))}

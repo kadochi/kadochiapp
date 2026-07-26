@@ -9,12 +9,15 @@ export function MagazineRail({ articles }: Readonly<{ articles: readonly Magazin
   if (!articles.length) return null;
 
   return (
-    <section aria-labelledby="magazine-home-heading">
+    <section
+      aria-labelledby="magazine-home-heading"
+      className="[content-visibility:auto] [contain-intrinsic-size:auto_420px]"
+    >
       <SectionHeader
         as="h2"
         leftSlot={
           <Button asChild className="text-secondary" size="small" variant="link-ghost">
-            <Link aria-label="مشاهده همه مقاله‌های مجله" href="/magazine">
+            <Link aria-label="مشاهده همه مقاله‌های مجله" href="/magazine" prefetch={false}>
               مشاهده همه
               <ChevronLeft aria-hidden />
             </Link>

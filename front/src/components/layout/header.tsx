@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- These are local, fixed-size icon assets. */
 
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -10,8 +11,12 @@ import { cva } from "class-variance-authority";
 import { useOptionalAuth } from "@/features/auth/auth-provider";
 import { cartChangedEvent, getCart } from "@/features/cart/services/cart";
 import { cn } from "@/lib/utils";
-import { SideMenu } from "./side-menu";
 import { Button } from "../ui/button";
+
+const SideMenu = dynamic(
+  () => import("./side-menu").then((module) => module.SideMenu),
+  { ssr: false },
+);
 
 type HeaderVariant = "default" | "internal";
 
@@ -135,7 +140,7 @@ function InternalHeader({
       ) : null}
 
       <div className="hidden flex-1 items-center justify-center min-[864px]:flex">
-        <Link aria-label="صفحه اصلی" className="inline-flex items-center justify-center leading-none" href="/">
+        <Link aria-label="صفحه اصلی" className="inline-flex items-center justify-center leading-none" href="/" prefetch={false}>
           <Image alt="Kadochi" className="block h-56 w-[60px]" height={56} src="/images/logo.svg" width={60} />
         </Link>
       </div>
@@ -156,6 +161,7 @@ function DefaultHeader({
   const router = useRouter();
   const auth = useOptionalAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [hasOpenedMenu, setHasOpenedMenu] = useState(false);
   const [basketCount, setBasketCount] = useState(0);
 
   const refreshBasketCount = useCallback(() => {
@@ -175,11 +181,33 @@ function DefaultHeader({
 
   useEffect(() => {
     if (controlledBasketCount !== undefined) return;
-    const cancelInitialRequest = refreshBasketCount();
+    let cancelInitialRequest: (() => void) | undefined;
+    let idleId: number | undefined;
+    const refresh = () => {
+      cancelInitialRequest = refreshBasketCount();
+    };
+
+    const requestIdle = (
+      window as Window & {
+        requestIdleCallback?: Window["requestIdleCallback"];
+      }
+    ).requestIdleCallback?.bind(window);
+    // Cart state is non-critical for the initial view. Give images, fonts, and
+    // hydration an uncontested load window, then use the next idle period.
+    const timerId = window.setTimeout(() => {
+      if (requestIdle) {
+        idleId = requestIdle(refresh);
+      } else {
+        refresh();
+      }
+    }, 15_000);
+
     const handleCartChange = () => refreshBasketCount();
     window.addEventListener(cartChangedEvent, handleCartChange);
     return () => {
-      cancelInitialRequest();
+      if (idleId !== undefined) window.cancelIdleCallback(idleId);
+      window.clearTimeout(timerId);
+      cancelInitialRequest?.();
       window.removeEventListener(cartChangedEvent, handleCartChange);
     };
   }, [controlledBasketCount, refreshBasketCount]);
@@ -265,7 +293,7 @@ function DefaultHeader({
           </div>
 
           <Link className="flex items-center justify-center" href="/" prefetch={false}>
-            <img alt="Logo" className="absolute left-1/2 h-56 w-[60px] -translate-x-1/2" decoding="async" fetchPriority="low" height={56} loading="eager" src="/images/logo.svg" width={60} />
+            <img alt="Logo" className="absolute left-1/2 h-56 w-[60px] -translate-x-1/2" decoding="async" fetchPriority="high" height={56} loading="eager" src="/images/logo.svg" width={60} />
           </Link>
 
           {shouldShowBack ? (
@@ -281,7 +309,10 @@ function DefaultHeader({
             <button
               aria-label="Menu"
               className={iconButtonVariants({ desktopOnly: true })}
-              onClick={() => setIsMenuOpen(true)}
+              onClick={() => {
+                setHasOpenedMenu(true);
+                setIsMenuOpen(true);
+              }}
               type="button"
             >
               <img alt="Menu" className="size-32" decoding="async" height={32} loading="lazy" src="/icons/menu-black.svg" width={32} />
@@ -306,18 +337,20 @@ function DefaultHeader({
         </header>
       </div>
 
-      <SideMenu
-        isLoggedIn={isAuthenticated}
-        isOpen={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
-        user={accountUser ? {
-          avatarSrc: accountUser.avatarSrc,
-          firstName: accountUser.firstName,
-          lastName: accountUser.lastName,
-          name: getAccountLabel(accountUser),
-          phone: accountUser.phone,
-        } : undefined}
-      />
+      {hasOpenedMenu ? (
+        <SideMenu
+          isLoggedIn={isAuthenticated}
+          isOpen={isMenuOpen}
+          onClose={() => setIsMenuOpen(false)}
+          user={accountUser ? {
+            avatarSrc: accountUser.avatarSrc,
+            firstName: accountUser.firstName,
+            lastName: accountUser.lastName,
+            name: getAccountLabel(accountUser),
+            phone: accountUser.phone,
+          } : undefined}
+        />
+      ) : null}
     </>
   );
 }

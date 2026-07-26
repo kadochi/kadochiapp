@@ -106,7 +106,7 @@ export function ProductReview({
   return (
     <section className="pb-16" aria-label="نقد و بررسی کاربران">
       <SectionHeader
-        as="h3"
+        as="h2"
         title="نقد و بررسی"
         subtitle="نظرات و امتیازات کاربران"
         leftSlot={
@@ -134,6 +134,7 @@ export function ProductReview({
         <div
           className="mx-16 h-[176px] animate-pulse rounded-xxl bg-surface-soft"
           aria-label="در حال بررسی ورود"
+          role="status"
         />
       ) : auth.status !== "authenticated" ? (
         <div className="mx-16 rounded-xxl bg-surface-soft px-16 py-48 text-center [direction:rtl]">

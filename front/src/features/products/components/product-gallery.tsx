@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Dialog } from "radix-ui";
 import { Bookmark, ChevronLeft, ChevronRight, Heart, X } from "lucide-react";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -13,6 +14,7 @@ import { useProductGallery } from "../hooks/useProductGallery";
 import { getProductActions, updateProductAction } from "../services/products";
 import type { ProductImage } from "../types";
 import { useToast } from "@/components/ui/toaster";
+import { useOptionalAuth } from "@/features/auth/auth-provider";
 
 export type ProductGalleryProps = {
   images: readonly ProductImage[];
@@ -29,6 +31,7 @@ export function ProductGallery({
   const { slides, activeThumbs, setThumbsSwiper, showThumbs } =
     useProductGallery(images, title);
   const { toast } = useToast();
+  const auth = useOptionalAuth();
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
@@ -38,6 +41,8 @@ export function ProductGallery({
   const hasMultipleSlides = slides.length > 1;
 
   useEffect(() => {
+    if (auth?.status !== "authenticated") return;
+
     let active = true;
     void getProductActions(productId)
       .then((actions) => {
@@ -48,7 +53,7 @@ export function ProductGallery({
       // Visitors can still browse products; actions become available after sign-in.
       .catch(() => undefined);
     return () => { active = false; };
-  }, [productId]);
+  }, [auth?.status, productId]);
 
   async function toggleProductAction(action: "like" | "save") {
     if (isUpdatingAction) return;
@@ -105,13 +110,16 @@ export function ProductGallery({
                   onClick={() => openViewer(index)}
                   type="button"
                 >
-                  <img
+                  <Image
                     alt={slide.alt}
                     className="block aspect-[1/1.2] w-full rounded-xl object-cover"
-                    decoding={slide.priority ? "sync" : "async"}
                     fetchPriority={slide.priority ? "high" : "auto"}
-                    loading={slide.priority ? "eager" : "lazy"}
+                    height={960}
+                    loading={slide.priority ? undefined : "lazy"}
+                    preload={slide.priority}
+                    sizes="(min-width: 768px) 400px, calc(100vw - 24px)"
                     src={slide.src}
+                    width={800}
                   />
                 </button>
               ) : null}
@@ -168,14 +176,18 @@ export function ProductGallery({
             >
               {slides.map((slide, index) => (
                 <SwiperSlide key={`thumb-${slide.src}-${index}`}>
-                  <img
-                    alt=""
-                    aria-hidden
-                    className="size-64 cursor-pointer rounded-m border border-white/70 object-cover transition-[border-color] duration-200 ease-in-out"
-                    decoding="async"
-                    loading="lazy"
-                    src={slide.src}
-                  />
+                  {slide.src ? (
+                    <Image
+                      alt=""
+                      aria-hidden
+                      className="size-64 cursor-pointer rounded-m border border-white/70 object-cover transition-[border-color] duration-200 ease-in-out"
+                      height={64}
+                      loading="lazy"
+                      sizes="64px"
+                      src={slide.src}
+                      width={64}
+                    />
+                  ) : null}
                 </SwiperSlide>
               ))}
             </Swiper>
@@ -211,10 +223,13 @@ export function ProductGallery({
 
             <div className="relative flex min-h-0 flex-1 items-center justify-center py-16">
               {viewerSlide?.src ? (
-                <img
+                <Image
                   alt={viewerSlide.alt}
                   className="max-h-full max-w-full rounded-m object-contain"
+                  height={1200}
+                  sizes="100vw"
                   src={viewerSlide.src}
+                  width={1200}
                 />
               ) : null}
 
@@ -252,11 +267,14 @@ export function ProductGallery({
                     type="button"
                   >
                     {slide.src ? (
-                      <img
+                      <Image
                         alt=""
                         aria-hidden
                         className="size-64 rounded-[calc(var(--radius-m)-2px)] object-cover"
+                        height={64}
+                        sizes="64px"
                         src={slide.src}
+                        width={64}
                       />
                     ) : null}
                   </button>

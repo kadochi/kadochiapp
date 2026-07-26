@@ -186,6 +186,7 @@ function SideMenu({
           className="px-24 py-16 no-underline"
           href={isLoggedIn ? "/profile" : "/login"}
           onClick={onClose}
+          prefetch={false}
         >
           <div className="flex flex-row-reverse items-center gap-12">
             <Avatar alt={displayName} size="lg" src={profileUser?.avatarSrc ?? undefined} />
@@ -208,6 +209,7 @@ function SideMenu({
                   className="flex flex-row-reverse items-center gap-8 px-24 py-16 text-text-primary no-underline [-webkit-tap-highlight-color:transparent]"
                   href={item.href}
                   onClick={onClose}
+                  prefetch={false}
                 >
                   <img
                     alt=""

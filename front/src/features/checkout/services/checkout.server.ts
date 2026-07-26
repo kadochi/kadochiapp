@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { z } from "zod";
 
 import { getCurrentCustomer, getStoredAuthToken, wordpressBearerHeaders } from "@/features/auth/services/auth.server";
 import { ServiceError } from "@/lib/http/errors";
@@ -116,6 +117,52 @@ function additionalFields(input: ReturnType<typeof submitCheckoutSchema.parse>) 
       : "",
     [operationField]: input.operationId,
   };
+}
+
+function isWooOrderPayRedirect(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    return new URL(url).pathname.startsWith("/checkout/order-pay/");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Some classic WooCommerce gateways return their order-pay page from the Store
+ * API instead of the gateway URL. Start the configured gateway directly so the
+ * storefront can take the customer to payment in one step.
+ */
+async function gatewayRedirectForOrder(orderId: number, requestId: string) {
+  const response = await wordpressFetch(`/wp-json/kadochi/v1/profile/orders/${orderId}/retry-payment`, {
+    method: "POST",
+    headers: await wordpressBearerHeaders(),
+    cache: "no-store",
+    requestId,
+    redirect: "manual",
+    acceptStatuses: [302],
+  });
+  if (response.status === 302) {
+    const redirectUrl = response.headers.get("location");
+    const parsed = z.string().url().parse(redirectUrl);
+    const host = new URL(parsed).hostname;
+    if (host !== "payment.zarinpal.com" && host !== "sandbox.zarinpal.com") {
+      throw new ServiceError({
+        code: "upstream_failure",
+        status: 502,
+        message: "The payment gateway returned an invalid redirect.",
+        requestId,
+        retryable: true,
+      });
+    }
+    return { paymentStatus: "pending", redirectUrl: parsed };
+  }
+  const gateway = await parseUpstreamJson(
+    response,
+    (value) => z.object({ redirectUrl: z.string().url() }).strict().parse(value),
+    requestId,
+  );
+  return { paymentStatus: "pending", redirectUrl: gateway.redirectUrl };
 }
 
 async function cartForCheckout(headers: Record<string, string>, requestId: string) {
@@ -263,7 +310,15 @@ export async function checkout(input: unknown, requestId: string) {
       acceptStatuses: [400],
     });
     lastCartToken = response.headers.get("cart-token") ?? lastCartToken;
-    return { result: await parseUpstreamJson(response, mapCheckoutResult, requestId), cartToken: lastCartToken };
+    const result = await parseUpstreamJson(response, mapCheckoutResult, requestId);
+    if (result.orderId && isWooOrderPayRedirect(result.paymentResult?.redirectUrl)) {
+      const paymentResult = await gatewayRedirectForOrder(result.orderId, requestId);
+      return {
+        result: checkoutResultSchema.parse({ ...result, paymentResult }),
+        cartToken: lastCartToken,
+      };
+    }
+    return { result, cartToken: lastCartToken };
   } catch (error) {
     // A retryable failure after POST may hide a completed gateway call. Reconcile the
     // recorded operation instead of issuing a second payment attempt automatically.

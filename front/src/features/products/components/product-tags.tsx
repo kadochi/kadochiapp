@@ -14,7 +14,7 @@ export function ProductTags({ tags }: Readonly<ProductTagsProps>) {
 
   return (
     <section aria-label="تگ‌های محصول">
-      <SectionHeader as="h3" title="تگ‌های محصول" subtitle="تگ‌های مرتبط با این کالا" />
+      <SectionHeader as="h2" title="تگ‌های محصول" subtitle="تگ‌های مرتبط با این کالا" />
       <div className="flex flex-wrap gap-8 bg-surface-background px-16 pb-16 [direction:rtl]">
         {tags.map((tag) => (
           <Chip asChild key={tag.id} size="md" variant="outline">

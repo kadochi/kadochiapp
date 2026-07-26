@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Divider } from "@/components/ui/divider";
 import { Label } from "@/components/ui/label";
 import { ProductFilters } from "@/features/products/components/product-filters";
+import { ProductList } from "@/features/products/components/product-list";
 import { ProductListPagination } from "@/features/products/components/product-list-pagination";
 import { listCategories, listProducts, listProductTags } from "@/features/products/services/products.server";
 import type { ProductListResult, ProductQuery } from "@/features/products/types";
@@ -38,8 +39,8 @@ function emptyResult(page: number, perPage: number): ProductListResult {
   return { items: [], page, perPage, total: 0, totalPages: 0 };
 }
 
-async function getCatalogPage(searchParams: Record<string, SearchParamValue>) {
-  const search = parseProductListSearchParams(searchParams);
+const getCatalogPage = cache(async (searchKey: string) => {
+  const search = JSON.parse(searchKey) as ReturnType<typeof parseProductListSearchParams>;
   const { categories, tags } = await listFilterOptions();
   const category = search.category
     ? categories.find((item) => String(item.id) === search.category || item.slug === search.category)
@@ -65,6 +66,10 @@ async function getCatalogPage(searchParams: Record<string, SearchParamValue>) {
   const result = hasUnknownFilter ? emptyResult(search.page, 12) : await listProducts(query);
 
   return { hasUnknownFilter, search, categories, category, selectedTags, query, result };
+});
+
+function catalogSearchKey(searchParams: Record<string, SearchParamValue>) {
+  return productListSearchKey(parseProductListSearchParams(searchParams));
 }
 
 /** Builds one stable query-string order for canonical, pagination, and internal URLs. */
@@ -106,7 +111,8 @@ function listRobots(index: boolean): Metadata["robots"] {
 }
 
 export async function generateMetadata({ searchParams }: ProductsPageProps): Promise<Metadata> {
-  const { hasUnknownFilter, result, search, category, selectedTags } = await getCatalogPage(await searchParams);
+  const { hasUnknownFilter, result, search, category, selectedTags } =
+    await getCatalogPage(catalogSearchKey(await searchParams));
   const selectedTag = selectedTags.length === 1 ? selectedTags[0] : undefined;
   const title = category
     ? `خرید کادو ${category.name}`
@@ -141,7 +147,8 @@ export async function generateMetadata({ searchParams }: ProductsPageProps): Pro
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const resolvedSearchParams = await searchParams;
   await redirectLegacyCategory(resolvedSearchParams);
-  const { hasUnknownFilter, search, categories, category, selectedTags, query, result } = await getCatalogPage(resolvedSearchParams);
+  const { hasUnknownFilter, search, categories, category, selectedTags, query, result } =
+    await getCatalogPage(catalogSearchKey(resolvedSearchParams));
   if (!hasUnknownFilter && result.totalPages > 0 && search.page > result.totalPages) notFound();
   const selectedTag = selectedTags.length === 1 ? selectedTags[0] : undefined;
   const title = category
@@ -207,14 +214,17 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         />
 
         {result.items.length ? (
-          <ProductListPagination
-            key={catalogKey}
-            initialItems={result.items}
-            initialPage={result.page}
-            paginationBasePath={paginationBasePath}
-            query={query}
-            totalPages={result.totalPages}
-          />
+          <>
+            <ProductList items={result.items} />
+            <ProductListPagination
+              key={catalogKey}
+              initialProductIds={result.items.map((product) => product.id)}
+              initialPage={result.page}
+              paginationBasePath={paginationBasePath}
+              query={query}
+              totalPages={result.totalPages}
+            />
+          </>
         ) : (
           <StateMessage
             actions={
