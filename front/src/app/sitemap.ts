@@ -6,7 +6,7 @@ import { env } from "@/lib/server/env";
 
 export const revalidate = 3600;
 
-const staticPaths = ["/", "/products", "/about", "/contact", "/faq", "/shipping", "/terms", "/privacy", "/magazine"];
+const staticPaths = ["/", "/products", "/gift-finder", "/about", "/contact", "/faq", "/shipping", "/terms", "/privacy", "/magazine"];
 
 /** Lists every browseable product URL so Search Console can discover canonical PDPs directly. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

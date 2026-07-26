@@ -9,6 +9,7 @@ export type ServiceItem = {
   icon: string;
   variant?: "wide" | "sq";
   comingSoon?: boolean;
+  isNew?: boolean;
 };
 
 export type ServicesNavProps = {
@@ -51,6 +52,16 @@ function ServicesNav({ items, className }: Readonly<ServicesNavProps>) {
                 variant="danger"
               >
                 به‌زودی
+              </Label>
+            ) : null}
+            {item.isNew ? (
+              <Label
+                appearance="solid"
+                className="absolute -top-6 -left-6 z-2"
+                size="sm"
+                variant="secondary"
+              >
+                جدید
               </Label>
             ) : null}
 

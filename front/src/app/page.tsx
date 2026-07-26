@@ -117,7 +117,7 @@ async function getLandingData() {
 
 const services = [
   { href: "/products", icon: "/icons/all-gifts.svg", label: "محصولات کادویی", variant: "sq" },
-  { comingSoon: true, href: "/", icon: "/icons/giftf-inder.svg", label: "جستجوی کادوی مناسب", variant: "sq" },
+  { href: "/gift-finder", icon: "/icons/giftf-inder.svg", isNew: true, label: "جستجوی کادوی مناسب", variant: "sq" },
   { href: "/occasions", icon: "/icons/ocassions-calendar.svg", label: "تقویم مناسبت‌ها", variant: "sq" },
   { href: "/products?tag=fast-delivery", icon: "/icons/today-delivery.svg", label: "ارسال سریع امروز", variant: "sq" },
   { href: "/products?category=chocolate", icon: "/icons/birthday-cake.svg", label: "کیک تولد و برگزاری تولد", variant: "wide" },

@@ -9,6 +9,8 @@ export type LayoutContentProps = {
   className?: string;
   mainClassName?: string;
   headerProps?: HeaderProps;
+  /** Hides the shared footer for focused, full-viewport flows. */
+  showFooter?: boolean;
   /** Shows the mobile-only bottom navigation for this page. */
   showBottomNav?: boolean;
 };
@@ -25,12 +27,13 @@ function LayoutContent({
   mainClassName,
   headerProps,
   showBottomNav = false,
+  showFooter = true,
 }: Readonly<LayoutContentProps>) {
   return (
     <div className={cn("flex min-h-dvh flex-col", className)}>
       <Header {...headerProps} />
       <main className={cn("mx-auto w-full max-w-[1440px] flex-1", mainClassName)}>{children}</main>
-      <Footer />
+      {showFooter ? <Footer /> : null}
       {showBottomNav ? <BottomNavigation /> : null}
     </div>
   );
