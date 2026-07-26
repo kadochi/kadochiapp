@@ -104,7 +104,7 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
   // Google already knows the numeric URLs. A permanent redirect retains that
   // equity while ensuring there is one indexable, descriptive product URL.
   if (isProductIdIdentifier(slug) && product.slug !== slug) {
-    permanentRedirect(`/product/${product.slug}`);
+    permanentRedirect(productPath(product.slug));
   }
 
   const category = product.categories[0];
@@ -131,7 +131,7 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
       <Divider variant="spacer" />
 
       <Suspense fallback={<ProductsSliderSkeleton />}>
-        <SimilarProducts categoryId={category?.id} excludeId={product.id} />
+        <SimilarProducts category={category} excludeId={product.id} />
       </Suspense>
       <Divider variant="spacer" />
 

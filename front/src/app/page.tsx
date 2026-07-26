@@ -13,6 +13,7 @@ import { CategoryRail } from "@/features/landing/components/category-rail";
 import { LandingProductRail } from "@/features/landing/components/landing-product-rail";
 import { MagazineRail } from "@/features/landing/components/magazine-rail";
 import { OccasionPrompt } from "@/features/landing/components/occasion-prompt";
+import { StoriesSection } from "@/features/landing/components/stories-section";
 import { UpcomingOccasionRail } from "@/features/landing/components/upcoming-occasion-rail";
 import { getHomepageContent } from "@/features/content/services/content.server";
 import type { HomepageContent } from "@/features/content/types";
@@ -52,6 +53,7 @@ const emptyContent: HomepageContent = {
   banners: [],
   heroes: [],
   sliders: [],
+  stories: [],
 };
 
 async function fallback<T>(operation: Promise<T>, value: T): Promise<T> {
@@ -154,6 +156,9 @@ export default async function Homepage() {
       <h1 className="sr-only">کادوچی | خرید کادو، گل و کیک با ارسال سریع</h1>
       <HeroSlider initialSlides={heroSlides.length ? heroSlides : undefined} />
       <ServicesNav items={[...services]} />
+
+      <Divider size="md" variant="spacer" />
+      <StoriesSection stories={content.stories} />
 
       <Divider size="md" variant="spacer" />
       <LandingProductRail

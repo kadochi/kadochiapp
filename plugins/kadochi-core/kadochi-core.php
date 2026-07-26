@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Kadochi Core
  * Description: Durable headless content contracts and protected occasion records for Kadochi.
- * Version: 0.1.2
+ * Version: 0.1.3
  * Requires at least: 6.6
  * Requires PHP: 7.4
  * Text Domain: kadochi-core
@@ -25,8 +25,9 @@ final class Kadochi_Core {
 	const CHECKOUT_FIELD_LOCATION = 'kadochi/location';
 	const CHECKOUT_FIELD_OPERATION = 'kadochi/operation-id';
 	const PRODUCT_ACTIONS_DB_VERSION = '1';
-	const EDITORIAL_CAPABILITIES_VERSION = '3';
+	const EDITORIAL_CAPABILITIES_VERSION = '4';
 	const MAGAZINE_TO_POSTS_MIGRATION_VERSION = '1';
+	const STORY_VISIBILITY_SECONDS = 172800;
 	const PRODUCT_VIEW_COUNT_META_KEY = '_kadochi_product_view_count';
 	const DRAFT_ORDER_EXPIRATION_SECONDS = 3600;
 	const DRAFT_ORDER_EXPIRY_HOOK = 'kadochi_expire_draft_orders';
@@ -163,7 +164,7 @@ final class Kadochi_Core {
 	}
 
 	private static function grant_editorial_capabilities() {
-		$types = array( 'slider' => array( 'slider', 'sliders' ), 'banner' => array( 'banner', 'banners' ), 'hero' => array( 'hero', 'heroes' ), 'occasion' => array( 'occasion', 'occasions' ) );
+		$types = array( 'slider' => array( 'slider', 'sliders' ), 'banner' => array( 'banner', 'banners' ), 'hero' => array( 'hero', 'heroes' ), 'story' => array( 'story', 'stories' ), 'occasion' => array( 'occasion', 'occasions' ) );
 		foreach ( array( 'administrator', 'editor', 'shop_manager' ) as $role_name ) {
 			$role = get_role( $role_name );
 			if ( ! $role ) {
@@ -204,6 +205,9 @@ final class Kadochi_Core {
 		$this->register_post_type( 'slider', 'Sliders', 'Slider', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-images-alt2' );
 		$this->register_post_type( 'banner', 'Banners', 'Banner', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-megaphone' );
 		$this->register_post_type( 'hero', 'Heroes', 'Hero', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-superhero' );
+		// Stories use the native Featured Image uploader. Their public lifetime is
+		// enforced by the homepage response, rather than by deleting content.
+		$this->register_post_type( 'story', 'Stories', 'Story', array( 'title', 'thumbnail' ), false, 'dashicons-format-image' );
 		$this->register_post_type( 'occasion', 'Occasions', 'Occasion', array( 'title', 'editor', 'thumbnail', 'author' ), false, 'dashicons-calendar-alt' );
 	}
 
@@ -244,6 +248,7 @@ final class Kadochi_Core {
 			'slider'   => array( 'slider', 'sliders' ),
 			'banner'   => array( 'banner', 'banners' ),
 			'hero'     => array( 'hero', 'heroes' ),
+			'story'    => array( 'story', 'stories' ),
 			'occasion' => array( 'occasion', 'occasions' ),
 		);
 		$singular = $capability_bases[ $slug ][0];
@@ -2061,11 +2066,42 @@ final class Kadochi_Core {
 		return get_posts( array( 'post_type' => $type, 'post_status' => 'publish', 'numberposts' => 50, 'orderby' => 'menu_order date', 'order' => 'ASC' ) );
 	}
 
+	/** Returns only image-backed stories that are still within their 48-hour lifetime. */
+	private function active_stories() {
+		$query = new WP_Query( array(
+			'post_type' => 'story',
+			'post_status' => 'publish',
+			'posts_per_page' => 50,
+			'orderby' => 'date',
+			'order' => 'DESC',
+			'date_query' => array( array(
+				'column' => 'post_date_gmt',
+				'after' => gmdate( 'Y-m-d H:i:s', time() - self::STORY_VISIBILITY_SECONDS ),
+				'inclusive' => true,
+			) ),
+			'no_found_rows' => true,
+		) );
+
+		return array_values( array_filter( array_map( function ( $post ) {
+			$image = $this->image( get_post_thumbnail_id( $post->ID ) );
+			if ( ! $image ) {
+				return null;
+			}
+			return array(
+				'id' => (int) $post->ID,
+				'title' => sanitize_text_field( $post->post_title ),
+				'image' => $image,
+				'publishedAt' => get_post_time( 'Y-m-d\\TH:i:s\\Z', true, $post ),
+			);
+		}, $query->posts ) ) );
+	}
+
 	public function homepage_content() {
 		$banners = array_map( function ( $post ) { return array( 'id' => (int) $post->ID, 'title' => sanitize_text_field( $this->value( $post->ID, 'title' ) ?: $post->post_title ), 'subtitle' => sanitize_text_field( $this->value( $post->ID, 'subtitle' ) ), 'ctaText' => sanitize_text_field( $this->value( $post->ID, 'cta_text' ) ), 'ctaLink' => $this->safe_url( $this->value( $post->ID, 'cta_link' ) ), 'backgroundGradient' => $this->safe_gradient( $this->value( $post->ID, 'background_gradient' ) ), 'backgroundImage' => $this->image( $this->value( $post->ID, 'background_image' ) ) ); }, $this->published( 'banner' ) );
 		$heroes = array_map( function ( $post ) { return array( 'id' => (int) $post->ID, 'title' => sanitize_text_field( $this->value( $post->ID, 'title' ) ?: $post->post_title ), 'subtitle' => sanitize_text_field( $this->value( $post->ID, 'subtitle' ) ), 'ctaText' => sanitize_text_field( $this->value( $post->ID, 'cta_text' ) ), 'ctaLink' => $this->safe_url( $this->value( $post->ID, 'cta_link' ) ), 'backgroundImage' => $this->image( $this->value( $post->ID, 'background_image' ) ) ); }, $this->published( 'hero' ) );
 		$sliders = array_map( function ( $post ) { return array( 'id' => (int) $post->ID, 'sliderTitle' => sanitize_text_field( $this->value( $post->ID, 'slider_title' ) ), 'sliderButtonText' => sanitize_text_field( $this->value( $post->ID, 'slider_button_text' ) ), 'sliderLink' => $this->safe_url( $this->value( $post->ID, 'slider_link' ) ), 'backgroundImage' => $this->image( $this->value( $post->ID, 'background_image' ) ) ); }, $this->published( 'slider' ) );
-		return rest_ensure_response( compact( 'banners', 'heroes', 'sliders' ) );
+		$stories = $this->active_stories();
+		return rest_ensure_response( compact( 'banners', 'heroes', 'sliders', 'stories' ) );
 	}
 
 	private function valid_date( $date ) {

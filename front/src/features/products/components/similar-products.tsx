@@ -1,19 +1,22 @@
 import SectionHeader from "@/components/layout/section-header";
 import { Button } from "@/components/ui/button";
 import { listSimilarProducts } from "../services/products.server";
+import { productCategoryPath } from "../utils/product-list-search";
 import { ProductsSlider } from "./products-slider";
 
 export type SimilarProductsProps = {
-  categoryId?: number;
+  category?: { id: number; slug: string };
   excludeId: number;
 };
 
 /** Fetches related products and hands them to the existing slider. */
-export async function SimilarProducts({ categoryId, excludeId }: Readonly<SimilarProductsProps>) {
-  const products = await listSimilarProducts({ categoryId, excludeId });
+export async function SimilarProducts({ category, excludeId }: Readonly<SimilarProductsProps>) {
+  const products = await listSimilarProducts({ categoryId: category?.id, excludeId });
   const availableProducts = products.filter((product) => product.inStock);
 
-  const allHref = categoryId ? `/products?category=${categoryId}` : "/products?orderby=popularity";
+  const allHref = category
+    ? productCategoryPath(category.slug)
+    : "/products?orderby=popularity";
 
   return (
     <section aria-label="محصولات مشابه">

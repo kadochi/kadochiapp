@@ -491,12 +491,17 @@ function FiltersSheet({ categories, onClose, onClear, onApply, values, view }: R
                   <ChipButton
                     key={item.id}
                     onClick={() => {
-                      const nextCategory = String(item.id);
+                      const nextCategory = item.slug;
                       setCategory(nextCategory);
                       applyIndividualFilter({ category: nextCategory });
                     }}
                   >
-                    <Chip size="md" variant={category === String(item.id) ? "selected" : "outline"}>{item.name}</Chip>
+                    <Chip
+                      size="md"
+                      variant={category === item.slug || category === String(item.id) ? "selected" : "outline"}
+                    >
+                      {item.name}
+                    </Chip>
                   </ChipButton>
                 ))}
               </div>

@@ -56,3 +56,28 @@ export function parseProductListSearchParams(
 export function productListSearchKey(search: ProductListSearch) {
   return JSON.stringify(search);
 }
+
+/** Canonical catalog URL for one product category. */
+export function productCategoryPath(categorySlug: string) {
+  const params = new URLSearchParams({ category: categorySlug });
+  return `/products?${params.toString()}`;
+}
+
+/** Replaces only the category reference while preserving the rest of a legacy catalog URL. */
+export function productListPathWithCategory(
+  values: Record<string, SearchParamValue>,
+  categorySlug: string,
+) {
+  const params = new URLSearchParams();
+
+  Object.entries(values).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => params.append(key, item));
+    } else if (value !== undefined) {
+      params.append(key, value);
+    }
+  });
+
+  params.set("category", categorySlug);
+  return `/products?${params.toString()}`;
+}

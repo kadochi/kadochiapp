@@ -254,6 +254,20 @@
   }
 }
 
+@keyframes story-viewer-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.story-viewer-progress {
+  transform-origin: left;
+  animation: story-viewer-progress 5.5s linear forwards;
+}
+
 /*
  * Swiper calculates slide widths in JavaScript. Until that happens its base
  * stylesheet makes every slide 100% wide, which briefly turns card rails into
@@ -365,6 +379,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   [data-component="hero-slider"] .swiper-pagination-bullet-active .hero-slider__pagination-progress {
+    animation: none;
+    transform: scaleX(1);
+  }
+
+  .story-viewer-progress {
     animation: none;
     transform: scaleX(1);
   }

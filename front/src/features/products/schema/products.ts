@@ -72,7 +72,8 @@ const upstreamProductSchema = z.object({
 
 export const upstreamProductsSchema = z.array(upstreamProductSchema);
 export const upstreamProductSchemaExport = upstreamProductSchema;
-export const upstreamCategoriesSchema = z.array(z.object({ id: z.number().int().positive(), name: z.string(), slug: z.string(), description: z.string().default(""), parent: z.number().int().nonnegative().default(0), count: z.number().int().nonnegative().default(0), image: imageSchema.nullable().optional() }));
+export const upstreamCategorySchema = z.object({ id: z.number().int().positive(), name: z.string(), slug: z.string(), description: z.string().default(""), parent: z.number().int().nonnegative().default(0), count: z.number().int().nonnegative().default(0), image: imageSchema.nullable().optional() });
+export const upstreamCategoriesSchema = z.array(upstreamCategorySchema);
 export const upstreamProductTagsSchema = z.array(z.object({
   id: z.number().int().positive(),
   name: z.string(),

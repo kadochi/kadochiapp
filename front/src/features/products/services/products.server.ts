@@ -11,6 +11,7 @@ import {
   productQuerySchema,
   reviewQuerySchema,
   upstreamCategoriesSchema,
+  upstreamCategorySchema,
   upstreamProductSchemaExport,
   upstreamProductTagsSchema,
   upstreamProductsSchema,
@@ -257,12 +258,46 @@ export async function listSimilarProducts({ categoryId, excludeId, perPage = 8 }
     : (await listProducts(query)).items;
 }
 
+function mapCategory(category: z.infer<typeof upstreamCategorySchema>) {
+  return categorySchema.parse({
+    id: category.id,
+    name: category.name,
+    slug: category.slug,
+    description: stripHtml(category.description),
+    parentId: category.parent,
+    productCount: category.count,
+    imageUrl: category.image?.src,
+  });
+}
+
+/** Resolves a single public product category for legacy numeric URL redirects. */
+export async function getCategoryById(id: number) {
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    throw new ServiceError({
+      code: "validation",
+      status: 400,
+      message: "A valid category ID is required.",
+      requestId: randomUUID(),
+      retryable: false,
+    });
+  }
+
+  const requestId = randomUUID();
+  const response = await wordpressFetch(`/wp-json/wc/store/v1/products/categories/${id}`, {
+    requestId,
+    next: { revalidate: 300, tags: ["product-categories", `product-category:${id}`] },
+  });
+  return mapCategory(
+    await parseUpstreamJson(response, (value) => upstreamCategorySchema.parse(value), requestId),
+  );
+}
+
 export async function listCategories(query: CategoryQuery = {}) {
   const input = categoryQuerySchema.parse(query);
   const params = new URLSearchParams({ page: String(input.page), per_page: String(input.perPage), hide_empty: String(input.hideEmpty) });
   const id = randomUUID();
   const response = await wordpressFetch(`/wp-json/wc/store/v1/products/categories?${params}`, { requestId: id, next: { revalidate: 300, tags: ["product-categories"] } });
-  return (await parseUpstreamJson(response, (value) => upstreamCategoriesSchema.parse(value), id)).map((category) => categorySchema.parse({ id: category.id, name: category.name, slug: category.slug, description: stripHtml(category.description), parentId: category.parent, productCount: category.count, imageUrl: category.image?.src }));
+  return (await parseUpstreamJson(response, (value) => upstreamCategoriesSchema.parse(value), id)).map(mapCategory);
 }
 
 /** Lists public product tags so URL-friendly PLP filters can resolve to IDs. */

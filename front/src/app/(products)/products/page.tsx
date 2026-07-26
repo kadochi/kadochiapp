@@ -12,8 +12,13 @@ import { ProductFilters } from "@/features/products/components/product-filters";
 import { ProductListPagination } from "@/features/products/components/product-list-pagination";
 import { listCategories, listProducts, listProductTags } from "@/features/products/services/products.server";
 import type { ProductListResult, ProductQuery } from "@/features/products/types";
-import { parseProductListSearchParams, productListSearchKey, type SearchParamValue } from "@/features/products/utils/product-list-search";
+import {
+  parseProductListSearchParams,
+  productListSearchKey,
+  type SearchParamValue,
+} from "@/features/products/utils/product-list-search";
 import { productUrl, serializeJsonLd } from "@/features/products/utils/product-seo";
+import { redirectLegacyCategory } from "@/features/products/utils/redirect-legacy-category.server";
 import { stripHtml } from "@/features/products/utils/strip-html";
 import { env } from "@/lib/server/env";
 
@@ -134,7 +139,9 @@ export async function generateMetadata({ searchParams }: ProductsPageProps): Pro
 }
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  const { hasUnknownFilter, search, categories, category, selectedTags, query, result } = await getCatalogPage(await searchParams);
+  const resolvedSearchParams = await searchParams;
+  await redirectLegacyCategory(resolvedSearchParams);
+  const { hasUnknownFilter, search, categories, category, selectedTags, query, result } = await getCatalogPage(resolvedSearchParams);
   if (!hasUnknownFilter && result.totalPages > 0 && search.page > result.totalPages) notFound();
   const selectedTag = selectedTags.length === 1 ? selectedTags[0] : undefined;
   const title = category
