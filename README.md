@@ -17,7 +17,7 @@ This repository runs a headless WordPress + Next.js stack. Next.js is the public
 
 WordPress owns OTP verification and JWT issuance in every environment. In `local` or `development`, open `/login`, use `09121234567`, then enter `1234`; no SMS is sent. Verification creates or resolves a real WooCommerce customer and the frontend stores the resulting opaque WordPress JWT only in an HttpOnly cookie.
 
-For production, set `WP_ENVIRONMENT_TYPE=production` and configure `MELIPAYAMAK_OTP_URL`. The WordPress plugin calls the relay with `{ "to": "0912..." }`, requires `{ "code": "1234" }`, stores only an HMAC OTP digest in WordPress transients, rate-limits sends, and signs seven-day JWTs from the WordPress authentication salt. No Redis instance, WooCommerce REST credential, or Next.js JWT secret is required. See [the environment template](.env.example) for the full contract.
+For production, set `WP_ENVIRONMENT_TYPE=production` and configure `MELIPAYAMAK_OTP_URL` in the root Compose environment. The WordPress plugin calls the relay with `{ "to": "0912..." }`, requires `{ "code": "1234" }`, stores only an HMAC OTP digest in WordPress transients, rate-limits sends, and signs seven-day JWTs from the WordPress authentication salt. No Redis instance, WooCommerce REST credential, or Next.js JWT secret is required. See [the environment template](.env.example) for the full contract.
 
 On first launch, complete WordPress's installation wizard and activate **Kadochi Headless Admin Theme** in Appearance → Themes. The stack provisions **Secure Custom Fields (SCF)** and **ZarinPal for WooCommerce** automatically; activate them under Plugins. Then enter the ZarinPal merchant credentials under WooCommerce → Settings → Payments. Source edits in `front/` hot reload; edits in `theme/` are immediately mounted into WordPress.
 
@@ -39,10 +39,13 @@ the existing external `web` network used by Traefik.
    `docker network create web`
 2. Copy `front/.env.production.example` to `front/.env.production` and replace
    every placeholder.
-3. Keep the same deployment directory and Compose project name so Compose
+3. Set `MELIPAYAMAK_OTP_URL` in the root `.env` file or the shell/secret
+   manager environment used to run Compose. `front/.env.production` is loaded
+   only by Next.js; it does not configure the WordPress OTP relay.
+4. Keep the same deployment directory and Compose project name so Compose
    continues using the existing `mysql_data`, `wordpress_data`, and
    `redis_data` volumes.
-4. Back up the database, then start the stack without deleting volumes:
+5. Back up the database, then start the stack without deleting volumes:
    `docker compose up --build -d`
 
 The production Compose file keeps the existing data mount destinations:

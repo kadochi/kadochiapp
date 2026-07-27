@@ -126,7 +126,11 @@ services:
       WORDPRESS_DB_USER: kadochi
       WORDPRESS_DB_PASSWORD: zyzba1-vyqxem-muareZ
       WP_ENVIRONMENT_TYPE: production
-      MELIPAYAMAK_OTP_URL: ${MELIPAYAMAK_OTP_URL:-}
+      # This must come from the root Compose environment (for example ./.env
+      # on the deployment host), not front/.env.production. WordPress sends
+      # the OTP relay request, so failing before startup is safer than a 503
+      # from the login endpoint.
+      MELIPAYAMAK_OTP_URL: ${MELIPAYAMAK_OTP_URL:?Set MELIPAYAMAK_OTP_URL in the deployment environment}
       KADOCHI_PAYMENT_METHOD_ID: ${KADOCHI_PAYMENT_METHOD_ID:-WC_ZPal}
       KADOCHI_FRONTEND_URL: https://kadochi.com
 
