@@ -10,5 +10,8 @@
     "docker:down:volumes": "docker compose -f docker-compose.local.yml down --volumes",
     "docker:logs": "docker compose -f docker-compose.local.yml logs -f",
     "docker:restart": "npm run docker:down && npm run docker:up"
+  },
+  "dependencies": {
+    "nextjs-toploader": "^3.9.17"
   }
 }

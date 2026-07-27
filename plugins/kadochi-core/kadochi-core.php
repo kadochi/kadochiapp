@@ -976,17 +976,12 @@ final class Kadochi_Core {
 
 	/** Adds app-managed profile values to the WordPress Users list. */
 	public function add_customer_user_columns( $columns ) {
-		$columns['kadochi_avatar'] = __( 'Profile picture', 'kadochi-core' );
 		$columns['kadochi_birth_date'] = __( 'Birth date', 'kadochi-core' );
 		$columns['kadochi_gender'] = __( 'Gender', 'kadochi-core' );
 		return $columns;
 	}
 
 	public function render_customer_user_column( $value, $column_name, $user_id ) {
-		if ( 'kadochi_avatar' === $column_name ) {
-			$attachment_id = absint( get_user_meta( $user_id, 'kadochi_avatar_attachment_id', true ) );
-			return $attachment_id ? wp_get_attachment_image( $attachment_id, array( 40, 40 ), false, array( 'style' => 'border-radius:50%;height:40px;width:40px;object-fit:cover;', 'alt' => '' ) ) : '&mdash;';
-		}
 		if ( 'kadochi_birth_date' === $column_name ) {
 			$birth_date = $this->customer_birth_date( $user_id );
 			return $birth_date ? esc_html( $birth_date ) : '&mdash;';
