@@ -39,7 +39,15 @@ the existing external `web` network used by Traefik.
    `docker network create web`
 2. Copy `front/.env.production.example` to `front/.env.production` and replace
    every placeholder.
-3. Start the stack: `docker compose up --build -d`
+3. Keep the same deployment directory and Compose project name so Compose
+   continues using the existing `mysql_data`, `wordpress_data`, and
+   `redis_data` volumes.
+4. Back up the database, then start the stack without deleting volumes:
+   `docker compose up --build -d`
+
+The production Compose file keeps the existing data mount destinations:
+MySQL at `/var/lib/mysql`, WordPress at `/var/www/html`, and Redis at `/data`.
+Do not run `docker compose down --volumes` during an upgrade.
 
 ## Lighthouse acceptance
 
