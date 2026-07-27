@@ -1,15 +1,15 @@
-# Kadochi local development
+# Kadochi
 
-This repository runs a headless WordPress + Next.js development stack. Next.js is the public frontend; the PHP theme is retained for WordPress editing and administration.
+This repository runs a headless WordPress + Next.js stack. Next.js is the public frontend; the PHP theme is retained for WordPress editing and administration.
 
-## Requirements
+## Local development requirements
 
 - Docker Desktop with Docker Compose v2
 
 ## Start the stack
 
 1. Create local environment values: `cp .env.example .env`
-2. Start and build: `docker compose up --build`
+2. Start and build: `docker compose -f docker-compose.local.yml up --build`
 3. Open the services:
    - Next.js: http://localhost:3000
    - WordPress admin: http://localhost:8080/wp-admin
@@ -27,7 +27,19 @@ On first launch, complete WordPress's installation wizard and activate **Kadochi
 - `wordpress`: WordPress 7 Apache server on port 8080.
 - `mysql`: MySQL 8.0, persisted in the `mysql_data` Docker volume.
 
-WordPress core, uploads, and plugins are persisted in `wordpress_data`. Docker volumes survive ordinary `docker compose down` and container rebuilds. To remove all local site data intentionally, run `docker compose down --volumes`.
+WordPress core, uploads, and plugins are persisted in `wordpress_data`. Docker volumes survive ordinary `docker compose -f docker-compose.local.yml down` and container rebuilds. To remove all local site data intentionally, run `docker compose -f docker-compose.local.yml down --volumes`.
+
+## Production
+
+The default `docker-compose.yml` is the production stack. It builds production
+Next.js and WordPress images, runs MySQL and Redis, and attaches all services to
+the existing external `web` network used by Traefik.
+
+1. Create the shared network once if the edge stack has not already created it:
+   `docker network create web`
+2. Copy `front/.env.production.example` to `front/.env.production` and replace
+   every placeholder.
+3. Start the stack: `docker compose up --build -d`
 
 ## Lighthouse acceptance
 

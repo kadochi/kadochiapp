@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "scripts": {
     "setup": "cp -n .env.example .env || true",
-    "docker:up": "docker compose up --build",
-    "docker:up:d": "docker compose up --build -d",
-    "docker:down": "docker compose down",
-    "docker:down:volumes": "docker compose down --volumes",
-    "docker:logs": "docker compose logs -f",
+    "docker:up": "docker compose -f docker-compose.local.yml up --build",
+    "docker:up:d": "docker compose -f docker-compose.local.yml up --build -d",
+    "docker:down": "docker compose -f docker-compose.local.yml down",
+    "docker:down:volumes": "docker compose -f docker-compose.local.yml down --volumes",
+    "docker:logs": "docker compose -f docker-compose.local.yml logs -f",
     "docker:restart": "npm run docker:down && npm run docker:up"
   }
 }

@@ -88,8 +88,8 @@ function giftFinderOptions(tags: readonly ProductTag[], categories: readonly Pro
 
 export default async function GiftFinderPage() {
   const [tags, categories] = await Promise.all([
-    listProductTags(),
-    listCategories({ hideEmpty: true, perPage: 100 }),
+    listProductTags().catch(() => []),
+    listCategories({ hideEmpty: true, perPage: 100 }).catch(() => []),
   ]);
 
   return (

@@ -14,6 +14,7 @@ function wordpressMediaPattern(value: string) {
 }
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   experimental: {
     // Storefront CSS is small enough to inline, avoiding several render-
     // blocking round trips on mobile without changing cascade or behavior.
