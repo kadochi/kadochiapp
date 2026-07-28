@@ -25,6 +25,15 @@ export function jsonError(error: unknown, id: string): NextResponse {
           }, {}),
         }
       : { code: "upstream_failure", status: 500, message: "The request could not be completed.", requestId: id, retryable: false };
+  // Keep API logs useful for support without logging request bodies, auth headers,
+  // ZarinPal authorities, or any other payment/PII data.
+  console.error("[api] request_failed", {
+    requestId: id,
+    code: detail.code,
+    status: detail.status,
+    retryable: detail.retryable,
+    payment: detail.payment,
+  });
   return NextResponse.json(detail, { status: detail.status, headers: { "Cache-Control": "no-store", "x-request-id": id } });
 }
 

@@ -29,6 +29,53 @@ const postcardField = "kadochi/postcard";
 const locationField = "kadochi/location";
 const operationField = "kadochi/operation-id";
 
+type ZarinpalPaymentMetadata = NonNullable<import("@/lib/http/errors").ApiError["payment"]>;
+
+const zarinpalCategories: Record<number, ZarinpalPaymentMetadata["category"]> = {
+  "-9": "rejected",
+  "-10": "configuration",
+  "-11": "configuration",
+  "-12": "temporarily_unavailable",
+  "-15": "configuration",
+  "-16": "configuration",
+  "-17": "configuration",
+  "-18": "configuration",
+  "-19": "rejected",
+  "-51": "cancelled",
+};
+
+function zarinpalFailure(value: unknown, requestId: string): ServiceError | null {
+  const response = z.object({
+    code: z.string().optional(),
+    message: z.string().optional(),
+    data: z.object({ status: z.number().int().optional(), code: z.union([z.number().int(), z.string()]).optional() }).passthrough().optional(),
+    errors: z.array(z.object({ code: z.union([z.number().int(), z.string()]).optional(), message: z.string().optional() }).passthrough()).optional(),
+  }).passthrough().safeParse(value);
+  if (!response.success) return null;
+  const message = response.data.message ?? response.data.errors?.[0]?.message ?? "";
+  // WooCommerce gateway errors are user-facing notices. Preserve only ZarinPal's
+  // documented numeric code; do not forward the raw gateway notice to browsers.
+  const code = response.data.errors?.[0]?.code ?? response.data.data?.code
+    ?? /(?:zarin\s*pal|زرین\s*پال).{0,80}?(?:code|کد)?\s*[:：#-]?\s*(-?\d+)/iu.exec(message)?.[1]
+    ?? /(?:code|کد)\s*[:：#-]?\s*(-?\d+)/iu.exec(message)?.[1];
+  const gatewayCode = code !== undefined && /^-?\d+$/.test(String(code)) ? Number(code) : undefined;
+  // This handler only invokes the configured ZarinPal gateway. Some plugin
+  // releases omit the provider name from their Store API notice, so a documented
+  // numeric code is sufficient to classify it safely here.
+  if (!/zarin\s*pal|زرین\s*پال/iu.test(message) && (gatewayCode === undefined || env.KADOCHI_PAYMENT_METHOD_ID !== "WC_ZPal")) return null;
+  const category = gatewayCode === undefined ? "unknown" : zarinpalCategories[gatewayCode] ?? "unknown";
+  const retryable = category === "temporarily_unavailable" || category === "unknown";
+  console.error("[payment] gateway_rejected_checkout", { requestId, provider: "zarinpal", gatewayCode, category });
+  return new ServiceError({
+    code: "upstream_failure",
+    status: category === "configuration" ? 503 : 422,
+    message: "The payment gateway could not start a payment.",
+    requestId,
+    retryable,
+    payment: { provider: "zarinpal", ...(gatewayCode !== undefined ? { code: gatewayCode } : {}), category },
+  });
+}
+
 async function authenticatedCustomer(requestId: string) {
   const token = await getStoredAuthToken();
   return getCurrentCustomer(token, requestId);
@@ -310,7 +357,22 @@ export async function checkout(input: unknown, requestId: string) {
       acceptStatuses: [400],
     });
     lastCartToken = response.headers.get("cart-token") ?? lastCartToken;
-    const result = await parseUpstreamJson(response, mapCheckoutResult, requestId);
+    let responseBody: unknown;
+    try {
+      responseBody = await response.json();
+    } catch {
+      throw new UpstreamError({ code: "malformed_upstream_response", status: 502, message: "The upstream service returned invalid JSON.", requestId, retryable: true });
+    }
+    if (response.status === 400) {
+      const failure = zarinpalFailure(responseBody, requestId);
+      if (failure) throw failure;
+    }
+    let result;
+    try {
+      result = mapCheckoutResult(responseBody);
+    } catch {
+      throw new UpstreamError({ code: "malformed_upstream_response", status: 502, message: "The upstream service returned an unexpected response.", requestId, retryable: true });
+    }
     if (result.orderId && isWooOrderPayRedirect(result.paymentResult?.redirectUrl)) {
       const paymentResult = await gatewayRedirectForOrder(result.orderId, requestId);
       return {

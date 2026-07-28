@@ -21,6 +21,12 @@ export const apiErrorSchema = z.object({
   requestId: z.string(),
   retryable: z.boolean(),
   fieldErrors: z.record(z.string(), z.array(z.string())).optional(),
+  /** Safe gateway context for customer support. Never includes an authority, card, or credential. */
+  payment: z.object({
+    provider: z.literal("zarinpal"),
+    code: z.number().int().optional(),
+    category: z.enum(["configuration", "temporarily_unavailable", "rejected", "cancelled", "unknown"]),
+  }).strict().optional(),
 });
 
 export type ApiError = z.infer<typeof apiErrorSchema>;

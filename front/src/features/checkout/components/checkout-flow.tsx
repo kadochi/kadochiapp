@@ -25,6 +25,7 @@ import { submitCheckoutSchema } from "../schema/checkout";
 import { createSavedAddress, deleteSavedAddress, submitCheckout, updateSavedAddress } from "../services/checkout";
 import type { CheckoutState, SavedAddress } from "../types";
 import { checkoutResultAction } from "../utils/checkout-result";
+import { logPaymentFailure, paymentErrorMessage } from "../utils/payment-error";
 import { iranianPhoneSchema } from "../../auth/schema/auth";
 
 type RecipientKind = "self" | "other";
@@ -300,7 +301,12 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
       }
       setError("درگاه پرداخت پاسخ معتبری نداد. لطفاً با پشتیبانی تماس بگیرید.");
     } catch (caught) {
-      setError(caught instanceof z.ZodError ? "اطلاعات سفارش را بررسی کنید." : caught instanceof Error ? caught.message : "ثبت سفارش ناموفق بود.");
+      if (caught instanceof z.ZodError) {
+        setError("اطلاعات سفارش را بررسی کنید.");
+      } else {
+        logPaymentFailure("checkout_submission_failed", caught);
+        setError(paymentErrorMessage(caught, "ثبت سفارش ناموفق بود.").message);
+      }
     } finally {
       submissionLock.current = false;
       setSubmitting(false);

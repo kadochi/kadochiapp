@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { formatIrrAsToman } from "@/features/cart/utils/money";
 import { retryProfileOrderPayment } from "@/features/profile/services/profile";
 import type { OrderSummary } from "../types";
+import { logPaymentFailure, paymentErrorMessage } from "../utils/payment-error";
 
 export function OrderFailure({ order }: { order: OrderSummary }) {
   const [retrying, setRetrying] = useState(false);
@@ -22,8 +23,9 @@ export function OrderFailure({ order }: { order: OrderSummary }) {
     try {
       const { redirectUrl } = await retryProfileOrderPayment(order.id);
       window.location.assign(redirectUrl);
-    } catch {
-      setRetryError("شروع دوباره پرداخت ممکن نشد. لطفاً دوباره تلاش کنید.");
+    } catch (error) {
+      logPaymentFailure("failed_order_payment_retry_failed", error);
+      setRetryError(paymentErrorMessage(error).message);
       setRetrying(false);
     }
   }

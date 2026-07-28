@@ -16,6 +16,7 @@ import { useAuth } from "@/features/auth/auth-provider";
 import { tomanAmount } from "@/features/cart/utils/money";
 import { listProfileOrders, retryProfileOrderPayment } from "../services/profile";
 import type { ProfileOrder } from "../types";
+import { logPaymentFailure, paymentErrorMessage } from "@/features/checkout/utils/payment-error";
 
 type OrderGroup = "current" | "completed" | "cancelled";
 
@@ -97,8 +98,9 @@ function OrderCard({ order }: { order: ProfileOrder }) {
     try {
       const { redirectUrl } = await retryProfileOrderPayment(order.id);
       window.location.assign(redirectUrl);
-    } catch {
-      setRetryError("شروع دوباره پرداخت ممکن نشد. لطفاً دوباره تلاش کنید.");
+    } catch (error) {
+      logPaymentFailure("profile_payment_retry_failed", error);
+      setRetryError(paymentErrorMessage(error).message);
       setRetrying(false);
     }
   }
