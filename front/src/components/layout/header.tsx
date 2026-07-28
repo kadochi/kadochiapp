@@ -112,7 +112,7 @@ function InternalHeader({
     <header
       aria-label="سربرگ داخلی"
       className={cn(
-        "sticky top-0 z-[1000] mx-auto flex h-88 w-full max-w-[1440px] items-center justify-center box-border bg-surface-background px-16 [direction:rtl]",
+        "sticky top-0 z-[1000] mx-auto flex h-88 w-full max-w-[1440px] items-center justify-center box-border bg-surface-background px-16 min-[864px]:h-72 [direction:rtl]",
         className,
       )}
       dir="rtl"
@@ -235,7 +235,7 @@ function DefaultHeader({
   return (
     <>
       <div className={cn("sticky top-0 inset-x-0 z-50 bg-surface-background", className)}>
-        <header className="relative mx-auto flex h-88 w-full max-w-[1440px] items-center justify-between box-border bg-surface-background px-16 [direction:ltr]">
+        <header className="relative mx-auto flex h-88 w-full max-w-[1440px] items-center justify-between box-border bg-surface-background px-16 min-[864px]:h-72 [direction:ltr]">
           <div className="flex items-center gap-12">
             <Link
               aria-label="سبد خرید"

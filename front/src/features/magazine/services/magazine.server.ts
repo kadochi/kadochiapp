@@ -7,6 +7,7 @@ import { parseUpstreamJson, wordpressFetch } from "@/lib/http/upstream";
 import { magazineArticleSchema, magazineQuerySchema, upstreamMagazineCategoriesSchema, upstreamMagazinesSchema } from "../schema/magazine";
 import type { MagazineArticle, MagazineCategory, MagazineListResult, MagazineQuery } from "../types";
 import { articleText, readingTime } from "../utils/article-text";
+import { decodeMagazineSlug, wordpressMagazineSlug } from "../utils/magazine-slug";
 
 const magazineReadTimeoutMs = 20_000;
 
@@ -37,7 +38,7 @@ function mapMagazineArticle(upstream: z.infer<typeof upstreamMagazinesSchema>[nu
   return magazineArticleSchema.parse({
     id: upstream.id,
     title: articleText(upstream.title.rendered),
-    slug: upstream.slug,
+    slug: decodeMagazineSlug(upstream.slug),
     excerpt: articleText(upstream.excerpt.rendered) || articleText(content).slice(0, 180),
     content,
     publishedAt: upstream.date,
@@ -85,7 +86,10 @@ export async function listMagazineArticles(query: MagazineQuery = {}): Promise<M
 
 async function getMagazineArticleFromPosts(slug: string): Promise<MagazineArticle | undefined> {
   const requestId = randomUUID();
-  const params = new URLSearchParams({ _embed: "1", slug, per_page: "1" });
+  // Persian post slugs are stored as percent-encoded `post_name` values by
+  // WordPress. URLSearchParams escapes `%` once more so PHP receives that
+  // exact stored value, rather than a decoded string that cannot be matched.
+  const params = new URLSearchParams({ _embed: "1", slug: wordpressMagazineSlug(slug), per_page: "1" });
   const response = await wordpressFetch(`/wp-json/wp/v2/posts?${params}`, {
     requestId,
     timeoutMs: magazineReadTimeoutMs,
@@ -97,7 +101,7 @@ async function getMagazineArticleFromPosts(slug: string): Promise<MagazineArticl
 }
 
 export async function getMagazineArticleBySlug(slug: string): Promise<MagazineArticle> {
-  const safeSlug = z.string().trim().min(1).max(200).parse(slug);
+  const safeSlug = decodeMagazineSlug(z.string().trim().min(1).max(200).parse(slug));
   const requestId = randomUUID();
   const article = await getMagazineArticleFromPosts(safeSlug);
   if (!article) {

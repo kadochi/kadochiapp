@@ -14,6 +14,9 @@ type CategoryRailProps = {
 /** Category cards retain the legacy image-overlay rail and consume Store API categories. */
 export function CategoryRail({ items }: Readonly<CategoryRailProps>) {
   const isLoading = items.length === 0;
+  // WooCommerce always creates this default category. It is useful in the
+  // catalog backend, but should never be presented as a gift category.
+  const visibleItems = items.filter((category) => category.slug.toLowerCase() !== "uncategorized");
 
   return (
     <section aria-label="دسته‌بندی‌های هدیه" className="py-16 [content-visibility:auto] [contain-intrinsic-size:auto_296px] [&_.swiper]:mb-24">
@@ -40,7 +43,7 @@ export function CategoryRail({ items }: Readonly<CategoryRailProps>) {
                 />
               </SwiperSlide>
             ))
-          : items.map((category) => (
+          : visibleItems.map((category) => (
               <SwiperSlide className="h-auto" key={category.id}>
                 <Link
                   aria-label={`مشاهده ${category.name}`}
