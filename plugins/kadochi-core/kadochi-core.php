@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Kadochi Core
  * Description: Durable headless content contracts and protected occasion records for Kadochi.
- * Version: 0.1.3
+ * Version: 0.2.0
  * Requires at least: 6.6
  * Requires PHP: 7.4
  * Text Domain: kadochi-core
@@ -31,6 +31,8 @@ final class Kadochi_Core {
 	const PRODUCT_VIEW_COUNT_META_KEY = '_kadochi_product_view_count';
 	const DRAFT_ORDER_EXPIRATION_SECONDS = 3600;
 	const DRAFT_ORDER_EXPIRY_HOOK = 'kadochi_expire_draft_orders';
+	const EDITORIAL_REQUESTS_PER_HOUR = 30;
+	const EDITORIAL_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 	/** @var array<string, string> */
 	private $health = array();
@@ -393,6 +395,213 @@ final class Kadochi_Core {
 			array( 'methods' => 'PATCH', 'callback' => array( $this, 'update_occasion' ), 'permission_callback' => array( $this, 'authenticated' ) ),
 			array( 'methods' => WP_REST_Server::DELETABLE, 'callback' => array( $this, 'delete_occasion' ), 'permission_callback' => array( $this, 'authenticated' ) ),
 		) );
+		// This private route is the server-side bridge used by the editorial
+		// automation. It deliberately does not use a WordPress user password.
+		register_rest_route( self::REST_NAMESPACE, '/editorial/articles', array(
+			'methods' => WP_REST_Server::CREATABLE,
+			'callback' => array( $this, 'create_editorial_article' ),
+			'permission_callback' => array( $this, 'authorize_editorial_request' ),
+		) );
+	}
+
+	/**
+	 * Authenticates the automation with a deployment secret. The secret belongs
+	 * in the server environment, never in WordPress options or a client bundle.
+	 */
+	public function authorize_editorial_request( WP_REST_Request $request ) {
+		$secret = getenv( 'KADOCHI_EDITORIAL_API_SECRET' );
+		$provided = $request->get_header( 'x-kadochi-editorial-key' );
+		if ( ! is_string( $secret ) || '' === trim( $secret ) || ! is_string( $provided ) || ! hash_equals( trim( $secret ), trim( $provided ) ) ) {
+			return new WP_Error( 'kadochi_editorial_unauthorized', __( 'Editorial authorization failed.', 'kadochi-core' ), array( 'status' => 401 ) );
+		}
+
+		$rate_key = $this->transient_key( 'editorial_rate', $this->request_ip() );
+		if ( $this->counter_value( $rate_key ) >= self::EDITORIAL_REQUESTS_PER_HOUR ) {
+			return new WP_Error( 'kadochi_editorial_rate_limited', __( 'Too many editorial requests. Please try again later.', 'kadochi-core' ), array( 'status' => 429 ) );
+		}
+		$this->increment_counter( $rate_key, HOUR_IN_SECONDS );
+		return true;
+	}
+
+	private function editorial_error( $code, $message, $status = 400 ) {
+		return new WP_Error( $code, __( $message, 'kadochi-core' ), array( 'status' => $status ) );
+	}
+
+	private function editorial_string( $value, $field, $minimum, $maximum, $required = true ) {
+		if ( ! is_string( $value ) ) {
+			return $required ? $this->editorial_error( 'kadochi_editorial_invalid_' . $field, sprintf( __( '%s is required.', 'kadochi-core' ), $field ) ) : '';
+		}
+		$value = trim( wp_unslash( $value ) );
+		$length = $this->string_length( $value );
+		if ( $length < $minimum || $length > $maximum ) {
+			return $this->editorial_error( 'kadochi_editorial_invalid_' . $field, sprintf( __( '%s has an invalid length.', 'kadochi-core' ), $field ) );
+		}
+		return $value;
+	}
+
+	private function editorial_terms( $terms, $taxonomy, $maximum ) {
+		if ( ! is_array( $terms ) || count( $terms ) > $maximum ) {
+			return $this->editorial_error( 'kadochi_editorial_invalid_' . $taxonomy, sprintf( __( '%s must be a short list.', 'kadochi-core' ), $taxonomy ) );
+		}
+		$ids = array();
+		foreach ( $terms as $term ) {
+			$name = $this->editorial_string( $term, $taxonomy, 1, 80 );
+			if ( is_wp_error( $name ) ) {
+				return $name;
+			}
+			$existing = term_exists( sanitize_title( $name ), $taxonomy );
+			if ( ! $existing ) {
+				$existing = wp_insert_term( $name, $taxonomy );
+			}
+			if ( is_wp_error( $existing ) ) {
+				return $this->editorial_error( 'kadochi_editorial_term_failed', __( 'A category or tag could not be created.', 'kadochi-core' ), 500 );
+			}
+			$ids[] = (int) ( is_array( $existing ) ? $existing['term_id'] : $existing );
+		}
+		return array_values( array_unique( array_filter( $ids ) ) );
+	}
+
+	private function editorial_base64_image( $cover, $post_id ) {
+		$data = isset( $cover['data'] ) ? $cover['data'] : null;
+		if ( ! is_string( $data ) || '' === $data ) {
+			return $this->editorial_error( 'kadochi_editorial_cover_required', __( 'cover.data is required when no cover.url is supplied.', 'kadochi-core' ) );
+		}
+		if ( 0 === strpos( $data, 'data:' ) ) {
+			$parts = explode( ',', $data, 2 );
+			$data = isset( $parts[1] ) ? $parts[1] : '';
+		}
+		$binary = base64_decode( $data, true );
+		if ( false === $binary || '' === $binary || strlen( $binary ) > self::EDITORIAL_MAX_IMAGE_BYTES ) {
+			return $this->editorial_error( 'kadochi_editorial_invalid_cover', __( 'The cover image is invalid or too large.', 'kadochi-core' ) );
+		}
+		$details = function_exists( 'getimagesizefromstring' ) ? getimagesizefromstring( $binary ) : false;
+		$extensions = array( 'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp' );
+		$mime = is_array( $details ) && isset( $details['mime'] ) ? $details['mime'] : '';
+		if ( ! isset( $extensions[ $mime ] ) ) {
+			return $this->editorial_error( 'kadochi_editorial_cover_type', __( 'The cover must be a JPEG, PNG, or WebP image.', 'kadochi-core' ) );
+		}
+		$filename = isset( $cover['filename'] ) && is_string( $cover['filename'] ) ? sanitize_file_name( $cover['filename'] ) : 'kadochi-cover.' . $extensions[ $mime ];
+		if ( '' === $filename ) {
+			$filename = 'kadochi-cover.' . $extensions[ $mime ];
+		}
+		$upload = wp_upload_bits( $filename, null, $binary );
+		if ( ! empty( $upload['error'] ) ) {
+			return $this->editorial_error( 'kadochi_editorial_cover_upload', __( 'The cover image could not be saved.', 'kadochi-core' ), 500 );
+		}
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+		$attachment_id = wp_insert_attachment( array(
+			'post_mime_type' => $mime,
+			'post_title' => sanitize_text_field( pathinfo( $filename, PATHINFO_FILENAME ) ),
+			'post_status' => 'inherit',
+		), $upload['file'], $post_id );
+		if ( is_wp_error( $attachment_id ) || ! $attachment_id ) {
+			return $this->editorial_error( 'kadochi_editorial_cover_attachment', __( 'The cover attachment could not be created.', 'kadochi-core' ), 500 );
+		}
+		wp_update_attachment_metadata( $attachment_id, wp_generate_attachment_metadata( $attachment_id, $upload['file'] ) );
+		return (int) $attachment_id;
+	}
+
+	private function editorial_cover( $cover, $post_id ) {
+		if ( ! is_array( $cover ) ) {
+			return $this->editorial_error( 'kadochi_editorial_cover_required', __( 'A cover image is required.', 'kadochi-core' ) );
+		}
+		$alt = $this->editorial_string( isset( $cover['alt'] ) ? $cover['alt'] : null, 'cover alt', 1, 180 );
+		if ( is_wp_error( $alt ) ) {
+			return $alt;
+		}
+		if ( ! empty( $cover['url'] ) ) {
+			$url = esc_url_raw( (string) $cover['url'] );
+			if ( ! wp_http_validate_url( $url ) ) {
+				return $this->editorial_error( 'kadochi_editorial_cover_url', __( 'cover.url must be a valid public HTTP URL.', 'kadochi-core' ) );
+			}
+			require_once ABSPATH . 'wp-admin/includes/media.php';
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			require_once ABSPATH . 'wp-admin/includes/image.php';
+			$attachment_id = media_sideload_image( $url, $post_id, $alt, 'id' );
+		} else {
+			$attachment_id = $this->editorial_base64_image( $cover, $post_id );
+		}
+		if ( is_wp_error( $attachment_id ) ) {
+			return $attachment_id;
+		}
+		update_post_meta( (int) $attachment_id, '_wp_attachment_image_alt', sanitize_text_field( $alt ) );
+		return (int) $attachment_id;
+	}
+
+	private function editorial_revalidate() {
+		$url = getenv( 'KADOCHI_FRONTEND_REVALIDATE_URL' );
+		$secret = getenv( 'KADOCHI_REVALIDATE_SECRET' );
+		if ( ! is_string( $url ) || '' === trim( $url ) || ! is_string( $secret ) || '' === trim( $secret ) ) {
+			return;
+		}
+		wp_remote_post( $url, array(
+			'timeout' => 5,
+			'headers' => array( 'Content-Type' => 'application/json', 'X-Kadochi-Revalidate-Key' => $secret ),
+			'body' => wp_json_encode( array( 'tags' => array( 'magazine-articles', 'magazine-categories' ) ) ),
+		) );
+	}
+
+	/** Creates a Post, terms, attachment, and featured image in one request. */
+	public function create_editorial_article( WP_REST_Request $request ) {
+		$input = $request->get_json_params();
+		if ( ! is_array( $input ) ) {
+			return $this->editorial_error( 'kadochi_editorial_invalid_json', __( 'The request body must be a JSON object.', 'kadochi-core' ) );
+		}
+		$title = $this->editorial_string( isset( $input['title'] ) ? $input['title'] : null, 'title', 1, 180 );
+		$content = $this->editorial_string( isset( $input['content'] ) ? $input['content'] : null, 'content', 1, 100000 );
+		$idempotency_key = $this->editorial_string( isset( $input['idempotencyKey'] ) ? $input['idempotencyKey'] : null, 'idempotencyKey', 8, 128 );
+		if ( is_wp_error( $title ) || is_wp_error( $content ) || is_wp_error( $idempotency_key ) ) {
+			return is_wp_error( $title ) ? $title : ( is_wp_error( $content ) ? $content : $idempotency_key );
+		}
+		$existing = get_posts( array( 'post_type' => 'post', 'post_status' => 'any', 'meta_key' => '_kadochi_editorial_idempotency_key', 'meta_value' => $idempotency_key, 'fields' => 'ids', 'numberposts' => 1 ) );
+		if ( ! empty( $existing ) ) {
+			$post_id = (int) $existing[0];
+			return rest_ensure_response( array( 'created' => false, 'postId' => $post_id, 'status' => get_post_status( $post_id ), 'editUrl' => admin_url( 'post.php?post=' . $post_id . '&action=edit' ), 'url' => get_permalink( $post_id ) ) );
+		}
+		$status = isset( $input['status'] ) ? sanitize_key( (string) $input['status'] ) : 'draft';
+		if ( ! in_array( $status, array( 'draft', 'publish' ), true ) ) {
+			return $this->editorial_error( 'kadochi_editorial_invalid_status', __( 'status must be draft or publish.', 'kadochi-core' ) );
+		}
+		$slug = isset( $input['slug'] ) && '' !== trim( (string) $input['slug'] ) ? sanitize_title( (string) $input['slug'] ) : sanitize_title( $title );
+		if ( '' === $slug ) {
+			return $this->editorial_error( 'kadochi_editorial_invalid_slug', __( 'A valid slug is required.', 'kadochi-core' ) );
+		}
+		$categories = $this->editorial_terms( isset( $input['categories'] ) ? $input['categories'] : array(), 'category', 5 );
+		$tags = $this->editorial_terms( isset( $input['tags'] ) ? $input['tags'] : array(), 'post_tag', 12 );
+		if ( is_wp_error( $categories ) || is_wp_error( $tags ) ) {
+			return is_wp_error( $categories ) ? $categories : $tags;
+		}
+		$excerpt = isset( $input['excerpt'] ) ? $this->editorial_string( $input['excerpt'], 'excerpt', 0, 500, false ) : '';
+		if ( is_wp_error( $excerpt ) ) {
+			return $excerpt;
+		}
+		$post_id = wp_insert_post( array(
+			'post_type' => 'post',
+			'post_status' => 'draft',
+			'post_title' => sanitize_text_field( $title ),
+			'post_name' => $slug,
+			'post_content' => wp_kses_post( $content ),
+			'post_excerpt' => sanitize_textarea_field( $excerpt ),
+			'post_category' => $categories,
+		), true );
+		if ( is_wp_error( $post_id ) ) {
+			return $this->editorial_error( 'kadochi_editorial_post_failed', __( 'The article could not be created.', 'kadochi-core' ), 500 );
+		}
+		wp_set_object_terms( $post_id, $tags, 'post_tag', false );
+		update_post_meta( $post_id, '_kadochi_editorial_idempotency_key', $idempotency_key );
+		$attachment_id = $this->editorial_cover( isset( $input['cover'] ) ? $input['cover'] : null, $post_id );
+		if ( is_wp_error( $attachment_id ) ) {
+			wp_delete_post( $post_id, true );
+			return $attachment_id;
+		}
+		set_post_thumbnail( $post_id, $attachment_id );
+		if ( 'publish' === $status ) {
+			wp_update_post( array( 'ID' => $post_id, 'post_status' => 'publish' ) );
+		}
+		$this->editorial_revalidate();
+		$response = rest_ensure_response( array( 'created' => true, 'postId' => (int) $post_id, 'mediaId' => $attachment_id, 'status' => $status, 'editUrl' => admin_url( 'post.php?post=' . $post_id . '&action=edit' ), 'url' => get_permalink( $post_id ) ) );
+		$response->set_status( 201 );
+		return $response;
 	}
 
 	public function authenticated() {

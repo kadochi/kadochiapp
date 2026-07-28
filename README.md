@@ -39,9 +39,10 @@ the existing external `web` network used by Traefik.
    `docker network create web`
 2. Copy `front/.env.production.example` to `front/.env.production` and replace
    every placeholder.
-3. Set `MELIPAYAMAK_OTP_URL` in the root `.env` file or the shell/secret
+3. Set `MELIPAYAMAK_OTP_URL`, `KADOCHI_EDITORIAL_API_SECRET`, and
+   `KADOCHI_REVALIDATE_SECRET` in the root `.env` file or the shell/secret
    manager environment used to run Compose. `front/.env.production` is loaded
-   only by Next.js; it does not configure the WordPress OTP relay.
+   only by Next.js; it does not configure WordPress-side services.
 4. Keep the same deployment directory and Compose project name so Compose
    continues using the existing `mysql_data`, `wordpress_data`, and
    `redis_data` volumes.
@@ -51,6 +52,15 @@ the existing external `web` network used by Traefik.
 The production Compose file keeps the existing data mount destinations:
 MySQL at `/var/lib/mysql`, WordPress at `/var/www/html`, and Redis at `/data`.
 Do not run `docker compose down --volumes` during an upgrade.
+
+## Editorial automation
+
+The WordPress plugin provides a private endpoint that can create an article,
+its categories and tags, its cover attachment and its featured image in one
+request. It uses a deployment secret rather than a WordPress application
+password, and invalidates the magazine cache after a successful write. See
+[`docs/EDITORIAL_AUTOMATION.md`](docs/EDITORIAL_AUTOMATION.md) for the request
+contract and deployment checklist.
 
 ## Lighthouse acceptance
 

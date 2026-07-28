@@ -9,6 +9,7 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 import "swiper/css/pagination";
 import { homepageContentSchema } from "@/features/content/schema/content";
+import { toHomepageHeroSlides } from "@/features/content/utils/hero-slides";
 import { bffJson } from "@/lib/http/browser";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -139,22 +140,7 @@ function toHeroSlides(data: unknown): HeroSlide[] {
     return [];
   }
 
-  return parsed.data.heroes.flatMap((hero) => {
-    const backgroundImage = hero.backgroundImage?.url;
-
-    return hero.title && backgroundImage
-      ? [
-          {
-            id: hero.id,
-            title: hero.title,
-            ctaText: hero.ctaText,
-            ctaLink: hero.ctaLink,
-            backgroundImage,
-            subtitle: hero.subtitle,
-          },
-        ]
-      : [];
-  });
+  return toHomepageHeroSlides(parsed.data);
 }
 
 function HeroSlider({ initialSlides }: Readonly<HeroSliderProps>) {

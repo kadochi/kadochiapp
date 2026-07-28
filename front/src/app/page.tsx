@@ -17,6 +17,7 @@ import { StoriesSection } from "@/features/landing/components/stories-section";
 import { UpcomingOccasionRail } from "@/features/landing/components/upcoming-occasion-rail";
 import { getHomepageContent } from "@/features/content/services/content.server";
 import type { HomepageContent } from "@/features/content/types";
+import { toHomepageHeroSlides } from "@/features/content/utils/hero-slides";
 import { listMagazineArticles } from "@/features/magazine/services/magazine.server";
 import type { MagazineArticle } from "@/features/magazine/types";
 import {
@@ -64,38 +65,6 @@ async function fallback<T>(operation: Promise<T>, value: T): Promise<T> {
   }
 }
 
-function toHeroSlides(content: HomepageContent): HeroSlide[] {
-  const heroes = content.heroes.flatMap((hero) =>
-    hero.title && hero.backgroundImage?.url
-      ? [{
-          backgroundImage: hero.backgroundImage.url,
-          ctaLink: hero.ctaLink,
-          ctaText: hero.ctaText,
-          id: hero.id,
-          subtitle: hero.subtitle,
-          title: hero.title,
-        }]
-      : [],
-  );
-
-  // Banners are the current content API's compatible editorial fallback when
-  // a site has not migrated its legacy Hero records yet.
-  return heroes.length
-    ? heroes
-    : content.banners.flatMap((banner) =>
-        banner.title && banner.backgroundImage?.url
-          ? [{
-              backgroundImage: banner.backgroundImage.url,
-              ctaLink: banner.ctaLink,
-              ctaText: banner.ctaText,
-              id: banner.id,
-              subtitle: banner.subtitle,
-              title: banner.title,
-            }]
-          : [],
-      );
-}
-
 async function getLandingData() {
   const [content, latest, popular, categories, tags, magazine] = await Promise.all([
     fallback(getHomepageContent(), emptyContent),
@@ -128,7 +97,7 @@ const services = [
 
 export default async function Homepage() {
   const { categories, content, fastDelivery, latest, magazine, popular } = await getLandingData();
-  const heroSlides = toHeroSlides(content);
+  const heroSlides: HeroSlide[] = toHomepageHeroSlides(content);
   const siteUrl = new URL(env.KADOCHI_FRONTEND_URL);
   const siteLd = {
     "@context": "https://schema.org",
@@ -154,7 +123,7 @@ export default async function Homepage() {
   return (
     <LayoutContent mainClassName="mx-auto w-full max-w-[1440px]" showBottomNav>
       <h1 className="sr-only">کادوچی | خرید کادو، گل و کیک با ارسال سریع</h1>
-      <HeroSlider initialSlides={heroSlides} />
+      <HeroSlider initialSlides={heroSlides.length ? heroSlides : undefined} />
       <ServicesNav items={[...services]} />
 
       <Divider size="md" variant="spacer" />

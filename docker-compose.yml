@@ -42,6 +42,8 @@ services:
       COOKIE_SECURE: "true"
       REDIS_URL: redis://redis:6379
       ZARINPAL_MODE: production
+      # Shared with WordPress solely for the private cache-invalidation route.
+      REVALIDATE_SECRET: ${KADOCHI_REVALIDATE_SECRET:?Set KADOCHI_REVALIDATE_SECRET in the deployment environment}
 
     labels:
       - "traefik.enable=true"
@@ -133,6 +135,11 @@ services:
       MELIPAYAMAK_OTP_URL: ${MELIPAYAMAK_OTP_URL:?Set MELIPAYAMAK_OTP_URL in the deployment environment}
       KADOCHI_PAYMENT_METHOD_ID: ${KADOCHI_PAYMENT_METHOD_ID:-WC_ZPal}
       KADOCHI_FRONTEND_URL: https://kadochi.com
+      # The editorial service accepts requests only with this secret. Keep it
+      # in the deployment secret manager, never in the repository.
+      KADOCHI_EDITORIAL_API_SECRET: ${KADOCHI_EDITORIAL_API_SECRET:?Set KADOCHI_EDITORIAL_API_SECRET in the deployment environment}
+      KADOCHI_REVALIDATE_SECRET: ${KADOCHI_REVALIDATE_SECRET:?Set KADOCHI_REVALIDATE_SECRET in the deployment environment}
+      KADOCHI_FRONTEND_REVALIDATE_URL: http://kadochi-nextjs:3000/api/revalidate
 
       WORDPRESS_CONFIG_EXTRA: |
         define('WP_REDIS_HOST', 'redis');
