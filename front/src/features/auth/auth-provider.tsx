@@ -44,13 +44,19 @@ function publishAuthChange(): void {
   }
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children, hasStoredSession = false }: { children: ReactNode; hasStoredSession?: boolean }) {
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [status, setStatus] = useState<AuthStatus>("loading");
+  // The server can safely tell us whether the HttpOnly session cookie exists
+  // without exposing its value. This prevents a full-page navigation from
+  // painting an authenticated customer as signed out while /api/auth/current
+  // validates the token.
+  const [status, setStatus] = useState<AuthStatus>(() => hasStoredSession ? "authenticated" : "loading");
   const [error, setError] = useState<Error | null>(null);
 
   const refresh = useCallback(async (): Promise<Customer | null> => {
-    setStatus("loading");
+    // Session validation is a background operation for an already signed-in
+    // customer. Keep that state visible until the server confirms otherwise.
+    setStatus((current) => current === "authenticated" ? current : "loading");
     setError(null);
     try {
       const nextCustomer = await getCurrentCustomer();
@@ -77,24 +83,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const requestIdle = (
-      window as Window & {
-        requestIdleCallback?: Window["requestIdleCallback"];
-      }
-    ).requestIdleCallback?.bind(window);
-    let idleId: number | undefined;
-    const timer = window.setTimeout(() => {
-      if (requestIdle) {
-        idleId = requestIdle(() => void refresh().catch(() => undefined));
-      } else {
-        void refresh().catch(() => undefined);
-      }
-    }, 15_000);
-
-    return () => {
-      window.clearTimeout(timer);
-      if (idleId !== undefined) window.cancelIdleCallback(idleId);
-    };
+    // Do not defer the initial check: a 15-second delay left new page loads
+    // visibly anonymous even though their authentication cookie was present.
+    const timer = window.setTimeout(() => void refresh().catch(() => undefined), 0);
+    return () => window.clearTimeout(timer);
   }, [refresh]);
 
   useEffect(() => {

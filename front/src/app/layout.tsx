@@ -6,6 +6,7 @@ import { Direction } from "radix-ui";
 import NextTopLoader from "nextjs-toploader";
 import { Toaster } from "../components/ui/toaster";
 import { AuthProvider } from "../features/auth/auth-provider";
+import { getStoredAuthToken } from "../features/auth/services/auth.server";
 import { env } from "../lib/server/env";
 import GATracker from "./ga-tracker";
 import "./globals.css";
@@ -62,7 +63,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // Only the boolean is sent to the browser; the opaque WordPress JWT remains
+  // in its HttpOnly cookie and is validated by the BFF after hydration.
+  const hasStoredSession = Boolean(await getStoredAuthToken());
+
   return (
     <html lang="fa" dir="rtl" className={iranSans.variable}>
       <head>
@@ -85,7 +90,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body className="font-sans">
         <Direction.Provider dir="rtl">
-          <AuthProvider>
+          <AuthProvider hasStoredSession={hasStoredSession}>
             <Suspense fallback={null}>
               <GATracker />
             </Suspense>

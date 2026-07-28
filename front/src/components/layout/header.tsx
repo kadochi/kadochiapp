@@ -182,30 +182,16 @@ function DefaultHeader({
   useEffect(() => {
     if (controlledBasketCount !== undefined) return;
     let cancelInitialRequest: (() => void) | undefined;
-    let idleId: number | undefined;
-    const refresh = () => {
-      cancelInitialRequest = refreshBasketCount();
-    };
-
-    const requestIdle = (
-      window as Window & {
-        requestIdleCallback?: Window["requestIdleCallback"];
-      }
-    ).requestIdleCallback?.bind(window);
-    // Cart state is non-critical for the initial view. Give images, fonts, and
-    // hydration an uncontested load window, then use the next idle period.
+    // The cart indicator is part of the persistent navigation, so waiting for
+    // an idle period (previously after 15 seconds) made it look empty on each
+    // newly mounted header. Start loading it immediately after hydration.
     const timerId = window.setTimeout(() => {
-      if (requestIdle) {
-        idleId = requestIdle(refresh);
-      } else {
-        refresh();
-      }
-    }, 15_000);
+      cancelInitialRequest = refreshBasketCount();
+    }, 0);
 
     const handleCartChange = () => refreshBasketCount();
     window.addEventListener(cartChangedEvent, handleCartChange);
     return () => {
-      if (idleId !== undefined) window.cancelIdleCallback(idleId);
       window.clearTimeout(timerId);
       cancelInitialRequest?.();
       window.removeEventListener(cartChangedEvent, handleCartChange);
