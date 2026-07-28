@@ -1655,7 +1655,12 @@ final class Kadochi_Core {
 		if ( ! is_object( $order ) || ! method_exists( $order, 'get_meta' ) ) {
 			throw new Exception( __( 'The checkout order is unavailable.', 'kadochi-core' ) );
 		}
-		$operation = (string) $order->get_meta( '_kadochi_checkout_operation', true );
+		// `woocommerce_store_api_checkout_update_order_from_request` can update an
+		// order object that WooCommerce subsequently reloads before this hook. The
+		// derived `_kadochi_checkout_operation` value is therefore not guaranteed to
+		// have been saved yet. The Store API additional-field meta is the durable
+		// value for this checkout and is already persisted with the order.
+		$operation = (string) $order->get_meta( $this->checkout_operation_meta_key(), true );
 		if ( ! preg_match( '/^[a-f0-9-]{36}$/i', $operation ) ) {
 			throw new Exception( __( 'The checkout operation was not recorded.', 'kadochi-core' ) );
 		}
