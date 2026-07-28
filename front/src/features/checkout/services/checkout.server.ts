@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 
 import { getCurrentCustomer, getStoredAuthToken, wordpressBearerHeaders } from "@/features/auth/services/auth.server";
+import { retryProfileOrderPayment } from "@/features/profile/services/profile.server";
 import { ServiceError } from "@/lib/http/errors";
 import { parseUpstreamJson, UpstreamError, wordpressFetch } from "@/lib/http/upstream";
 import { env } from "@/lib/server/env";
@@ -166,50 +167,32 @@ function additionalFields(input: ReturnType<typeof submitCheckoutSchema.parse>) 
   };
 }
 
-function isWooOrderPayRedirect(url: string | undefined): boolean {
+function isTrustedZarinpalRedirect(url: string | undefined): boolean {
   if (!url) return false;
   try {
-    return new URL(url).pathname.startsWith("/checkout/order-pay/");
+    const host = new URL(url).hostname;
+    return host === "payment.zarinpal.com" || host === "sandbox.zarinpal.com";
   } catch {
     return false;
   }
 }
 
-/**
- * Some classic WooCommerce gateways return their order-pay page from the Store
- * API instead of the gateway URL. Start the configured gateway directly so the
- * storefront can take the customer to payment in one step.
- */
-async function gatewayRedirectForOrder(orderId: number, requestId: string) {
-  const response = await wordpressFetch(`/wp-json/kadochi/v1/profile/orders/${orderId}/retry-payment`, {
-    method: "POST",
-    headers: await wordpressBearerHeaders(),
-    cache: "no-store",
+/** Starts the gateway through the owner-protected endpoint used by payment retries. */
+async function startGatewayPayment(orderId: number, requestId: string) {
+  const { redirectUrl } = await retryProfileOrderPayment(orderId, requestId);
+  return { paymentStatus: "pending", redirectUrl };
+}
+
+function checkoutFailureAfterUnmaterializedOrder(responseBody: unknown, requestId: string): never {
+  const gatewayFailure = zarinpalFailure(responseBody, requestId);
+  if (gatewayFailure) throw gatewayFailure;
+  throw new ServiceError({
+    code: "validation",
+    status: 400,
+    message: "The checkout could not be completed.",
     requestId,
-    redirect: "manual",
-    acceptStatuses: [302],
+    retryable: false,
   });
-  if (response.status === 302) {
-    const redirectUrl = response.headers.get("location");
-    const parsed = z.string().url().parse(redirectUrl);
-    const host = new URL(parsed).hostname;
-    if (host !== "payment.zarinpal.com" && host !== "sandbox.zarinpal.com") {
-      throw new ServiceError({
-        code: "upstream_failure",
-        status: 502,
-        message: "The payment gateway returned an invalid redirect.",
-        requestId,
-        retryable: true,
-      });
-    }
-    return { paymentStatus: "pending", redirectUrl: parsed };
-  }
-  const gateway = await parseUpstreamJson(
-    response,
-    (value) => z.object({ redirectUrl: z.string().url() }).strict().parse(value),
-    requestId,
-  );
-  return { paymentStatus: "pending", redirectUrl: gateway.redirectUrl };
 }
 
 async function cartForCheckout(headers: Record<string, string>, requestId: string) {
@@ -364,8 +347,36 @@ export async function checkout(input: unknown, requestId: string) {
       throw new UpstreamError({ code: "malformed_upstream_response", status: 502, message: "The upstream service returned invalid JSON.", requestId, retryable: true });
     }
     if (response.status === 400) {
-      const failure = zarinpalFailure(responseBody, requestId);
-      if (failure) throw failure;
+      // ZarinPal can return a Store API 400 after Woo has already materialized
+      // the order. The operation ID is the owner-scoped source of truth; never
+      // trust the partial Store API response to choose an order for payment.
+      try {
+        const summary = await orderSummaryForOperation(parsed.operationId, requestId);
+        if (summary.paid) {
+          return {
+            result: checkoutResultSchema.parse({
+              orderId: summary.id,
+              status: summary.status,
+              reconciliation: "paid",
+            }),
+            cartToken: lastCartToken,
+          };
+        }
+        const paymentResult = await startGatewayPayment(summary.id, requestId);
+        return {
+          result: checkoutResultSchema.parse({
+            orderId: summary.id,
+            status: summary.status,
+            paymentResult,
+          }),
+          cartToken: lastCartToken,
+        };
+      } catch (error) {
+        if (error instanceof UpstreamError && error.detail.code === "not_found") {
+          checkoutFailureAfterUnmaterializedOrder(responseBody, requestId);
+        }
+        throw error;
+      }
     }
     let result;
     try {
@@ -373,8 +384,12 @@ export async function checkout(input: unknown, requestId: string) {
     } catch {
       throw new UpstreamError({ code: "malformed_upstream_response", status: 502, message: "The upstream service returned an unexpected response.", requestId, retryable: true });
     }
-    if (result.orderId && isWooOrderPayRedirect(result.paymentResult?.redirectUrl)) {
-      const paymentResult = await gatewayRedirectForOrder(result.orderId, requestId);
+    // The pinned ZarinPal gateway normally returns Woo's intermediate order-pay
+    // URL from Store API. Its retry endpoint performs the real authority request.
+    // A direct, validated ZarinPal URL is already a completed gateway start and
+    // must not create a second authority.
+    if (result.orderId && env.KADOCHI_PAYMENT_METHOD_ID === "WC_ZPal" && !isTrustedZarinpalRedirect(result.paymentResult?.redirectUrl)) {
+      const paymentResult = await startGatewayPayment(result.orderId, requestId);
       return {
         result: checkoutResultSchema.parse({ ...result, paymentResult }),
         cartToken: lastCartToken,

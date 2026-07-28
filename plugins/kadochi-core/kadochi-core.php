@@ -1927,7 +1927,7 @@ final class Kadochi_Core {
 		return rest_ensure_response( $this->profile_order_detail_dto( $order ) );
 	}
 
-	/** Restarts the configured gateway only for the owner's still-active unpaid order. */
+	/** Starts the configured gateway only for the owner's still-active unpaid order. */
 	public function retry_profile_order_payment( WP_REST_Request $request ) {
 		$order = $this->owned_order( $request['id'] );
 		if ( is_wp_error( $order ) ) {
@@ -1935,11 +1935,11 @@ final class Kadochi_Core {
 		}
 		$this->expire_draft_order_if_needed( $order );
 		if ( ! in_array( sanitize_key( $order->get_status() ), array( 'draft', 'checkout-draft', 'pending', 'pending-payment', 'failed' ), true ) ) {
-			$this->payment_log( 'payment_retry_rejected', array( 'order_id' => absint( $order->get_id() ), 'reason' => 'not_payable' ) );
+			$this->payment_log( 'payment_start_rejected', array( 'order_id' => absint( $order->get_id() ), 'reason' => 'not_payable' ) );
 			return $this->auth_error( 'kadochi_order_not_payable', __( 'This order is no longer awaiting payment.', 'kadochi-core' ), 409 );
 		}
 		if ( $order->is_paid() || $this->payment_method_id() !== $order->get_payment_method() ) {
-			$this->payment_log( 'payment_retry_rejected', array( 'order_id' => absint( $order->get_id() ), 'reason' => 'gateway_mismatch_or_paid' ) );
+			$this->payment_log( 'payment_start_rejected', array( 'order_id' => absint( $order->get_id() ), 'reason' => 'gateway_mismatch_or_paid' ) );
 			return $this->auth_error( 'kadochi_order_not_payable', __( 'This order cannot be paid with the configured gateway.', 'kadochi-core' ), 409 );
 		}
 		$woocommerce = function_exists( 'WC' ) ? WC() : null;
@@ -1954,7 +1954,7 @@ final class Kadochi_Core {
 		// WooCommerce's order-pay page. Its public handoff method creates the real
 		// ZarinPal authority and responds with the gateway redirect instead.
 		if ( 'WC_ZPal' === $this->payment_method_id() && method_exists( $gateway, 'Send_to_ZarinPal_Gateway' ) ) {
-			$this->payment_log( 'payment_retry_started', array( 'order_id' => absint( $order->get_id() ) ) );
+			$this->payment_log( 'payment_start_requested', array( 'order_id' => absint( $order->get_id() ) ) );
 			$gateway->Send_to_ZarinPal_Gateway( $order->get_id() );
 			$this->payment_log( 'payment_gateway_start_failed', array( 'order_id' => absint( $order->get_id() ), 'reason' => 'no_redirect' ) );
 			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway could not start a payment.', 'kadochi-core' ), 502 );
@@ -1965,7 +1965,7 @@ final class Kadochi_Core {
 			$this->payment_log( 'payment_gateway_start_failed', array( 'order_id' => absint( $order->get_id() ), 'reason' => 'invalid_redirect' ) );
 			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway could not start a payment.', 'kadochi-core' ), 502 );
 		}
-		$this->payment_log( 'payment_retry_redirect_ready', array( 'order_id' => absint( $order->get_id() ) ) );
+		$this->payment_log( 'payment_start_redirect_ready', array( 'order_id' => absint( $order->get_id() ) ) );
 		return rest_ensure_response( array( 'redirectUrl' => $redirect ) );
 	}
 
