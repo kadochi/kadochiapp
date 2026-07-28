@@ -7,6 +7,7 @@ services:
       target: production
       args:
         NEXT_PUBLIC_WORDPRESS_URL: https://api.kadochi.com
+        NEXT_PUBLIC_GA_ID: ${NEXT_PUBLIC_GA_ID:?Set NEXT_PUBLIC_GA_ID in the deployment environment}
     image: kadochi-nextjs:latest
     container_name: kadochi-nextjs
     restart: unless-stopped

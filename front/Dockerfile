@@ -19,9 +19,11 @@ CMD ["npm", "run", "dev"]
 FROM dependencies AS builder
 
 ARG NEXT_PUBLIC_WORDPRESS_URL=https://api.kadochi.com
+ARG NEXT_PUBLIC_GA_ID
 
 ENV NODE_ENV=production
 ENV NEXT_PUBLIC_WORDPRESS_URL=${NEXT_PUBLIC_WORDPRESS_URL}
+ENV NEXT_PUBLIC_GA_ID=${NEXT_PUBLIC_GA_ID}
 
 COPY . ./
 RUN npm run build
