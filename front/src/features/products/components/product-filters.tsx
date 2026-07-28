@@ -251,7 +251,7 @@ export function ProductFilters({ categories }: Readonly<ProductFiltersProps>) {
 
   return (
     <>
-      <div className="sticky top-72 z-40 bg-surface-background">
+      <div className="sticky top-88 z-40 bg-surface-background">
         <div
           aria-hidden={!isSearchVisible}
           className={cn(
