@@ -155,12 +155,26 @@ export function ProductSearch() {
               autoComplete="off"
               autoFocus
               className="[&>div]:h-48 [&>div]:rounded-rounded"
+              enterKeyHint="search"
               inputMode="search"
               leadingIcon={<Search />}
               onChange={(event) => updateQuery(event.target.value)}
               placeholder="نام محصول مورد نظرتان را بنویسید"
               ref={inputRef}
-              type="search"
+              trailingAction={query ? (
+                <button
+                  aria-label="پاک کردن جستجو"
+                  className="inline-flex size-32 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-black transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  onClick={() => {
+                    updateQuery("");
+                    inputRef.current?.focus({ preventScroll: true });
+                  }}
+                  type="button"
+                >
+                  <X aria-hidden="true" className="size-20" strokeWidth={1.5} />
+                </button>
+              ) : null}
+              type="text"
               value={query}
             />
 

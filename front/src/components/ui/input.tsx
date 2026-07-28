@@ -135,6 +135,8 @@ type InputProps = Omit<ComponentPropsWithoutRef<"input">, "size"> &
     leadingIcon?: ReactNode;
     /** Decorative content placed at the inline end of the field. */
     trailingIcon?: ReactNode;
+    /** Interactive content placed at the inline end of the field. */
+    trailingAction?: ReactNode;
     /** Classes applied to the full-width field container. */
     className?: string;
     /** @deprecated Use `className` instead. */
@@ -168,6 +170,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     description,
     leadingIcon,
     trailingIcon,
+    trailingAction,
     containerClassName,
     size,
     status: statusProp,
@@ -219,6 +222,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         />
         {trailingIcon ? (
           <FieldIcon disabled={disabled}>{trailingIcon}</FieldIcon>
+        ) : null}
+        {trailingAction ? (
+          <span className="inline-flex shrink-0 items-center justify-center">
+            {trailingAction}
+          </span>
         ) : null}
       </div>
 

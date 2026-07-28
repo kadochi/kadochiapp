@@ -42,12 +42,11 @@ const navigationItems = [
   },
 ] as const satisfies readonly NavigationItem[];
 
-const bottomNavigationSafeArea =
-  "calc(80px + max(env(safe-area-inset-bottom), 24px))";
+const bottomNavigationSafeArea = "80px";
 
 const navigationItemVariants = cva(
   [
-    "flex flex-[1_1_0] flex-col items-center mx-4 border-0 bg-transparent pt-8 pb-32",
+    "flex flex-[1_1_0] flex-col items-center mx-4 border-0 bg-transparent pt-8 pb-[calc(var(--spacing-32)-var(--bottom-nav-safe-area))]",
     "cursor-pointer select-none font-sans text-label-12 font-regular leading-[var(--text-label-12--line-height)] no-underline outline-none",
     "[-webkit-tap-highlight-color:transparent] [transition-property:color] duration-[180ms] ease-[ease]",
     "focus-visible:rounded-s focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-mid-emphasis",
@@ -93,7 +92,7 @@ function BottomNavigation() {
   return (
     <nav
       aria-label="پیمایش پایین صفحه"
-      className="fixed inset-x-0 bottom-0 z-[100] flex h-[calc(var(--bottom-nav-height)+max(env(safe-area-inset-bottom),var(--spacing-24)))] items-start justify-between border-t border-border-low-emphasis bg-surface-background px-8 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))] [--bottom-nav-height:80px] [direction:rtl] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-[100] flex h-[var(--bottom-nav-height)] items-start justify-between border-t border-border-low-emphasis bg-surface-background px-8 pb-[var(--bottom-nav-safe-area)] [--bottom-nav-height:80px] [--bottom-nav-safe-area:min(env(safe-area-inset-bottom),var(--spacing-32))] [direction:rtl] lg:hidden"
     >
       {navigationItems.map((item) => {
         const isActive = isActiveNavigationItem(item, pathname);

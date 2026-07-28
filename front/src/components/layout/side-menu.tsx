@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { cva } from "class-variance-authority";
+import { UserRound } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
@@ -189,7 +190,12 @@ function SideMenu({
           prefetch={false}
         >
           <div className="flex flex-row-reverse items-center gap-12">
-            <Avatar alt={displayName} size="lg" src={profileUser?.avatarSrc ?? undefined} />
+            <Avatar
+              alt={displayName}
+              fallback={isLoggedIn ? undefined : <UserRound aria-hidden="true" />}
+              size="lg"
+              src={profileUser?.avatarSrc ?? undefined}
+            />
             <div className="text-right">
               <div className="font-sans text-label-16 font-bold leading-[var(--text-label-16--line-height)] text-text-primary">
                 {displayName}
