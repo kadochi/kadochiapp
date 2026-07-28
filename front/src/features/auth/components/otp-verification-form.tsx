@@ -36,8 +36,8 @@ function verifyErrorMessage(error: unknown): string {
   if (error instanceof ServiceError) {
     if (error.detail.code === "unauthenticated")
       return "کد واردشده نادرست است یا اعتبار آن تمام شده است.";
-    if (error.detail.code === "rate_limited")
-      return "تعداد تلاش‌ها بیش از حد مجاز است. کمی بعد دوباره تلاش کنید.";
+    if (error.detail.code === "otp_rate_limited")
+      return "تعداد درخواست‌های ارسال کد بیش از حد مجاز است. کمی بعد دوباره تلاش کنید.";
     if (error.detail.retryable)
       return "ارتباط با سرویس ورود برقرار نشد. دوباره تلاش کنید.";
   }
@@ -150,9 +150,12 @@ export function OtpVerificationForm({
       }
       setCode(Array.from({ length: nextLength }, () => ""));
       window.setTimeout(() => inputRefs.current[0]?.focus(), 0);
-      setSecondsLeft(Math.ceil(challenge.retryAfter ?? 60));
+      setSecondsLeft(Math.ceil(challenge.retryAfter ?? 0));
       setResendCount((current) => current + 1);
     } catch (caught) {
+      if (caught instanceof ServiceError && (caught.detail.code === "otp_cooldown" || caught.detail.code === "otp_rate_limited")) {
+        setSecondsLeft(Math.ceil(caught.detail.retryAfter ?? 0));
+      }
       setError(verifyErrorMessage(caught));
     } finally {
       setResending(false);

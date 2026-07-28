@@ -29,7 +29,7 @@ export function LoginFlow({ isLocalAuth }: { isLocalAuth: boolean }) {
     return (
       <OtpVerificationForm
         codeLength={challenge.codeLength ?? LOCAL_AUTH_OTP_LENGTH}
-        initialRetryAfter={challenge.retryAfter ?? 60}
+        initialRetryAfter={challenge.retryAfter ?? 0}
         onBack={() => setChallenge(null)}
         onVerified={() => router.replace(nextPath)}
         phone={phone}

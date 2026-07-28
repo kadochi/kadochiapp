@@ -668,8 +668,8 @@ final class Kadochi_Core {
 		return is_string( $value ) && (bool) preg_match( '/^\d{4,6}$/', $this->latin_digits( trim( $value ) ) );
 	}
 
-	private function auth_error( $code, $message, $status ) {
-		return new WP_Error( $code, $message, array( 'status' => $status ) );
+	private function auth_error( $code, $message, $status, $data = array() ) {
+		return new WP_Error( $code, $message, array_merge( array( 'status' => $status ), is_array( $data ) ? $data : array() ) );
 	}
 
 	/**
@@ -693,10 +693,6 @@ final class Kadochi_Core {
 
 	private function challenge_key( $phone ) {
 		return $this->transient_key( 'otp_challenge', $phone );
-	}
-
-	private function cooldown_key( $phone ) {
-		return $this->transient_key( 'otp_cooldown', $phone );
 	}
 
 	private function rate_key( $scope, $value ) {
@@ -723,29 +719,112 @@ final class Kadochi_Core {
 		return hash_hmac( 'sha256', 'kadochi-otp-v1:' . $phone . ':' . $code, $this->jwt_key() );
 	}
 
+	/** Returns a correlation id suitable for logs and relay headers, never customer data. */
+	private function otp_request_id() {
+		$value = isset( $_SERVER['HTTP_X_REQUEST_ID'] ) ? (string) $_SERVER['HTTP_X_REQUEST_ID'] : '';
+		$value = preg_replace( '/[^A-Za-z0-9._:-]/', '', sanitize_text_field( $value ) );
+		return substr( $value, 0, 128 ) ?: 'unknown';
+	}
+
+	/** Logs only operational OTP metadata; callers must never pass phone numbers or codes. */
+	private function otp_log( $event, $context = array() ) {
+		$payload = array_merge( array( 'event' => $event, 'requestId' => $this->otp_request_id() ), $context );
+		error_log( '[kadochi-otp] ' . wp_json_encode( $payload ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+	}
+
+	private function otp_response( $challenge, $now = null ) {
+		$now = null === $now ? time() : (int) $now;
+		return array(
+			'expiresIn' => max( 0, (int) $challenge['expiresAt'] - $now ),
+			'retryAfter' => max( 0, (int) $challenge['retryAt'] - $now ),
+			'codeLength' => (int) $challenge['codeLength'],
+		);
+	}
+
+	/** Finds a challenge that can be recovered without sending a second SMS. */
+	private function recoverable_otp_challenge( $phone, $now = null ) {
+		$now = null === $now ? time() : (int) $now;
+		$challenge_key = $this->challenge_key( $phone );
+		$challenge = get_transient( $challenge_key );
+		if ( ! is_array( $challenge ) || empty( $challenge['digest'] ) || empty( $challenge['expiresAt'] ) || empty( $challenge['retryAt'] ) || empty( $challenge['codeLength'] ) ) {
+			return null;
+		}
+		if ( (int) $challenge['expiresAt'] <= $now ) {
+			delete_transient( $challenge_key );
+			return null;
+		}
+		$code_length = (int) $challenge['codeLength'];
+		return (int) $challenge['retryAt'] > $now && $code_length >= 4 && $code_length <= 6 ? $challenge : null;
+	}
+
+	/** Extracts codes only from the documented relay response fields. */
+	private function relay_payload_code( $payload, &$shape ) {
+		$shape = is_array( $payload ) ? 'object' : 'non_object';
+		$candidates = array();
+		if ( is_array( $payload ) && array_key_exists( 'code', $payload ) ) {
+			$candidates[] = array( 'value' => $payload['code'], 'shape' => 'code' );
+		}
+		if ( is_array( $payload ) && isset( $payload['data'] ) && is_array( $payload['data'] ) ) {
+			if ( array_key_exists( 'code', $payload['data'] ) ) {
+				$candidates[] = array( 'value' => $payload['data']['code'], 'shape' => 'data.code' );
+			}
+			if ( array_key_exists( 'otp', $payload['data'] ) ) {
+				$candidates[] = array( 'value' => $payload['data']['otp'], 'shape' => 'data.otp' );
+			}
+		}
+		foreach ( $candidates as $candidate ) {
+			$value = $candidate['value'];
+			if ( ! is_string( $value ) && ! is_int( $value ) && ! is_float( $value ) ) {
+				$shape = $candidate['shape'] . ':invalid_type';
+				continue;
+			}
+			$shape = $candidate['shape'] . ':' . ( is_string( $value ) ? 'string' : 'number' );
+			$code = trim( $this->latin_digits( (string) $value ) );
+			if ( preg_match( '/^\d{4,6}$/', $code ) ) {
+				return $code;
+			}
+		}
+		return '';
+	}
+
 	private function relay_code( $phone ) {
 		$url = getenv( 'MELIPAYAMAK_OTP_URL' );
 		if ( ! is_string( $url ) || '' === trim( $url ) ) {
+			$this->otp_log( 'relay_unavailable', array( 'status' => 0, 'durationMs' => 0, 'responseShape' => 'not_requested', 'failureCategory' => 'configuration' ) );
 			return $this->auth_error( 'kadochi_otp_unavailable', __( 'The verification service is unavailable.', 'kadochi-core' ), 503 );
 		}
+		$started_at = microtime( true );
 		$response = wp_remote_post( $url, array(
 			'timeout' => 8,
-			'headers' => array( 'Accept' => 'application/json', 'Content-Type' => 'application/json' ),
+			'headers' => array( 'Accept' => 'application/json', 'Content-Type' => 'application/json', 'X-Request-ID' => $this->otp_request_id() ),
 			'body' => wp_json_encode( array( 'to' => $this->national_phone( $phone ) ) ),
 		) );
-		if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) < 200 || (int) wp_remote_retrieve_response_code( $response ) >= 300 ) {
+		$duration_ms = (int) round( ( microtime( true ) - $started_at ) * 1000 );
+		if ( is_wp_error( $response ) ) {
+			$is_timeout = (bool) preg_match( '/time(?:d)?\s*out|timeout/i', $response->get_error_message() );
+			$failure_category = $is_timeout ? 'timeout' : 'network';
+			$this->otp_log( $is_timeout ? 'relay_timed_out' : 'relay_failed', array( 'status' => 0, 'durationMs' => $duration_ms, 'responseShape' => 'none', 'failureCategory' => $failure_category ) );
+			return $this->auth_error( $is_timeout ? 'kadochi_otp_provider_timeout' : 'kadochi_otp_provider_network', __( 'The SMS service is unavailable.', 'kadochi-core' ), $is_timeout ? 504 : 502 );
+		}
+		$status = (int) wp_remote_retrieve_response_code( $response );
+		if ( $status < 200 || $status >= 300 ) {
+			$this->otp_log( 'relay_failed', array( 'status' => $status, 'durationMs' => $duration_ms, 'responseShape' => 'not_read', 'failureCategory' => 'http_status' ) );
 			return $this->auth_error( 'kadochi_otp_provider_failed', __( 'The SMS service is unavailable.', 'kadochi-core' ), 502 );
 		}
 		$payload = json_decode( wp_remote_retrieve_body( $response ), true );
-		$code = is_array( $payload ) && isset( $payload['code'] ) && is_string( $payload['code'] ) ? trim( $this->latin_digits( $payload['code'] ) ) : '';
-		if ( ! preg_match( '/^\d{4,6}$/', $code ) ) {
+		$shape = 'unknown';
+		$code = $this->relay_payload_code( $payload, $shape );
+		if ( '' === $code ) {
+			$this->otp_log( 'relay_invalid_contract', array( 'status' => $status, 'durationMs' => $duration_ms, 'responseShape' => $shape, 'failureCategory' => 'invalid_contract' ) );
 			return $this->auth_error( 'kadochi_otp_provider_invalid', __( 'The SMS service returned an invalid response.', 'kadochi-core' ), 502 );
 		}
+		$this->otp_log( 'relay_completed', array( 'status' => $status, 'durationMs' => $duration_ms, 'responseShape' => $shape, 'failureCategory' => 'none' ) );
 		return $code;
 	}
 
 	public function start_otp( WP_REST_Request $request ) {
 		$phone = $request->get_param( 'phone' );
+		$this->otp_log( 'otp_start_received' );
 		if ( $this->local_auth_enabled() ) {
 			if ( '+989121234567' !== $phone ) {
 				return $this->auth_error( 'kadochi_local_phone_required', __( 'Use the local development phone number.', 'kadochi-core' ), 400 );
@@ -755,22 +834,27 @@ final class Kadochi_Core {
 
 		$phone_rate_key = $this->rate_key( 'phone', $phone );
 		$ip_rate_key = $this->rate_key( 'ip', $this->request_ip() );
-		if ( get_transient( $this->cooldown_key( $phone ) ) ) {
-			return $this->auth_error( 'kadochi_otp_cooldown', __( 'Please wait before requesting another verification code.', 'kadochi-core' ), 429 );
+		$challenge = $this->recoverable_otp_challenge( $phone );
+		if ( is_array( $challenge ) ) {
+			$this->otp_log( 'existing_challenge_recovered' );
+			return rest_ensure_response( $this->otp_response( $challenge ) );
 		}
 		if ( $this->counter_value( $phone_rate_key ) >= self::OTP_SEND_LIMIT_PER_HOUR || $this->counter_value( $ip_rate_key ) >= self::OTP_SEND_LIMIT_PER_HOUR ) {
-			return $this->auth_error( 'kadochi_otp_rate_limited', __( 'Too many verification-code requests. Please try again later.', 'kadochi-core' ), 429 );
+			$this->otp_log( 'hourly_limit_reached' );
+			return $this->auth_error( 'kadochi_otp_rate_limited', __( 'Too many verification-code requests. Please try again later.', 'kadochi-core' ), 429, array( 'retryAfter' => HOUR_IN_SECONDS ) );
 		}
 
 		$code = $this->relay_code( $phone );
 		if ( is_wp_error( $code ) ) {
 			return $code;
 		}
-		set_transient( $this->challenge_key( $phone ), array( 'digest' => $this->otp_digest( $phone, $code ), 'attempts' => 0, 'expiresAt' => time() + self::OTP_TTL_SECONDS ), self::OTP_TTL_SECONDS );
-		set_transient( $this->cooldown_key( $phone ), true, self::OTP_RESEND_SECONDS );
+		$now = time();
+		$challenge = array( 'digest' => $this->otp_digest( $phone, $code ), 'attempts' => 0, 'codeLength' => strlen( $code ), 'expiresAt' => $now + self::OTP_TTL_SECONDS, 'retryAt' => $now + self::OTP_RESEND_SECONDS );
+		set_transient( $this->challenge_key( $phone ), $challenge, self::OTP_TTL_SECONDS );
 		$this->increment_counter( $phone_rate_key, HOUR_IN_SECONDS );
 		$this->increment_counter( $ip_rate_key, HOUR_IN_SECONDS );
-		return rest_ensure_response( array( 'expiresIn' => self::OTP_TTL_SECONDS, 'retryAfter' => self::OTP_RESEND_SECONDS, 'codeLength' => strlen( $code ) ) );
+		$this->otp_log( 'challenge_stored' );
+		return rest_ensure_response( $this->otp_response( $challenge, $now ) );
 	}
 
 	private function invalid_otp() {

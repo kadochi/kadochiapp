@@ -21,6 +21,34 @@ type UpstreamOptions = Omit<RequestInit, "body" | "headers"> & {
   timeoutMs?: number;
 };
 
+type WordPressErrorBody = {
+  code?: unknown;
+  data?: { retryAfter?: unknown };
+};
+
+function retryAfter(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+/** Maps only the documented OTP REST errors; all other upstream failures stay generic. */
+export function wordpressErrorDetail(status: number, body: unknown, requestId: string, headerRetryAfter?: string | null): ApiError {
+  const upstream = typeof body === "object" && body !== null ? body as WordPressErrorBody : {};
+  const retryAfterSeconds = retryAfter(upstream.data?.retryAfter)
+    ?? retryAfter(headerRetryAfter === null || headerRetryAfter === undefined ? undefined : Number(headerRetryAfter));
+  const otpErrors: Record<string, Omit<ApiError, "status" | "requestId" | "retryAfter">> = {
+    kadochi_otp_cooldown: { code: "otp_cooldown", message: "Please wait before requesting another verification code.", retryable: true },
+    kadochi_otp_rate_limited: { code: "otp_rate_limited", message: "Too many verification-code requests. Please try again later.", retryable: true },
+    kadochi_otp_provider_timeout: { code: "otp_provider_timeout", message: "The SMS service timed out.", retryable: true },
+    kadochi_otp_provider_network: { code: "otp_provider_network", message: "The SMS service is unavailable.", retryable: true },
+    kadochi_otp_provider_failed: { code: "otp_provider_failed", message: "The SMS service is unavailable.", retryable: true },
+    kadochi_otp_provider_invalid: { code: "otp_provider_invalid", message: "The SMS service returned an invalid response.", retryable: false },
+    kadochi_otp_unavailable: { code: "otp_unavailable", message: "The verification service is unavailable.", retryable: false },
+  };
+  const mapped = typeof upstream.code === "string" ? otpErrors[upstream.code] : undefined;
+  if (!mapped) return errorForStatus(status, requestId);
+  return { ...mapped, status, requestId, ...(retryAfterSeconds === undefined ? {} : { retryAfter: retryAfterSeconds }) };
+}
+
 /** Internal server-only transport. Feature services own endpoint selection and mapping. */
 export async function wordpressFetch(path: string, options: UpstreamOptions): Promise<Response> {
   const controller = new AbortController();
@@ -29,11 +57,12 @@ export async function wordpressFetch(path: string, options: UpstreamOptions): Pr
   try {
     const response = await fetch(new URL(path, env.WORDPRESS_INTERNAL_URL), {
       ...requestOptions,
-      headers: { Accept: "application/json", ...requestOptions.headers },
+      headers: { Accept: "application/json", "X-Request-ID": requestId, ...requestOptions.headers },
       signal: controller.signal,
     });
     if (!response.ok && !acceptStatuses.includes(response.status)) {
-      throw new UpstreamError(errorForStatus(response.status, requestId));
+      const body: unknown = await response.json().catch(() => undefined);
+      throw new UpstreamError(wordpressErrorDetail(response.status, body, requestId, response.headers.get("retry-after")));
     }
     return response;
   } catch (error) {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,7 +25,8 @@ function latinDigits(value: string): string {
 
 function startErrorMessage(error: unknown): string {
   if (error instanceof ServiceError) {
-    if (error.detail.code === "rate_limited") return "تعداد درخواست‌ها زیاد است. کمی بعد دوباره تلاش کنید.";
+    if (error.detail.code === "otp_rate_limited") return "تعداد درخواست‌های ارسال کد زیاد است. کمی بعد دوباره تلاش کنید.";
+    if (error.detail.code === "otp_cooldown") return "کد قبلی هنوز معتبر است. لطفاً چند لحظه دیگر دوباره تلاش کنید.";
     if (error.detail.code === "validation") return "در حالت توسعه از شماره نمونه نمایش‌داده‌شده استفاده کنید.";
     if (error.detail.retryable) return "ارتباط با سرویس ورود برقرار نشد. دوباره تلاش کنید.";
   }
@@ -37,6 +38,13 @@ export function PhoneLoginForm({ initialPhone = "", onStarted }: PhoneLoginFormP
   const [phone, setPhone] = useState(initialPhone);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+
+  useEffect(() => {
+    if (secondsLeft <= 0) return;
+    const timer = window.setInterval(() => setSecondsLeft((current) => Math.max(0, current - 1)), 1_000);
+    return () => window.clearInterval(timer);
+  }, [secondsLeft]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -53,6 +61,9 @@ export function PhoneLoginForm({ initialPhone = "", onStarted }: PhoneLoginFormP
       const challenge = await startOtp({ phone: parsed.data });
       onStarted(phone, challenge);
     } catch (caught) {
+      if (caught instanceof ServiceError && caught.detail.retryAfter !== undefined) {
+        setSecondsLeft(Math.ceil(caught.detail.retryAfter));
+      }
       setError(startErrorMessage(caught));
     } finally {
       setLoading(false);
@@ -77,6 +88,7 @@ export function PhoneLoginForm({ initialPhone = "", onStarted }: PhoneLoginFormP
             name="phone"
             onChange={(event) => {
               setError(null);
+              setSecondsLeft(0);
               setPhone(latinDigits(event.currentTarget.value).replace(/\D/g, "").slice(0, 11));
             }}
             placeholder="مثال 09121234567"
@@ -104,9 +116,10 @@ export function PhoneLoginForm({ initialPhone = "", onStarted }: PhoneLoginFormP
         </div>
 
         <div className="fixed inset-x-0 bottom-0 z-20 flex flex-col items-center border-t border-border-mid-emphasis bg-surface-background p-16 pb-[max(var(--spacing-24),env(safe-area-inset-bottom))]">
-          <Button className="mx-auto w-full max-w-[580px]" loading={loading} size="large" type="submit">
+          <Button className="mx-auto w-full max-w-[580px]" disabled={secondsLeft > 0} loading={loading} size="large" type="submit">
             ارسال کد یک‌بار مصرف
           </Button>
+          {secondsLeft > 0 ? <p className="m-0 mt-8 text-body-12 text-surface-neutral-mid-emphasis">امکان ارسال مجدد تا {secondsLeft} ثانیه دیگر</p> : null}
         </div>
       </form>
     </LayoutAuth>

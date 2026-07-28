@@ -12,6 +12,9 @@ const authTokenCookie = "kadochi_auth_token";
 const otpStartPath = "/wp-json/kadochi/v1/auth/otp/start";
 const otpVerifyPath = "/wp-json/kadochi/v1/auth/otp/verify";
 const customerPath = "/wp-json/kadochi/v1/customer";
+// WordPress can spend its full 8-second relay budget before recording the challenge.
+// Leave room for that work and the two internal network hops.
+const otpStartTimeoutMs = 15_000;
 
 type CookieResponse = Pick<NextResponse, "cookies">;
 type AuthSession = { token: string; expiresAt: Date; customer: ReturnType<typeof customerSchema.parse> };
@@ -72,6 +75,7 @@ export async function startOtp(input: StartOtpInput, requestId: string, request?
     },
     cache: "no-store",
     requestId,
+    timeoutMs: otpStartTimeoutMs,
   });
   return parseUpstreamJson(response, (value) => otpStartResponseSchema.parse(value), requestId);
 }

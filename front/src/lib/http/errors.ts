@@ -7,6 +7,13 @@ export const errorCodeSchema = z.enum([
   "not_found",
   "conflict",
   "rate_limited",
+  "otp_cooldown",
+  "otp_rate_limited",
+  "otp_provider_timeout",
+  "otp_provider_network",
+  "otp_provider_failed",
+  "otp_provider_invalid",
+  "otp_unavailable",
   "timeout",
   "network",
   "malformed_upstream_response",
@@ -20,6 +27,8 @@ export const apiErrorSchema = z.object({
   message: z.string(),
   requestId: z.string(),
   retryable: z.boolean(),
+  /** Seconds until a safe retry, when the upstream can provide one. */
+  retryAfter: z.number().finite().nonnegative().optional(),
   fieldErrors: z.record(z.string(), z.array(z.string())).optional(),
   /** Safe gateway context for customer support. Never includes an authority, card, or credential. */
   payment: z.object({
