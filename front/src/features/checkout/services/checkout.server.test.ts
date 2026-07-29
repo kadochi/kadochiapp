@@ -50,7 +50,7 @@ const rawCart = {
     quantity_limits: { minimum: 1, maximum: 8, multiple_of: 1, editable: true },
     name: "Gift",
     prices: { price: "58000000", currency_code: "IRR", currency_minor_unit: 0 },
-    totals: { line_total: "58000000", currency_code: "IRR", currency_minor_unit: 0 },
+    totals: { line_subtotal: "58000000", line_total: "58000000", currency_code: "IRR", currency_minor_unit: 0 },
     images: [],
     extensions: { kadochi: { fastDelivery: true } },
   }],

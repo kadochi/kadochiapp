@@ -30,6 +30,7 @@ export function mapCart(cart: UpstreamCart) {
         editable: item.quantity_limits.editable,
       },
       price: money(item.prices.price, item.prices.currency_code, item.prices.currency_minor_unit),
+      lineSubtotal: money(item.totals.line_subtotal, item.totals.currency_code, item.totals.currency_minor_unit),
       lineTotal: money(item.totals.line_total, item.totals.currency_code, item.totals.currency_minor_unit),
       imageUrl: item.images[0]?.src,
       fastDeliveryEligible: fastDeliveryEligible(item.extensions),

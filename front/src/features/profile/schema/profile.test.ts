@@ -16,7 +16,7 @@ describe("profileOrderDetailSchema", () => {
       deliverySlot: "2026-07-21-13",
       address: "تهران، ونک",
       items: [{ id: 7, name: "کادو", quantity: 1, imageUrl: null }],
-      summary: { subtotal: money, shipping: money, service: money, total: money },
+      summary: { subtotal: money, shipping: money, service: money, tax: money, discount: money, total: money },
     })).toMatchObject({ id: 42, total: money });
   });
 
@@ -30,7 +30,7 @@ describe("profileOrderDetailSchema", () => {
       deliverySlot: null,
       address: "تهران",
       items: [],
-      summary: { subtotal: money, shipping: money, service: money, total: money },
+      summary: { subtotal: money, shipping: money, service: money, tax: money, discount: money, total: money },
     })).toThrow();
   });
 });

@@ -67,6 +67,7 @@ export const cartSchema = z.object({
     quantity: z.number().int().positive(),
     quantityLimits: quantityLimitsSchema,
     price: moneySchema,
+    lineSubtotal: moneySchema,
     lineTotal: moneySchema,
     imageUrl: z.string().url().optional(),
     fastDeliveryEligible: z.boolean(),
@@ -123,6 +124,7 @@ export const upstreamCartSchema = z.object({
       currency_minor_unit: z.number().int(),
     }),
     totals: z.object({
+      line_subtotal: z.string().regex(/^\d+$/),
       line_total: z.string().regex(/^\d+$/),
       currency_code: z.string().length(3),
       currency_minor_unit: z.number().int(),

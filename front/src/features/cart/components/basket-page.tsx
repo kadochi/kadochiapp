@@ -59,7 +59,7 @@ export function BasketPage({ initialCart, loadError }: { initialCart: Cart | nul
                   <h2 className="line-clamp-2 text-title-14 font-bold text-surface-neutral-high-emphasis">{item.name}</h2>
                   {item.fastDeliveryEligible ? <p className="mt-4 text-label-12 text-success">ارسال سریع در تهران</p> : null}
                   <div className="mt-4">
-                    <NormalPrice amount={tomanAmount(item.lineTotal)} size="M" />
+                    <NormalPrice amount={tomanAmount(item.lineSubtotal)} size="M" />
                   </div>
                 </div>
                 <div className="flex size-64 shrink-0 items-center justify-center overflow-hidden rounded-m bg-surface-soft">
@@ -73,7 +73,7 @@ export function BasketPage({ initialCart, loadError }: { initialCart: Cart | nul
       </div>
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border-mid-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))] pt-16">
         <div className="mx-auto max-w-[580px]">
-          <SumPrice amount={tomanAmount(cart.totals.totalPrice)} label="جمع کل" separate />
+          <SumPrice amount={tomanAmount(cart.totals.totalItems)} label="جمع کل" separate />
           <Button asChild className="mt-12 w-full" size="large" variant="primary-filled">
             <Link href="/checkout">ادامه فرایند خرید</Link>
           </Button>

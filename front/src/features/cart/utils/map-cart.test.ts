@@ -12,7 +12,7 @@ const rawCart = {
     quantity_limits: { minimum: 1, maximum: 8, multiple_of: 1, editable: true },
     name: "Gift",
     prices: { price: "58000000", currency_code: "IRR", currency_minor_unit: 0 },
-    totals: { line_total: "116000000", currency_code: "IRR", currency_minor_unit: 0 },
+    totals: { line_subtotal: "116000000", line_total: "104000000", currency_code: "IRR", currency_minor_unit: 0 },
     images: [{ src: "https://example.test/gift.jpg" }],
     extensions: { kadochi: { fastDelivery: true } },
   }],
@@ -21,12 +21,12 @@ const rawCart = {
     total_items_tax: "0",
     total_fees: "0",
     total_fees_tax: "0",
-    total_discount: "0",
+    total_discount: "12000000",
     total_discount_tax: "0",
     total_shipping: null,
     total_shipping_tax: null,
     total_tax: "0",
-    total_price: "116000000",
+    total_price: "104000000",
     currency_code: "IRR",
     currency_minor_unit: 0,
   },
@@ -38,7 +38,7 @@ const rawCart = {
 };
 
 describe("mapCart", () => {
-  it("maps Woo quantity limits, extension data, and pre-calculation null totals", () => {
+  it("maps Woo quantity limits, product subtotal, discounts, and pre-calculation null totals", () => {
     const cart = mapCart(upstreamCartSchema.parse(rawCart));
 
     expect(cart.items[0]).toMatchObject({
@@ -47,6 +47,11 @@ describe("mapCart", () => {
       quantityLimits: { minimum: 1, maximum: 8, multipleOf: 1, editable: true },
       fastDeliveryEligible: true,
     });
+    expect(cart.totals.totalItems.amount).toBe("116000000");
+    expect(cart.totals.totalDiscount.amount).toBe("12000000");
+    expect(cart.totals.totalPrice.amount).toBe("104000000");
+    expect(cart.items[0].lineSubtotal.amount).toBe("116000000");
+    expect(cart.items[0].lineTotal.amount).toBe("104000000");
     expect(cart.totals.totalShipping.amount).toBe("0");
     expect(cart.paymentMethodIds).toEqual(["zarinpal"]);
     expect(cart.coupons).toEqual([{ code: "WELCOME10" }]);

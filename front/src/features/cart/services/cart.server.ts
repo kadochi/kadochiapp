@@ -15,6 +15,19 @@ export async function executeCart(action: CartAction, requestId: string) {
   return { cart, cartToken: response.headers.get("cart-token") };
 }
 
+/** Empties the tokenized Woo cart, which also removes any applied coupon codes. */
+export async function clearCart(requestId: string) {
+  const token = (await cookies()).get(cartTokenCookie)?.value;
+  const response = await wordpressFetch("/wp-json/wc/store/v1/cart/items", {
+    method: "DELETE",
+    headers: token ? { "Cart-Token": token } : {},
+    cache: "no-store",
+    requestId,
+  });
+  await parseUpstreamJson(response, () => undefined, requestId);
+  return { cartToken: response.headers.get("cart-token") };
+}
+
 export function applyCartToken(response: { cookies: { set: (name: string, value: string, options: Record<string, unknown>) => void } }, token: string | null) {
   if (!token) return;
   response.cookies.set(cartTokenCookie, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 7 });

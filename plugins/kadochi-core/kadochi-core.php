@@ -2365,6 +2365,8 @@ final class Kadochi_Core {
 				'subtotal' => $this->money_value( $order->get_subtotal(), $order->get_currency() ),
 				'shipping' => $this->money_value( $order->get_shipping_total(), $order->get_currency() ),
 				'service' => $this->money_value( $fees, $order->get_currency() ),
+				'tax' => $this->money_value( $order->get_total_tax(), $order->get_currency() ),
+				'discount' => $this->money_value( $order->get_discount_total(), $order->get_currency() ),
 				'total' => $this->order_money( $order ),
 			),
 		);

@@ -171,6 +171,10 @@ export function ProfileOrderDetailPage({ orderId }: { orderId: number }) {
             <Divider />
             <DetailRow label="هزینه بسته‌بندی و خدمات" value={formatMoney(order.summary.service)} />
             <Divider />
+            <DetailRow label="مالیات" value={formatMoney(order.summary.tax)} />
+            <Divider />
+            <DetailRow label="تخفیف" value={tomanAmount(order.summary.discount) ? `− ${formatMoney(order.summary.discount)}` : formatMoney(order.summary.discount)} />
+            <Divider />
             <DetailRow emphasis label="جمع کل" value={formatMoney(order.summary.total)} />
           </div>
         </> : null}

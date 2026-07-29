@@ -556,11 +556,11 @@ function PaymentStep({ state, couponPending, onApplyCoupon, onRemoveCoupon }: {
     <SectionHeader as="h2" subtitle="مشخصات هزینه‌های سفارش" title="جزئیات پرداخت" />
     <section className="px-16 pb-16 text-body-14">
       <PaymentRow label="جمع سفارش‌ها" value={formatIrrAsToman(state.cart.totals.totalItems)} />
+      {state.cart.totals.totalDiscount.amount !== "0" ? <><Divider /><PaymentRow className="text-success" label="تخفیف" value={`− ${formatIrrAsToman(state.cart.totals.totalDiscount)}`} /></> : null}
       <Divider />
       <PaymentRow label="هزینه ارسال" value={formatIrrAsToman(state.cart.totals.totalShipping)} />
       <Divider />
       <PaymentRow label="مالیات بر ارزش افزوده (۱۰٪)" value={formatIrrAsToman(state.cart.totals.totalTax)} />
-      {state.cart.totals.totalDiscount.amount !== "0" ? <><Divider /><PaymentRow className="text-success" label="تخفیف" value={`− ${formatIrrAsToman(state.cart.totals.totalDiscount)}`} /></> : null}
       <Divider />
       <PaymentRow bold label="جمع کل" value={formatIrrAsToman(state.cart.totals.totalPrice)} />
     </section>

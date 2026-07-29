@@ -55,6 +55,8 @@ export const profileOrderDetailSchema = profileOrderSchema.extend({
     subtotal: moneySchema,
     shipping: moneySchema,
     service: moneySchema,
+    tax: moneySchema,
+    discount: moneySchema,
     total: moneySchema,
   }).strict(),
 }).strict();
