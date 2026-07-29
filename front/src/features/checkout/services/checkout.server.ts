@@ -178,8 +178,8 @@ function isTrustedZarinpalRedirect(url: string | undefined): boolean {
 }
 
 /** Starts the gateway through the owner-protected endpoint used by payment retries. */
-async function startGatewayPayment(orderId: number, requestId: string) {
-  const { redirectUrl } = await retryProfileOrderPayment(orderId, requestId);
+async function startGatewayPayment(orderId: number, attemptId: string, requestId: string) {
+  const { redirectUrl } = await retryProfileOrderPayment(orderId, attemptId, requestId);
   return { paymentStatus: "pending", redirectUrl };
 }
 
@@ -362,7 +362,7 @@ export async function checkout(input: unknown, requestId: string) {
             cartToken: lastCartToken,
           };
         }
-        const paymentResult = await startGatewayPayment(summary.id, requestId);
+        const paymentResult = await startGatewayPayment(summary.id, parsed.operationId, requestId);
         return {
           result: checkoutResultSchema.parse({
             orderId: summary.id,
@@ -389,7 +389,7 @@ export async function checkout(input: unknown, requestId: string) {
     // A direct, validated ZarinPal URL is already a completed gateway start and
     // must not create a second authority.
     if (result.orderId && env.KADOCHI_PAYMENT_METHOD_ID === "WC_ZPal" && !isTrustedZarinpalRedirect(result.paymentResult?.redirectUrl)) {
-      const paymentResult = await startGatewayPayment(result.orderId, requestId);
+      const paymentResult = await startGatewayPayment(result.orderId, parsed.operationId, requestId);
       return {
         result: checkoutResultSchema.parse({ ...result, paymentResult }),
         cartToken: lastCartToken,
@@ -397,9 +397,9 @@ export async function checkout(input: unknown, requestId: string) {
     }
     return { result, cartToken: lastCartToken };
   } catch (error) {
-    // A retryable failure after POST may hide a completed gateway call. Reconcile the
-    // recorded operation instead of issuing a second payment attempt automatically.
-    if (paymentSubmitted && error instanceof UpstreamError && error.detail.retryable) {
+    // A known gateway rejection is definitive: move the customer to the order's
+    // failure result so a later explicit retry gets a fresh payment-attempt ID.
+    if (paymentSubmitted && error instanceof UpstreamError && error.detail.code === "upstream_failure" && !error.detail.retryable) {
       try {
         const summary = await orderSummaryForOperation(parsed.operationId, requestId);
         return {
@@ -407,6 +407,32 @@ export async function checkout(input: unknown, requestId: string) {
             orderId: summary.id,
             status: summary.status,
             reconciliation: summary.paid ? "paid" : "unpaid",
+          }),
+          cartToken: lastCartToken,
+        };
+      } catch {
+        // Preserve the definite gateway rejection if its operation cannot be read.
+      }
+    }
+    // A retryable failure after POST may hide a completed gateway call. Reconcile the
+    // recorded operation, then ask the payment-start endpoint to recover only this
+    // same attempt. WordPress returns a saved redirect or an in-progress response;
+    // it never creates a second authority for the same attempt ID.
+    if (paymentSubmitted && error instanceof UpstreamError && error.detail.retryable) {
+      try {
+        const summary = await orderSummaryForOperation(parsed.operationId, requestId);
+        if (summary.paid) {
+          return {
+            result: checkoutResultSchema.parse({ orderId: summary.id, status: summary.status, reconciliation: "paid" }),
+            cartToken: lastCartToken,
+          };
+        }
+        const paymentResult = await startGatewayPayment(summary.id, parsed.operationId, requestId);
+        return {
+          result: checkoutResultSchema.parse({
+            orderId: summary.id,
+            status: summary.status,
+            paymentResult,
           }),
           cartToken: lastCartToken,
         };

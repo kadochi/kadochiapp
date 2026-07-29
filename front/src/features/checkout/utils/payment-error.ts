@@ -28,6 +28,13 @@ export function paymentErrorMessage(error: unknown, fallback = "شروع پرد�
       ? apiErrorSchema.safeParse((error as { detail: unknown }).detail).data
       : undefined;
   if (!detail?.payment || detail.payment.provider !== "zarinpal") {
+    if (detail?.code === "payment_in_progress") {
+      return {
+        message: "پرداخت قبلی هنوز در حال شروع است. لطفاً چند لحظه بعد دوباره بررسی کنید.",
+        requestId: detail.requestId,
+        retryable: true,
+      };
+    }
     return { message: fallback, retryable: false };
   }
   const code = detail.payment.code;

@@ -14,6 +14,7 @@ export const errorCodeSchema = z.enum([
   "otp_provider_failed",
   "otp_provider_invalid",
   "otp_unavailable",
+  "payment_in_progress",
   "timeout",
   "network",
   "malformed_upstream_response",

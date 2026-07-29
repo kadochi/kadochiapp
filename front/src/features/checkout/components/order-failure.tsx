@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { formatIrrAsToman } from "@/features/cart/utils/money";
@@ -13,6 +13,7 @@ import { logPaymentFailure, paymentErrorMessage } from "../utils/payment-error";
 export function OrderFailure({ order }: { order: OrderSummary }) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  const attemptId = useRef<string | null>(null);
   const recipient = [order.recipient.firstName, order.recipient.lastName]
     .filter(Boolean)
     .join(" ") || "—";
@@ -21,11 +22,12 @@ export function OrderFailure({ order }: { order: OrderSummary }) {
     setRetrying(true);
     setRetryError(null);
     try {
-      const { redirectUrl } = await retryProfileOrderPayment(order.id);
+      const { redirectUrl } = await retryProfileOrderPayment(order.id, attemptId.current ?? (attemptId.current = crypto.randomUUID()));
       window.location.assign(redirectUrl);
     } catch (error) {
       logPaymentFailure("failed_order_payment_retry_failed", error);
       setRetryError(paymentErrorMessage(error).message);
+      attemptId.current = null;
       setRetrying(false);
     }
   }

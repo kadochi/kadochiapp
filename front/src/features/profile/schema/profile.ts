@@ -42,6 +42,10 @@ export const profileOrderRetryPaymentSchema = z.object({
   redirectUrl: z.string().url(),
 }).strict();
 
+export const profileOrderRetryPaymentRequestSchema = z.object({
+  attemptId: z.string().uuid(),
+}).strict();
+
 export const profileOrderDetailSchema = profileOrderSchema.extend({
   sender: z.string(),
   receiver: z.string(),

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, PackageOpen, RefreshCw } from "lucide-react";
 
@@ -90,17 +90,19 @@ function OrderCard({ order }: { order: ProfileOrder }) {
   const hiddenItemCount = Math.max(0, order.items.length - visibleItems.length);
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  const attemptId = useRef<string | null>(null);
   const canRetryPayment = ["draft", "checkout-draft", "pending", "pending-payment"].includes(order.status);
 
   async function retryPayment() {
     setRetrying(true);
     setRetryError(null);
     try {
-      const { redirectUrl } = await retryProfileOrderPayment(order.id);
+      const { redirectUrl } = await retryProfileOrderPayment(order.id, attemptId.current ?? (attemptId.current = crypto.randomUUID()));
       window.location.assign(redirectUrl);
     } catch (error) {
       logPaymentFailure("profile_payment_retry_failed", error);
       setRetryError(paymentErrorMessage(error).message);
+      attemptId.current = null;
       setRetrying(false);
     }
   }

@@ -10,6 +10,7 @@ import {
   profileOrderDetailSchema,
   profileOrderListSchema,
   profileOrderRetryPaymentSchema,
+  profileOrderRetryPaymentRequestSchema,
   profileProductActionListSchema,
   profileProductActionSchema,
   profileProductListSchema,
@@ -50,14 +51,21 @@ export async function getProfileOrder(orderId: number, requestId: string) {
   return parseUpstreamJson(response, (value) => profileOrderDetailSchema.parse(value), requestId);
 }
 
-export async function retryProfileOrderPayment(orderId: number, requestId: string) {
+const paymentStartTimeoutMs = 25_000;
+
+export async function retryProfileOrderPayment(orderId: number, attemptId: string, requestId: string) {
+  const body = profileOrderRetryPaymentRequestSchema.parse({ attemptId });
   const response = await wordpressFetch(`/wp-json/kadochi/v1/profile/orders/${orderId}/retry-payment`, {
     method: "POST",
-    headers: await wordpressBearerHeaders(),
+    body: JSON.stringify(body),
+    headers: { ...await wordpressBearerHeaders(), "Content-Type": "application/json" },
     redirect: "manual",
     acceptStatuses: [302],
     cache: "no-store",
     requestId,
+    // ZarinPal permits the authority request to take 15 seconds. This is the
+    // only WordPress request that needs the longer outer deadline.
+    timeoutMs: paymentStartTimeoutMs,
   });
   if (response.status === 302) {
     const redirectUrl = response.headers.get("location");

@@ -31,6 +31,7 @@ final class Kadochi_Core {
 	const PRODUCT_VIEW_COUNT_META_KEY = '_kadochi_product_view_count';
 	const DRAFT_ORDER_EXPIRATION_SECONDS = 3600;
 	const DRAFT_ORDER_EXPIRY_HOOK = 'kadochi_expire_draft_orders';
+	const PAYMENT_ATTEMPT_LOCK_SECONDS = 60;
 	const EDITORIAL_REQUESTS_PER_HOUR = 30;
 	const EDITORIAL_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
@@ -38,6 +39,8 @@ final class Kadochi_Core {
 	private $health = array();
 	/** @var WP_Error|null */
 	private $bearer_error = null;
+	/** @var array<string, mixed>|null Context used only while the gateway emits its redirect. */
+	private $active_payment_attempt = null;
 
 	public function boot() {
 		self::maybe_install_product_actions_table();
@@ -1983,6 +1986,7 @@ final class Kadochi_Core {
 		if ( ! $order || $order->is_paid() || $this->payment_method_id() !== $order->get_payment_method() ) {
 			return;
 		}
+		$this->release_payment_attempt( $order, null, 'cancelled' );
 		$this->payment_log( 'payment_cancelled', array( 'order_id' => absint( $order->get_id() ), 'gateway' => 'zarinpal' ) );
 		$failure_url = $this->frontend_checkout_result_url( 'failure', $order );
 		if ( ! $failure_url ) {
@@ -1998,6 +2002,7 @@ final class Kadochi_Core {
 			array(
 				'event' => sanitize_key( $event ),
 				'gateway' => 'zarinpal',
+				'requestId' => $this->payment_request_id(),
 			),
 			is_array( $context ) ? $context : array()
 		);
@@ -2007,6 +2012,137 @@ final class Kadochi_Core {
 			return;
 		}
 		error_log( '[kadochi-zarinpal] ' . $message ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+	}
+
+	/** Returns an opaque correlation ID and never includes customer or payment data. */
+	private function payment_request_id() {
+		$value = isset( $_SERVER['HTTP_X_REQUEST_ID'] ) ? (string) $_SERVER['HTTP_X_REQUEST_ID'] : '';
+		$value = preg_replace( '/[^A-Za-z0-9._:-]/', '', sanitize_text_field( $value ) );
+		return substr( $value, 0, 128 ) ?: 'unknown';
+	}
+
+	private function valid_payment_attempt_id( $value ) {
+		return is_string( $value ) && (bool) preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i', $value );
+	}
+
+	/** A single, non-autoloaded option is an atomic per-order payment-attempt lock. */
+	private function payment_attempt_lock_key( $order ) {
+		return 'kadochi_payment_attempt_' . absint( is_object( $order ) && method_exists( $order, 'get_id' ) ? $order->get_id() : 0 );
+	}
+
+	private function payment_attempt_failure_meta_key() {
+		return '_kadochi_payment_attempt_failure';
+	}
+
+	/** Allows only the two ZarinPal handoff hosts; the authority is never logged separately. */
+	private function trusted_zarinpal_redirect( $redirect ) {
+		$redirect = is_string( $redirect ) ? esc_url_raw( $redirect, array( 'http', 'https' ) ) : '';
+		$parts = $redirect ? wp_parse_url( $redirect ) : false;
+		if ( ! is_array( $parts ) || empty( $parts['host'] ) || empty( $parts['scheme'] ) || ! in_array( strtolower( $parts['scheme'] ), array( 'http', 'https' ), true ) ) {
+			return false;
+		}
+		return in_array( strtolower( $parts['host'] ), array( 'payment.zarinpal.com', 'sandbox.zarinpal.com' ), true ) ? $redirect : false;
+	}
+
+	/**
+	 * Acquires a per-order payment lock, or recovers the redirect made by an
+	 * already-completed identical attempt. `add_option()` provides the atomic
+	 * compare-and-set operation across concurrent PHP workers.
+	 */
+	private function begin_payment_attempt( $order, $attempt_id ) {
+		$lock_key = $this->payment_attempt_lock_key( $order );
+		$now = time();
+		$existing = get_option( $lock_key, false );
+		if ( is_array( $existing ) ) {
+			$existing_id = isset( $existing['attemptId'] ) && is_string( $existing['attemptId'] ) ? $existing['attemptId'] : '';
+			$started_at = isset( $existing['startedAt'] ) ? absint( $existing['startedAt'] ) : 0;
+			$redirect = isset( $existing['redirectUrl'] ) ? $this->trusted_zarinpal_redirect( $existing['redirectUrl'] ) : false;
+			if ( $redirect ) {
+				$this->payment_log( 'payment_authority_recovered', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'same_attempt' => hash_equals( $existing_id, $attempt_id ) ) );
+				return array( 'redirectUrl' => $redirect );
+			}
+			if ( $started_at && $started_at > $now - self::PAYMENT_ATTEMPT_LOCK_SECONDS ) {
+				$retry_after = max( 1, self::PAYMENT_ATTEMPT_LOCK_SECONDS - ( $now - $started_at ) );
+				$this->payment_log( 'payment_in_progress_detected', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'retry_after' => $retry_after ) );
+				return $this->auth_error( 'kadochi_payment_in_progress', __( 'A payment attempt is already in progress.', 'kadochi-core' ), 409, array( 'retryAfter' => $retry_after ) );
+			}
+			// A worker that never reached ZarinPal cannot reserve an order forever.
+			delete_option( $lock_key );
+			$this->payment_log( 'payment_attempt_lock_expired', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id ) );
+		}
+
+		$failure = get_post_meta( $order->get_id(), $this->payment_attempt_failure_meta_key(), true );
+		if ( is_array( $failure ) && isset( $failure['attemptId'] ) && is_string( $failure['attemptId'] ) && hash_equals( $failure['attemptId'], $attempt_id ) ) {
+			$this->payment_log( 'payment_start_rejected', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'reason' => 'previous_failure' ) );
+			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway could not start a payment.', 'kadochi-core' ), 502 );
+		}
+
+		$lock = array( 'attemptId' => $attempt_id, 'startedAt' => $now );
+		if ( ! add_option( $lock_key, $lock, '', 'no' ) ) {
+			// Another request won the race after the read above. It must not start a
+			// second authority; the caller can safely retry its recovery lookup.
+			$this->payment_log( 'payment_in_progress_detected', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'retry_after' => 1 ) );
+			return $this->auth_error( 'kadochi_payment_in_progress', __( 'A payment attempt is already in progress.', 'kadochi-core' ), 409, array( 'retryAfter' => 1 ) );
+		}
+		delete_post_meta( $order->get_id(), $this->payment_attempt_failure_meta_key() );
+		return true;
+	}
+
+	/** Releases a failed or cancelled attempt while retaining only a bounded safe tombstone. */
+	private function release_payment_attempt( $order, $attempt_id = null, $reason = 'gateway_failure' ) {
+		$lock_key = $this->payment_attempt_lock_key( $order );
+		$existing = get_option( $lock_key, false );
+		if ( ! is_array( $existing ) || ! isset( $existing['attemptId'] ) || ! is_string( $existing['attemptId'] ) ) {
+			return;
+		}
+		if ( null !== $attempt_id && ! hash_equals( $existing['attemptId'], $attempt_id ) ) {
+			return;
+		}
+		delete_option( $lock_key );
+		update_post_meta( $order->get_id(), $this->payment_attempt_failure_meta_key(), array(
+			'attemptId' => $existing['attemptId'],
+			'failedAt' => time(),
+			'reason' => sanitize_key( $reason ),
+		) );
+	}
+
+	/** Persists the redirect before the official gateway exits the PHP request. */
+	public function capture_payment_gateway_redirect( $location, $status ) {
+		if ( ! is_array( $this->active_payment_attempt ) ) {
+			return $location;
+		}
+		$redirect = $this->trusted_zarinpal_redirect( $location );
+		if ( ! $redirect ) {
+			return $location;
+		}
+		$lock_key = isset( $this->active_payment_attempt['lockKey'] ) ? $this->active_payment_attempt['lockKey'] : '';
+		$attempt_id = isset( $this->active_payment_attempt['attemptId'] ) ? $this->active_payment_attempt['attemptId'] : '';
+		$existing = $lock_key ? get_option( $lock_key, false ) : false;
+		if ( is_array( $existing ) && isset( $existing['attemptId'] ) && is_string( $existing['attemptId'] ) && hash_equals( $existing['attemptId'], $attempt_id ) ) {
+			$existing['redirectUrl'] = $redirect;
+			$existing['redirectedAt'] = time();
+			update_option( $lock_key, $existing, false );
+			$this->active_payment_attempt['redirectCaptured'] = true;
+			$this->payment_log( 'payment_authority_ready', array( 'order_id' => absint( $this->active_payment_attempt['orderId'] ), 'attempt_id' => $attempt_id, 'duration_ms' => max( 0, (int) round( ( microtime( true ) - $this->active_payment_attempt['startedAt'] ) * 1000 ) ) ) );
+		}
+		return $location;
+	}
+
+	/** Handles a gateway exit without redirect as a definite failure and frees the lock. */
+	public function payment_attempt_shutdown() {
+		if ( ! is_array( $this->active_payment_attempt ) ) {
+			return;
+		}
+		$attempt = $this->active_payment_attempt;
+		$this->active_payment_attempt = null;
+		if ( ! empty( $attempt['redirectCaptured'] ) ) {
+			return;
+		}
+		$order = function_exists( 'wc_get_order' ) ? wc_get_order( absint( $attempt['orderId'] ) ) : false;
+		if ( $order ) {
+			$this->release_payment_attempt( $order, $attempt['attemptId'], 'no_redirect' );
+		}
+		$this->payment_log( 'payment_gateway_start_failed', array( 'order_id' => absint( $attempt['orderId'] ), 'attempt_id' => $attempt['attemptId'], 'reason' => 'no_redirect', 'duration_ms' => max( 0, (int) round( ( microtime( true ) - $attempt['startedAt'] ) * 1000 ) ) ) );
 	}
 
 	/** Builds a trusted frontend result URL for a WooCommerce order. */
@@ -2222,6 +2358,11 @@ final class Kadochi_Core {
 
 	/** Starts the configured gateway only for the owner's still-active unpaid order. */
 	public function retry_profile_order_payment( WP_REST_Request $request ) {
+		$input = $request->get_json_params();
+		$attempt_id = is_array( $input ) && isset( $input['attemptId'] ) ? sanitize_text_field( (string) $input['attemptId'] ) : '';
+		if ( ! $this->valid_payment_attempt_id( $attempt_id ) ) {
+			return $this->auth_error( 'kadochi_invalid_payment_attempt', __( 'A valid payment attempt is required.', 'kadochi-core' ), 400 );
+		}
 		$order = $this->owned_order( $request['id'] );
 		if ( is_wp_error( $order ) ) {
 			return $order;
@@ -2235,30 +2376,52 @@ final class Kadochi_Core {
 			$this->payment_log( 'payment_start_rejected', array( 'order_id' => absint( $order->get_id() ), 'reason' => 'gateway_mismatch_or_paid' ) );
 			return $this->auth_error( 'kadochi_order_not_payable', __( 'This order cannot be paid with the configured gateway.', 'kadochi-core' ), 409 );
 		}
+		$attempt = $this->begin_payment_attempt( $order, $attempt_id );
+		if ( is_wp_error( $attempt ) ) {
+			return $attempt;
+		}
+		if ( is_array( $attempt ) && isset( $attempt['redirectUrl'] ) ) {
+			return rest_ensure_response( $attempt );
+		}
 		$woocommerce = function_exists( 'WC' ) ? WC() : null;
 		$gateway_manager = is_object( $woocommerce ) && method_exists( $woocommerce, 'payment_gateways' ) ? $woocommerce->payment_gateways() : null;
 		$gateways = is_object( $gateway_manager ) && method_exists( $gateway_manager, 'payment_gateways' ) ? $gateway_manager->payment_gateways() : array();
 		$gateway = isset( $gateways[ $this->payment_method_id() ] ) ? $gateways[ $this->payment_method_id() ] : null;
 		if ( ! $gateway || ! method_exists( $gateway, 'process_payment' ) ) {
-			$this->payment_log( 'payment_gateway_unavailable', array( 'order_id' => absint( $order->get_id() ) ) );
+			$this->release_payment_attempt( $order, $attempt_id, 'gateway_unavailable' );
+			$this->payment_log( 'payment_gateway_unavailable', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id ) );
 			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway is unavailable.', 'kadochi-core' ), 503 );
 		}
 		// The official ZarinPal gateway's process_payment() intentionally returns
 		// WooCommerce's order-pay page. Its public handoff method creates the real
 		// ZarinPal authority and responds with the gateway redirect instead.
 		if ( 'WC_ZPal' === $this->payment_method_id() && method_exists( $gateway, 'Send_to_ZarinPal_Gateway' ) ) {
-			$this->payment_log( 'payment_start_requested', array( 'order_id' => absint( $order->get_id() ) ) );
+			$started_at = microtime( true );
+			$this->active_payment_attempt = array(
+				'orderId' => absint( $order->get_id() ),
+				'attemptId' => $attempt_id,
+				'lockKey' => $this->payment_attempt_lock_key( $order ),
+				'startedAt' => $started_at,
+				'redirectCaptured' => false,
+			);
+			add_filter( 'wp_redirect', array( $this, 'capture_payment_gateway_redirect' ), 999, 2 );
+			register_shutdown_function( array( $this, 'payment_attempt_shutdown' ) );
+			$this->payment_log( 'payment_start_requested', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id ) );
 			$gateway->Send_to_ZarinPal_Gateway( $order->get_id() );
-			$this->payment_log( 'payment_gateway_start_failed', array( 'order_id' => absint( $order->get_id() ), 'reason' => 'no_redirect' ) );
+			remove_filter( 'wp_redirect', array( $this, 'capture_payment_gateway_redirect' ), 999 );
+			$this->active_payment_attempt = null;
+			$this->release_payment_attempt( $order, $attempt_id, 'no_redirect' );
+			$this->payment_log( 'payment_gateway_start_failed', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'reason' => 'no_redirect', 'duration_ms' => max( 0, (int) round( ( microtime( true ) - $started_at ) * 1000 ) ) ) );
 			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway could not start a payment.', 'kadochi-core' ), 502 );
 		}
 		$result = $gateway->process_payment( $order->get_id() );
 		$redirect = is_array( $result ) && isset( $result['redirect'] ) ? esc_url_raw( $result['redirect'], array( 'http', 'https' ) ) : '';
 		if ( ! $redirect ) {
-			$this->payment_log( 'payment_gateway_start_failed', array( 'order_id' => absint( $order->get_id() ), 'reason' => 'invalid_redirect' ) );
+			$this->release_payment_attempt( $order, $attempt_id, 'invalid_redirect' );
+			$this->payment_log( 'payment_gateway_start_failed', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'reason' => 'invalid_redirect' ) );
 			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway could not start a payment.', 'kadochi-core' ), 502 );
 		}
-		$this->payment_log( 'payment_start_redirect_ready', array( 'order_id' => absint( $order->get_id() ) ) );
+		$this->payment_log( 'payment_start_redirect_ready', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id ) );
 		return rest_ensure_response( array( 'redirectUrl' => $redirect ) );
 	}
 

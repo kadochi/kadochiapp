@@ -37,4 +37,24 @@ describe("wordpressErrorDetail", () => {
       status: 502,
     });
   });
+
+  it("preserves the payment-in-progress contract and its safe retry delay", () => {
+    expect(wordpressErrorDetail(409, {
+      code: "kadochi_payment_in_progress",
+      data: { status: 409, retryAfter: 12 },
+    }, "request-123")).toMatchObject({
+      code: "payment_in_progress",
+      status: 409,
+      retryAfter: 12,
+      retryable: true,
+    });
+  });
+
+  it("does not classify a definite WordPress gateway rejection as a transport retry", () => {
+    expect(wordpressErrorDetail(502, { code: "kadochi_payment_unavailable" }, "request-123")).toMatchObject({
+      code: "upstream_failure",
+      status: 502,
+      retryable: false,
+    });
+  });
 });

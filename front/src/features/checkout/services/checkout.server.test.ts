@@ -103,6 +103,13 @@ function input() {
   };
 }
 
+function inputForAttempt(index: number) {
+  return {
+    ...input(),
+    operationId: `c5012c5${index}-cd10-4ed6-b2be-9f28df81c49e`,
+  };
+}
+
 function networkError() {
   return new UpstreamError({
     code: "network",
@@ -110,6 +117,16 @@ function networkError() {
     message: "network failed",
     requestId: "request-1",
     retryable: true,
+  });
+}
+
+function definitiveGatewayError() {
+  return new UpstreamError({
+    code: "upstream_failure",
+    status: 502,
+    message: "gateway rejected",
+    requestId: "request-1",
+    retryable: false,
   });
 }
 
@@ -200,7 +217,39 @@ describe("checkout service", () => {
       result: { orderId: 93, paymentResult: { paymentStatus: "pending", redirectUrl: "https://payment.zarinpal.com/pg/StartPay/authority" } },
     });
     expect(transport.fetch.mock.calls[3]?.[0]).toBe("/wp-json/kadochi/v1/profile/orders/93/retry-payment");
-    expect(transport.fetch.mock.calls[3]?.[1]).toMatchObject({ method: "POST", headers: { Authorization: "Bearer jwt" } });
+    expect(transport.fetch.mock.calls[3]?.[1]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({ attemptId: operationId }),
+      headers: { Authorization: "Bearer jwt", "Content-Type": "application/json" },
+      timeoutMs: 25_000,
+    });
+  });
+
+  it("submits five consecutive orders through one idempotent payment-start call each", async () => {
+    for (let index = 0; index < 5; index += 1) {
+      transport.fetch.mockReset();
+      auth.getStoredAuthToken.mockResolvedValue("jwt");
+      auth.wordpressBearerHeaders.mockResolvedValue({ Authorization: "Bearer jwt" });
+      auth.getCurrentCustomer.mockResolvedValue(customer);
+      transport.fetch
+        .mockResolvedValueOnce(response(rawCart, `cart-${index}-1`))
+        .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, `cart-${index}-2`))
+        .mockResolvedValueOnce(response({
+          order_id: 200 + index,
+          status: "pending",
+          payment_result: { payment_status: "pending", redirect_url: `http://localhost:8080/checkout/order-pay/${200 + index}/?key=wc_order_test` },
+        }, `cart-${index}-3`))
+        .mockResolvedValueOnce(new Response(null, {
+          status: 302,
+          headers: { Location: `https://payment.zarinpal.com/pg/StartPay/authority-${index}` },
+        }));
+
+      await expect(checkout(inputForAttempt(index), `request-${index}`)).resolves.toMatchObject({
+        result: { orderId: 200 + index, paymentResult: { redirectUrl: `https://payment.zarinpal.com/pg/StartPay/authority-${index}` } },
+      });
+      expect(transport.fetch.mock.calls.filter(([path]) => path === `/wp-json/kadochi/v1/profile/orders/${200 + index}/retry-payment`)).toHaveLength(1);
+      expect(transport.fetch.mock.calls[3]?.[1]).toMatchObject({ body: JSON.stringify({ attemptId: inputForAttempt(index).operationId }) });
+    }
   });
 
   it("leaves a pre-payment transport failure retryable", async () => {
@@ -224,7 +273,25 @@ describe("checkout service", () => {
     expect(transport.fetch.mock.calls[3]?.[0]).toBe(`/wp-json/kadochi/v1/checkout/operations/${operationId}`);
   });
 
-  it("reconciles a gateway-start timeout without issuing a second authority request", async () => {
+  it("routes a definite payment-start rejection to the order failure result", async () => {
+    transport.fetch
+      .mockResolvedValueOnce(response(rawCart, "cart-1"))
+      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response({
+        order_id: 96,
+        status: "pending",
+        payment_result: { payment_status: "pending", redirect_url: "http://localhost:8080/checkout/order-pay/96/?key=wc_order_test" },
+      }, "cart-3"))
+      .mockRejectedValueOnce(definitiveGatewayError())
+      .mockResolvedValueOnce(response(orderSummary(96, false)));
+
+    await expect(checkout(input(), "request-1")).resolves.toMatchObject({
+      result: { orderId: 96, status: "pending", reconciliation: "unpaid" },
+    });
+    expect(transport.fetch).toHaveBeenCalledTimes(5);
+  });
+
+  it("recovers a gateway-start timeout through the same payment attempt", async () => {
     transport.fetch
       .mockResolvedValueOnce(response(rawCart, "cart-1"))
       .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
@@ -234,14 +301,19 @@ describe("checkout service", () => {
         payment_result: { payment_status: "pending", redirect_url: "http://localhost:8080/checkout/order-pay/95/?key=wc_order_test" },
       }, "cart-3"))
       .mockRejectedValueOnce(networkError())
-      .mockResolvedValueOnce(response(orderSummary(95, false)));
+      .mockResolvedValueOnce(response(orderSummary(95, false)))
+      .mockResolvedValueOnce(new Response(null, {
+        status: 302,
+        headers: { Location: "https://payment.zarinpal.com/pg/StartPay/recovered-authority" },
+      }));
 
     await expect(checkout(input(), "request-1")).resolves.toMatchObject({
-      result: { orderId: 95, status: "pending", reconciliation: "unpaid" },
+      result: { orderId: 95, status: "pending", paymentResult: { redirectUrl: "https://payment.zarinpal.com/pg/StartPay/recovered-authority" } },
       cartToken: "cart-3",
     });
-    expect(transport.fetch.mock.calls.filter(([path]) => path === "/wp-json/kadochi/v1/profile/orders/95/retry-payment")).toHaveLength(1);
+    expect(transport.fetch.mock.calls.filter(([path]) => path === "/wp-json/kadochi/v1/profile/orders/95/retry-payment")).toHaveLength(2);
     expect(transport.fetch.mock.calls[4]?.[0]).toBe(`/wp-json/kadochi/v1/checkout/operations/${operationId}`);
+    expect(transport.fetch.mock.calls[5]?.[1]).toMatchObject({ body: JSON.stringify({ attemptId: operationId }) });
   });
 
   it("starts the gateway when Woo returns HTTP 400 after materializing an unpaid order", async () => {

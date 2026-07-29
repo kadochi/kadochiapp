@@ -5,6 +5,7 @@ import {
   profileOrderDetailSchema,
   profileOrderListSchema,
   profileOrderRetryPaymentSchema,
+  profileOrderRetryPaymentRequestSchema,
   profileProductActionSchema,
   profileProductListSchema,
   personalProfileSchema,
@@ -30,8 +31,12 @@ export function getProfileOrder(orderId: number) {
   return bffJson(`/api/profile/orders/${orderId}`, { method: "GET" }, (value) => profileOrderDetailSchema.parse(value));
 }
 
-export function retryProfileOrderPayment(orderId: number) {
-  return bffJson(`/api/profile/orders/${orderId}/retry-payment`, { method: "POST" }, (value) => profileOrderRetryPaymentSchema.parse(value));
+export function retryProfileOrderPayment(orderId: number, attemptId: string) {
+  return bffJson(
+    `/api/profile/orders/${orderId}/retry-payment`,
+    { method: "POST", body: JSON.stringify(profileOrderRetryPaymentRequestSchema.parse({ attemptId })) },
+    (value) => profileOrderRetryPaymentSchema.parse(value),
+  );
 }
 
 export function listProfileProducts(action: "save" | "like", page = 1, perPage = 20) {

@@ -10,7 +10,12 @@ export async function POST(request: Request, context: { params: Promise<{ orderI
     if (!Number.isSafeInteger(parsedOrderId) || parsedOrderId <= 0) {
       throw new ServiceError({ code: "validation", status: 400, message: "Invalid order ID.", requestId: id, retryable: false });
     }
-    return jsonOk(await retryProfileOrderPayment(parsedOrderId, id), id, { headers: { "Cache-Control": "no-store" } });
+    const body = await request.json();
+    const attemptId = typeof body === "object" && body !== null && "attemptId" in body ? (body as { attemptId: unknown }).attemptId : undefined;
+    if (typeof attemptId !== "string") {
+      throw new ServiceError({ code: "validation", status: 400, message: "Invalid payment attempt.", requestId: id, retryable: false });
+    }
+    return jsonOk(await retryProfileOrderPayment(parsedOrderId, attemptId, id), id, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return jsonError(error, id);
   }

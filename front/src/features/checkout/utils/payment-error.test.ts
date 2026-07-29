@@ -37,4 +37,19 @@ describe("paymentErrorMessage", () => {
       retryable: false,
     });
   });
+
+  it("explains that an existing payment attempt is still being recovered", () => {
+    expect(paymentErrorMessage(new ServiceError({
+      code: "payment_in_progress",
+      status: 409,
+      message: "internal detail",
+      requestId: "request-123",
+      retryable: true,
+      retryAfter: 12,
+    }))).toMatchObject({
+      requestId: "request-123",
+      retryable: true,
+      message: "پرداخت قبلی هنوز در حال شروع است. لطفاً چند لحظه بعد دوباره بررسی کنید.",
+    });
+  });
 });

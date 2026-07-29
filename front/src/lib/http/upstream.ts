@@ -30,7 +30,7 @@ function retryAfter(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
-/** Maps only the documented OTP REST errors; all other upstream failures stay generic. */
+/** Maps only documented safe REST errors; all other upstream failures stay generic. */
 export function wordpressErrorDetail(status: number, body: unknown, requestId: string, headerRetryAfter?: string | null): ApiError {
   const upstream = typeof body === "object" && body !== null ? body as WordPressErrorBody : {};
   const retryAfterSeconds = retryAfter(upstream.data?.retryAfter)
@@ -44,7 +44,13 @@ export function wordpressErrorDetail(status: number, body: unknown, requestId: s
     kadochi_otp_provider_invalid: { code: "otp_provider_invalid", message: "The SMS service returned an invalid response.", retryable: false },
     kadochi_otp_unavailable: { code: "otp_unavailable", message: "The verification service is unavailable.", retryable: false },
   };
-  const mapped = typeof upstream.code === "string" ? otpErrors[upstream.code] : undefined;
+  const paymentErrors: Record<string, Omit<ApiError, "status" | "requestId" | "retryAfter">> = {
+    kadochi_payment_in_progress: { code: "payment_in_progress", message: "A payment attempt is already in progress.", retryable: true },
+    // The WordPress handler releases this attempt's lock before returning this
+    // error, so it is definite—not an ambiguous transport failure to recover.
+    kadochi_payment_unavailable: { code: "upstream_failure", message: "The payment gateway could not start a payment.", retryable: false },
+  };
+  const mapped = typeof upstream.code === "string" ? otpErrors[upstream.code] ?? paymentErrors[upstream.code] : undefined;
   if (!mapped) return errorForStatus(status, requestId);
   return { ...mapped, status, requestId, ...(retryAfterSeconds === undefined ? {} : { retryAfter: retryAfterSeconds }) };
 }

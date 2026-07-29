@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { Plus } from "lucide-react";
 
@@ -52,7 +51,6 @@ function deliveryDate(date: string) {
 }
 
 export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) {
-  const router = useRouter();
   const { toast } = useToast();
   const [state, setState] = useState(initialState);
   const [step, setStep] = useState(0);
@@ -268,6 +266,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
     submissionLock.current = true;
     setSubmitting(true);
     setError(null);
+    let unlockAfterAttempt = true;
     try {
       const payload = submitCheckoutSchema.parse({
         sender: { firstName: senderFirstName, lastName: senderLastName },
@@ -287,14 +286,17 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
       const result = await submitCheckout(payload);
       const action = checkoutResultAction(result);
       if (action.kind === "navigate") {
-        router.replace(action.href);
+        unlockAfterAttempt = false;
+        window.location.replace(action.href);
         return;
       }
       if (action.kind === "external") {
+        unlockAfterAttempt = false;
         window.location.assign(action.href);
         return;
       }
       if (action.kind === "unknown") {
+        unlockAfterAttempt = false;
         setReconciliationUnknown(true);
         setError("وضعیت پرداخت نامشخص است. دوباره پرداخت را شروع نکنید؛ چند دقیقه بعد از لینک بازگشت یا پشتیبانی پیگیری کنید.");
         return;
@@ -308,8 +310,10 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         setError(paymentErrorMessage(caught, "ثبت سفارش ناموفق بود.").message);
       }
     } finally {
-      submissionLock.current = false;
-      setSubmitting(false);
+      if (unlockAfterAttempt) {
+        submissionLock.current = false;
+        setSubmitting(false);
+      }
     }
   };
 
