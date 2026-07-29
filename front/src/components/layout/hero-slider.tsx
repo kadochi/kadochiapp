@@ -8,8 +8,7 @@ import { Autoplay, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 import "swiper/css/pagination";
-import { homepageContentSchema } from "@/features/content/schema/content";
-import { toHomepageHeroSlides } from "@/features/content/utils/hero-slides";
+import { heroSlideListSchema, type HeroSlide as ContentHeroSlide } from "@/features/content/utils/hero-posts";
 import { bffJson } from "@/lib/http/browser";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,19 +23,17 @@ type HeroBannerProps = {
   priority?: boolean;
 };
 
-type HeroSlide = Omit<HeroBannerProps, "className"> & {
-  id: number;
-};
+type HeroSlide = ContentHeroSlide;
 
 type HeroSliderProps = {
   /**
-   * Server-rendered editorial content from the homepage contract. Supplying it
+   * Server-rendered editorial Hero content. Supplying it
    * avoids a second request after hydration while retaining the BFF fallback.
    */
   initialSlides?: readonly HeroSlide[];
 };
 
-const heroEndpoint = "/api/content/home";
+const heroEndpoint = "/api/content/heroes";
 
 function HeroBanner({
   title,
@@ -134,13 +131,13 @@ function HeroSliderPlaceholder() {
 }
 
 function toHeroSlides(data: unknown): HeroSlide[] {
-  const parsed = homepageContentSchema.safeParse(data);
+  const parsed = heroSlideListSchema.safeParse(data);
 
   if (!parsed.success) {
     return [];
   }
 
-  return toHomepageHeroSlides(parsed.data);
+  return parsed.data;
 }
 
 function HeroSlider({ initialSlides }: Readonly<HeroSliderProps>) {

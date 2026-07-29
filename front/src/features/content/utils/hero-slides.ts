@@ -1,13 +1,7 @@
 import type { HomepageContent } from "../types";
+import type { HeroSlide } from "./hero-posts";
 
-export type HomepageHeroSlide = {
-  id: number;
-  title: string;
-  subtitle: string;
-  ctaText: string;
-  ctaLink: string | null;
-  backgroundImage: string;
-};
+export type HomepageHeroSlide = HeroSlide;
 
 type ImageBackedSlide = Omit<HomepageHeroSlide, "backgroundImage" | "subtitle"> & {
   subtitle?: string;

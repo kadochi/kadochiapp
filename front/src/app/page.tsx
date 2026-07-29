@@ -15,7 +15,7 @@ import { MagazineRail } from "@/features/landing/components/magazine-rail";
 import { OccasionPrompt } from "@/features/landing/components/occasion-prompt";
 import { StoriesSection } from "@/features/landing/components/stories-section";
 import { UpcomingOccasionRail } from "@/features/landing/components/upcoming-occasion-rail";
-import { getHomepageContent } from "@/features/content/services/content.server";
+import { getHeroSlides, getHomepageContent } from "@/features/content/services/content.server";
 import type { HomepageContent } from "@/features/content/types";
 import { toHomepageHeroSlides } from "@/features/content/utils/hero-slides";
 import { listMagazineArticles } from "@/features/magazine/services/magazine.server";
@@ -66,7 +66,8 @@ async function fallback<T>(operation: Promise<T>, value: T): Promise<T> {
 }
 
 async function getLandingData() {
-  const [content, latest, popular, categories, tags, magazine] = await Promise.all([
+  const [heroes, content, latest, popular, categories, tags, magazine] = await Promise.all([
+    fallback(getHeroSlides(), [] as HeroSlide[]),
     fallback(getHomepageContent(), emptyContent),
     fallback(listProducts({ order: "desc", orderby: "date", perPage: 12 }), { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 }),
     fallback(listProducts({ order: "desc", orderby: "popularity", perPage: 12 }), { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 }),
@@ -83,7 +84,7 @@ async function getLandingData() {
     { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 },
   );
 
-  return { categories, content, fastDelivery: fastDelivery.items, latest: latest.items, magazine: magazine.items, popular: popular.items };
+  return { categories, content, fastDelivery: fastDelivery.items, heroes, latest: latest.items, magazine: magazine.items, popular: popular.items };
 }
 
 const services = [
@@ -96,8 +97,8 @@ const services = [
 ] as const;
 
 export default async function Homepage() {
-  const { categories, content, fastDelivery, latest, magazine, popular } = await getLandingData();
-  const heroSlides: HeroSlide[] = toHomepageHeroSlides(content);
+  const { categories, content, fastDelivery, heroes, latest, magazine, popular } = await getLandingData();
+  const heroSlides: HeroSlide[] = heroes.length ? heroes : toHomepageHeroSlides(content);
   const siteUrl = new URL(env.KADOCHI_FRONTEND_URL);
   const siteLd = {
     "@context": "https://schema.org",
