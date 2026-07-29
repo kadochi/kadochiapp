@@ -69,6 +69,9 @@ final class Kadochi_Core {
 		add_filter( 'woocommerce_package_rates', array( $this, 'limit_shipping_to_tehran' ), 10, 2 );
 		add_filter( 'woocommerce_customer_taxable_address', array( $this, 'limit_tax_to_tehran' ), 10, 2 );
 		add_filter( 'woocommerce_get_return_url', array( $this, 'checkout_return_url' ), 20, 2 );
+		// The gateway verifies its callback on the WordPress origin, then uses
+		// wp_safe_redirect() to return the customer to the headless frontend.
+		add_filter( 'allowed_redirect_hosts', array( $this, 'allow_frontend_checkout_redirect_host' ), 20, 2 );
 		// The official ZarinPal gateway sends a cancelled payment to Woo's checkout
 		// URL directly, so handle its API callback before the gateway's own handler.
 		add_action( 'woocommerce_api_wc_zpal', array( $this, 'redirect_cancelled_gateway_payment' ), 1 );
@@ -1974,6 +1977,18 @@ final class Kadochi_Core {
 		return $frontend_return_url ?: $url;
 	}
 
+	/** Allows WooCommerce's safe post-verification redirect to the configured frontend only. */
+	public function allow_frontend_checkout_redirect_host( $hosts, $host ) {
+		$frontend = $this->trusted_frontend_url();
+		$frontend_host = $frontend ? wp_parse_url( $frontend, PHP_URL_HOST ) : '';
+		if ( ! is_string( $frontend_host ) || '' === $frontend_host ) {
+			return $hosts;
+		}
+		$hosts = is_array( $hosts ) ? $hosts : array();
+		$hosts[] = strtolower( $frontend_host );
+		return array_values( array_unique( $hosts ) );
+	}
+
 	/** Redirects an abandoned ZarinPal payment to the frontend's failure screen. */
 	public function redirect_cancelled_gateway_payment() {
 		// The gateway uses any value other than OK when the customer cancels.
@@ -2145,11 +2160,8 @@ final class Kadochi_Core {
 		$this->payment_log( 'payment_gateway_start_failed', array( 'order_id' => absint( $attempt['orderId'] ), 'attempt_id' => $attempt['attemptId'], 'reason' => 'no_redirect', 'duration_ms' => max( 0, (int) round( ( microtime( true ) - $attempt['startedAt'] ) * 1000 ) ) ) );
 	}
 
-	/** Builds a trusted frontend result URL for a WooCommerce order. */
-	private function frontend_checkout_result_url( $result, $order ) {
-		if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) || ! in_array( $result, array( 'return', 'failure' ), true ) ) {
-			return false;
-		}
+	/** Returns the configured frontend URL only when it is safe to use as a redirect target. */
+	private function trusted_frontend_url() {
 		$frontend = getenv( 'KADOCHI_FRONTEND_URL' );
 		$frontend = is_string( $frontend ) ? trim( $frontend ) : '';
 		$parts = $frontend ? wp_parse_url( $frontend ) : false;
@@ -2158,7 +2170,18 @@ final class Kadochi_Core {
 		if ( ! is_array( $parts ) || empty( $parts['host'] ) || empty( $parts['scheme'] ) || ! in_array( strtolower( $parts['scheme'] ), array( 'http', 'https' ), true ) || isset( $parts['user'] ) || isset( $parts['pass'] ) ) {
 			return false;
 		}
-		$frontend = esc_url_raw( $frontend, array( 'http', 'https' ) );
+		return esc_url_raw( $frontend, array( 'http', 'https' ) );
+	}
+
+	/** Builds a trusted frontend result URL for a WooCommerce order. */
+	private function frontend_checkout_result_url( $result, $order ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) || ! in_array( $result, array( 'return', 'failure' ), true ) ) {
+			return false;
+		}
+		$frontend = $this->trusted_frontend_url();
+		if ( ! $frontend ) {
+			return false;
+		}
 		return add_query_arg( 'order', absint( $order->get_id() ), trailingslashit( $frontend ) . 'checkout/' . $result );
 	}
 
