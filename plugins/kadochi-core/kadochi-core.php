@@ -390,11 +390,11 @@ final class Kadochi_Core {
 			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'record_product_view' ), 'permission_callback' => '__return_true' ),
 		) );
 		register_rest_route( self::REST_NAMESPACE, '/occasions', array(
-			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_occasions' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_occasions' ), 'permission_callback' => '__return_true' ),
 			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'create_occasion' ), 'permission_callback' => array( $this, 'authenticated' ) ),
 		) );
 		register_rest_route( self::REST_NAMESPACE, '/occasions/(?P<id>\\d+)', array(
-			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'get_occasion' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'get_occasion' ), 'permission_callback' => '__return_true' ),
 			array( 'methods' => 'PATCH', 'callback' => array( $this, 'update_occasion' ), 'permission_callback' => array( $this, 'authenticated' ) ),
 			array( 'methods' => WP_REST_Server::DELETABLE, 'callback' => array( $this, 'delete_occasion' ), 'permission_callback' => array( $this, 'authenticated' ) ),
 		) );
@@ -2633,7 +2633,9 @@ final class Kadochi_Core {
 	public function list_occasions( WP_REST_Request $request ) {
 		$page = max( 1, min( 100, (int) $request->get_param( 'page' ) ) );
 		$per_page = max( 1, min( 50, (int) $request->get_param( 'per_page' ) ?: 20 ) );
-		$authors = array_unique( array_merge( array( get_current_user_id() ), $this->public_occasion_author_ids() ) );
+		$authors = $this->public_occasion_author_ids();
+		$current_user_id = get_current_user_id();
+		if ( $current_user_id ) $authors[] = $current_user_id;
 		$query = new WP_Query( array( 'post_type' => 'occasion', 'post_status' => 'publish', 'author__in' => $authors, 'paged' => $page, 'posts_per_page' => $per_page, 'orderby' => 'date', 'order' => 'DESC', 'no_found_rows' => false ) );
 		return rest_ensure_response( array( 'items' => array_map( array( $this, 'occasion_dto' ), $query->posts ), 'page' => $page, 'perPage' => $per_page, 'total' => (int) $query->found_posts, 'totalPages' => (int) $query->max_num_pages ) );
 	}

@@ -64,7 +64,7 @@ export function OccasionsPage() {
   const sectionHeaderRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (status === "loading") return;
 
     let cancelled = false;
     void listOccasions({ page: 1, perPage: 50 })
@@ -100,19 +100,20 @@ export function OccasionsPage() {
 
   const occasionsByDate = useMemo(() => {
     const map = new Map<string, Occasion[]>();
-    if (status !== "authenticated") return map;
-    occasions.forEach((occasion) => {
-      const occasionDate = occasion.repeatsAnnually
-        ? occasionDateForPersianYear(occasion.occasionDate, visibleMonth.year)
-        : occasion.occasionDate;
-      const displayOccasion = occasionDate === occasion.occasionDate
-        ? occasion
-        : { ...occasion, occasionDate };
-      map.set(occasionDate, [
-        ...(map.get(occasionDate) ?? []),
-        displayOccasion,
-      ]);
-    });
+    occasions
+      .filter((occasion) => status === "authenticated" || !occasion.isPersonal)
+      .forEach((occasion) => {
+        const occasionDate = occasion.repeatsAnnually
+          ? occasionDateForPersianYear(occasion.occasionDate, visibleMonth.year)
+          : occasion.occasionDate;
+        const displayOccasion = occasionDate === occasion.occasionDate
+          ? occasion
+          : { ...occasion, occasionDate };
+        map.set(occasionDate, [
+          ...(map.get(occasionDate) ?? []),
+          displayOccasion,
+        ]);
+      });
     return map;
   }, [occasions, status, visibleMonth.year]);
   const days = useMemo(

@@ -129,15 +129,14 @@ function OccasionRailLoading() {
   );
 }
 
-/** Displays the signed-in shopper's upcoming occasion cards from the protected BFF. */
+/** Displays upcoming public occasions, plus personal ones for signed-in shoppers. */
 export function UpcomingOccasionRail() {
   const auth = useOptionalAuth();
-  const isAuthenticated = auth?.status === "authenticated";
   const [items, setItems] = useState<Occasion[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (auth?.status === "loading") return;
 
     let cancelled = false;
     void listOccasions({ page: 1, perPage: 20 })
@@ -156,19 +155,20 @@ export function UpcomingOccasionRail() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated]);
+  }, [auth?.status]);
 
   const upcoming = useMemo(
-    () => [...items].sort((first, second) => first.occasionDate.localeCompare(second.occasionDate)),
-    [items],
+    () => items
+      .filter((occasion) => auth?.status === "authenticated" || !occasion.isPersonal)
+      .sort((first, second) => first.occasionDate.localeCompare(second.occasionDate)),
+    [auth?.status, items],
   );
 
-  // Do not flash the sign-in prompt while the session is resolving. The
-  // homepage should show only occasion cards or their matching skeleton.
-  if (!auth || auth.status === "loading" || (isAuthenticated && loading)) {
+  // Do not show an empty rail while the session or occasions are resolving.
+  if (auth?.status === "loading" || loading) {
     return <OccasionRailLoading />;
   }
-  if (!isAuthenticated || !upcoming.length) return null;
+  if (!upcoming.length) return null;
 
   return (
     <div className="pb-16 min-[1024px]:px-16 [&_.swiper-wrapper]:items-start">
