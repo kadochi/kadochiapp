@@ -1,4 +1,4 @@
-import { cache } from "react";
+import { cache, Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Clock3, UserRound } from "lucide-react";
@@ -7,6 +7,9 @@ import Image from "next/image";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Divider } from "@/components/ui/divider";
 import { MagazineCard } from "@/features/magazine/components/magazine-card";
+import { MagazineComment } from "@/features/magazine/components/magazine-comment";
+import { MagazineComments } from "@/features/magazine/components/magazine-comments";
+import { MagazineTags } from "@/features/magazine/components/magazine-tags";
 import { getMagazineArticleBySlug, listMagazineArticles } from "@/features/magazine/services/magazine.server";
 import { formatMagazineDate } from "@/features/magazine/utils/article-text";
 import type { ServiceError } from "@/lib/http/errors";
@@ -99,6 +102,14 @@ export default async function MagazineArticlePage({ params }: { params: Promise<
 
         <div className="magazine-content mx-auto mt-32 max-w-[720px] font-sans text-body-16 leading-[2.1] text-surface-neutral-mid-emphasis" dangerouslySetInnerHTML={{ __html: article.content }} />
       </article>
+
+      {article.tags.length ? <><Divider variant="spacer" /><MagazineTags tags={article.tags} /></> : null}
+      <Divider variant="spacer" />
+      <MagazineComment nextPath={`/magazine/${article.slug}`} postId={article.id} />
+      <Divider variant="spacer" />
+      <Suspense fallback={<div aria-hidden className="flex flex-col gap-16 px-16 py-32"><div className="h-40 animate-pulse rounded-rounded bg-surface-soft" /><div className="h-40 animate-pulse rounded-rounded bg-surface-soft" /></div>}>
+        <MagazineComments postId={article.id} />
+      </Suspense>
 
       {related.length ? (
         <section className="border-t border-border-low-emphasis bg-surface-soft py-32 min-[768px]:py-48" aria-labelledby="related-magazine-heading">

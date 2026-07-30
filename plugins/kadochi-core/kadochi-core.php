@@ -385,6 +385,10 @@ final class Kadochi_Core {
 			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_reviews' ), 'permission_callback' => '__return_true' ),
 			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'create_review' ), 'permission_callback' => array( $this, 'authenticated' ) ),
 		) );
+		register_rest_route( self::REST_NAMESPACE, '/comments', array(
+			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_post_comments' ), 'permission_callback' => '__return_true' ),
+			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'create_post_comment' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+		) );
 		register_rest_route( self::REST_NAMESPACE, '/product-actions', array(
 			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'product_actions' ), 'permission_callback' => array( $this, 'authenticated' ) ),
 			array( 'methods' => 'PUT', 'callback' => array( $this, 'update_product_action' ), 'permission_callback' => array( $this, 'authenticated' ) ),
@@ -2542,6 +2546,82 @@ final class Kadochi_Core {
 			return $this->auth_error( 'kadochi_review_create_failed', __( 'The review could not be submitted.', 'kadochi-core' ), 500 );
 		}
 		update_comment_meta( $comment_id, 'rating', $rating );
+		return rest_ensure_response( array( 'id' => (int) $comment_id, 'status' => 'pending' ) );
+	}
+
+	/** Returns a published editorial post, rejecting other post types and drafts. */
+	private function comment_post( $post_id ) {
+		$post = get_post( absint( $post_id ) );
+		if ( ! $post || 'post' !== $post->post_type || 'publish' !== $post->post_status ) {
+			return $this->auth_error( 'kadochi_post_not_found', __( 'The article was not found.', 'kadochi-core' ), 404 );
+		}
+		return $post;
+	}
+
+	private function post_comment_dto( $comment ) {
+		$avatar = esc_url_raw( get_avatar_url( $comment, array( 'size' => 96 ) ) );
+		return array(
+			'id' => (int) $comment->comment_ID,
+			'date_created' => mysql_to_rfc3339( $comment->comment_date_gmt ?: $comment->comment_date ),
+			'post_id' => (int) $comment->comment_post_ID,
+			'author' => sanitize_text_field( $comment->comment_author ) ?: __( 'User', 'kadochi-core' ),
+			'content' => wp_kses_post( $comment->comment_content ),
+			'author_avatar_urls' => $avatar ? array( '96' => $avatar ) : array(),
+		);
+	}
+
+	/** Lists approved, top-level comments for a magazine article. */
+	public function list_post_comments( WP_REST_Request $request ) {
+		$post = $this->comment_post( $request->get_param( 'postId' ) );
+		if ( is_wp_error( $post ) ) {
+			return $post;
+		}
+		$page = max( 1, min( 100, absint( $request->get_param( 'page' ) ?: 1 ) ) );
+		$per_page = max( 1, min( 50, absint( $request->get_param( 'per_page' ) ?: 10 ) ) );
+		$comments = get_comments( array(
+			'post_id' => $post->ID,
+			// WordPress core uses an empty type for ordinary comments; a few
+			// integrations explicitly set it to `comment`.
+			'type__in' => array( '', 'comment' ),
+			'status' => 'approve',
+			'parent' => 0,
+			'number' => $per_page,
+			'offset' => ( $page - 1 ) * $per_page,
+			'orderby' => 'comment_date_gmt',
+			'order' => 'DESC',
+		) );
+		return rest_ensure_response( array_map( array( $this, 'post_comment_dto' ), $comments ) );
+	}
+
+	/** Stores an authenticated reader's comment pending editorial moderation. */
+	public function create_post_comment( WP_REST_Request $request ) {
+		$post = $this->comment_post( $request->get_param( 'postId' ) );
+		if ( is_wp_error( $post ) ) {
+			return $post;
+		}
+		if ( ! comments_open( $post->ID ) ) {
+			return $this->auth_error( 'kadochi_comments_closed', __( 'Comments are not available for this article.', 'kadochi-core' ), 403 );
+		}
+
+		$content = trim( wp_kses_post( (string) $request->get_param( 'content' ) ) );
+		$content_length = $this->string_length( wp_strip_all_tags( $content ) );
+		if ( $content_length < 3 || $content_length > 1000 ) {
+			return $this->auth_error( 'kadochi_invalid_comment', __( 'The comment content is invalid.', 'kadochi-core' ), 400 );
+		}
+
+		$user = wp_get_current_user();
+		$comment_id = wp_insert_comment( array(
+			'comment_post_ID' => $post->ID,
+			'comment_author' => sanitize_text_field( $user->display_name ?: $user->user_login ),
+			'comment_author_email' => sanitize_email( $user->user_email ),
+			'comment_content' => $content,
+			'comment_type' => 'comment',
+			'comment_approved' => 0,
+			'user_id' => (int) $user->ID,
+		) );
+		if ( ! $comment_id ) {
+			return $this->auth_error( 'kadochi_comment_create_failed', __( 'The comment could not be submitted.', 'kadochi-core' ), 500 );
+		}
 		return rest_ensure_response( array( 'id' => (int) $comment_id, 'status' => 'pending' ) );
 	}
 

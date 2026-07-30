@@ -526,7 +526,7 @@ function PaymentStep({ state, couponPending, onApplyCoupon, onRemoveCoupon }: {
           aria-label="کد تخفیف"
           className="min-w-0 flex-1"
           dir="ltr"
-          placeholder="WELCOME10"
+          placeholder="کد تخفیف را وارد کنید"
           value={couponCode}
           onChange={(event) => setCouponCode(event.target.value)}
           onKeyDown={(event) => {

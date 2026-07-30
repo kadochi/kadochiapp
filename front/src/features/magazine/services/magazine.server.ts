@@ -5,7 +5,7 @@ import { z } from "zod";
 import { ServiceError } from "@/lib/http/errors";
 import { parseUpstreamJson, wordpressFetch } from "@/lib/http/upstream";
 import { magazineArticleSchema, magazineQuerySchema, upstreamMagazineCategoriesSchema, upstreamMagazinesSchema } from "../schema/magazine";
-import type { MagazineArticle, MagazineCategory, MagazineListResult, MagazineQuery } from "../types";
+import type { MagazineArticle, MagazineCategory, MagazineListResult, MagazineQuery, MagazineTag } from "../types";
 import { articleText, readingTime } from "../utils/article-text";
 import { decodeMagazineSlug, wordpressMagazineSlug } from "../utils/magazine-slug";
 
@@ -21,6 +21,7 @@ function magazineParams(query: MagazineQuery): string {
     per_page: String(input.perPage),
   });
   if (input.category) params.set("categories", String(input.category));
+  if (input.tag) params.set("tags", String(input.tag));
   if (input.exclude?.length) params.set("exclude", input.exclude.join(","));
   return params.toString();
 }
@@ -32,6 +33,9 @@ function mapMagazineArticle(upstream: z.infer<typeof upstreamMagazinesSchema>[nu
   const terms = upstream._embedded?.["wp:term"]?.flat() ?? [];
   const categories = terms
     .filter((term) => term.taxonomy === "category")
+    .map(({ id, name, slug }) => ({ id, name: articleText(name), slug }));
+  const tags = terms
+    .filter((term) => term.taxonomy === "post_tag")
     .map(({ id, name, slug }) => ({ id, name: articleText(name), slug }));
   const content = upstream.content.rendered;
 
@@ -46,6 +50,7 @@ function mapMagazineArticle(upstream: z.infer<typeof upstreamMagazinesSchema>[nu
     authorName: upstream._embedded?.author?.[0]?.name || "تحریریه کادوچی",
     image: imageUrl ? { url: imageUrl, alt: media?.alt_text || articleText(upstream.title.rendered) } : undefined,
     categories,
+    tags,
     readingTime: readingTime(content),
   });
 }
@@ -121,4 +126,17 @@ export async function getMagazineCategoryBySlug(slug: string): Promise<MagazineC
   });
   const category = (await parseUpstreamJson(response, (value) => upstreamMagazineCategoriesSchema.parse(value), requestId))[0];
   return category ? { id: category.id, name: articleText(category.name), slug: category.slug } : null;
+}
+
+/** Looks up a WordPress tag before listing only its Magazine articles. */
+export async function getMagazineTagBySlug(slug: string): Promise<MagazineTag | null> {
+  const safeSlug = z.string().trim().min(1).max(200).parse(slug);
+  const requestId = randomUUID();
+  const response = await wordpressFetch(`/wp-json/wp/v2/tags?slug=${encodeURIComponent(safeSlug)}&per_page=1`, {
+    requestId,
+    timeoutMs: magazineReadTimeoutMs,
+    next: { revalidate: 300, tags: ["magazine-tags"] },
+  });
+  const tag = (await parseUpstreamJson(response, (value) => upstreamMagazineCategoriesSchema.parse(value), requestId))[0];
+  return tag ? { id: tag.id, name: articleText(tag.name), slug: tag.slug } : null;
 }

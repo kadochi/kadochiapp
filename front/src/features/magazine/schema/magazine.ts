@@ -4,6 +4,7 @@ export const magazineQuerySchema = z.object({
   page: z.coerce.number().int().positive().max(100).default(1),
   perPage: z.coerce.number().int().positive().max(24).default(12),
   category: z.coerce.number().int().positive().optional(),
+  tag: z.coerce.number().int().positive().optional(),
   exclude: z.array(z.coerce.number().int().positive()).max(20).optional(),
 });
 
@@ -55,5 +56,6 @@ export const magazineArticleSchema = z.object({
   authorName: z.string(),
   image: z.object({ url: z.string().url(), alt: z.string() }).optional(),
   categories: z.array(z.object({ id: z.number().int().positive(), name: z.string(), slug: z.string() })),
+  tags: z.array(z.object({ id: z.number().int().positive(), name: z.string(), slug: z.string() })),
   readingTime: z.number().int().positive(),
 });

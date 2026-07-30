@@ -4,6 +4,12 @@ export type MagazineCategory = {
   slug: string;
 };
 
+export type MagazineTag = {
+  id: number;
+  name: string;
+  slug: string;
+};
+
 export type MagazineImage = {
   url: string;
   alt: string;
@@ -20,6 +26,7 @@ export type MagazineArticle = {
   authorName: string;
   image?: MagazineImage;
   categories: MagazineCategory[];
+  tags: MagazineTag[];
   readingTime: number;
 };
 
@@ -35,5 +42,6 @@ export type MagazineQuery = {
   page?: number;
   perPage?: number;
   category?: number;
+  tag?: number;
   exclude?: number[];
 };
