@@ -11,6 +11,7 @@ import { Divider } from "@/components/ui/divider";
 import StateMessage from "@/components/layout/state-message";
 import { useAuth } from "@/features/auth/auth-provider";
 import { cn } from "@/lib/utils";
+import { getProfileCompletion } from "../utils/profile-completion";
 
 type MenuItemProps = {
   href?: string;
@@ -52,6 +53,30 @@ function ProfileLoading() {
   );
 }
 
+const persianNumber = new Intl.NumberFormat("fa-IR", { useGrouping: false });
+
+function CompletionRing({ percentage }: { percentage: number }) {
+  const label = `${persianNumber.format(percentage)}٪`;
+
+  return (
+    <div aria-label={`پیشرفت تکمیل پروفایل: ${label}`} className="relative grid size-32 shrink-0 place-items-center" role="img">
+      <svg aria-hidden className="size-full -rotate-90" viewBox="0 0 36 36">
+        <circle cx="18" cy="18" fill="none" r="15.25" stroke="var(--color-border-high-emphasis)" strokeWidth="2" />
+        <circle cx="18" cy="18" fill="none" pathLength="100" r="15.25" stroke="var(--color-secondary)" strokeDasharray="100" strokeDashoffset={100 - percentage} strokeLinecap="round" strokeWidth="2" />
+      </svg>
+      <span aria-hidden className="absolute text-label-12 font-bold text-surface-neutral-high-emphasis">{label}</span>
+    </div>
+  );
+}
+
+function ProfileCompletionBadge({ customer }: { customer: NonNullable<ReturnType<typeof useAuth>["customer"]> }) {
+  const completion = getProfileCompletion(customer);
+  const content = <><span className={cn("rounded-rounded px-12 py-8 text-label-14 font-bold", completion.isComplete ? "bg-success-container text-on-success-container" : "bg-secondary-container text-secondary")}>{completion.isComplete ? "کاربر عادی" : "تکمیل پروفایل"}</span>{!completion.isComplete ? <CompletionRing percentage={completion.percentage} /> : null}</>;
+  const className = "flex shrink-0 items-center gap-6 no-underline focus-visible:rounded-rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary";
+
+  return completion.isComplete ? <div className={className}>{content}</div> : <Link aria-label="مشاهده ماموریت‌های تکمیل پروفایل" className={className} href="/profile/completion">{content}</Link>;
+}
+
 export function ProfilePage() {
   const router = useRouter();
   const { customer, logout, status } = useAuth();
@@ -80,12 +105,15 @@ export function ProfilePage() {
 
   return (
     <section className="bg-surface-background pb-[calc(var(--bottom-nav-safe,0px)+var(--spacing-32))]" dir="rtl">
-      <div className="flex items-center gap-16 px-24 py-16">
-        <Avatar alt={displayName} size="lg" src={customer.avatarSrc ?? undefined} />
-        <div className="grid min-w-0 gap-4">
-          <h1 className="m-0 truncate text-title-16 font-bold text-surface-neutral-high-emphasis">{displayName}</h1>
-          <p className="m-0 text-body-14 text-surface-neutral-mid-emphasis">حساب کاربری</p>
+      <div className="flex items-center justify-between gap-16 px-24 py-16">
+        <div className="flex min-w-0 items-center gap-16">
+          <Avatar alt={displayName} size="lg" src={customer.avatarSrc ?? undefined} />
+          <div className="grid min-w-0 gap-4">
+            <h1 className="m-0 truncate text-title-16 font-bold text-surface-neutral-high-emphasis">{displayName}</h1>
+            <p className="m-0 text-body-14 text-surface-neutral-mid-emphasis">حساب کاربری</p>
+          </div>
         </div>
+        <ProfileCompletionBadge customer={customer} />
       </div>
 
       <Divider />
