@@ -1,15 +1,20 @@
+"use client";
+
 import Link from "next/link";
 import { cva } from "class-variance-authority";
 import { Label } from "@/components/ui/label";
+import { OPEN_PWA_INSTALL_PROMPT_EVENT } from "@/lib/pwa-install";
 import { cn } from "@/lib/utils";
 
 export type ServiceItem = {
   label: string;
-  href: string;
+  href?: string;
   icon: string;
+  action?: "install-pwa";
   variant?: "wide" | "sq";
   comingSoon?: boolean;
   isNew?: boolean;
+  mobileOnly?: boolean;
 };
 
 export type ServicesNavProps = {
@@ -18,7 +23,7 @@ export type ServicesNavProps = {
 };
 
 const serviceItemVariants = cva(
-  "relative flex w-72 flex-col items-center text-inherit no-underline min-[576px]:col-auto min-[576px]:justify-self-center",
+  "relative flex w-72 cursor-pointer flex-col items-center border-0 bg-transparent p-0 font-sans text-inherit no-underline min-[576px]:col-auto min-[576px]:justify-self-center",
   {
     variants: {
       variant: {
@@ -37,13 +42,9 @@ function ServicesNav({ items, className }: Readonly<ServicesNavProps>) {
       dir="rtl"
     >
       <div className="mx-auto grid w-full max-w-[324px] grid-cols-[repeat(4,72px)] justify-items-center gap-12 min-[576px]:max-w-none min-[576px]:grid-cols-[repeat(auto-fit,72px)] min-[576px]:justify-center min-[576px]:gap-24">
-        {items.map((item, index) => (
-          <Link
-            key={`${item.href}-${index}`}
-            href={item.href}
-            prefetch={false}
-            className={serviceItemVariants({ variant: item.variant })}
-          >
+        {items.map((item, index) => {
+          const contents = (
+            <>
             {item.comingSoon ? (
               <Label
                 appearance="soft"
@@ -77,8 +78,38 @@ function ServicesNav({ items, className }: Readonly<ServicesNavProps>) {
             <span className="mt-8 line-clamp-2 max-w-full overflow-hidden break-words text-center font-sans text-label-12 font-bold leading-[var(--text-label-12--line-height)] text-surface-neutral-high-emphasis [word-break:break-word]">
               {item.label}
             </span>
-          </Link>
-        ))}
+            </>
+          );
+          const className = cn(
+            serviceItemVariants({ variant: item.variant }),
+            item.mobileOnly && "min-[576px]:hidden",
+          );
+
+          if (item.action === "install-pwa") {
+            return (
+              <button
+                aria-label={item.label}
+                className={className}
+                key={`action-${item.action}-${index}`}
+                onClick={() => window.dispatchEvent(new Event(OPEN_PWA_INSTALL_PROMPT_EVENT))}
+                type="button"
+              >
+                {contents}
+              </button>
+            );
+          }
+
+          return (
+            <Link
+              className={className}
+              href={item.href ?? "/"}
+              key={`${item.href}-${index}`}
+              prefetch={false}
+            >
+              {contents}
+            </Link>
+          );
+        })}
       </div>
     </section>
   );

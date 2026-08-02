@@ -12,6 +12,7 @@ import {
   BottomSheetTitle,
 } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
+import { OPEN_PWA_INSTALL_PROMPT_EVENT } from "@/lib/pwa-install";
 
 const PROMPT_DELAY_MS = 10_000;
 const DISMISSAL_DURATION_MS = 21 * 24 * 60 * 60 * 1000;
@@ -159,6 +160,23 @@ export default function AddToHomeScreenPrompt() {
     return () => window.clearTimeout(hidePrompt);
   }, [pathname]);
 
+  useEffect(() => {
+    const openFromService = () => {
+      if (!context?.isMobile || context.isStandalone || isPaymentFlow(pathname)) return;
+
+      shownRef.current = true;
+      window.sessionStorage.setItem(SESSION_STORAGE_KEY, "true");
+      setOpen(true);
+      track("pwa_install_prompt_shown", {
+        platform: context.isIosSafari ? "ios" : deferredPrompt ? "android_native" : "manual",
+        source: "services",
+      });
+    };
+
+    window.addEventListener(OPEN_PWA_INSTALL_PROMPT_EVENT, openFromService);
+    return () => window.removeEventListener(OPEN_PWA_INSTALL_PROMPT_EVENT, openFromService);
+  }, [context, deferredPrompt, pathname]);
+
   function dismissPrompt() {
     window.localStorage.setItem(
       DISMISSAL_STORAGE_KEY,
@@ -205,22 +223,19 @@ export default function AddToHomeScreenPrompt() {
       <BottomSheetContent
         aria-describedby="add-to-home-screen-description"
         footer={
-          <div className="flex flex-col gap-8 border-t border-border-low-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))] pt-16">
+          <div className="border-t border-border-low-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))] pt-16">
             <Button className="w-full" onClick={() => void handlePrimaryAction()} size="large" variant="secondary-filled">
               {canUseNativeInstall ? "نصب کادوچی" : "متوجه شدم"}
-            </Button>
-            <Button className="w-full" onClick={dismissPrompt} size="large" variant="link-ghost">
-              فعلاً نه
             </Button>
           </div>
         }
       >
         <BottomSheetHeader className="items-center gap-16 px-16 pb-24 text-center">
-          <div className="flex size-104 items-center justify-center rounded-rounded bg-secondary-container text-secondary">
-            <Share aria-hidden className="size-48 stroke-[1.75]" />
+          <div className="flex size-72 items-center justify-center rounded-rounded bg-secondary-container text-secondary">
+            <Share aria-hidden className="size-32 stroke-[1.75]" />
           </div>
-          <BottomSheetTitle className="m-0 font-sans text-heading-24 font-bold text-surface-neutral-high-emphasis">
-            کادوچی را به صفحه اصلی اضافه کنید
+          <BottomSheetTitle className="m-0 font-sans text-title-16 font-bold text-surface-neutral-high-emphasis">
+            نصب وب اپلیکیشن کادوچی
           </BottomSheetTitle>
           <BottomSheetDescription className="m-0 max-w-[22rem] text-body-16 text-text-secondary" id="add-to-home-screen-description">
             برای دسترسی سریع‌تر و دریافت یادآوری‌های مهم سفارش و مناسبت‌ها.
