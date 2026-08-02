@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, ChevronLeft, CircleHelp, Globe2, Heart, LogIn, LogOut, MapPin, Package, UserRound } from "lucide-react";
+import { Bell, Bookmark, ChevronLeft, CircleHelp, Globe2, Heart, LogIn, LogOut, MapPin, Package, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Avatar } from "@/components/ui/avatar";
@@ -12,6 +12,7 @@ import StateMessage from "@/components/layout/state-message";
 import { useAuth } from "@/features/auth/auth-provider";
 import { cn } from "@/lib/utils";
 import { useProfileCompletion } from "../hooks/use-profile-completion";
+import { useUnreadNotifications } from "../hooks/use-unread-notifications";
 import type { ProfileCompletion } from "../utils/profile-completion";
 
 type MenuItemProps = {
@@ -20,10 +21,11 @@ type MenuItemProps = {
   subtitle: string;
   icon: LucideIcon;
   tone?: "default" | "danger";
+  unreadCount?: number;
   onClick?: () => void;
 };
 
-function ProfileMenuItem({ href, title, subtitle, icon: Icon, tone = "default", onClick }: MenuItemProps) {
+function ProfileMenuItem({ href, title, subtitle, icon: Icon, tone = "default", unreadCount = 0, onClick }: MenuItemProps) {
   const iconClassName = tone === "danger" ? "text-error" : "text-surface-neutral-mid-emphasis";
   const content = (
     <>
@@ -32,6 +34,7 @@ function ProfileMenuItem({ href, title, subtitle, icon: Icon, tone = "default", 
         <strong className={tone === "danger" ? "text-title-16 min-[580px]:text-title-18 text-error" : "text-title-16 min-[580px]:text-title-18 text-surface-neutral-high-emphasis"}>{title}</strong>
         <span className="text-label-12 min-[580px]:text-body-14 text-surface-neutral-mid-emphasis">{subtitle}</span>
       </span>
+      {unreadCount > 0 ? <span aria-label={`${persianNumber.format(unreadCount)} اعلان خوانده‌نشده`} className="grid size-24 shrink-0 place-items-center rounded-full bg-error px-4 text-label-12 font-bold text-on-error">{persianNumber.format(unreadCount)}</span> : null}
       <ChevronLeft aria-hidden className="size-32 text-surface-neutral-mid-emphasis" />
     </>
   );
@@ -86,6 +89,7 @@ export function ProfilePage() {
   const router = useRouter();
   const { customer, logout, status } = useAuth();
   const { completion, loading: completionLoading } = useProfileCompletion(customer);
+  const unreadNotificationCount = useUnreadNotifications(status === "authenticated");
 
   if (status === "loading") return <ProfileLoading />;
 
@@ -110,7 +114,7 @@ export function ProfilePage() {
   const displayName = fullName || customer.displayName || customer.phone;
 
   return (
-    <section className="bg-surface-background pb-[calc(var(--bottom-nav-safe,0px)+var(--spacing-32))]" dir="rtl">
+    <section className="bg-surface-background pb-32" dir="rtl">
       <div className="flex items-center justify-between gap-16 px-24 py-16">
         <div className="flex min-w-0 items-center gap-16">
           <Avatar alt={displayName} size="lg" src={customer.avatarSrc ?? undefined} />
@@ -130,6 +134,8 @@ export function ProfilePage() {
         <ProfileMenuItem href="/profile/personal-profile" icon={Globe2} subtitle="ساخت و مدیریت صفحه عمومی شما" title="پروفایل شخصی" />
         <Divider />
         <ProfileMenuItem href="/profile/orders" icon={Package} subtitle="سفارش‌های در انتظار و تکمیل‌شده" title="سفارش‌های من" />
+        <Divider />
+        <ProfileMenuItem href="/profile/notifications" icon={Bell} subtitle="پیام‌ها و به‌روزرسانی‌های حساب شما" title="اعلان‌ها" unreadCount={unreadNotificationCount} />
         <Divider />
         <ProfileMenuItem href="/profile/addresses" icon={MapPin} subtitle="افزودن و مدیریت نشانی‌های دریافت سفارش" title="آدرس‌ها" />
         <Divider />

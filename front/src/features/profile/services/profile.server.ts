@@ -14,6 +14,8 @@ import {
   profileProductActionListSchema,
   profileProductActionSchema,
   profileProductListSchema,
+  notificationListSchema,
+  notificationReadResultSchema,
   personalProfileSchema,
   publicPersonalProfileSchema,
   updatePersonalProfileSchema,
@@ -108,6 +110,20 @@ export async function listProfileProducts(action: unknown, page: number, perPage
     total: actions.total,
     totalPages: actions.totalPages,
   });
+}
+
+export async function listNotifications(requestId: string) {
+  const response = await wordpressFetch("/wp-json/kadochi/v1/profile/notifications", {
+    headers: await wordpressBearerHeaders(), cache: "no-store", requestId,
+  });
+  return parseUpstreamJson(response, (value) => notificationListSchema.parse(value), requestId);
+}
+
+export async function markNotificationsRead(requestId: string) {
+  const response = await wordpressFetch("/wp-json/kadochi/v1/profile/notifications", {
+    method: "PATCH", headers: await wordpressBearerHeaders(), cache: "no-store", requestId,
+  });
+  return parseUpstreamJson(response, (value) => notificationReadResultSchema.parse(value), requestId);
 }
 
 export async function getPersonalProfile(requestId: string) {

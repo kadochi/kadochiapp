@@ -25,6 +25,8 @@ final class Kadochi_Core {
 	const CHECKOUT_FIELD_LOCATION = 'kadochi/location';
 	const CHECKOUT_FIELD_OPERATION = 'kadochi/operation-id';
 	const PRODUCT_ACTIONS_DB_VERSION = '1';
+	const NOTIFICATIONS_DB_VERSION = '1';
+	const NOTIFICATION_REMINDER_HOOK = 'kadochi_send_occasion_notifications';
 	const EDITORIAL_CAPABILITIES_VERSION = '4';
 	const MAGAZINE_TO_POSTS_MIGRATION_VERSION = '1';
 	const STORY_VISIBILITY_SECONDS = 172800;
@@ -44,11 +46,14 @@ final class Kadochi_Core {
 
 	public function boot() {
 		self::maybe_install_product_actions_table();
+		self::maybe_install_notifications_table();
 		self::maybe_grant_editorial_capabilities();
 		add_action( 'init', array( $this, 'register_post_types' ), 5 );
 		add_action( 'init', array( $this, 'maybe_migrate_magazine_articles_to_posts' ), 6 );
 		add_action( 'init', array( $this, 'schedule_draft_order_expiry' ) );
+		add_action( 'init', array( $this, 'schedule_notification_reminders' ) );
 		add_action( self::DRAFT_ORDER_EXPIRY_HOOK, array( $this, 'expire_stale_draft_orders' ) );
+		add_action( self::NOTIFICATION_REMINDER_HOOK, array( $this, 'send_occasion_notifications' ) );
 		add_filter( 'cron_schedules', array( $this, 'draft_order_expiry_schedule' ) );
 		add_action( 'init', array( $this, 'harden_existing_occasion_type' ), 99 );
 		add_action( 'acf/init', array( $this, 'register_scf_fields' ) );
@@ -66,6 +71,8 @@ final class Kadochi_Core {
 		add_action( 'woocommerce_check_cart_items', array( $this, 'clear_stale_store_api_cart_notices' ), 0 );
 		add_action( 'woocommerce_store_api_checkout_update_order_from_request', array( $this, 'validate_store_checkout_order' ), 10, 2 );
 		add_action( 'woocommerce_store_api_checkout_order_processed', array( $this, 'lock_store_checkout_order' ), 1 );
+		add_action( 'woocommerce_payment_complete', array( $this, 'notify_paid_order' ) );
+		add_action( 'woocommerce_order_status_changed', array( $this, 'notify_order_status_change' ), 10, 4 );
 		add_filter( 'woocommerce_package_rates', array( $this, 'limit_shipping_to_tehran' ), 10, 2 );
 		add_filter( 'woocommerce_customer_taxable_address', array( $this, 'limit_tax_to_tehran' ), 10, 2 );
 		add_filter( 'woocommerce_get_return_url', array( $this, 'checkout_return_url' ), 20, 2 );
@@ -125,6 +132,7 @@ final class Kadochi_Core {
 		self::revoke_magazine_capabilities();
 		update_option( 'kadochi_editorial_capabilities_version', self::EDITORIAL_CAPABILITIES_VERSION, false );
 		self::install_product_actions_table();
+		self::install_notifications_table();
 		flush_rewrite_rules();
 	}
 
@@ -149,6 +157,32 @@ final class Kadochi_Core {
 	private static function maybe_install_product_actions_table() {
 		if ( self::PRODUCT_ACTIONS_DB_VERSION !== get_option( 'kadochi_product_actions_db_version' ) ) {
 			self::install_product_actions_table();
+		}
+	}
+
+	/** Stores app notifications independently from ephemeral WordPress notices. */
+	private static function install_notifications_table() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'kadochi_notifications';
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		dbDelta( "CREATE TABLE {$table} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			user_id bigint(20) unsigned NOT NULL,
+			event_key varchar(191) NOT NULL,
+			type varchar(50) NOT NULL,
+			message text NOT NULL,
+			is_read tinyint(1) NOT NULL DEFAULT 0,
+			created_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY user_event (user_id,event_key),
+			KEY user_unread (user_id,is_read,id)
+		) {$wpdb->get_charset_collate()};" );
+		update_option( 'kadochi_notifications_db_version', self::NOTIFICATIONS_DB_VERSION, false );
+	}
+
+	private static function maybe_install_notifications_table() {
+		if ( self::NOTIFICATIONS_DB_VERSION !== get_option( 'kadochi_notifications_db_version' ) ) {
+			self::install_notifications_table();
 		}
 	}
 
@@ -374,6 +408,10 @@ final class Kadochi_Core {
 		register_rest_route( self::REST_NAMESPACE, '/profile/orders/(?P<id>\\d+)', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'profile_order_detail' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
 		register_rest_route( self::REST_NAMESPACE, '/profile/orders/(?P<id>\\d+)/retry-payment', array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'retry_profile_order_payment' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
 		register_rest_route( self::REST_NAMESPACE, '/profile/product-actions', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_profile_product_actions' ), 'permission_callback' => array( $this, 'authenticated' ) ) );
+		register_rest_route( self::REST_NAMESPACE, '/profile/notifications', array(
+			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_notifications' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+			array( 'methods' => 'PATCH', 'callback' => array( $this, 'mark_notifications_read' ), 'permission_callback' => array( $this, 'authenticated' ) ),
+		) );
 		register_rest_route( self::REST_NAMESPACE, '/personal-profile', array(
 			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'personal_profile' ), 'permission_callback' => array( $this, 'authenticated' ) ),
 			array( 'methods' => 'PUT', 'callback' => array( $this, 'update_personal_profile' ), 'permission_callback' => array( $this, 'authenticated' ) ),
@@ -903,6 +941,7 @@ final class Kadochi_Core {
 
 	private function resolve_customer( $phone ) {
 		$national_phone = $this->national_phone( $phone );
+		$is_new_customer = false;
 		$user_id = $this->first_user_with_meta( 'kadochi_phone', $phone ) ?: $this->first_user_with_meta( 'billing_phone', $national_phone );
 		if ( ! $user_id ) {
 			$user_id = (int) username_exists( $national_phone );
@@ -922,9 +961,13 @@ final class Kadochi_Core {
 				return $this->auth_error( 'kadochi_customer_create_failed', __( 'The customer service is unavailable.', 'kadochi-core' ), 503 );
 			}
 			$user_id = (int) $user_id;
+			$is_new_customer = true;
 		}
 		update_user_meta( $user_id, 'kadochi_phone', $phone );
 		update_user_meta( $user_id, 'billing_phone', $national_phone );
+		if ( $is_new_customer ) {
+			$this->create_notification( $user_id, 'welcome', 'welcome', 'به کادوچی خوش آمدید.' );
+		}
 		return $user_id;
 	}
 
@@ -1666,6 +1709,108 @@ final class Kadochi_Core {
 		return $customer ? rest_ensure_response( $customer ) : $this->auth_error( 'kadochi_customer_unavailable', __( 'The customer service is unavailable.', 'kadochi-core' ), 503 );
 	}
 
+	/** Inserts an unread notification once for a user and a business event. */
+	private function create_notification( $user_id, $event_key, $type, $message ) {
+		global $wpdb;
+		$user_id = absint( $user_id );
+		if ( ! $user_id || '' === $event_key || '' === $message ) {
+			return false;
+		}
+		return false !== $wpdb->query( $wpdb->prepare(
+			"INSERT IGNORE INTO {$wpdb->prefix}kadochi_notifications (user_id, event_key, type, message, is_read, created_at) VALUES (%d, %s, %s, %s, 0, %s)",
+			$user_id,
+			sanitize_key( $event_key ),
+			sanitize_key( $type ),
+			sanitize_textarea_field( $message ),
+			current_time( 'mysql', true )
+		) );
+	}
+
+	private function unread_notification_count( $user_id ) {
+		global $wpdb;
+		return max( 0, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}kadochi_notifications WHERE user_id = %d AND is_read = 0", absint( $user_id ) ) ) );
+	}
+
+	/** Localizes legacy English records as they are read, while new records are written in Farsi. */
+	private function notification_message( $type, $event_key, $message ) {
+		$type = sanitize_key( $type );
+		if ( 'welcome' === $type ) {
+			return 'به کادوچی خوش آمدید.';
+		}
+		if ( 'order_placed' === $type && preg_match( '/^order-(\d+)-placed$/', $event_key, $matches ) ) {
+			return sprintf( 'سفارش %d با موفقیت ثبت شد. برای مشاهده وضعیت سفارش، به بخش سفارش‌های من در حساب کاربری خود مراجعه کنید.', (int) $matches[1] );
+		}
+		if ( 'order_preparing' === $type && preg_match( '/^order-(\d+)-processing$/', $event_key, $matches ) ) {
+			return sprintf( 'سفارش %d در حال آماده سازی است. سفارش شما در حال آماده سازی می‌باشد و در زمان انتخاب شده ارسال می‌گردد.', (int) $matches[1] );
+		}
+		if ( 'order_delivered' === $type && preg_match( '/^order-(\d+)-delivered$/', $event_key, $matches ) ) {
+			return sprintf( 'سفارش %d تحویل داده شد. سفارش شما توسط پیک به دست گیرنده رسید و تحویل داده شد.', (int) $matches[1] );
+		}
+		if ( 'order_cancelled' === $type && preg_match( '/^order-(\d+)-cancelled$/', $event_key, $matches ) ) {
+			return sprintf( 'سفارش %d لغو گردید. سفارش شما لغو گردید و مطابق قوانین لغو سفارش، پیگیری‌های بعدی انجام می‌شود.', (int) $matches[1] );
+		}
+		if ( 'order_pending_payment' === $type && preg_match( '/^order-(\d+)-pending-payment$/', $event_key, $matches ) ) {
+			return sprintf( 'سفارش %d در انتظار پرداخت است. سفارش شما در انتظار پرداخت می‌باشد و ثبت نهایی نشده است.', (int) $matches[1] );
+		}
+		if ( 'occasion_reminder' === $type && preg_match( '/^Your personal occasion [“\"](.+)[”\"] is in three days\.$/u', $message, $matches ) ) {
+			return sprintf( 'مناسبت شخصی «%s» سه روز دیگر است.', sanitize_text_field( $matches[1] ) );
+		}
+		return sanitize_textarea_field( $message );
+	}
+
+	public function list_notifications() {
+		global $wpdb;
+		$user_id = get_current_user_id();
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT id, event_key, type, message, is_read, created_at FROM {$wpdb->prefix}kadochi_notifications WHERE user_id = %d ORDER BY id DESC LIMIT 100", $user_id ) );
+		$items = array();
+		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+			$timestamp = strtotime( $row->created_at . ' UTC' );
+			$items[] = array(
+				'id' => (int) $row->id,
+				'type' => sanitize_key( $row->type ),
+				'message' => $this->notification_message( $row->type, $row->event_key, $row->message ),
+				'isRead' => (bool) $row->is_read,
+				'createdAt' => $timestamp ? gmdate( 'Y-m-d\TH:i:s\Z', $timestamp ) : gmdate( 'Y-m-d\TH:i:s\Z' ),
+			);
+		}
+		return rest_ensure_response( array( 'items' => $items, 'unreadCount' => $this->unread_notification_count( $user_id ) ) );
+	}
+
+	/** Opening the notification center acknowledges all currently unread notifications. */
+	public function mark_notifications_read() {
+		global $wpdb;
+		$wpdb->update( $wpdb->prefix . 'kadochi_notifications', array( 'is_read' => 1 ), array( 'user_id' => get_current_user_id(), 'is_read' => 0 ), array( '%d' ), array( '%d', '%d' ) );
+		return rest_ensure_response( array( 'unreadCount' => 0 ) );
+	}
+
+	public function notify_paid_order( $order_id ) {
+		if ( ! function_exists( 'wc_get_order' ) ) {
+			return;
+		}
+		$order = wc_get_order( absint( $order_id ) );
+		$user_id = $order && method_exists( $order, 'get_customer_id' ) ? (int) $order->get_customer_id() : 0;
+		if ( $user_id ) {
+			$this->create_notification( $user_id, 'order-' . absint( $order_id ) . '-placed', 'order_placed', sprintf( 'سفارش %d با موفقیت ثبت شد. برای مشاهده وضعیت سفارش، به بخش سفارش‌های من در حساب کاربری خود مراجعه کنید.', absint( $order_id ) ) );
+		}
+	}
+
+	public function notify_order_status_change( $order_id, $old_status, $new_status, $order ) {
+		$user_id = is_object( $order ) && method_exists( $order, 'get_customer_id' ) ? (int) $order->get_customer_id() : 0;
+		if ( ! $user_id ) {
+			return;
+		}
+		$new_status = sanitize_key( $new_status );
+		if ( 'processing' === $new_status ) {
+			$this->create_notification( $user_id, 'order-' . absint( $order_id ) . '-processing', 'order_preparing', sprintf( 'سفارش %d در حال آماده سازی است. سفارش شما در حال آماده سازی می‌باشد و در زمان انتخاب شده ارسال می‌گردد.', absint( $order_id ) ) );
+		} elseif ( in_array( $new_status, array( 'completed', 'delivered' ), true ) ) {
+			$this->create_notification( $user_id, 'order-' . absint( $order_id ) . '-delivered', 'order_delivered', sprintf( 'سفارش %d تحویل داده شد. سفارش شما توسط پیک به دست گیرنده رسید و تحویل داده شد.', absint( $order_id ) ) );
+		} elseif ( in_array( $new_status, array( 'cancelled', 'canceled' ), true ) ) {
+			$this->create_notification( $user_id, 'order-' . absint( $order_id ) . '-cancelled', 'order_cancelled', sprintf( 'سفارش %d لغو گردید. سفارش شما لغو گردید و مطابق قوانین لغو سفارش، پیگیری‌های بعدی انجام می‌شود.', absint( $order_id ) ) );
+		} elseif ( in_array( $new_status, array( 'pending', 'pending-payment' ), true ) ) {
+			$this->create_notification( $user_id, 'order-' . absint( $order_id ) . '-pending-payment', 'order_pending_payment', sprintf( 'سفارش %d در انتظار پرداخت است. سفارش شما در انتظار پرداخت می‌باشد و ثبت نهایی نشده است.', absint( $order_id ) ) );
+		}
+	}
+
 	/** Updates the small, user-controlled part of a customer record. Phone and email stay owned by authentication. */
 	public function update_customer_profile( WP_REST_Request $request ) {
 		$input = $request->get_json_params();
@@ -2245,6 +2390,35 @@ final class Kadochi_Core {
 	public function draft_order_expiry_schedule( $schedules ) {
 		$schedules['kadochi_every_five_minutes'] = array( 'interval' => 300, 'display' => __( 'Every five minutes', 'kadochi-core' ) );
 		return $schedules;
+	}
+
+	/** Schedules daily personal-occasion reminders; WP-Cron runs them on the next site visit if needed. */
+	public function schedule_notification_reminders() {
+		if ( ! wp_next_scheduled( self::NOTIFICATION_REMINDER_HOOK ) ) {
+			wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', self::NOTIFICATION_REMINDER_HOOK );
+		}
+	}
+
+	/** Creates exactly one notification for each personal occasion due in three days. */
+	public function send_occasion_notifications() {
+		$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new DateTimeZone( 'UTC' );
+		$target = ( new DateTimeImmutable( 'today', $timezone ) )->modify( '+3 days' );
+		$target_date = $target->format( 'Y-m-d' );
+		$target_month_day = $target->format( 'm-d' );
+		$occasions = get_posts( array( 'post_type' => 'occasion', 'post_status' => 'publish', 'numberposts' => -1 ) );
+		foreach ( $occasions as $occasion ) {
+			if ( ! $occasion instanceof WP_Post || $this->public_occasion( $occasion ) ) {
+				continue;
+			}
+			$date = (string) $this->value( $occasion->ID, 'occasion_date' );
+			$repeats_annually = '1' === (string) $this->value( $occasion->ID, 'repeat_annually' );
+			$is_due = $repeats_annually ? substr( $date, 5 ) === $target_month_day : $date === $target_date;
+			if ( ! $is_due || ! $this->valid_date( $date ) ) {
+				continue;
+			}
+			$title = sanitize_text_field( (string) $this->value( $occasion->ID, 'title' ) ?: $occasion->post_title );
+			$this->create_notification( (int) $occasion->post_author, 'occasion-' . absint( $occasion->ID ) . '-' . $target_date, 'occasion_reminder', sprintf( 'مناسبت شخصی «%s» سه روز دیگر است.', $title ) );
+		}
 	}
 
 	public function expire_stale_draft_orders() {

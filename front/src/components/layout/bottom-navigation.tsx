@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { cva } from "class-variance-authority";
+import { useOptionalAuth } from "@/features/auth/auth-provider";
+import { useUnreadNotifications } from "@/features/profile/hooks/use-unread-notifications";
 
 type NavigationItem = {
   label: string;
@@ -78,6 +80,8 @@ function isActiveNavigationItem(item: NavigationItem, pathname: string) {
 
 function BottomNavigation() {
   const pathname = usePathname();
+  const auth = useOptionalAuth();
+  const unreadNotificationCount = useUnreadNotifications(auth?.status === "authenticated");
 
   useEffect(() => {
     document.body.dataset.bottomNav = "active";
@@ -125,6 +129,7 @@ function BottomNavigation() {
                 src={item.activeIcon}
                 width={24}
               />
+              {item.href === "/profile" && unreadNotificationCount > 0 ? <span className="absolute top-0 right-0 size-[10px] rounded-full bg-error" /> : null}
             </span>
             <span data-slot="bottom-navigation-label" className="mt-2">
               {item.label}

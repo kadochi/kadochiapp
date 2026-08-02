@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import { cva } from "class-variance-authority";
 import { useOptionalAuth } from "@/features/auth/auth-provider";
 import { cartChangedEvent, getCart } from "@/features/cart/services/cart";
+import { useUnreadNotifications } from "@/features/profile/hooks/use-unread-notifications";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 
@@ -209,6 +210,7 @@ function DefaultHeader({
   } : null;
   const accountUser = controlledUser !== undefined ? controlledUser : providerUser;
   const isAuthenticated = controlledAuthentication ?? (auth ? auth.status === "authenticated" : Boolean(accountUser));
+  const unreadNotificationCount = useUnreadNotifications(isAuthenticated);
   const accountLabel = getAccountLabel(accountUser);
   const shouldShowBack = showBack || pathname.startsWith("/product/");
 
@@ -271,7 +273,10 @@ function DefaultHeader({
               size="medium"
               variant="secondary-tonal"
             >
-              <img alt="" className="!size-20" decoding="async" height={20} loading="lazy" src="/icons/user-login.svg" width={20} />
+              <span className="relative inline-flex">
+                <img alt="" className="!size-20" decoding="async" height={20} loading="lazy" src="/icons/user-login.svg" width={20} />
+                {unreadNotificationCount > 0 ? <span aria-label="اعلان خوانده‌نشده" className="absolute -top-3 -right-3 size-8 rounded-full bg-error ring-2 ring-surface-background" /> : null}
+              </span>
               <span className="font-sans text-label-16 font-regular leading-[var(--text-label-16--line-height)]">
                 {accountLabel}
               </span>
@@ -327,6 +332,7 @@ function DefaultHeader({
         <SideMenu
           isLoggedIn={isAuthenticated}
           isOpen={isMenuOpen}
+          unreadNotificationCount={unreadNotificationCount}
           onClose={() => setIsMenuOpen(false)}
           user={accountUser ? {
             avatarSrc: accountUser.avatarSrc,

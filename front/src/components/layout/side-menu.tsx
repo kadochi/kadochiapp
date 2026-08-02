@@ -39,6 +39,8 @@ type SideMenuProps = {
    * hook. `isLoggedIn` still takes precedence when it is supplied.
    */
   session?: SideMenuSession | null;
+  /** Number of unread notifications for the signed-in profile. */
+  unreadNotificationCount?: number;
 };
 
 const defaultMenuItems = [
@@ -112,6 +114,7 @@ function SideMenu({
   user,
   items = defaultMenuItems,
   session,
+  unreadNotificationCount = 0,
 }: Readonly<SideMenuProps>) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const isLoggedIn = isLoggedInOverride ?? Boolean(session?.userId);
@@ -190,12 +193,15 @@ function SideMenu({
           prefetch={false}
         >
           <div className="flex flex-row-reverse items-center gap-12">
-            <Avatar
-              alt={displayName}
-              fallback={isLoggedIn ? undefined : <UserRound aria-hidden="true" />}
-              size="lg"
-              src={profileUser?.avatarSrc ?? undefined}
-            />
+            <span className="relative inline-flex">
+              <Avatar
+                alt={displayName}
+                fallback={isLoggedIn ? undefined : <UserRound aria-hidden="true" />}
+                size="lg"
+                src={profileUser?.avatarSrc ?? undefined}
+              />
+              {unreadNotificationCount > 0 ? <span aria-label="اعلان خوانده‌نشده" className="absolute -top-2 -right-2 size-12 rounded-full bg-error ring-2 ring-surface-background" /> : null}
+            </span>
             <div className="text-right">
               <div className="font-sans text-label-16 font-bold leading-[var(--text-label-16--line-height)] text-text-primary">
                 {displayName}

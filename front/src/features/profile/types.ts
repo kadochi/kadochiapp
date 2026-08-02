@@ -8,6 +8,9 @@ import type {
   profileOrderSchema,
   profileProductActionSchema,
   profileProductListSchema,
+  notificationListSchema,
+  notificationReadResultSchema,
+  notificationSchema,
   personalProfileSchema,
   publicPersonalProfileSchema,
   updatePersonalProfileSchema,
@@ -22,6 +25,9 @@ export type ProfileOrderRetryPayment = z.infer<typeof profileOrderRetryPaymentSc
 export type ProfileOrderDetail = z.infer<typeof profileOrderDetailSchema>;
 export type ProfileProductAction = z.infer<typeof profileProductActionSchema>;
 export type ProfileProductList = z.infer<typeof profileProductListSchema>;
+export type Notification = z.infer<typeof notificationSchema>;
+export type NotificationList = z.infer<typeof notificationListSchema>;
+export type NotificationReadResult = z.infer<typeof notificationReadResultSchema>;
 export type PersonalProfile = z.infer<typeof personalProfileSchema>;
 export type UpdatePersonalProfileInput = z.infer<typeof updatePersonalProfileSchema>;
 export type PublicPersonalProfile = z.infer<typeof publicPersonalProfileSchema>;

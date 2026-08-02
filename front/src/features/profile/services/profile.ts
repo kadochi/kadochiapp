@@ -8,6 +8,8 @@ import {
   profileOrderRetryPaymentRequestSchema,
   profileProductActionSchema,
   profileProductListSchema,
+  notificationListSchema,
+  notificationReadResultSchema,
   personalProfileSchema,
   updatePersonalProfileSchema,
   updateProfileSchema,
@@ -42,6 +44,14 @@ export function retryProfileOrderPayment(orderId: number, attemptId: string) {
 export function listProfileProducts(action: "save" | "like", page = 1, perPage = 20) {
   const query = new URLSearchParams({ action: profileProductActionSchema.parse(action), page: String(page), perPage: String(perPage) });
   return bffJson(`/api/profile/product-actions?${query}`, { method: "GET" }, (value) => profileProductListSchema.parse(value));
+}
+
+export function listNotifications() {
+  return bffJson("/api/profile/notifications", { method: "GET" }, (value) => notificationListSchema.parse(value));
+}
+
+export function markNotificationsRead() {
+  return bffJson("/api/profile/notifications", { method: "PATCH" }, (value) => notificationReadResultSchema.parse(value));
 }
 
 export function getPersonalProfile() {

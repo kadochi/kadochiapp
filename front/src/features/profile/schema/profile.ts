@@ -73,6 +73,23 @@ export const profileProductActionListSchema = z.object({
 /** Product cards resolved server-side from the customer's ordered action records. */
 export const profileProductListSchema = productListResultSchema;
 
+export const notificationSchema = z.object({
+  id: z.number().int().positive(),
+  type: z.string().min(1),
+  message: z.string().min(1),
+  isRead: z.boolean(),
+  createdAt: z.string().datetime(),
+}).strict();
+
+export const notificationListSchema = z.object({
+  items: z.array(notificationSchema),
+  unreadCount: z.number().int().nonnegative(),
+}).strict();
+
+export const notificationReadResultSchema = z.object({
+  unreadCount: z.literal(0),
+}).strict();
+
 const personalProfileUsernameSchema = z.string()
   .trim()
   .toLowerCase()
