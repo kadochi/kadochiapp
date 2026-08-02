@@ -2,7 +2,7 @@
 
 import { Check, Plus, Share } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import {
   BottomSheet,
@@ -57,20 +57,18 @@ function getPromptContext(): PromptContext {
   };
 }
 
-function StepGuide({ icon, number, children }: Readonly<{
-  icon: React.ReactNode;
+function StepGuide({ number, children }: Readonly<{
   number: number;
-  children: React.ReactNode;
+  children: ReactNode;
 }>) {
   return (
-    <li className="flex items-center gap-12 py-12">
-      <span className="flex size-32 shrink-0 items-center justify-center rounded-rounded bg-secondary-container text-on-secondary-container">
-        {icon}
-      </span>
-      <span className="flex min-w-0 flex-1 items-center gap-8 text-body-14 text-text-primary">
-        <b className="flex size-20 shrink-0 items-center justify-center rounded-rounded bg-secondary text-label-12 text-on-secondary">{number}</b>
+    <li className="flex items-center gap-12 py-16">
+      <b className="flex size-40 shrink-0 items-center justify-center rounded-rounded bg-surface text-label-16 font-regular text-text-primary">
+        {number}
+      </b>
+      <p className="m-0 min-w-0 flex-1 text-start text-body-16 text-text-primary">
         {children}
-      </span>
+      </p>
     </li>
   );
 }
@@ -207,44 +205,47 @@ export default function AddToHomeScreenPrompt() {
       <BottomSheetContent
         aria-describedby="add-to-home-screen-description"
         footer={
-          <div className="flex gap-12 border-t border-border-low-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))] pt-12">
-            <Button className="flex-1" onClick={() => void handlePrimaryAction()} size="large" variant="secondary-filled">
+          <div className="flex flex-col gap-8 border-t border-border-low-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))] pt-16">
+            <Button className="w-full" onClick={() => void handlePrimaryAction()} size="large" variant="secondary-filled">
               {canUseNativeInstall ? "نصب کادوچی" : "متوجه شدم"}
             </Button>
-            <Button className="shrink-0" onClick={dismissPrompt} size="large" variant="tertiary-outline">
+            <Button className="w-full" onClick={dismissPrompt} size="large" variant="link-ghost">
               فعلاً نه
             </Button>
           </div>
         }
       >
-        <BottomSheetHeader className="gap-8 pb-8">
-          <BottomSheetTitle className="m-0 font-sans text-title-18 font-bold text-surface-neutral-high-emphasis">
+        <BottomSheetHeader className="items-center gap-16 px-16 pb-24 text-center">
+          <div className="flex size-104 items-center justify-center rounded-rounded bg-secondary-container text-secondary">
+            <Share aria-hidden className="size-48 stroke-[1.75]" />
+          </div>
+          <BottomSheetTitle className="m-0 font-sans text-heading-24 font-bold text-surface-neutral-high-emphasis">
             کادوچی را به صفحه اصلی اضافه کنید
           </BottomSheetTitle>
-          <BottomSheetDescription className="m-0 text-body-14 text-text-secondary" id="add-to-home-screen-description">
+          <BottomSheetDescription className="m-0 max-w-[22rem] text-body-16 text-text-secondary" id="add-to-home-screen-description">
             برای دسترسی سریع‌تر و دریافت یادآوری‌های مهم سفارش و مناسبت‌ها.
           </BottomSheetDescription>
         </BottomSheetHeader>
 
         <div className="px-16 pb-24">
           {isIosGuide ? (
-            <ol aria-label="راهنمای افزودن کادوچی به صفحه اصلی" className="m-0 divide-y divide-border-low-emphasis rounded-l border border-border-low-emphasis bg-surface-soft px-12 list-none">
-              <StepGuide icon={<Share aria-hidden className="size-18" />} number={1}>
-                روی آیکن <strong>اشتراک‌گذاری</strong> در Safari بزنید.
+            <ol aria-label="راهنمای افزودن کادوچی به صفحه اصلی" className="m-0 divide-y divide-border-low-emphasis border-y border-border-low-emphasis list-none">
+              <StepGuide number={1}>
+                در Safari روی آیکن <strong>اشتراک‌گذاری</strong><Share aria-hidden className="mx-4 inline-block size-18 align-text-bottom text-secondary" /> بزنید.
               </StepGuide>
-              <StepGuide icon={<Plus aria-hidden className="size-18" />} number={2}>
-                گزینه <strong>«Add to Home Screen»</strong> را انتخاب کنید.
+              <StepGuide number={2}>
+                گزینه <strong>«Add to Home Screen»</strong><Plus aria-hidden className="mx-4 inline-block size-18 align-text-bottom text-secondary" /> را انتخاب کنید.
               </StepGuide>
-              <StepGuide icon={<Check aria-hidden className="size-18" />} number={3}>
-                روی <strong>«Add»</strong> بزنید تا کادوچی به صفحه اصلی اضافه شود.
+              <StepGuide number={3}>
+                روی <strong>«Add»</strong><Check aria-hidden className="mx-4 inline-block size-18 align-text-bottom text-secondary" /> بزنید تا کادوچی به صفحه اصلی اضافه شود.
               </StepGuide>
             </ol>
           ) : canUseNativeInstall ? (
-            <p className="m-0 rounded-l bg-secondary-container px-16 py-12 text-body-14 text-on-secondary-container">
+            <p className="m-0 border-y border-border-low-emphasis py-16 text-center text-body-16 text-text-secondary">
               با انتخاب «نصب کادوچی»، پنجره نصب مرورگر باز می‌شود.
             </p>
           ) : (
-            <p className="m-0 rounded-l bg-surface-soft px-16 py-12 text-body-14 text-text-secondary">
+            <p className="m-0 border-y border-border-low-emphasis py-16 text-center text-body-16 text-text-secondary">
               از منوی مرورگر، گزینه «Install app» یا «افزودن به صفحه اصلی» را انتخاب کنید.
             </p>
           )}
