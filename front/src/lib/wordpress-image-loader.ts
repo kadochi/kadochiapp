@@ -16,6 +16,15 @@ function isWordPressUpload(src: string) {
  * the frontend container is the frontend container itself. Route local uploads
  * through the application so the server can fetch them via its internal origin.
  */
-export default function wordpressImageLoader({ src }: ImageLoaderProps) {
-  return isWordPressUpload(src) ? `/api/images?src=${encodeURIComponent(src)}` : src;
+export default function wordpressImageLoader({ quality, src, width }: ImageLoaderProps) {
+  if (!isWordPressUpload(src)) return src;
+
+  const params = new URLSearchParams({
+    src,
+    // `width` is selected from the image's srcset by the browser. Forward it
+    // instead of proxying the full WordPress original for every candidate.
+    w: String(width),
+    q: String(quality ?? 75),
+  });
+  return `/api/images?${params}`;
 }

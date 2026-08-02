@@ -77,17 +77,18 @@ export default async function MagazineArticlePage({ params }: { params: Promise<
       <Breadcrumb items={[{ label: "خانه", href: "/" }, { label: "مجله", href: "/magazine" }, ...(category ? [{ label: category.name, href: `/magazine/category/${category.slug}` }] : []), { label: article.title }]} />
       <Divider />
       <article className="mx-auto w-full max-w-[900px] px-16 py-32 min-[768px]:py-48">
-        <div className="relative mx-auto aspect-[16/9] max-w-[900px] overflow-hidden rounded-[var(--radius-xl)] bg-primary-container">
+        <div className="relative mx-auto aspect-[16/9] max-w-[900px] overflow-hidden rounded-[var(--radius-xl)] bg-surface-neutral-high-emphasis">
           {article.image ? (
             <Image
               alt={article.image.alt || article.title}
               className="object-cover"
               fill
               preload
-              sizes="100vw"
+              quality={75}
+              sizes="(min-width: 932px) 900px, calc(100vw - 32px)"
               src={article.image.url}
             />
-          ) : <span aria-hidden className="absolute inset-0 bg-[linear-gradient(145deg,var(--color-primary),var(--color-secondary))]" />}
+          ) : <span aria-hidden className="absolute inset-0 bg-surface-neutral-high-emphasis" />}
         </div>
 
         <header className="mx-auto max-w-[760px] text-right">

@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Bookmark, Heart, RefreshCw, Settings, X } from "lucide-react";
+import { Bookmark, Heart, RefreshCw, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { Header } from "@/components/layout/header";
-import SectionHeader from "@/components/layout/section-header";
 import StateMessage from "@/components/layout/state-message";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toaster";
@@ -15,8 +14,8 @@ import { ProductCard } from "@/features/products/components/product-card";
 import { ProductCardSkeleton } from "@/features/products/components/product-card-skeleton";
 import { updateProductAction } from "@/features/products/services/products";
 import type { Product } from "@/features/products/types";
-import { getPersonalProfile, listProfileProducts } from "../services/profile";
-import type { PersonalProfile, ProfileProductAction } from "../types";
+import { listProfileProducts } from "../services/profile";
+import type { ProfileProductAction } from "../types";
 
 const pageCopy = {
   save: {
@@ -94,8 +93,6 @@ export function ProfileProductActionsPage({ action }: { action: ProfileProductAc
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [removingId, setRemovingId] = useState<number | null>(null);
-  const [personalProfile, setPersonalProfile] = useState<PersonalProfile | null>(null);
-  const [personalProfileLoading, setPersonalProfileLoading] = useState(action === "save");
 
   const loadPage = useCallback(async (requestedPage: number, append = false) => {
     setLoading(true);
@@ -123,22 +120,6 @@ export function ProfileProductActionsPage({ action }: { action: ProfileProductAc
     if (status === "anonymous") router.replace(`/login?next=/profile/${action === "save" ? "wishlist" : "favorites"}`);
   }, [action, router, status]);
 
-  useEffect(() => {
-    if (action !== "save" || status !== "authenticated") return;
-    let cancelled = false;
-    void getPersonalProfile()
-      .then((next) => {
-        if (!cancelled) setPersonalProfile(next);
-      })
-      .catch(() => {
-        if (!cancelled) setPersonalProfile(null);
-      })
-      .finally(() => {
-        if (!cancelled) setPersonalProfileLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [action, status]);
-
   const canLoadMore = page > 0 && page < totalPages;
 
   const removeProduct = useCallback(async (product: Product) => {
@@ -159,28 +140,6 @@ export function ProfileProductActionsPage({ action }: { action: ProfileProductAc
     <div className="min-h-dvh bg-surface-background" dir="rtl">
       <Header backUrl="/profile" title={copy.title} variant="internal" />
       <main className="mx-auto w-full max-w-[1200px]">
-        {action === "save" && status === "authenticated" ? (
-          <SectionHeader
-            as="h2"
-            subtitle="لیست آرزوهاتو با دوستات به اشتراک بگذار"
-            title="پروفایل شخصی"
-            leftSlot={
-              <Button
-                asChild={!personalProfileLoading}
-                disabled={personalProfileLoading}
-                size="small"
-                variant="secondary-filled"
-              >
-                {personalProfileLoading ? "در حال بارگذاری…" : (
-                  <Link href="/profile/wishlist/personal-profile">
-                    {personalProfile?.username ? <Settings aria-hidden /> : null}
-                    {personalProfile?.username ? "تنظیمات پروفایل" : "ایجاد پروفایل"}
-                  </Link>
-                )}
-              </Button>
-            }
-          />
-        ) : null}
         {status === "authenticated" && !loading && !error && products.length ? (
           <div className="flex items-center px-16 pb-8 pt-20">
             <p className="inline-flex items-center gap-6 m-0 text-body-14 text-surface-neutral-mid-emphasis"><CollectionIcon aria-hidden className="size-16 text-primary" />{total.toLocaleString("fa-IR")} {copy.countLabel}</p>

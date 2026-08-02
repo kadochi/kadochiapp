@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, ChevronLeft, CircleHelp, Heart, LogIn, LogOut, MapPin, Package, UserRound } from "lucide-react";
+import { Bookmark, ChevronLeft, CircleHelp, Globe2, Heart, LogIn, LogOut, MapPin, Package, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Avatar } from "@/components/ui/avatar";
@@ -11,7 +11,8 @@ import { Divider } from "@/components/ui/divider";
 import StateMessage from "@/components/layout/state-message";
 import { useAuth } from "@/features/auth/auth-provider";
 import { cn } from "@/lib/utils";
-import { getProfileCompletion } from "../utils/profile-completion";
+import { useProfileCompletion } from "../hooks/use-profile-completion";
+import type { ProfileCompletion } from "../utils/profile-completion";
 
 type MenuItemProps = {
   href?: string;
@@ -69,17 +70,22 @@ function CompletionRing({ percentage }: { percentage: number }) {
   );
 }
 
-function ProfileCompletionBadge({ customer }: { customer: NonNullable<ReturnType<typeof useAuth>["customer"]> }) {
-  const completion = getProfileCompletion(customer);
-  const content = <><span className={cn("rounded-rounded px-12 py-8 text-label-14 font-bold", completion.isComplete ? "bg-success-container text-on-success-container" : "bg-secondary-container text-secondary")}>{completion.isComplete ? "کاربر عادی" : "تکمیل پروفایل"}</span>{!completion.isComplete ? <CompletionRing percentage={completion.percentage} /> : null}</>;
+function ProfileCompletionBadge({ completion }: { completion: ProfileCompletion }) {
+  const badge = completion.level === "newcomer"
+    ? { label: "تکمیل پروفایل", className: "bg-secondary-container text-secondary" }
+    : completion.level === "regular"
+      ? { label: "کاربر عادی", className: "bg-success-container text-on-success-container" }
+      : { label: "کاربر حرفه‌ای", className: "bg-secondary text-on-secondary" };
+  const content = <><span className={cn("rounded-rounded px-12 py-8 text-label-14 font-bold", badge.className)}>{badge.label}</span>{completion.level === "newcomer" ? <CompletionRing percentage={completion.percentage} /> : null}</>;
   const className = "flex shrink-0 items-center gap-6 no-underline focus-visible:rounded-rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary";
 
-  return completion.isComplete ? <div className={className}>{content}</div> : <Link aria-label="مشاهده ماموریت‌های تکمیل پروفایل" className={className} href="/profile/completion">{content}</Link>;
+  return completion.level === "pro" ? <div className={className}>{content}</div> : <Link aria-label="مشاهده ماموریت‌های پروفایل" className={className} href="/profile/completion">{content}</Link>;
 }
 
 export function ProfilePage() {
   const router = useRouter();
   const { customer, logout, status } = useAuth();
+  const { completion, loading: completionLoading } = useProfileCompletion(customer);
 
   if (status === "loading") return <ProfileLoading />;
 
@@ -113,13 +119,15 @@ export function ProfilePage() {
             <p className="m-0 text-body-14 text-surface-neutral-mid-emphasis">حساب کاربری</p>
           </div>
         </div>
-        <ProfileCompletionBadge customer={customer} />
+        {completion && !completionLoading ? <ProfileCompletionBadge completion={completion} /> : null}
       </div>
 
       <Divider />
 
       <div className="px-16">
         <ProfileMenuItem href="/profile/info" icon={UserRound} subtitle="مشخصات و اطلاعات شخصی" title="اطلاعات حساب کاربری" />
+        <Divider />
+        <ProfileMenuItem href="/profile/personal-profile" icon={Globe2} subtitle="ساخت و مدیریت صفحه عمومی شما" title="پروفایل شخصی" />
         <Divider />
         <ProfileMenuItem href="/profile/orders" icon={Package} subtitle="سفارش‌های در انتظار و تکمیل‌شده" title="سفارش‌های من" />
         <Divider />

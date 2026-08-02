@@ -18,7 +18,7 @@ export function MagazineCard({ article, className, priority = false }: Readonly<
     <article className={cn("h-full w-full", className)} dir="rtl">
       <Link
         aria-label={`مطالعه ${article.title}`}
-        className="group relative flex aspect-[1.35/1] min-h-[220px] w-full overflow-hidden rounded-[var(--radius-xl)] bg-primary-container text-on-primary no-underline shadow-[0_1px_0_0_var(--color-border-low-emphasis)] transition-transform duration-200 hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary motion-reduce:transition-none"
+        className="group relative flex aspect-[1.35/1] min-h-[220px] w-full overflow-hidden rounded-[var(--radius-xl)] bg-surface-neutral-high-emphasis text-on-primary no-underline shadow-[0_1px_0_0_var(--color-border-low-emphasis)] transition-transform duration-200 hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary motion-reduce:transition-none"
         href={`/magazine/${article.slug}`}
         prefetch={false}
       >
@@ -35,7 +35,7 @@ export function MagazineCard({ article, className, priority = false }: Readonly<
             src={article.image.url}
           />
         ) : (
-          <span aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,var(--color-primary-gradient),transparent_45%),linear-gradient(145deg,var(--color-primary),var(--color-secondary))]" />
+          <span aria-hidden className="absolute inset-0 bg-surface-neutral-high-emphasis" />
         )}
 
         {/* The gradient keeps editorial copy readable over every image crop. */}

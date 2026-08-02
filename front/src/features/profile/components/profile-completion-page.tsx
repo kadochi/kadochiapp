@@ -9,7 +9,8 @@ import { Header } from "@/components/layout/header";
 import { Divider } from "@/components/ui/divider";
 import { useAuth } from "@/features/auth/auth-provider";
 import { cn } from "@/lib/utils";
-import { getProfileCompletion, type ProfileCompletionTask } from "../utils/profile-completion";
+import { useProfileCompletion } from "../hooks/use-profile-completion";
+import type { ProfileCompletion, ProfileCompletionTask } from "../utils/profile-completion";
 
 const persianNumber = new Intl.NumberFormat("fa-IR", { useGrouping: false });
 
@@ -20,20 +21,48 @@ function CompletionTask({ task }: { task: ProfileCompletionTask }) {
   return task.href && !task.complete ? <Link className={className} href={task.href}>{content}</Link> : <div className={className}>{content}</div>;
 }
 
+function levelCopy(completion: ProfileCompletion) {
+  if (completion.level === "newcomer") return {
+    title: "تکمیل پروفایل",
+    description: "با تکمیل قسمت‌های زیر، حساب کاربری خود را کامل کنید تا به سطح بعدی برسید.",
+    label: "سطح تازه‌وارد",
+    labelClassName: "text-secondary",
+  };
+  if (completion.level === "regular") return {
+    title: "ماموریت‌های کاربر عادی",
+    description: "با تکمیل ماموریت‌های زیر، به سطح کاربر حرفه‌ای برسید.",
+    label: "کاربر عادی",
+    labelClassName: "text-success",
+  };
+  return {
+    title: "کاربر حرفه‌ای",
+    description: "همه ماموریت‌ها را تکمیل کرده‌اید.",
+    label: "کاربر حرفه‌ای",
+    labelClassName: "text-secondary",
+  };
+}
+
 export function ProfileCompletionPage() {
   const router = useRouter();
   const { customer, status } = useAuth();
+  const { completion, loading: completionLoading } = useProfileCompletion(customer);
 
   useEffect(() => {
     if (status === "anonymous") router.replace("/login?next=/profile/completion");
   }, [router, status]);
 
-  if (status === "loading" || !customer) {
+  useEffect(() => {
+    if (completion?.level === "pro") router.replace("/profile");
+  }, [completion?.level, router]);
+
+  if (status === "loading" || !customer || completionLoading || !completion) {
     return <div className="min-h-dvh bg-surface-background" dir="rtl"><Header backUrl="/profile" title="تکمیل پروفایل" variant="internal" /><main className="mx-auto grid w-full max-w-[640px] gap-12 px-16 py-24"><div className="h-160 animate-pulse rounded-l bg-surface" /><div className="h-48 animate-pulse rounded-m bg-surface" /><div className="h-48 animate-pulse rounded-m bg-surface" /></main></div>;
   }
 
-  const completion = getProfileCompletion(customer);
+  if (completion.level === "pro") return null;
+
   const progressLabel = `${persianNumber.format(completion.percentage)}٪`;
+  const copy = levelCopy(completion);
 
   return (
     <div className="min-h-dvh bg-surface-background" dir="rtl">
@@ -44,10 +73,10 @@ export function ProfileCompletionPage() {
             <div className="rounded-m border border-secondary bg-surface-background p-12 min-[580px]:p-16">
               <div className="flex items-start justify-between gap-16">
                 <div className="grid gap-4 text-right">
-                  <h1 className="m-0 text-title-18 font-bold text-surface-neutral-high-emphasis" id="profile-completion-title">تکمیل پروفایل</h1>
-                  <p className="m-0 text-body-12 text-surface-neutral-mid-emphasis">با تکمیل قسمت‌های زیر، حساب کاربری خود را کامل کنید تا به سطح بعدی برسید.</p>
+                  <h1 className="m-0 text-title-18 font-bold text-surface-neutral-high-emphasis" id="profile-completion-title">{copy.title}</h1>
+                  <p className="m-0 text-body-12 text-surface-neutral-mid-emphasis">{copy.description}</p>
                 </div>
-                <span className="shrink-0 text-label-14 font-bold text-secondary">سطح تازه‌وارد</span>
+                <span className={cn("shrink-0 text-label-14 font-bold", copy.labelClassName)}>{copy.label}</span>
               </div>
               <div className="mt-16 flex items-center justify-between gap-12 text-label-12 text-surface-neutral-mid-emphasis">
                 <span>{progressLabel}</span>

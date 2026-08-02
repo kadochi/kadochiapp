@@ -1,12 +1,6 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import PersonalProfileSettingsPage from "@/features/profile/components/personal-profile-settings-page";
-
-export const metadata: Metadata = {
-  title: "کادوچی | تنظیمات پروفایل شخصی",
-  description: "مدیریت صفحه عمومی و لیست آرزوهای شما در کادوچی.",
-};
-
+/** Preserves older shared links after moving the settings out of Wishlist. */
 export default function Page() {
-  return <PersonalProfileSettingsPage />;
+  redirect("/profile/personal-profile");
 }

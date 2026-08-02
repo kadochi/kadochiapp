@@ -6,6 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Header } from "@/components/layout/header";
+import { Alert } from "@/components/ui/alert";
+import { Divider } from "@/components/ui/divider";
 import StateMessage from "@/components/layout/state-message";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +16,7 @@ import { useToast } from "@/components/ui/toaster";
 import { useAuth } from "@/features/auth/auth-provider";
 import { getPersonalProfile, updatePersonalProfile } from "../services/profile";
 import type { PersonalProfile } from "../types";
+import { getProfileCompletion } from "../utils/profile-completion";
 
 const emptyProfile: PersonalProfile = {
   username: null,
@@ -42,7 +45,7 @@ function SettingToggle({ label, checked, onCheckedChange }: SettingToggleProps) 
 
 export function PersonalProfileSettingsPage() {
   const router = useRouter();
-  const { status } = useAuth();
+  const { customer, status } = useAuth();
   const { toast } = useToast();
   const [profile, setProfile] = useState<PersonalProfile | null>(null);
   const [draft, setDraft] = useState<PersonalProfile>(emptyProfile);
@@ -72,14 +75,17 @@ export function PersonalProfileSettingsPage() {
   }, [load, status]);
 
   useEffect(() => {
-    if (status === "anonymous") router.replace("/login?next=/profile/wishlist/personal-profile");
+    if (status === "anonymous") router.replace("/login?next=/profile/personal-profile");
   }, [router, status]);
+
+  const profileInformationIncomplete = customer ? getProfileCompletion(customer).level === "newcomer" : true;
 
   const update = <K extends keyof PersonalProfile>(key: K, value: PersonalProfile[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
   };
 
   const save = async () => {
+    if (profileInformationIncomplete) return;
     setSaving(true);
     try {
       const next = await updatePersonalProfile({
@@ -121,27 +127,29 @@ export function PersonalProfileSettingsPage() {
 
   return (
     <div className="min-h-dvh bg-surface-background [direction:rtl]">
-      <Header backUrl="/profile/wishlist" title="تنظیمات پروفایل شخصی" variant="internal" />
-      <main className="mx-auto w-full max-w-[720px] pb-32">
+      <Header backUrl="/profile" title="تنظیمات پروفایل شخصی" variant="internal" />
+      <main className="mx-auto w-full max-w-[720px] pb-[calc(var(--spacing-128)+max(env(safe-area-inset-bottom),var(--spacing-24)))]">
+        {profileInformationIncomplete ? <div className="px-16 pt-16"><Alert title="ابتدا اطلاعات حساب را تکمیل کنید" tone="info">برای فعال‌سازی پروفایل شخصی، ابتدا اطلاعات حساب کاربری را کامل کنید تا به سطح کاربر عادی برسید.</Alert></div> : null}
         <section className="px-16 py-24">
           <div className="flex items-center justify-between gap-16">
             <div className="grid gap-4 text-right">
               <h2 className="m-0 text-title-18 font-bold text-surface-neutral-high-emphasis">پروفایل شخصی</h2>
               <p className="m-0 text-label-12 text-surface-neutral-mid-emphasis">با فعال کردن این گزینه، صفحه اختصاصی شما برای عموم در دسترس خواهد بود.</p>
             </div>
-            <Toggle aria-label="فعال‌سازی پروفایل شخصی" checked={draft.enabled} onCheckedChange={(value) => update("enabled", value)} tone="secondary" />
+            <Toggle aria-label="فعال‌سازی پروفایل شخصی" checked={draft.enabled} disabled={profileInformationIncomplete} onCheckedChange={(value) => update("enabled", value)} tone="secondary" />
           </div>
         </section>
 
         {draft.enabled ? (
           <>
-            <section className="border-y-8 border-surface px-16 py-20">
+            <Divider size="md" variant="spacer" />
+            <section className="px-16 py-20">
               <Input
                 description="فقط از حروف انگلیسی کوچک، عدد و خط تیره استفاده کنید. این نام قابل تغییر است."
                 label="نام کاربری"
                 maxLength={30}
                 onChange={(event) => update("username", event.target.value.replace(/[^a-zA-Z0-9-]/g, "").toLowerCase())}
-                placeholder="مثلاً aidin"
+                placeholder="یک نام کاربری انتخاب کنید"
                 required
                 status={draft.username ? "default" : "error"}
                 value={draft.username ?? ""}
@@ -149,17 +157,21 @@ export function PersonalProfileSettingsPage() {
             </section>
 
             {profileUrl ? (
-              <section className="border-b-8 border-surface px-16 py-20">
-                <div className="grid gap-8">
-                  <p className="m-0 text-label-12 text-surface-neutral-mid-emphasis">آدرس پروفایل اختصاصی شما</p>
-                  <div className="flex items-center gap-8" dir="ltr">
-                    <Input aria-label="لینک پروفایل شخصی" className="min-w-0 flex-1" dir="ltr" disabled readOnly value={profileUrl} />
-                    <Button aria-label="کپی لینک پروفایل" onClick={() => void copyProfileUrl()} size="large" variant="tertiary-outline"><Copy aria-hidden /> کپی</Button>
+              <>
+                <Divider size="md" variant="spacer" />
+                <section className="px-16 py-20">
+                  <div className="grid gap-8">
+                    <p className="m-0 text-label-12 text-surface-neutral-mid-emphasis">آدرس پروفایل اختصاصی شما</p>
+                    <div className="flex items-center gap-8" dir="ltr">
+                      <Input aria-label="لینک پروفایل شخصی" className="min-w-0 flex-1" dir="ltr" disabled readOnly value={profileUrl} />
+                      <Button aria-label="کپی لینک پروفایل" onClick={() => void copyProfileUrl()} size="large" variant="tertiary-outline"><Copy aria-hidden /> کپی</Button>
+                    </div>
                   </div>
-                </div>
-              </section>
+                </section>
+              </>
             ) : null}
 
+            <Divider size="md" variant="spacer" />
             <section className="px-16 py-12">
               <SettingToggle checked={draft.showAvatar} label="نمایش تصویر پروفایل" onCheckedChange={(value) => update("showAvatar", value)} />
               <SettingToggle checked={draft.showFirstName} label="نمایش نام" onCheckedChange={(value) => update("showFirstName", value)} />
@@ -170,13 +182,15 @@ export function PersonalProfileSettingsPage() {
           </>
         ) : null}
 
-        <div className="flex flex-col gap-12 border-t border-border-low-emphasis px-16 pt-16">
-          {profileUrl && draft.enabled ? <Button asChild className="w-full" size="large" variant="tertiary-outline"><Link href={profileUrl} rel="noreferrer" target="_blank"><Eye aria-hidden /> مشاهده صفحه اختصاصی</Link></Button> : null}
-          <Button className="w-full" disabled={draft.enabled && !draft.username} loading={saving} onClick={() => void save()} size="large" variant="primary-filled">
+      </main>
+      <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center border-t border-border-mid-emphasis bg-surface-background p-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))]">
+        <div className="flex w-full max-w-[688px] flex-col gap-12 min-[580px]:flex-row">
+          {profileUrl && draft.enabled ? <Button asChild className="w-full min-[580px]:flex-1" size="large" variant="tertiary-outline"><Link href={profileUrl} rel="noreferrer" target="_blank"><Eye aria-hidden /> مشاهده صفحه اختصاصی</Link></Button> : null}
+          <Button className="w-full min-[580px]:flex-1" disabled={profileInformationIncomplete || (draft.enabled && !draft.username)} loading={saving} onClick={() => void save()} size="large" variant="primary-filled">
             {profile?.username ? "ذخیره تنظیمات" : "ایجاد صفحه اختصاصی"}
           </Button>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
