@@ -8,6 +8,7 @@ import { Toaster } from "../components/ui/toaster";
 import { AuthProvider } from "../features/auth/auth-provider";
 import { getStoredAuthToken } from "../features/auth/services/auth.server";
 import { env } from "../lib/server/env";
+import AddToHomeScreenPrompt from "./add-to-home-screen-prompt";
 import GATracker from "./ga-tracker";
 import "./globals.css";
 
@@ -41,6 +42,12 @@ export const metadata: Metadata = {
   title: "کادوچی | خرید کادو، گل و کیک با ارسال سریع",
   description: "کادوچی، فروشگاه آنلاین خرید کادو، گل و کیک با ارسال سریع و بسته‌بندی مخصوص هدیه.",
   applicationName: "کادوچی",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Kadochi",
+    statusBarStyle: "default",
+  },
   category: "shopping",
   openGraph: {
     locale: "fa_IR",
@@ -94,6 +101,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <Suspense fallback={null}>
               <GATracker />
             </Suspense>
+            <AddToHomeScreenPrompt />
             <NextTopLoader
               showSpinner={false}
               color="#8030A2"
