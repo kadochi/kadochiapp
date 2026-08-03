@@ -47,7 +47,7 @@ function HeroBanner({
   return (
     <div
       className={cn(
-        "relative isolate aspect-[1/1.2] w-full bg-cover bg-center bg-no-repeat min-[860px]:aspect-[2.87/1]",
+        "relative isolate aspect-[1/1.2] w-full bg-[linear-gradient(to_bottom,var(--color-secondary),var(--color-on-secondary-container))] bg-cover bg-center bg-no-repeat min-[860px]:aspect-[2.87/1]",
         className,
       )}
       dir="rtl"
@@ -63,7 +63,7 @@ function HeroBanner({
         sizes="(min-width: 860px) min(100vw, 1440px), calc(100vw - 24px)"
         src={backgroundImage}
       />
-      <div className="absolute inset-0 z-10 grid content-center justify-items-center gap-16 px-24 pb-32 pt-16 text-center">
+      <div className="absolute inset-0 z-10 grid content-center justify-items-center gap-16 px-24 py-16 text-center">
         <HeroTitle className="w-[10rem] text-center text-[32px] leading-[40px] min-[860px]:w-auto min-[860px]:max-w-[32rem] min-[860px]:text-[40px] min-[860px]:leading-[48px]" title={title} />
         {subtitle ? (
           <p className="m-0 w-[200px] text-label-12 leading-[20px] text-on-primary min-[860px]:w-auto min-[860px]:max-w-256">

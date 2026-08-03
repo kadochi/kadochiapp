@@ -19,7 +19,7 @@ export async function getHomepageContent() {
 /** Reads published Hero posts directly from SCF's WordPress REST representation. */
 export async function getHeroSlides() {
   const requestId = randomUUID();
-  const response = await wordpressFetch("/wp-json/wp/v2/hero?acf_format=standard&per_page=50", {
+  const response = await wordpressFetch("/wp-json/wp/v2/hero?acf_format=standard&per_page=50&orderby=date&order=asc", {
     requestId,
     timeoutMs: 20_000,
     next: { revalidate: 60, tags: ["homepage-content"] },
