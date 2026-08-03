@@ -47,8 +47,7 @@ function HeroBanner({
   return (
     <div
       className={cn(
-        "relative isolate aspect-[1/1.2] w-full overflow-hidden rounded-xl bg-cover bg-center bg-no-repeat min-[860px]:aspect-[2.87/1]",
-        "after:pointer-events-none after:absolute after:inset-0 after:z-0 after:bg-[linear-gradient(0deg,rgba(54,6,74,0.8)_0%,rgba(96,4,135,0.56)_100%)]",
+        "relative isolate aspect-[1/1.2] w-full bg-cover bg-center bg-no-repeat min-[860px]:aspect-[2.87/1]",
         className,
       )}
       dir="rtl"
@@ -201,7 +200,7 @@ function HeroSlider({ initialSlides }: Readonly<HeroSliderProps>) {
           {slides.map((slide, index) => (
             <SwiperSlide
               aria-label={`اسلاید ${index + 1} از ${slides.length}`}
-              className="block aspect-[1/1.2] w-full overflow-hidden bg-cover bg-center bg-no-repeat min-[860px]:aspect-[3/1.01]"
+              className="block aspect-[1/1.2] w-full bg-cover bg-center bg-no-repeat min-[860px]:aspect-[3/1.01]"
               key={slide.id}
               role="group"
             >

@@ -92,9 +92,10 @@ const services = [
   { href: "/gift-finder", icon: "/icons/giftf-inder.svg", isNew: true, label: "جستجوی کادوی مناسب", variant: "sq" },
   { href: "/occasions", icon: "/icons/ocassions-calendar.svg", label: "تقویم مناسبت‌ها", variant: "sq" },
   { href: "/products?tag=fast-delivery", icon: "/icons/today-delivery.svg", label: "ارسال سریع امروز", variant: "sq" },
-  { action: "install-pwa", icon: "/pwa/icon-192.png", label: "دانلود وب اپلیکیشن", mobileOnly: true, variant: "sq" },
-  { href: "/products?category=chocolate", icon: "/icons/birthday-cake.svg", label: "کیک تولد و برگزاری تولد", variant: "wide" },
-  { href: "/products?category=flower", icon: "/icons/flower-box.svg", label: "باکس گل و دسته‌گل", variant: "wide" },
+  { href: "/products?category=flower", icon: "/icons/flower-box.svg", label: "باکس گل و دسته‌گل", variant: "sq" },
+  { href: "/products?category=chocolate", icon: "/icons/birthday-cake.svg", label: "کیک تولد و برگزاری تولد", variant: "sq" },
+  { href: "/profile/wishlist", icon: "/icons/wishlist.svg", label: "لیست آرزوهای من", variant: "sq" },
+  { href: "/profile/favorites", icon: "/icons/like.svg", label: "مورد علاقه‌های من", variant: "sq" },
 ] as const;
 
 export default async function Homepage() {

@@ -341,7 +341,11 @@
 }
 
 [data-component="hero-slider"] .swiper-pagination {
-  bottom: var(--spacing-48);
+  /* Swiper's later horizontal-pagination selector reads this custom property
+   * and otherwise overwrites `bottom` with its default 8px value. */
+  --swiper-pagination-bottom: 40px;
+
+  bottom: var(--swiper-pagination-bottom);
   z-index: 20;
   display: flex;
   justify-content: center;
@@ -352,7 +356,7 @@
 [data-component="hero-slider"] .hero-slider__pagination-segment {
   display: block;
   width: var(--spacing-80);
-  height: var(--spacing-2);
+  height: 2px;
   margin: 0;
   padding: 0;
   overflow: hidden;

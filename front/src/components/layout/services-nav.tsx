@@ -28,7 +28,7 @@ const serviceItemVariants = cva(
     variants: {
       variant: {
         sq: null,
-        wide: "col-span-2 w-auto justify-self-stretch min-[576px]:w-72",
+        wide: "w-72 min-[576px]:col-span-2 min-[576px]:w-auto min-[576px]:justify-self-stretch",
       },
     },
   },
@@ -68,7 +68,7 @@ function ServicesNav({ items, className }: Readonly<ServicesNavProps>) {
 
             <span
               aria-hidden="true"
-              className="grid size-72 place-items-center rounded-[var(--radius-l)] border-[1.5px] border-secondary-container bg-surface-background data-[wide=true]:w-full min-[576px]:data-[wide=true]:w-72"
+              className="grid size-72 place-items-center rounded-[var(--radius-l)] border-[1.5px] border-secondary-container bg-surface-background min-[576px]:data-[wide=true]:w-full"
               data-wide={item.variant === "wide" || undefined}
             >
               {/* Keep the legacy image behavior: service icon URLs may be arbitrary. */}
