@@ -12,11 +12,9 @@ import MagazinePage from "./page";
 
 describe("magazine landing page", () => {
   it("renders its empty editorial state when WordPress is unavailable", async () => {
-    mocks.listMagazineArticles.mockRejectedValueOnce(
-      new Error("WordPress unavailable"),
-    );
+    mocks.listMagazineArticles.mockRejectedValue(new Error("WordPress unavailable"));
 
-    await expect(MagazinePage()).resolves.toBeTruthy();
-    expect(mocks.listMagazineArticles).toHaveBeenCalledWith({ perPage: 12 });
+    await expect(MagazinePage({ searchParams: Promise.resolve({}) })).resolves.toBeTruthy();
+    expect(mocks.listMagazineArticles).toHaveBeenCalledWith({ page: 1, perPage: 12 });
   });
 });

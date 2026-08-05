@@ -5,10 +5,12 @@ import { Clock3, UserRound } from "lucide-react";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { Container } from "@/components/layout/container";
 import { Divider } from "@/components/ui/divider";
 import { MagazineCard } from "@/features/magazine/components/magazine-card";
 import { MagazineComment } from "@/features/magazine/components/magazine-comment";
 import { MagazineComments } from "@/features/magazine/components/magazine-comments";
+import { MagazineDiscoverySidebar } from "@/features/magazine/components/magazine-discovery-sidebar";
 import { MagazineTags } from "@/features/magazine/components/magazine-tags";
 import { getMagazineArticleBySlug, listMagazineArticles } from "@/features/magazine/services/magazine.server";
 import { formatMagazineDate } from "@/features/magazine/utils/article-text";
@@ -55,9 +57,15 @@ export default async function MagazineArticlePage({ params }: { params: Promise<
   const article = await loadArticle(slug);
   if (!article) notFound();
   const category = article.categories[0];
-  const related = category
-    ? (await listMagazineArticles({ category: category.id, exclude: [article.id], perPage: 3 })).items
-    : (await listMagazineArticles({ exclude: [article.id], perPage: 3 })).items;
+  const [relatedResult, latestResult] = await Promise.all([
+    category
+      ? listMagazineArticles({ category: category.id, exclude: [article.id], perPage: 3 })
+      : listMagazineArticles({ exclude: [article.id], perPage: 3 }),
+    listMagazineArticles({ exclude: [article.id], perPage: 6 }),
+  ]);
+  const related = relatedResult.items;
+  const latest = latestResult.items.slice(0, 3);
+  const popular = latestResult.items.slice(3, 6).length ? latestResult.items.slice(3, 6) : latest;
   const articleLd = {
     "@context": "https://schema.org",
     "@type": "Article",
@@ -76,8 +84,10 @@ export default async function MagazineArticlePage({ params }: { params: Promise<
       <Divider />
       <Breadcrumb items={[{ label: "خانه", href: "/" }, { label: "مجله", href: "/magazine" }, ...(category ? [{ label: category.name, href: `/magazine/category/${category.slug}` }] : []), { label: article.title }]} />
       <Divider />
-      <article className="mx-auto w-full max-w-[900px] px-16 py-32 min-[768px]:py-48">
-        <div className="relative mx-auto aspect-[16/9] max-w-[900px] overflow-hidden rounded-[var(--radius-xl)] bg-surface-neutral-high-emphasis">
+      <Container size="xl" py="xl">
+        <div className="grid items-start gap-40 min-[1024px]:grid-cols-[minmax(0,1fr)_320px]" dir="rtl">
+          <article className="min-w-0">
+            <div className="relative mx-auto aspect-[16/9] max-w-[900px] overflow-hidden rounded-[var(--radius-xl)] bg-surface-neutral-high-emphasis">
           {article.image ? (
             <Image
               alt={article.image.alt || article.title}
@@ -91,7 +101,7 @@ export default async function MagazineArticlePage({ params }: { params: Promise<
           ) : <span aria-hidden className="absolute inset-0 bg-surface-neutral-high-emphasis" />}
         </div>
 
-        <header className="mx-auto max-w-[760px] text-right">
+            <header className="mx-auto max-w-[760px] text-right">
           <div className="mt-20 flex flex-wrap items-center gap-x-16 gap-y-8 font-sans text-label-14 text-surface-neutral-low-emphasis">
             {category ? <Link className="font-bold text-primary no-underline" href={`/magazine/category/${category.slug}`}>{category.name}</Link> : <span className="font-bold text-primary">مجله کادوچی</span>}
             <span className="inline-flex items-center gap-6"><UserRound aria-hidden size={16} />{article.authorName}</span>
@@ -99,10 +109,15 @@ export default async function MagazineArticlePage({ params }: { params: Promise<
             <span className="inline-flex items-center gap-6"><Clock3 aria-hidden size={16} />{article.readingTime} دقیقه مطالعه</span>
           </div>
           <h1 className="mt-12 mb-0 font-sans text-heading-32 font-extrabold leading-[var(--text-heading-32--line-height)] text-surface-neutral-high-emphasis min-[768px]:text-heading-40 min-[768px]:leading-[var(--text-heading-40--line-height)]">{article.title}</h1>
-        </header>
+            </header>
 
-        <div className="magazine-content mx-auto mt-32 max-w-[720px] font-sans text-body-16 leading-[2.1] text-surface-neutral-mid-emphasis" dangerouslySetInnerHTML={{ __html: article.content }} />
-      </article>
+            <div className="magazine-content mx-auto mt-32 max-w-[720px] font-sans text-body-16 leading-[2.1] text-surface-neutral-mid-emphasis" dangerouslySetInnerHTML={{ __html: article.content }} />
+          </article>
+          <div className="min-w-0 min-[1024px]:sticky min-[1024px]:top-24">
+            <MagazineDiscoverySidebar latest={latest} popular={popular} />
+          </div>
+        </div>
+      </Container>
 
       {article.tags.length ? <><Divider variant="spacer" /><MagazineTags tags={article.tags} /></> : null}
       <Divider variant="spacer" />
