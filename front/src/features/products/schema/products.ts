@@ -68,6 +68,7 @@ const upstreamProductSchema = z.object({
   is_purchasable: z.boolean().default(false),
   average_rating: z.union([z.string(), z.number()]).optional(),
   review_count: z.number().int().optional(),
+  extensions: z.record(z.string(), z.unknown()).default({}),
 });
 
 export const upstreamProductsSchema = z.array(upstreamProductSchema);
@@ -98,6 +99,8 @@ export const productSchema = z.object({
   categories: z.array(z.object({ id: z.number().int(), name: z.string(), slug: z.string() })),
   tags: z.array(productTermSchema),
   attributes: z.array(productAttributeSchema),
+  preparationHours: z.number().int().min(1).max(720),
+  expressDeliveryEligible: z.boolean(),
   averageRating: z.number().min(0).max(5),
   reviewCount: z.number().int().nonnegative(),
   inStock: z.boolean(),

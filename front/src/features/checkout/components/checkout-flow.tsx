@@ -66,7 +66,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<SavedAddress | null>(null);
   const [removingAddressId, setRemovingAddressId] = useState<string | null>(null);
-  const [deliverySlotId, setDeliverySlotId] = useState(initialState.deliverySlots[0]?.id ?? "");
+  const [deliverySlotId, setDeliverySlotId] = useState(initialState.deliverySlots.find((slot) => slot.available)?.id ?? "");
   const [packagingId, setPackagingId] = useState<"gift" | "normal">(
     initialState.packagingOptions.find((option) => option.default)?.id ?? "gift",
   );
@@ -431,12 +431,14 @@ function DeliveryStep(props: {
     <section className="px-16 pb-16">
       <div className="flex snap-x snap-mandatory gap-16 overflow-x-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {props.state.deliverySlots.map((slot) => {
-          const selected = slot.id === props.deliverySlotId;
+          const selected = slot.available && slot.id === props.deliverySlotId;
           const date = deliveryDate(slot.date);
           return <button
             key={slot.id}
+            aria-disabled={!slot.available}
             aria-pressed={selected}
-            className={`grid h-[140px] w-[148px] shrink-0 snap-start place-items-center rounded-m border bg-surface-background p-12 text-center transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${selected ? "border-2 border-secondary shadow-[0_0_0_4px_var(--color-secondary-container)]" : "border-border-high-emphasis"}`}
+            className={`grid h-[140px] w-[148px] shrink-0 snap-start place-items-center rounded-m border bg-surface-background p-12 text-center transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${selected ? "border-2 border-secondary shadow-[0_0_0_4px_var(--color-secondary-container)]" : "border-border-high-emphasis"} ${slot.available ? "" : "cursor-not-allowed opacity-40"}`}
+            disabled={!slot.available}
             type="button"
             onClick={() => props.onDeliverySlot(slot.id)}
           >

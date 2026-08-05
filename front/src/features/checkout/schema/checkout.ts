@@ -9,6 +9,7 @@ export const deliverySlotSchema = z.object({
   startHour: z.union([z.literal(10), z.literal(13), z.literal(16)]),
   endHour: z.union([z.literal(13), z.literal(16), z.literal(19)]),
   label: z.string().min(1),
+  available: z.boolean(),
 }).strict();
 
 export const packagingOptionSchema = z.object({
@@ -41,7 +42,9 @@ export const savedAddressListSchema = z.object({ items: z.array(savedAddressSche
 export const checkoutStateSchema = z.object({
   cart: cartSchema,
   customer: customerSchema,
-  deliverySlots: z.array(deliverySlotSchema).max(9),
+  // A product may need up to 30 days of preparation, so retain disabled
+  // future windows before the nine selectable windows.
+  deliverySlots: z.array(deliverySlotSchema).max(120),
   packagingOptions: z.array(packagingOptionSchema).length(2),
   paymentMethod: paymentMethodSchema,
   savedAddresses: z.array(savedAddressSchema).max(20),

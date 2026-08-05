@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Kadochi Core
  * Description: Durable headless content contracts and protected occasion records for Kadochi.
- * Version: 0.2.0
+ * Version: 0.2.1
  * Requires at least: 6.6
  * Requires PHP: 7.4
  * Text Domain: kadochi-core
@@ -31,6 +31,9 @@ final class Kadochi_Core {
 	const MAGAZINE_TO_POSTS_MIGRATION_VERSION = '1';
 	const STORY_VISIBILITY_SECONDS = 172800;
 	const PRODUCT_VIEW_COUNT_META_KEY = '_kadochi_product_view_count';
+	const PRODUCT_PREPARATION_HOURS_META_KEY = '_kadochi_preparation_hours';
+	const DEFAULT_PRODUCT_PREPARATION_HOURS = 24;
+	const MAX_PRODUCT_PREPARATION_HOURS = 720;
 	const DRAFT_ORDER_EXPIRATION_SECONDS = 3600;
 	const DRAFT_ORDER_EXPIRY_HOOK = 'kadochi_expire_draft_orders';
 	const PAYMENT_ATTEMPT_LOCK_SECONDS = 60;
@@ -67,6 +70,8 @@ final class Kadochi_Core {
 		add_filter( 'rest_authentication_errors', array( $this, 'rest_authentication_errors' ), 30 );
 		add_action( 'woocommerce_init', array( $this, 'register_checkout_fields' ) );
 		add_action( 'woocommerce_blocks_loaded', array( $this, 'register_store_api_data' ) );
+		add_action( 'woocommerce_product_options_general_product_data', array( $this, 'render_product_preparation_hours_field' ) );
+		add_action( 'woocommerce_process_product_meta', array( $this, 'save_product_preparation_hours_field' ) );
 		add_action( 'woocommerce_validate_additional_field', array( $this, 'validate_checkout_field' ), 10, 3 );
 		add_action( 'woocommerce_check_cart_items', array( $this, 'clear_stale_store_api_cart_notices' ), 0 );
 		add_action( 'woocommerce_store_api_checkout_update_order_from_request', array( $this, 'validate_store_checkout_order' ), 10, 2 );
@@ -1903,62 +1908,135 @@ final class Kadochi_Core {
 		}
 	}
 
-	/** Exposes only server-derived eligibility in each Store API cart item's extension data. */
-	public function register_store_api_data() {
-		if ( ! function_exists( 'woocommerce_store_api_register_endpoint_data' ) || ! class_exists( '\\Automattic\\WooCommerce\\StoreApi\\Schemas\\V1\\CartItemSchema' ) ) {
-			return;
-		}
-		woocommerce_store_api_register_endpoint_data( array(
-			'endpoint' => \Automattic\WooCommerce\StoreApi\Schemas\V1\CartItemSchema::IDENTIFIER,
-			'namespace' => 'kadochi',
-			'data_callback' => array( $this, 'cart_item_extension_data' ),
-			'schema_callback' => array( $this, 'cart_item_extension_schema' ),
-			'schema_type' => ARRAY_A,
+	/** Adds the product-level preparation-time control to WooCommerce's General tab. */
+	public function render_product_preparation_hours_field() {
+		global $post;
+		$product_id = $post instanceof WP_Post ? $post->ID : 0;
+		$value = $product_id ? get_post_meta( $product_id, self::PRODUCT_PREPARATION_HOURS_META_KEY, true ) : '';
+		woocommerce_wp_text_input( array(
+			'id' => self::PRODUCT_PREPARATION_HOURS_META_KEY,
+			'label' => __( 'Preparation time (hours)', 'kadochi-core' ),
+			'description' => __( 'How many hours are required before this product can be delivered. Products below 6 hours are marked for Express Delivery.', 'kadochi-core' ),
+			'desc_tip' => true,
+			'type' => 'number',
+			'value' => '' === $value ? self::DEFAULT_PRODUCT_PREPARATION_HOURS : $value,
+			'custom_attributes' => array( 'min' => 1, 'max' => self::MAX_PRODUCT_PREPARATION_HOURS, 'step' => 1 ),
 		) );
 	}
 
+	/** Saves a bounded integer lead time and keeps the canonical PLP tag in sync. */
+	public function save_product_preparation_hours_field( $product_id ) {
+		$product_id = absint( $product_id );
+		if ( ! $product_id || ! current_user_can( 'edit_post', $product_id ) ) {
+			return;
+		}
+		$raw = isset( $_POST[ self::PRODUCT_PREPARATION_HOURS_META_KEY ] ) ? trim( wp_unslash( $_POST[ self::PRODUCT_PREPARATION_HOURS_META_KEY ] ) ) : '';
+		if ( ! is_string( $raw ) || ! preg_match( '/^[1-9][0-9]{0,2}$/', $raw ) || (int) $raw > self::MAX_PRODUCT_PREPARATION_HOURS ) {
+			delete_post_meta( $product_id, self::PRODUCT_PREPARATION_HOURS_META_KEY );
+			$this->sync_product_fast_delivery_tag( $product_id, self::DEFAULT_PRODUCT_PREPARATION_HOURS );
+			return;
+		}
+		$hours = (int) $raw;
+		update_post_meta( $product_id, self::PRODUCT_PREPARATION_HOURS_META_KEY, $hours );
+		$this->sync_product_fast_delivery_tag( $product_id, $hours );
+	}
+
+	/** Maintains the existing fast-delivery PLP filter from the preparation-time rule. */
+	private function sync_product_fast_delivery_tag( $product_id, $hours ) {
+		$tag = get_term_by( 'slug', 'fast-delivery', 'product_tag' );
+		if ( (int) $hours < 6 ) {
+			wp_set_object_terms( $product_id, array( 'fast-delivery' ), 'product_tag', true );
+			return;
+		}
+		if ( $tag && ! is_wp_error( $tag ) ) {
+			wp_remove_object_terms( $product_id, array( (int) $tag->term_id ), 'product_tag' );
+		}
+	}
+
+	/** Exposes server-derived lead-time and express eligibility to Store API clients. */
+	public function register_store_api_data() {
+		if ( ! function_exists( 'woocommerce_store_api_register_endpoint_data' ) ) {
+			return;
+		}
+		if ( class_exists( '\\Automattic\\WooCommerce\\StoreApi\\Schemas\\V1\\CartItemSchema' ) ) {
+			woocommerce_store_api_register_endpoint_data( array(
+				'endpoint' => \Automattic\WooCommerce\StoreApi\Schemas\V1\CartItemSchema::IDENTIFIER,
+				'namespace' => 'kadochi',
+				'data_callback' => array( $this, 'cart_item_extension_data' ),
+				'schema_callback' => array( $this, 'cart_item_extension_schema' ),
+				'schema_type' => ARRAY_A,
+			) );
+		}
+		if ( class_exists( '\\Automattic\\WooCommerce\\StoreApi\\Schemas\\V1\\ProductSchema' ) ) {
+			woocommerce_store_api_register_endpoint_data( array(
+				'endpoint' => \Automattic\WooCommerce\StoreApi\Schemas\V1\ProductSchema::IDENTIFIER,
+				'namespace' => 'kadochi',
+				'data_callback' => array( $this, 'product_extension_data' ),
+				'schema_callback' => array( $this, 'product_extension_schema' ),
+				'schema_type' => ARRAY_A,
+			) );
+		}
+	}
+
 	public function cart_item_extension_data( $cart_item ) {
-		return array( 'fastDelivery' => $this->cart_item_fast_delivery( $cart_item ) );
+		$product = is_array( $cart_item ) && isset( $cart_item['data'] ) ? $cart_item['data'] : null;
+		return $this->product_delivery_data( $product );
 	}
 
 	public function cart_item_extension_schema() {
+		return $this->product_extension_schema();
+	}
+
+	public function product_extension_data( $product ) {
+		return $this->product_delivery_data( $product );
+	}
+
+	public function product_extension_schema() {
 		return array(
+			'preparationHours' => array(
+				'description' => __( 'Hours required to prepare the product before delivery.', 'kadochi-core' ),
+				'type' => 'integer',
+				'readonly' => true,
+			),
 			'fastDelivery' => array(
-				'description' => __( 'Whether the cart item is eligible for Kadochi same-day delivery.', 'kadochi-core' ),
+				'description' => __( 'Whether the product is eligible for Kadochi Express Delivery.', 'kadochi-core' ),
 				'type' => 'boolean',
 				'readonly' => true,
 			),
 		);
 	}
 
-	private function fast_delivery_product( $product ) {
+	private function product_delivery_data( $product ) {
+		$hours = $this->product_preparation_hours( $product );
+		return array( 'preparationHours' => $hours, 'fastDelivery' => $hours < 6 );
+	}
+
+	/** Uses the parent product's setting for variations and safely defaults legacy products. */
+	private function product_preparation_hours( $product ) {
 		if ( ! is_object( $product ) || ! method_exists( $product, 'get_id' ) ) {
-			return false;
+			return self::DEFAULT_PRODUCT_PREPARATION_HOURS;
 		}
 		$product_id = method_exists( $product, 'get_parent_id' ) && $product->get_parent_id() ? $product->get_parent_id() : $product->get_id();
-		// `fast-delivery` is canonical. The remaining values preserve legacy catalogue tags.
-		$aliases = array( 'fast-delivery', 'fast_delivery', 'fastdelivery', 'same-day-delivery', 'same_day_delivery', 'express-delivery', 'express_delivery', 'express' );
-		return has_term( $aliases, 'product_tag', $product_id );
+		$raw = get_post_meta( $product_id, self::PRODUCT_PREPARATION_HOURS_META_KEY, true );
+		return is_scalar( $raw ) && preg_match( '/^[1-9][0-9]{0,2}$/', (string) $raw ) && (int) $raw <= self::MAX_PRODUCT_PREPARATION_HOURS
+			? (int) $raw
+			: self::DEFAULT_PRODUCT_PREPARATION_HOURS;
 	}
 
-	private function cart_item_fast_delivery( $cart_item ) {
-		return is_array( $cart_item ) && isset( $cart_item['data'] ) && $this->fast_delivery_product( $cart_item['data'] );
-	}
-
-	private function cart_fast_delivery() {
+	private function cart_preparation_hours() {
 		if ( ! function_exists( 'WC' ) || ! WC()->cart ) {
-			return false;
+			return self::DEFAULT_PRODUCT_PREPARATION_HOURS;
 		}
 		$items = WC()->cart->get_cart();
 		if ( empty( $items ) ) {
-			return false;
+			return self::DEFAULT_PRODUCT_PREPARATION_HOURS;
 		}
+		$hours = 1;
 		foreach ( $items as $item ) {
-			if ( ! $this->cart_item_fast_delivery( $item ) ) {
-				return false;
-			}
+			$product = is_array( $item ) && isset( $item['data'] ) ? $item['data'] : null;
+			$hours = max( $hours, $this->product_preparation_hours( $product ) );
 		}
-		return true;
+		return $hours;
 	}
 
 	private function tehran_destination( $country, $city ) {
@@ -1986,28 +2064,38 @@ final class Kadochi_Core {
 		return $address;
 	}
 
-	/** The exact slots are recomputed for every Store API validation in Tehran time. */
+	/**
+	 * Recomputes every selectable window in Tehran time. We retain unavailable
+	 * future windows in the response so the checkout can visibly disable them,
+	 * but only an available window is accepted when the order is placed.
+	 */
 	private function delivery_slots() {
 		$timezone = new DateTimeZone( 'Asia/Tehran' );
 		$now = new DateTimeImmutable( 'now', $timezone );
 		$today = $now->setTime( 0, 0, 0 );
-		$fast_delivery = $this->cart_fast_delivery();
-		$day = $fast_delivery ? $today : $today->modify( '+1 day' );
+		$ready_at = $now->modify( '+' . $this->cart_preparation_hours() . ' hours' );
+		$day = $today;
 		$windows = array( array( 10, 13 ), array( 13, 16 ), array( 16, 19 ) );
 		$slots = array();
-		while ( count( $slots ) < 9 ) {
+		$available_slots = 0;
+		while ( $available_slots < 9 ) {
 			if ( '5' !== $day->format( 'N' ) ) { // Friday.
 				$is_today = $day->format( 'Y-m-d' ) === $today->format( 'Y-m-d' );
 				foreach ( $windows as $window ) {
-					if ( count( $slots ) >= 9 ) {
+					if ( $available_slots >= 9 ) {
 						break;
 					}
-					// Do not advertise a slot once its delivery window has started.
+					// A started window is in the past; future but unprepared windows stay visible and disabled.
 					if ( $is_today && $window[0] <= (int) $now->format( 'G' ) ) {
 						continue;
 					}
 					$date = $day->format( 'Y-m-d' );
-					$slots[] = array( 'id' => $date . '-' . $window[0], 'date' => $date, 'startHour' => $window[0], 'endHour' => $window[1], 'label' => $date . '، ' . $window[0] . ' تا ' . $window[1] );
+					$slot_start = $day->setTime( $window[0], 0, 0 );
+					$available = $slot_start >= $ready_at;
+					$slots[] = array( 'id' => $date . '-' . $window[0], 'date' => $date, 'startHour' => $window[0], 'endHour' => $window[1], 'label' => $date . '، ' . $window[0] . ' تا ' . $window[1], 'available' => $available );
+					if ( $available ) {
+						$available_slots++;
+					}
 				}
 			}
 			$day = $day->modify( '+1 day' );
@@ -2020,7 +2108,7 @@ final class Kadochi_Core {
 			return false;
 		}
 		foreach ( $this->delivery_slots() as $slot ) {
-			if ( hash_equals( $slot['id'], $value ) ) {
+			if ( $slot['available'] && hash_equals( $slot['id'], $value ) ) {
 				return true;
 			}
 		}

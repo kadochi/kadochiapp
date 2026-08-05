@@ -138,6 +138,8 @@ function mockProduct(overrides: Partial<Product>): Product {
     inStock: true,
     purchasable: true,
     ...overrides,
+    preparationHours: overrides.preparationHours ?? 24,
+    expressDeliveryEligible: overrides.expressDeliveryEligible ?? false,
   };
 }
 

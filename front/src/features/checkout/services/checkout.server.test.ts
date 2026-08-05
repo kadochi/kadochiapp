@@ -52,7 +52,7 @@ const rawCart = {
     prices: { price: "58000000", currency_code: "IRR", currency_minor_unit: 0 },
     totals: { line_subtotal: "58000000", line_total: "58000000", currency_code: "IRR", currency_minor_unit: 0 },
     images: [],
-    extensions: { kadochi: { fastDelivery: true } },
+    extensions: { kadochi: { preparationHours: 4 } },
   }],
   totals: {
     total_items: "58000000",
@@ -96,7 +96,7 @@ function input() {
     sender: { firstName: "Sender", lastName: "Name" },
     recipient: { kind: "other" as const, firstName: "Recipient", lastName: "Person", phone: "+989121234567" },
     address: { address1: "Tehran delivery address", address2: "Unit 2" },
-    deliverySlotId: createDeliverySlots({ items: [{ fastDeliveryEligible: true }] } as Parameters<typeof createDeliverySlots>[0])[0]!.id,
+    deliverySlotId: createDeliverySlots({ items: [{ preparationHours: 4 }] } as Parameters<typeof createDeliverySlots>[0]).find((slot) => slot.available)!.id,
     packagingId: "gift" as const,
     postcardText: "Enjoy",
     operationId,

@@ -22,12 +22,12 @@ const tabsTriggerVariants = cva(
     variants: {
       tone: {
         primary: [
-          "enabled:hover:bg-surface",
+          "enabled:data-[state=inactive]:hover:bg-surface enabled:data-[state=inactive]:hover:text-surface-neutral-high-emphasis",
           "data-[state=active]:bg-primary data-[state=active]:text-on-primary",
           "focus-visible:ring-primary/40",
         ],
         secondary: [
-          "enabled:hover:bg-surface",
+          "enabled:data-[state=inactive]:hover:bg-surface enabled:data-[state=inactive]:hover:text-surface-neutral-high-emphasis",
           "data-[state=active]:bg-secondary data-[state=active]:text-on-secondary",
           "focus-visible:ring-secondary/40",
         ],

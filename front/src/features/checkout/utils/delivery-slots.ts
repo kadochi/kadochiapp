@@ -6,6 +6,7 @@ export type DeliverySlot = {
   startHour: 10 | 13 | 16;
   endHour: 13 | 16 | 19;
   label: string;
+  available: boolean;
 };
 
 const tehranTimeZone = "Asia/Tehran";
@@ -22,6 +23,7 @@ function tehranParts(now: Date) {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
+    minute: "2-digit",
     hourCycle: "h23",
     weekday: "short",
   }).formatToParts(now).reduce<Record<string, string>>((result, part) => {
@@ -33,6 +35,7 @@ function tehranParts(now: Date) {
     month: Number(parts.month),
     day: Number(parts.day),
     hour: Number(parts.hour),
+    minute: Number(parts.minute),
     weekday: parts.weekday,
   };
 }
@@ -41,30 +44,36 @@ function formatDate(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
 }
 
-/** Mirrors the WordPress slot rules: Tehran windows, no Fridays, and same-day only for fast carts. */
+/** Mirrors WordPress: the cart needs the longest product preparation time. */
 export function createDeliverySlots(cart: Pick<Cart, "items">, now = new Date()): DeliverySlot[] {
   const tehran = tehranParts(now);
-  const fastCart = cart.items.length > 0 && cart.items.every((item) => item.fastDeliveryEligible);
+  const preparationHours = cart.items.length ? Math.max(...cart.items.map((item) => item.preparationHours ?? 24)) : 24;
+  // Work with Tehran wall-clock timestamps so this matches PHP DateTime.
+  const readyAt = Date.UTC(tehran.year, tehran.month - 1, tehran.day, tehran.hour, tehran.minute) + preparationHours * 60 * 60 * 1000;
   const date = new Date(Date.UTC(tehran.year, tehran.month - 1, tehran.day));
-  if (!fastCart) date.setUTCDate(date.getUTCDate() + 1);
 
   const slots: DeliverySlot[] = [];
-  while (slots.length < 9) {
+  let availableSlots = 0;
+  while (availableSlots < 9) {
     // Friday is 5 in JS's UTC day numbering (Sunday 0).
     if (date.getUTCDay() !== 5) {
       const isToday = formatDate(date) === `${tehran.year}-${String(tehran.month).padStart(2, "0")}-${String(tehran.day).padStart(2, "0")}`;
       for (const window of windows) {
-        if (slots.length === 9) break;
-        // A delivery window can only be offered while its start remains ahead.
+        if (availableSlots === 9) break;
+        // Started windows are past. Future-but-unprepared windows stay visible
+        // for the checkout to disable, rather than looking like missing dates.
         if (isToday && window.startHour <= tehran.hour) continue;
         const dateString = formatDate(date);
+        const available = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), window.startHour) >= readyAt;
         slots.push({
           id: `${dateString}-${window.startHour}`,
           date: dateString,
           startHour: window.startHour,
           endHour: window.endHour,
           label: `${dateString}، ${window.startHour} تا ${window.endHour}`,
+          available,
         });
+        if (available) availableSlots += 1;
       }
     }
     date.setUTCDate(date.getUTCDate() + 1);

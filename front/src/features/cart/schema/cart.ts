@@ -70,6 +70,7 @@ export const cartSchema = z.object({
     lineSubtotal: moneySchema,
     lineTotal: moneySchema,
     imageUrl: z.string().url().optional(),
+    preparationHours: z.number().int().min(1).max(720),
     fastDeliveryEligible: z.boolean(),
   }).strict()),
   totals: z.object({

@@ -1,9 +1,11 @@
 import { Clock, MessageSquare, Star } from "lucide-react";
+import Image from "next/image";
 
 import { Price } from "@/components/layout/price";
 import { Label } from "@/components/ui/label";
 import { usePrice } from "../hooks/usePrice";
 import type { Product } from "../types";
+import { deliveryBadge } from "../utils/preparation-time";
 
 export type ProductInfoProps = {
   product: Product;
@@ -12,6 +14,7 @@ export type ProductInfoProps = {
 /** Title, price, and metadata chips for the product detail page. */
 export function ProductInfo({ product }: Readonly<ProductInfoProps>) {
   const { current, previous, offPercent } = usePrice(product);
+  const badge = deliveryBadge(product.preparationHours);
 
   return (
     <section className="px-16 pt-24 pb-16 text-center [direction:rtl]" aria-labelledby="pdp-title">
@@ -31,8 +34,13 @@ export function ProductInfo({ product }: Readonly<ProductInfoProps>) {
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-8">
-        <Label appearance="soft" leadingIcon={<Clock />} size="sm" variant="success">
-          ارسال ۱ روزکاری
+        <Label
+          appearance={badge.usesFastDeliveryIcon ? "gradient" : "soft"}
+          leadingIcon={badge.usesFastDeliveryIcon ? <Image alt="" height={14} src="/icons/fast-delivery.svg" width={14} /> : <Clock />}
+          size="sm"
+          variant="success"
+        >
+          {badge.label}
         </Label>
         <Label appearance="soft" leadingIcon={<MessageSquare />} size="sm" variant="neutral">
           {product.reviewCount.toLocaleString("fa-IR")} نظر

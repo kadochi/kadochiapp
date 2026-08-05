@@ -14,7 +14,7 @@ const rawCart = {
     prices: { price: "58000000", currency_code: "IRR", currency_minor_unit: 0 },
     totals: { line_subtotal: "116000000", line_total: "104000000", currency_code: "IRR", currency_minor_unit: 0 },
     images: [{ src: "https://example.test/gift.jpg" }],
-    extensions: { kadochi: { fastDelivery: true } },
+    extensions: { kadochi: { preparationHours: 4 } },
   }],
   totals: {
     total_items: "116000000",
@@ -45,6 +45,7 @@ describe("mapCart", () => {
       productId: 13,
       quantity: 2,
       quantityLimits: { minimum: 1, maximum: 8, multipleOf: 1, editable: true },
+      preparationHours: 4,
       fastDeliveryEligible: true,
     });
     expect(cart.totals.totalItems.amount).toBe("116000000");

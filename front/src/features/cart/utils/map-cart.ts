@@ -6,11 +6,12 @@ type UpstreamCart = z.infer<typeof upstreamCartSchema>;
 
 const money = (amount: string, currencyCode: string, minorUnit: number) => ({ amount, currencyCode, minorUnit });
 
-function fastDeliveryEligible(extensions: Record<string, unknown>): boolean {
+function productDeliveryData(extensions: Record<string, unknown>) {
   const extension = extensions.kadochi;
-  if (!extension || typeof extension !== "object") return false;
-  const candidate = extension as { fastDelivery?: unknown; fast_delivery?: unknown };
-  return candidate.fastDelivery === true || candidate.fast_delivery === true;
+  const candidate = extension && typeof extension === "object" ? extension as { preparationHours?: unknown; preparation_hours?: unknown } : {};
+  const rawHours = candidate.preparationHours ?? candidate.preparation_hours;
+  const preparationHours = typeof rawHours === "number" && Number.isInteger(rawHours) && rawHours >= 1 && rawHours <= 720 ? rawHours : 24;
+  return { preparationHours, fastDeliveryEligible: preparationHours < 6 };
 }
 
 export function mapCart(cart: UpstreamCart) {
@@ -33,7 +34,7 @@ export function mapCart(cart: UpstreamCart) {
       lineSubtotal: money(item.totals.line_subtotal, item.totals.currency_code, item.totals.currency_minor_unit),
       lineTotal: money(item.totals.line_total, item.totals.currency_code, item.totals.currency_minor_unit),
       imageUrl: item.images[0]?.src,
-      fastDeliveryEligible: fastDeliveryEligible(item.extensions),
+      ...productDeliveryData(item.extensions),
     })),
     totals: {
       totalItems: totalMoney(totals.total_items),

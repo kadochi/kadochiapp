@@ -10,6 +10,12 @@ function money(amount: string, prices: UpstreamProduct["prices"]) {
 
 export function mapProduct(product: UpstreamProduct) {
   const rating = Number.parseFloat(String(product.average_rating ?? ""));
+  const extension = product.extensions.kadochi;
+  const deliveryData = extension && typeof extension === "object" ? extension as { preparationHours?: unknown; preparation_hours?: unknown } : {};
+  const rawPreparationHours = deliveryData.preparationHours ?? deliveryData.preparation_hours;
+  const preparationHours = typeof rawPreparationHours === "number" && Number.isInteger(rawPreparationHours) && rawPreparationHours >= 1 && rawPreparationHours <= 720
+    ? rawPreparationHours
+    : 24;
 
   return productSchema.parse({
     id: product.id,
@@ -34,6 +40,8 @@ export function mapProduct(product: UpstreamProduct) {
         value: attribute.terms.map((term) => term.name.trim()).filter(Boolean).join("، "),
       }))
       .filter((attribute) => attribute.name && attribute.value),
+    preparationHours,
+    expressDeliveryEligible: preparationHours < 6,
     averageRating: Number.isFinite(rating) ? Math.min(5, Math.max(0, rating)) : 0,
     reviewCount: product.review_count ?? 0,
     inStock: product.is_in_stock,

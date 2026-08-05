@@ -2,9 +2,11 @@ import Link from "next/link";
 import Image from "next/image";
 
 import { Price } from "@/components/layout/price";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { usePrice } from "../hooks/usePrice";
 import type { Product } from "../types";
+import { deliveryBadge } from "../utils/preparation-time";
 
 type ProductCardProps = {
   product: Product;
@@ -25,6 +27,8 @@ export function ProductCard({
   const { current, previous, offPercent } = usePrice(product);
   const image = product.images[0];
   const showPrice = product.inStock;
+  const badge = deliveryBadge(product.preparationHours);
+  const showDeliveryBadge = product.preparationHours <= 6;
 
   return (
     <Link
@@ -49,6 +53,19 @@ export function ProductCard({
             sizes={sizes}
             src={image.url}
           />
+        ) : null}
+        {showDeliveryBadge ? (
+          <Label
+            appearance={product.preparationHours <= 3 ? "gradient" : "soft"}
+            className="absolute top-8 right-8"
+            leadingIcon={product.preparationHours <= 3
+              ? <Image alt="" height={14} src="/icons/fast-delivery.svg" width={14} />
+              : <span className="block size-[var(--label-icon-size)] bg-current [-webkit-mask-image:url('/icons/fast-delivery.svg')] [-webkit-mask-position:center] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:contain] [mask-image:url('/icons/fast-delivery.svg')] [mask-position:center] [mask-repeat:no-repeat] [mask-size:contain]" />}
+            size="sm"
+            variant="success"
+          >
+            {badge.label}
+          </Label>
         ) : null}
       </div>
 

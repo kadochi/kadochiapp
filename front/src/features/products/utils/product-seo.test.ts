@@ -19,6 +19,8 @@ const product: Product = {
   categories: [{ id: 9, name: "گل", slug: "flower" }],
   tags: [],
   attributes: [{ name: "رنگ", value: "قرمز" }],
+  preparationHours: 24,
+  expressDeliveryEligible: false,
   averageRating: 4.7,
   reviewCount: 12,
   inStock: true,

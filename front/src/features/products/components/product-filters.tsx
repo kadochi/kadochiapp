@@ -331,7 +331,7 @@ export function ProductFilters({ categories }: Readonly<ProductFiltersProps>) {
           )}
           <ChipButton aria-pressed={fastDelivery} onClick={toggleFastDelivery}>
             <Chip leadingIcon={<Truck />} variant={fastDelivery ? "selected" : "outline"}>
-              ارسال سریع امروز
+              ارسال فوری
             </Chip>
           </ChipButton>
           </div>
@@ -540,9 +540,9 @@ function FiltersSheet({ categories, onClose, onClear, onApply, values, view }: R
 
           {view === "all" ? (
             <section aria-labelledby="fast-delivery-heading" className="flex items-center justify-between gap-16 px-20 py-8">
-              <h3 id="fast-delivery-heading" className="text-title-16 font-bold text-text-primary">ارسال سریع امروز</h3>
+              <h3 id="fast-delivery-heading" className="text-title-16 font-bold text-text-primary">ارسال فوری</h3>
               <Toggle
-                aria-label="ارسال سریع امروز"
+                aria-label="ارسال فوری"
                 checked={fastDelivery}
                 onCheckedChange={(checked) => {
                   setTags((current) => checked
