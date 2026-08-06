@@ -32,7 +32,7 @@ export function MagazineSlider({ articles }: Readonly<MagazineSliderProps>) {
       >
         {articles.map((article) => (
           <SwiperSlide className="h-auto" key={article.id}>
-            <MagazineCard article={article} />
+            <MagazineCard article={article} titleSize="18" />
           </SwiperSlide>
         ))}
       </Swiper>

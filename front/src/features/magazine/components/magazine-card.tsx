@@ -10,10 +10,12 @@ type MagazineCardProps = {
   priority?: boolean;
   /** A condensed type scale for the narrow article-page sidebar. */
   compact?: boolean;
+  /** Keeps the title at 18px for dense horizontal rails. */
+  titleSize?: "default" | "18";
 };
 
 /** Image-led editorial card used consistently in rails and grids. */
-export function MagazineCard({ article, className, priority = false, compact = false }: Readonly<MagazineCardProps>) {
+export function MagazineCard({ article, className, priority = false, compact = false, titleSize = "default" }: Readonly<MagazineCardProps>) {
   const category = article.categories[0];
 
   return (
@@ -61,7 +63,9 @@ export function MagazineCard({ article, className, priority = false, compact = f
           <div>
             <h3 className={cn(
               "m-0 line-clamp-2 font-sans font-bold text-white",
-              compact ? "text-title-18 leading-[var(--text-title-18--line-height)]" : "text-title-18 leading-[var(--text-title-18--line-height)] min-[600px]:text-heading-24 min-[600px]:leading-[var(--text-heading-24--line-height)]",
+              compact || titleSize === "18"
+                ? "text-title-18 leading-[var(--text-title-18--line-height)]"
+                : "text-title-18 leading-[var(--text-title-18--line-height)] min-[600px]:text-heading-24 min-[600px]:leading-[var(--text-heading-24--line-height)]",
             )}>
               {article.title}
             </h3>
