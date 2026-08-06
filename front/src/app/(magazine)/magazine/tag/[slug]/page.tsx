@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { Container } from "@/components/layout/container";
 import { Divider } from "@/components/ui/divider";
 import { MagazineCard } from "@/features/magazine/components/magazine-card";
 import { getMagazineTagBySlug, listMagazineArticles } from "@/features/magazine/services/magazine.server";
@@ -29,9 +30,9 @@ export default async function MagazineTagPage({ params }: { params: Promise<Para
   const { tag, articles } = page;
   return <>
     <Divider />
-    <Breadcrumb items={[{ label: "خانه", href: "/" }, { label: "مجله", href: "/magazine" }, { label: tag.name }]} />
+    <Breadcrumb className="mx-auto max-w-[1440px]" items={[{ label: "خانه", href: "/" }, { label: "مجله", href: "/magazine" }, { label: tag.name }]} />
     <Divider />
-    <section className="border-b border-border-low-emphasis bg-surface-soft px-16 py-32 min-[768px]:py-48"><div className="mx-auto w-full max-w-[1200px]"><Link className="font-sans text-label-14 text-primary no-underline" href="/magazine">مجله کادوچی</Link><h1 className="mt-12 mb-0 font-sans text-heading-32 font-extrabold leading-[var(--text-heading-32--line-height)] text-surface-neutral-high-emphasis">{tag.name}</h1><p className="mt-12 mb-0 font-sans text-body-16 text-surface-neutral-mid-emphasis">مقاله‌های مرتبط با این برچسب.</p></div></section>
-    <section aria-label={`مقاله‌های ${tag.name}`} className="mx-auto w-full max-w-[1200px] px-16 py-32 min-[768px]:py-48">{articles.items.length ? <div className="grid gap-16 min-[640px]:grid-cols-2 min-[1024px]:grid-cols-3">{articles.items.map((article) => <MagazineCard article={article} key={article.id} />)}</div> : <div className="rounded-[var(--radius-l)] border border-dashed border-border-high-emphasis px-24 py-48 text-center font-sans text-body-14 text-surface-neutral-mid-emphasis">هنوز مقاله‌ای با این برچسب منتشر نشده است.</div>}</section>
+    <section className="border-b border-border-low-emphasis bg-surface-soft py-32 min-[768px]:py-48"><Container className="max-w-[1440px]"><Link className="font-sans text-label-14 text-primary no-underline" href="/magazine">مجله کادوچی</Link><h1 className="mt-12 mb-0 font-sans text-heading-24 font-extrabold leading-[var(--text-heading-24--line-height)] text-surface-neutral-high-emphasis">{tag.name}</h1><p className="mt-12 mb-0 font-sans text-body-16 text-surface-neutral-mid-emphasis">مقاله‌های مرتبط با این برچسب.</p></Container></section>
+    <Container asChild className="max-w-[1440px]" py="xl"><section aria-label={`مقاله‌های ${tag.name}`}>{articles.items.length ? <div className="grid gap-16 min-[640px]:grid-cols-2 min-[1024px]:grid-cols-3">{articles.items.map((article) => <MagazineCard article={article} key={article.id} />)}</div> : <div className="rounded-[var(--radius-l)] border border-dashed border-border-high-emphasis px-24 py-48 text-center font-sans text-body-14 text-surface-neutral-mid-emphasis">هنوز مقاله‌ای با این برچسب منتشر نشده است.</div>}</section></Container>
   </>;
 }

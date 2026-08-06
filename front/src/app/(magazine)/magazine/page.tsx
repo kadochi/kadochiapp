@@ -68,14 +68,14 @@ export default async function MagazinePage({ searchParams }: MagazinePageProps) 
   return (
     <>
       <Divider />
-      <Breadcrumb items={[{ label: "خانه", href: "/" }, { label: "مجله" }]} />
+      <Breadcrumb className="mx-auto max-w-[1440px]" items={[{ label: "خانه", href: "/" }, { label: "مجله" }]} />
       <Divider />
       <section className="border-b border-border-low-emphasis py-32 min-[768px]:py-48" aria-labelledby="magazine-title">
-        <Container size="xl">
+        <Container className="max-w-[1440px]">
           <div className="flex items-start gap-16" dir="rtl">
             <span aria-hidden className="flex size-64 shrink-0 items-center justify-center rounded-[var(--radius-xl)] bg-primary-container text-primary"><BookOpen size={32} strokeWidth={1.75} /></span>
             <div>
-              <h1 className="m-0 font-sans text-heading-32 font-extrabold leading-[var(--text-heading-32--line-height)] text-surface-neutral-high-emphasis min-[768px]:text-heading-40 min-[768px]:leading-[var(--text-heading-40--line-height)]" id="magazine-title">مجله کادوچی</h1>
+              <h1 className="m-0 font-sans text-heading-24 font-extrabold leading-[var(--text-heading-24--line-height)] text-surface-neutral-high-emphasis" id="magazine-title">مجله کادوچی</h1>
               <p className="mt-8 mb-0 max-w-[680px] font-sans text-body-16 leading-[var(--text-body-16--line-height)] text-surface-neutral-mid-emphasis">ایده، راهنما و داستان‌هایی برای انتخاب هدیه‌ای که حس خوبش ماندگار بماند</p>
             </div>
           </div>
@@ -91,7 +91,7 @@ export default async function MagazinePage({ searchParams }: MagazinePageProps) 
         </Container>
       </section>
 
-      <Container size="xl" py="xl">
+      <Container className="max-w-[1440px]" py="xl">
         <div className="mb-20 flex items-center justify-between gap-12" dir="rtl">
           <h2 className="m-0 font-sans text-heading-24 font-bold leading-[var(--text-heading-24--line-height)] text-surface-neutral-high-emphasis">مقاله‌ها</h2>
           <Label appearance="soft" size="sm" variant="secondary">{new Intl.NumberFormat("fa-IR").format(total)} مقاله</Label>

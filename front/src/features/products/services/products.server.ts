@@ -23,6 +23,7 @@ import {
 import { wordpressBearerHeaders } from "@/features/auth/services/auth.server";
 import type {
   CategoryQuery,
+  ArticleRelatedProductsQuery,
   CreateProductReviewInput,
   ProductActions,
   ProductListResult,
@@ -256,6 +257,110 @@ export async function listSimilarProducts({ categoryId, excludeId, perPage = 8 }
   return categoryProducts.items.length
     ? categoryProducts.items
     : (await listProducts(query)).items;
+}
+
+const articleTermStopWords = new Set([
+  "برای", "چگونه", "راهنمای", "بهترین", "انتخاب", "خرید", "هدیه", "کادو", "ایده", "های", "این", "آن", "با", "و", "در", "از", "تا", "یک",
+]);
+
+function normalizeArticleTerm(value: string) {
+  return value
+    .toLocaleLowerCase("fa-IR")
+    .replace(/[يى]/g, "ی")
+    .replace(/ك/g, "ک")
+    .replace(/[\u200c\u200f]/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function articleSearchTerms({ title, terms }: Pick<ArticleRelatedProductsQuery, "title" | "terms">) {
+  const phrases = [
+    ...terms,
+    title,
+    ...[...terms, title].flatMap((value) => normalizeArticleTerm(value).split(" ")),
+  ]
+    .map(normalizeArticleTerm)
+    .filter((value) => value.length >= 3 && !articleTermStopWords.has(value));
+
+  return [...new Set(phrases)].slice(0, 12);
+}
+
+function articleTaxonomyScore(name: string, terms: readonly string[]) {
+  const normalizedName = normalizeArticleTerm(name);
+  return terms.reduce((score, term) => {
+    if (normalizedName === term) return score + 40;
+    if (normalizedName.includes(term) || term.includes(normalizedName)) return score + 20;
+    return score;
+  }, 0);
+}
+
+function articleProductScore(product: Awaited<ReturnType<typeof listProducts>>["items"][number], terms: readonly string[]) {
+  return articleTaxonomyScore(
+    [product.name, ...product.categories.map((category) => category.name), ...product.tags.map((tag) => tag.name)].join(" "),
+    terms,
+  );
+}
+
+/**
+ * Ranks products using the article's categories, tags, and title. Taxonomy
+ * matches are preferred; product search supplies useful matches when the two
+ * taxonomies have not been curated with identical labels yet.
+ */
+export async function listArticleRelatedProducts({ title, terms, perPage = 8 }: ArticleRelatedProductsQuery) {
+  const searchTerms = articleSearchTerms({ title, terms });
+  const [productTags, categories] = await Promise.all([
+    listProductTags(),
+    listCategories({ hideEmpty: true, perPage: 100 }),
+  ]);
+  const rankedTags = productTags
+    .map((tag) => ({ tag, score: articleTaxonomyScore(tag.name, searchTerms) }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score);
+  const rankedCategories = categories
+    .map((category) => ({ category, score: articleTaxonomyScore(category.name, searchTerms) }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score);
+  const searchPhrase = [
+    ...terms.map(normalizeArticleTerm),
+    normalizeArticleTerm(title),
+  ].find((value) => value.length >= 3 && value.length <= 100 && !articleTermStopWords.has(value));
+
+  const sources = await Promise.all([
+    rankedTags.length
+      ? listProducts({ tags: rankedTags.slice(0, 8).map(({ tag }) => tag.id), perPage, orderby: "popularity" })
+      : Promise.resolve(null),
+    rankedCategories[0]
+      ? listProducts({ category: rankedCategories[0].category.id, perPage, orderby: "popularity" })
+      : Promise.resolve(null),
+    searchPhrase
+      ? listProducts({ search: searchPhrase, perPage, orderby: "popularity" })
+      : Promise.resolve(null),
+  ]);
+
+  const candidates = new Map<number, { product: Awaited<ReturnType<typeof listProducts>>["items"][number]; score: number }>();
+  sources.forEach((source, sourceIndex) => {
+    source?.items.forEach((product) => {
+      const sourceWeight = sourceIndex === 0 ? 80 : sourceIndex === 1 ? 60 : 40;
+      const previous = candidates.get(product.id);
+      const score = sourceWeight + articleProductScore(product, searchTerms);
+      if (!previous || score > previous.score) candidates.set(product.id, { product, score });
+    });
+  });
+
+  if (candidates.size < perPage) {
+    const popular = await listProducts({ perPage, orderby: "popularity" });
+    popular.items.forEach((product) => {
+      if (!candidates.has(product.id)) {
+        candidates.set(product.id, { product, score: articleProductScore(product, searchTerms) });
+      }
+    });
+  }
+
+  return [...candidates.values()]
+    .sort((a, b) => b.score - a.score)
+    .map(({ product }) => product)
+    .slice(0, perPage);
 }
 
 function mapCategory(category: z.infer<typeof upstreamCategorySchema>) {

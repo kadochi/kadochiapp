@@ -17,13 +17,13 @@ export function MagazineDiscoverySidebar({
 }: Readonly<MagazineDiscoverySidebarProps>) {
   const latestContent = latest.length ? (
     <div className="grid gap-12">
-      {latest.map((article) => <MagazineListItem article={article} key={article.id} />)}
+      {latest.map((article) => <MagazineListItem article={article} compact={variant === "article"} key={article.id} />)}
     </div>
   ) : <EmptyDiscoveryState text="مقاله‌ی دیگری برای نمایش نیست." />;
 
   const popularContent = popular.length ? (
     <div className="grid gap-12">
-      {popular.map((article) => <MagazineCard article={article} key={article.id} />)}
+      {popular.map((article) => <MagazineCard article={article} compact={variant === "article"} key={article.id} />)}
     </div>
   ) : <EmptyDiscoveryState text="مقاله‌ای برای نمایش نیست." />;
 

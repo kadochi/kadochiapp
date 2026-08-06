@@ -11,6 +11,7 @@ import { MagazineCard } from "@/features/magazine/components/magazine-card";
 import { MagazineComment } from "@/features/magazine/components/magazine-comment";
 import { MagazineComments } from "@/features/magazine/components/magazine-comments";
 import { MagazineDiscoverySidebar } from "@/features/magazine/components/magazine-discovery-sidebar";
+import { ArticleRelatedProducts } from "@/features/magazine/components/article-related-products";
 import { MagazineTags } from "@/features/magazine/components/magazine-tags";
 import { getMagazineArticleBySlug, listMagazineArticles } from "@/features/magazine/services/magazine.server";
 import { formatMagazineDate } from "@/features/magazine/utils/article-text";
@@ -82,43 +83,50 @@ export default async function MagazineArticlePage({ params }: { params: Promise<
   return (
     <>
       <Divider />
-      <Breadcrumb items={[{ label: "خانه", href: "/" }, { label: "مجله", href: "/magazine" }, ...(category ? [{ label: category.name, href: `/magazine/category/${category.slug}` }] : []), { label: article.title }]} />
+      <Breadcrumb className="mx-auto max-w-[1440px]" items={[{ label: "خانه", href: "/" }, { label: "مجله", href: "/magazine" }, ...(category ? [{ label: category.name, href: `/magazine/category/${category.slug}` }] : []), { label: article.title }]} />
       <Divider />
-      <Container size="xl" py="xl">
-        <div className="grid items-start gap-40 min-[1024px]:grid-cols-[minmax(0,1fr)_320px]" dir="rtl">
-          <article className="min-w-0">
-            <div className="relative mx-auto aspect-[16/9] max-w-[900px] overflow-hidden rounded-[var(--radius-xl)] bg-surface-neutral-high-emphasis">
-          {article.image ? (
-            <Image
-              alt={article.image.alt || article.title}
-              className="object-cover"
-              fill
-              preload
-              quality={75}
-              sizes="(min-width: 932px) 900px, calc(100vw - 32px)"
-              src={article.image.url}
-            />
-          ) : <span aria-hidden className="absolute inset-0 bg-surface-neutral-high-emphasis" />}
-        </div>
+      <Container className="max-w-[1440px]" py="xl">
+        <div className="grid items-start gap-40 min-[1024px]:grid-cols-3" dir="rtl">
+          <article className="min-w-0 min-[1024px]:col-span-2">
+            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[var(--radius-xl)] bg-surface-neutral-high-emphasis min-[768px]:aspect-[16/9]">
+              {article.image ? (
+                <Image
+                  alt={article.image.alt || article.title}
+                  className="object-cover"
+                  fill
+                  preload
+                  quality={75}
+                  sizes="(min-width: 1024px) 940px, calc(100vw - 32px)"
+                  src={article.image.url}
+                />
+              ) : <span aria-hidden className="absolute inset-0 bg-surface-neutral-high-emphasis" />}
+              <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02)_20%,rgba(0,0,0,0.86)_100%)]" />
 
-            <header className="mx-auto max-w-[760px] text-right">
-          <div className="mt-20 flex flex-wrap items-center gap-x-16 gap-y-8 font-sans text-label-14 text-surface-neutral-low-emphasis">
-            {category ? <Link className="font-bold text-primary no-underline" href={`/magazine/category/${category.slug}`}>{category.name}</Link> : <span className="font-bold text-primary">مجله کادوچی</span>}
-            <span className="inline-flex items-center gap-6"><UserRound aria-hidden size={16} />{article.authorName}</span>
-            <time dateTime={article.publishedAt}>{formatMagazineDate(article.publishedAt)}</time>
-            <span className="inline-flex items-center gap-6"><Clock3 aria-hidden size={16} />{article.readingTime} دقیقه مطالعه</span>
-          </div>
-          <h1 className="mt-12 mb-0 font-sans text-heading-32 font-extrabold leading-[var(--text-heading-32--line-height)] text-surface-neutral-high-emphasis min-[768px]:text-heading-40 min-[768px]:leading-[var(--text-heading-40--line-height)]">{article.title}</h1>
-            </header>
+              <header className="absolute inset-x-0 bottom-0 z-10 p-12 text-right min-[768px]:p-24">
+                <div className="flex flex-wrap items-center gap-x-12 gap-y-6 font-sans text-label-12 text-white/85 min-[768px]:gap-x-16 min-[768px]:gap-y-8 min-[768px]:text-label-14">
+                  {category ? <Link className="font-bold text-white no-underline hover:text-white/80" href={`/magazine/category/${category.slug}`}>{category.name}</Link> : <span className="font-bold text-white">مجله کادوچی</span>}
+                  <span className="inline-flex items-center gap-6"><UserRound aria-hidden size={16} />{article.authorName}</span>
+                  <time dateTime={article.publishedAt}>{formatMagazineDate(article.publishedAt)}</time>
+                  <span className="inline-flex items-center gap-6"><Clock3 aria-hidden size={16} />{article.readingTime} دقیقه مطالعه</span>
+                </div>
+                <h1 className="mt-8 mb-0 font-sans text-title-18 font-extrabold leading-[var(--text-title-18--line-height)] text-white min-[768px]:mt-12 min-[768px]:text-heading-32 min-[768px]:leading-[var(--text-heading-32--line-height)]">{article.title}</h1>
+              </header>
+            </div>
 
-            <div className="magazine-content mx-auto mt-32 max-w-[720px] font-sans text-body-16 leading-[2.1] text-surface-neutral-mid-emphasis" dangerouslySetInnerHTML={{ __html: article.content }} />
+            <div className="magazine-content mt-32 w-full font-sans text-body-16 leading-[2.1] text-surface-neutral-mid-emphasis min-[768px]:px-32" dangerouslySetInnerHTML={{ __html: article.content }} />
           </article>
-          <div className="min-w-0 min-[1024px]:sticky min-[1024px]:top-24">
+          <div className="min-w-0 min-[1024px]:col-span-1">
             <MagazineDiscoverySidebar latest={latest} popular={popular} />
           </div>
         </div>
       </Container>
 
+      <Divider variant="spacer" />
+      <Container className="max-w-[1440px]" px="none">
+        <Suspense fallback={<div aria-hidden className="h-[280px] animate-pulse bg-surface-soft" />}>
+          <ArticleRelatedProducts article={article} />
+        </Suspense>
+      </Container>
       {article.tags.length ? <><Divider variant="spacer" /><MagazineTags tags={article.tags} /></> : null}
       <Divider variant="spacer" />
       <MagazineComment nextPath={`/magazine/${article.slug}`} postId={article.id} />
@@ -129,10 +137,10 @@ export default async function MagazineArticlePage({ params }: { params: Promise<
 
       {related.length ? (
         <section className="border-t border-border-low-emphasis bg-surface-soft py-32 min-[768px]:py-48" aria-labelledby="related-magazine-heading">
-          <div className="mx-auto w-full max-w-[1200px] px-16">
+          <Container className="max-w-[1440px]">
             <h2 className="m-0 font-sans text-heading-24 font-bold leading-[var(--text-heading-24--line-height)] text-surface-neutral-high-emphasis" id="related-magazine-heading">مطالعه‌های مرتبط</h2>
             <div className="mt-20 grid gap-16 min-[640px]:grid-cols-2 min-[1024px]:grid-cols-3">{related.map((item) => <MagazineCard article={item} key={item.id} />)}</div>
-          </div>
+          </Container>
         </section>
       ) : null}
       <script dangerouslySetInnerHTML={{ __html: JSON.stringify(articleLd) }} type="application/ld+json" />
