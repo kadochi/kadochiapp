@@ -50,8 +50,22 @@ async function startLocalServer() {
   throw new Error("The local production server did not become ready.");
 }
 
+async function assertLlmsTxt() {
+  const url = new URL("/llms.txt", baseUrl);
+  const response = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+  if (!response.ok) {
+    throw new Error(`llms.txt returned ${response.status} at ${url}`);
+  }
+
+  const body = await response.text();
+  if (!/^#\s+\S+/m.test(body)) {
+    throw new Error(`llms.txt does not contain a Markdown H1 at ${url}`);
+  }
+}
+
 try {
   await startLocalServer();
+  await assertLlmsTxt();
   const failures = [];
 
   for (const profile of profiles) {

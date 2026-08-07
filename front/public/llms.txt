@@ -1,0 +1,24 @@
+# Kadochi
+
+> Kadochi is a Persian-language online gift shop for gifts, flowers, cakes, and occasion-based shopping with delivery in Iran.
+
+Use the links below to discover Kadochi's public catalog and editorial content. Customer accounts, baskets, checkout, and other private pages are intentionally excluded.
+
+## Shopping
+
+- [Gift catalog](https://kadochi.com/products): Browse Kadochi's public product catalog.
+- [Gift finder](https://kadochi.com/gift-finder): Find suitable gifts by occasion and recipient.
+
+## Guides and information
+
+- [Magazine](https://kadochi.com/magazine): Read Kadochi's gift ideas and editorial articles.
+- [About Kadochi](https://kadochi.com/about): Learn about Kadochi and its service.
+- [Frequently asked questions](https://kadochi.com/faq): Find answers to common shopping questions.
+- [Shipping information](https://kadochi.com/shipping): Review delivery information.
+- [Contact Kadochi](https://kadochi.com/contact): Find public contact information.
+
+## Policies
+
+- [Terms and conditions](https://kadochi.com/terms): Read the website's terms of use.
+- [Privacy policy](https://kadochi.com/privacy): Read how Kadochi handles personal information.
+- [Sitemap](https://kadochi.com/sitemap.xml): Discover canonical public pages and products.
