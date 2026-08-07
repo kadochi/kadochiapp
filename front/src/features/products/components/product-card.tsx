@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { usePrice } from "../hooks/usePrice";
 import type { Product } from "../types";
 import { deliveryBadge } from "../utils/preparation-time";
+import { ProductCardImage } from "./product-card-image";
 
 type ProductCardProps = {
   product: Product;
@@ -14,6 +15,8 @@ type ProductCardProps = {
   priority?: boolean;
   sizes?: string;
   className?: string;
+  /** Displays an image placeholder while a carousel slide's image is loading. */
+  imageLoadingPlaceholder?: boolean;
 };
 
 /** Displays a product's image, name, and price in the catalog grid. */
@@ -23,6 +26,7 @@ export function ProductCard({
   priority = false,
   sizes = "(min-width: 1024px) 16vw, (min-width: 640px) 25vw, 50vw",
   className,
+  imageLoadingPlaceholder = false,
 }: ProductCardProps) {
   const { current, previous, offPercent } = usePrice(product);
   const image = product.images[0];
@@ -42,17 +46,27 @@ export function ProductCard({
     >
       <div className="relative grid aspect-[1/1.2] w-full place-items-center overflow-hidden rounded-[var(--radius-l)]">
         {image ? (
-          <Image
-            alt={image.alt || product.name}
-            className="absolute inset-0 size-full object-cover"
-            fetchPriority={priority ? "high" : "auto"}
-            fill
-            loading={priority ? undefined : "lazy"}
-            preload={priority}
-            quality={55}
-            sizes={sizes}
-            src={image.url}
-          />
+          imageLoadingPlaceholder ? (
+            <ProductCardImage
+              alt={image.alt || product.name}
+              image={image}
+              key={image.url}
+              priority={priority}
+              sizes={sizes}
+            />
+          ) : (
+            <Image
+              alt={image.alt || product.name}
+              className="absolute inset-0 size-full object-cover"
+              fetchPriority={priority ? "high" : "auto"}
+              fill
+              loading={priority ? undefined : "lazy"}
+              preload={priority}
+              quality={55}
+              sizes={sizes}
+              src={image.url}
+            />
+          )
         ) : null}
         {showDeliveryBadge ? (
           <Label

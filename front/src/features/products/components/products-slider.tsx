@@ -48,6 +48,7 @@ export function ProductsSlider({ items, showOutOfStock = false }: Readonly<Produ
               <SwiperSlide className="h-auto" key={product.id}>
                 <ProductCard
                   product={product}
+                  imageLoadingPlaceholder
                   sizes="(min-width: 1024px) 20vw, (min-width: 860px) 29vw, (min-width: 540px) 42vw, 72vw"
                 />
               </SwiperSlide>

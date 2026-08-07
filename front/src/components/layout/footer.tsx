@@ -2,16 +2,9 @@
 /* eslint-disable @next/next/no-img-element -- Third-party trust seals and legacy static icons must retain their original loading behavior. */
 
 import Link from "next/link";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Divider } from "@/components/ui/divider";
-
-type StoreCategory = {
-  id: number;
-  name: string;
-  slug: string;
-  image?: { src?: string | null } | null;
-};
 
 type FooterLink = {
   label: string;
@@ -45,6 +38,18 @@ const primaryLinks = [
   { label: "خرید کیک تولد", href: "/products?category=chocolate" },
   { label: "تقویم مناسبت‌ها", href: "/occasions" },
   { label: "مجله کادوچی", href: "/magazine" },
+] as const satisfies readonly FooterLink[];
+
+// Keep footer navigation independent from the catalog API while this list is stable.
+const categoryLinks = [
+  { label: "اکسسوری و پوشاک", href: "/products?category=fashion" },
+  { label: "خانه و دکوری", href: "/products?category=decoration" },
+  { label: "زیبایی و بهداشت", href: "/products?category=perfume" },
+  { label: "زیورآلات و جواهرات", href: "/products?category=gold" },
+  { label: "سرگرمی و لوازم تحریر", href: "/products?category=game" },
+  { label: "کیک و شکلات", href: "/products?category=chocolate" },
+  { label: "گجت و تکنولوژی", href: "/products?category=gadget" },
+  { label: "گل و گیاه", href: "/products?category=flower" },
 ] as const satisfies readonly FooterLink[];
 
 const occasionLinks = [
@@ -93,8 +98,6 @@ const trustBadges = [
     href: "https://1398.irantopbrands.org/%D9%86%D8%AA%D8%A7%DB%8C%D8%A7%D8%AC_1398",
   },
 ] as const satisfies readonly TrustBadge[];
-
-const categoryEndpoint = "/api/categories?perPage=100&hideEmpty=true";
 
 const footerListClassName = "m-0 grid list-none gap-12 p-0";
 const footerLinkClassName =
@@ -145,67 +148,6 @@ function FooterGroup({
 function Footer() {
   const pathname = usePathname();
   const isHidden = isFooterHidden(pathname);
-  const [categories, setCategories] = useState<StoreCategory[] | null>(null);
-  const footerRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    if (isHidden) {
-      return;
-    }
-
-    let controller: AbortController | undefined;
-    const loadCategories = () => {
-      controller = new AbortController();
-
-      void fetch(categoryEndpoint, {
-        cache: "no-store",
-        signal: controller.signal,
-      })
-        .then((response) => (response.ok ? response.json() : []))
-        .then((data: StoreCategory[]) => {
-          if (controller?.signal.aborted) {
-            return;
-          }
-
-          setCategories(
-            (data ?? [])
-              .filter((category) => {
-                const name = category.name.trim().toLowerCase();
-                const slug = category.slug.trim().toLowerCase();
-
-                return name !== "بدون دسته‌بندی" && slug !== "uncategorized";
-              })
-              .slice(0, 100),
-          );
-        })
-        .catch(() => {
-          if (!controller?.signal.aborted) {
-            setCategories([]);
-          }
-        });
-    };
-
-    const footer = footerRef.current;
-    if (!footer || !("IntersectionObserver" in window)) {
-      loadCategories();
-      return () => controller?.abort();
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return;
-        observer.disconnect();
-        loadCategories();
-      },
-      { rootMargin: "600px" },
-    );
-    observer.observe(footer);
-
-    return () => {
-      observer.disconnect();
-      controller?.abort();
-    };
-  }, [isHidden]);
 
   if (isHidden) {
     return null;
@@ -216,7 +158,6 @@ function Footer() {
       aria-labelledby="footer-heading"
       className="hidden border-t border-surface bg-surface-soft font-sans text-text-primary min-[1025px]:block"
       data-component="footer"
-      ref={footerRef}
     >
       <div className="box-border mx-auto w-full max-w-[1440px] px-16 py-32">
         <h2 className="sr-only" id="footer-heading">
@@ -229,20 +170,7 @@ function Footer() {
           </FooterGroup>
 
           <FooterGroup id="footer-categories" title="دسته‌بندی‌ها">
-            <ul className={footerListClassName}>
-              {categories?.map((category) => (
-                <li key={category.id}>
-                  <Link
-                    className={footerLinkClassName}
-                    href={`/products?category=${encodeURIComponent(category.slug)}`}
-                    prefetch={false}
-                  >
-                    {category.name}
-                  </Link>
-                </li>
-              ))}
-              {categories?.length === 0 ? <li>موردی یافت نشد</li> : null}
-            </ul>
+            <FooterLinkList links={categoryLinks} />
           </FooterGroup>
 
           <FooterGroup id="footer-help" title="مناسبت‌ها">
@@ -333,5 +261,5 @@ function Footer() {
 }
 
 export { Footer, isFooterHidden };
-export type { FooterLink, SocialLink, StoreCategory, TrustBadge };
+export type { FooterLink, SocialLink, TrustBadge };
 export default Footer;
