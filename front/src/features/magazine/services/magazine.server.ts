@@ -115,6 +115,19 @@ export async function getMagazineArticleBySlug(slug: string): Promise<MagazineAr
   return article;
 }
 
+/** Records a real browser visit through the same-origin Magazine view bridge. */
+export async function recordMagazineView(postId: number, requestId: string): Promise<void> {
+  const id = z.coerce.number().int().positive().parse(postId);
+  const response = await wordpressFetch("/wp-json/kadochi/v1/magazine-views", {
+    method: "POST",
+    body: JSON.stringify({ postId: id }),
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    requestId,
+  });
+  await parseUpstreamJson(response, (value) => z.object({ views: z.number().int().nonnegative() }).parse(value), requestId);
+}
+
 /** Looks up a WordPress category before listing only its Magazine articles. */
 export async function getMagazineCategoryBySlug(slug: string): Promise<MagazineCategory | null> {
   const safeSlug = z.string().trim().min(1).max(200).parse(slug);

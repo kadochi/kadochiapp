@@ -12,6 +12,7 @@ import { MagazineComment } from "@/features/magazine/components/magazine-comment
 import { MagazineComments } from "@/features/magazine/components/magazine-comments";
 import { MagazineDiscoverySidebar } from "@/features/magazine/components/magazine-discovery-sidebar";
 import { ArticleRelatedProducts } from "@/features/magazine/components/article-related-products";
+import { MagazineViewTracker } from "@/features/magazine/components/magazine-view-tracker";
 import { MagazineTags } from "@/features/magazine/components/magazine-tags";
 import { getMagazineArticleBySlug, listMagazineArticles } from "@/features/magazine/services/magazine.server";
 import { formatMagazineDate } from "@/features/magazine/utils/article-text";
@@ -82,6 +83,7 @@ export default async function MagazineArticlePage({ params }: { params: Promise<
 
   return (
     <>
+      <MagazineViewTracker postId={article.id} />
       <Divider />
       <Breadcrumb className="mx-auto max-w-[1440px]" items={[{ label: "خانه", href: "/" }, { label: "مجله", href: "/magazine" }, ...(category ? [{ label: category.name, href: `/magazine/category/${category.slug}` }] : []), { label: article.title }]} />
       <Divider />

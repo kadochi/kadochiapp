@@ -23,14 +23,14 @@ export function MagazineListItem({ article, compact = false }: Readonly<Magazine
           "group grid overflow-hidden rounded-[var(--radius-l)] border border-border-low-emphasis bg-surface-background p-8 text-right no-underline transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
           compact
             ? "h-96 grid-cols-[80px_minmax(0,1fr)] gap-12"
-            : "h-128 grid-cols-[112px_minmax(0,1fr)] gap-12 min-[640px]:h-160 min-[640px]:grid-cols-[144px_minmax(0,1fr)] min-[640px]:gap-16",
+            : "h-[144px] grid-cols-[128px_minmax(0,1fr)] gap-16",
         )}
         href={`/magazine/${article.slug}`}
         prefetch={false}
       >
         <div className={cn(
           "relative aspect-square overflow-hidden rounded-[var(--radius-m)] bg-surface-neutral-high-emphasis",
-          compact ? "size-80" : "size-112 min-[640px]:size-144",
+          compact ? "size-80" : "size-128",
         )}>
           {article.image ? (
             <Image
@@ -39,7 +39,7 @@ export function MagazineListItem({ article, compact = false }: Readonly<Magazine
               fill
               loading="lazy"
               quality={60}
-              sizes={compact ? "80px" : "(min-width: 640px) 144px, 112px"}
+              sizes={compact ? "80px" : "128px"}
               src={article.image.url}
             />
           ) : <span aria-hidden className="absolute inset-0 bg-surface-neutral-high-emphasis" />}

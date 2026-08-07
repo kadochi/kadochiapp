@@ -31,6 +31,7 @@ final class Kadochi_Core {
 	const MAGAZINE_TO_POSTS_MIGRATION_VERSION = '1';
 	const STORY_VISIBILITY_SECONDS = 172800;
 	const PRODUCT_VIEW_COUNT_META_KEY = '_kadochi_product_view_count';
+	const ARTICLE_VIEW_COUNT_META_KEY = '_kadochi_article_view_count';
 	const PRODUCT_PREPARATION_HOURS_META_KEY = '_kadochi_preparation_hours';
 	const DEFAULT_PRODUCT_PREPARATION_HOURS = 24;
 	const MAX_PRODUCT_PREPARATION_HOURS = 720;
@@ -98,6 +99,12 @@ final class Kadochi_Core {
 		add_filter( 'hidden_columns', array( $this, 'keep_product_views_column_visible' ), 10, 2 );
 		add_action( 'manage_product_posts_custom_column', array( $this, 'render_product_engagement_column' ), 10, 2 );
 		add_action( 'admin_head-edit.php', array( $this, 'style_product_engagement_columns' ) );
+		add_filter( 'manage_post_posts_columns', array( $this, 'add_article_view_column' ), 20 );
+		add_filter( 'manage_edit-post_sortable_columns', array( $this, 'make_article_views_sortable' ) );
+		add_filter( 'hidden_columns', array( $this, 'keep_article_views_column_visible' ), 10, 2 );
+		add_action( 'manage_post_posts_custom_column', array( $this, 'render_article_view_column' ), 10, 2 );
+		add_filter( 'posts_clauses', array( $this, 'sort_articles_by_views' ), 10, 2 );
+		add_action( 'admin_head-edit.php', array( $this, 'style_article_view_column' ) );
 		add_action( 'admin_notices', array( $this, 'render_admin_notices' ) );
 	}
 
@@ -438,6 +445,9 @@ final class Kadochi_Core {
 		) );
 		register_rest_route( self::REST_NAMESPACE, '/product-views', array(
 			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'record_product_view' ), 'permission_callback' => '__return_true' ),
+		) );
+		register_rest_route( self::REST_NAMESPACE, '/magazine-views', array(
+			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'record_article_view' ), 'permission_callback' => '__return_true' ),
 		) );
 		register_rest_route( self::REST_NAMESPACE, '/occasions', array(
 			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_occasions' ), 'permission_callback' => '__return_true' ),
@@ -1435,6 +1445,94 @@ final class Kadochi_Core {
 		$wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->postmeta} SET meta_value = CAST(meta_value AS UNSIGNED) + 1 WHERE post_id = %d AND meta_key = %s", $product_id, self::PRODUCT_VIEW_COUNT_META_KEY ) );
 
 		return rest_ensure_response( array( 'views' => $this->product_view_count( $product_id ) ) );
+	}
+
+	/** Adds a Views column to the native Posts list used for Magazine articles. */
+	public function add_article_view_column( $columns ) {
+		$updated_columns = array();
+		$added = false;
+		foreach ( $columns as $column_name => $label ) {
+			$updated_columns[ $column_name ] = $label;
+			if ( ! $added && 'title' === $column_name ) {
+				$updated_columns['kadochi_article_views'] = __( 'Views', 'kadochi-core' );
+				$added = true;
+			}
+		}
+		if ( ! $added ) {
+			$updated_columns['kadochi_article_views'] = __( 'Views', 'kadochi-core' );
+		}
+		return $updated_columns;
+	}
+
+	/** Enables WordPress's standard table-header sorting control for article views. */
+	public function make_article_views_sortable( $columns ) {
+		$columns['kadochi_article_views'] = 'kadochi_article_views';
+		return $columns;
+	}
+
+	/** Keeps the Views column visible when an editor has old saved Screen Options. */
+	public function keep_article_views_column_visible( $hidden, $screen ) {
+		if ( ! $screen || 'edit-post' !== $screen->id || ! is_array( $hidden ) ) {
+			return $hidden;
+		}
+		return array_values( array_diff( $hidden, array( 'kadochi_article_views' ) ) );
+	}
+
+	public function render_article_view_column( $column_name, $post_id ) {
+		if ( 'kadochi_article_views' !== $column_name ) {
+			return;
+		}
+		echo esc_html( number_format_i18n( $this->article_view_count( $post_id ) ) );
+	}
+
+	/** Sorts all articles, including those without a view-meta row, as zero-view articles. */
+	public function sort_articles_by_views( $clauses, $query ) {
+		$post_type = $query->get( 'post_type' );
+		if ( ! is_admin() || ! $query->is_main_query() || 'kadochi_article_views' !== $query->get( 'orderby' ) || ( $post_type && 'post' !== $post_type ) ) {
+			return $clauses;
+		}
+
+		global $wpdb;
+		$meta_alias = 'kadochi_article_views_meta';
+		$clauses['join'] .= $wpdb->prepare( " LEFT JOIN {$wpdb->postmeta} AS {$meta_alias} ON ({$wpdb->posts}.ID = {$meta_alias}.post_id AND {$meta_alias}.meta_key = %s)", self::ARTICLE_VIEW_COUNT_META_KEY );
+		$direction = 'ASC' === strtoupper( (string) $query->get( 'order' ) ) ? 'ASC' : 'DESC';
+		$clauses['orderby'] = "CAST(COALESCE({$meta_alias}.meta_value, 0) AS UNSIGNED) {$direction}, {$wpdb->posts}.post_date DESC";
+
+		return $clauses;
+	}
+
+	/** Keeps the added magazine metric readable in WordPress's fixed post table. */
+	public function style_article_view_column() {
+		$screen = get_current_screen();
+		if ( ! $screen || 'edit-post' !== $screen->id ) {
+			return;
+		}
+		?>
+		<style>
+			.post-type-post .column-kadochi_article_views { width: 72px; text-align: center; white-space: nowrap; }
+		</style>
+		<?php
+	}
+
+	private function article_view_count( $post_id ) {
+		return max( 0, absint( get_post_meta( absint( $post_id ), self::ARTICLE_VIEW_COUNT_META_KEY, true ) ) );
+	}
+
+	/** Records a public Magazine article visit after the browser has displayed the page. */
+	public function record_article_view( WP_REST_Request $request ) {
+		$post = get_post( absint( $request->get_param( 'postId' ) ) );
+		if ( ! $post || 'post' !== $post->post_type || 'publish' !== $post->post_status ) {
+			return $this->auth_error( 'kadochi_article_not_found', __( 'The article was not found.', 'kadochi-core' ), 404 );
+		}
+
+		$post_id = (int) $post->ID;
+		if ( '' === get_post_meta( $post_id, self::ARTICLE_VIEW_COUNT_META_KEY, true ) ) {
+			add_post_meta( $post_id, self::ARTICLE_VIEW_COUNT_META_KEY, 0, true );
+		}
+		global $wpdb;
+		$wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->postmeta} SET meta_value = CAST(meta_value AS UNSIGNED) + 1 WHERE post_id = %d AND meta_key = %s", $post_id, self::ARTICLE_VIEW_COUNT_META_KEY ) );
+
+		return rest_ensure_response( array( 'views' => $this->article_view_count( $post_id ) ) );
 	}
 
 	private function product_actions_table() {
