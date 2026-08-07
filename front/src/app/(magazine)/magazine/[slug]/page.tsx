@@ -109,7 +109,7 @@ export default async function MagazineArticlePage({ params }: { params: Promise<
                   <time dateTime={article.publishedAt}>{formatMagazineDate(article.publishedAt)}</time>
                   <span className="inline-flex items-center gap-6"><Clock3 aria-hidden size={16} />{article.readingTime} دقیقه مطالعه</span>
                 </div>
-                <h1 className="mt-8 mb-0 font-sans text-title-18 font-extrabold leading-[var(--text-title-18--line-height)] text-white min-[768px]:mt-12 min-[768px]:text-heading-32 min-[768px]:leading-[var(--text-heading-32--line-height)]">{article.title}</h1>
+                <h1 className="mt-8 mb-0 font-sans text-heading-32 font-extrabold leading-[var(--text-heading-32--line-height)] text-white min-[768px]:mt-12">{article.title}</h1>
               </header>
             </div>
 
