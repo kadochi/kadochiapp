@@ -17,6 +17,7 @@ import {
   createSavedAddressSchema,
   mapCheckoutResult,
   orderSummarySchema,
+  postcardDesignSchema,
   savedAddressListSchema,
   savedAddressSchema,
   submitCheckoutSchema,
@@ -27,6 +28,7 @@ const cartTokenCookie = "kadochi_cart_token";
 const deliveryField = "kadochi/delivery-slot";
 const packagingField = "kadochi/packaging";
 const postcardField = "kadochi/postcard";
+const postcardDesignField = "kadochi/postcard-design";
 const locationField = "kadochi/location";
 const operationField = "kadochi/operation-id";
 
@@ -160,6 +162,7 @@ function additionalFields(input: ReturnType<typeof submitCheckoutSchema.parse>) 
     [deliveryField]: input.deliverySlotId,
     [packagingField]: input.packagingId,
     [postcardField]: input.postcardText,
+    [postcardDesignField]: input.postcardEnabled && input.postcardDesignId ? String(input.postcardDesignId) : "",
     [locationField]: input.address.location
       ? `${input.address.location.latitude},${input.address.location.longitude}`
       : "",
@@ -208,10 +211,15 @@ export async function checkoutState(requestId: string) {
   const initialHeaders = await checkoutHeaders();
   const { cart: currentCart, cartToken } = await cartForCheckout(initialHeaders, requestId);
   const cart = checkoutCart(requestId, currentCart);
-  const addressesResponse = await wordpressFetch("/wp-json/kadochi/v1/customer/addresses", {
-    headers: await wordpressBearerHeaders(), cache: "no-store", requestId,
-  });
-  const savedAddresses = await parseUpstreamJson(addressesResponse, (value) => savedAddressListSchema.parse(value), requestId);
+  const bearerHeaders = await wordpressBearerHeaders();
+  const [addressesResponse, postcardDesignsResponse] = await Promise.all([
+    wordpressFetch("/wp-json/kadochi/v1/customer/addresses", { headers: bearerHeaders, cache: "no-store", requestId }),
+    wordpressFetch("/wp-json/kadochi/v1/checkout/postcard-designs", { headers: bearerHeaders, cache: "no-store", requestId }),
+  ]);
+  const [savedAddresses, postcardDesigns] = await Promise.all([
+    parseUpstreamJson(addressesResponse, (value) => savedAddressListSchema.parse(value), requestId),
+    parseUpstreamJson(postcardDesignsResponse, (value) => z.object({ items: z.array(postcardDesignSchema).max(50) }).strict().parse(value), requestId),
+  ]);
   const state = checkoutStateSchema.parse({
     cart,
     customer,
@@ -220,6 +228,7 @@ export async function checkoutState(requestId: string) {
       { id: "gift", label: "بسته‌بندی هدیه", imageUrl: "/images/special-pack.png", fee: { amount: "0", currencyCode: "IRR", minorUnit: 0 }, default: true },
       { id: "normal", label: "بسته‌بندی معمولی", imageUrl: "/images/normal-pack.png", fee: { amount: "0", currencyCode: "IRR", minorUnit: 0 }, default: false },
     ],
+    postcardDesigns: postcardDesigns.items,
     paymentMethod: paymentMethod(requestId, cart.paymentMethodIds),
     savedAddresses: savedAddresses.items,
   });
@@ -301,7 +310,7 @@ export async function checkout(input: unknown, requestId: string) {
     const cart = checkoutCart(requestId, currentCart);
     lastCartToken = cartToken;
     paymentMethod(requestId, cart.paymentMethodIds);
-    if (!createDeliverySlots(cart).some((slot) => slot.id === parsed.deliverySlotId)) unavailableSlot(requestId);
+    if (!createDeliverySlots(cart).some((slot) => slot.id === parsed.deliverySlotId && slot.available)) unavailableSlot(requestId);
 
     const draftHeaders = await checkoutHeaders(cartToken ?? undefined);
     const draft = await wordpressFetch("/wp-json/wc/store/v1/checkout?__experimental_calc_totals=true", {

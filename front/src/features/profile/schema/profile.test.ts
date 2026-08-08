@@ -15,6 +15,8 @@ describe("profileOrderDetailSchema", () => {
       receiver: "گیرنده تست",
       deliverySlot: "2026-07-21-13",
       address: "تهران، ونک",
+      postcardMessage: "تولدت مبارک",
+      postcardDesignTitle: "گل‌های بهاری",
       items: [{ id: 7, name: "کادو", quantity: 1, imageUrl: null }],
       summary: { subtotal: money, shipping: money, service: money, tax: money, discount: money, total: money },
     })).toMatchObject({ id: 42, total: money });

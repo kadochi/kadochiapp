@@ -51,6 +51,8 @@ export const profileOrderDetailSchema = profileOrderSchema.extend({
   receiver: z.string(),
   deliverySlot: z.string().nullable(),
   address: z.string(),
+  postcardMessage: z.string().nullable(),
+  postcardDesignTitle: z.string().nullable(),
   summary: z.object({
     subtotal: moneySchema,
     shipping: moneySchema,

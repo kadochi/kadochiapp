@@ -98,6 +98,8 @@ function input() {
     address: { address1: "Tehran delivery address", address2: "Unit 2" },
     deliverySlotId: createDeliverySlots({ items: [{ preparationHours: 4 }] } as Parameters<typeof createDeliverySlots>[0]).find((slot) => slot.available)!.id,
     packagingId: "gift" as const,
+    postcardEnabled: true,
+    postcardDesignId: 17,
     postcardText: "Enjoy",
     operationId,
   };
@@ -189,6 +191,7 @@ describe("checkout service", () => {
         "kadochi/delivery-slot": input().deliverySlotId,
         "kadochi/packaging": "gift",
         "kadochi/postcard": "Enjoy",
+        "kadochi/postcard-design": "17",
         "kadochi/location": "",
         "kadochi/operation-id": operationId,
       },

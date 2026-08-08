@@ -8,6 +8,8 @@ const validInput = {
   address: { address1: "Tehran address" },
   deliverySlotId: "2026-07-18-10",
   packagingId: "gift" as const,
+  postcardEnabled: true,
+  postcardDesignId: 17,
   postcardText: "Happy birthday",
   operationId: "c5012c57-cd10-4ed6-b2be-9f28df81c49e",
 };
@@ -35,5 +37,14 @@ describe("submitCheckoutSchema", () => {
     expect(() => submitCheckoutSchema.parse({ ...validInput, recipient: otherRecipient })).toThrow();
     expect(() => submitCheckoutSchema.parse({ ...validInput, recipient: { ...otherRecipient, phone: "not-a-phone" } })).toThrow();
     expect(submitCheckoutSchema.parse({ ...validInput, recipient: { ...otherRecipient, phone: "09121234567" } }).recipient).toMatchObject({ phone: "+989121234567" });
+  });
+
+  it("requires a design only when a postcard is enabled", () => {
+    expect(() => submitCheckoutSchema.parse({ ...validInput, postcardDesignId: null })).toThrow();
+    expect(submitCheckoutSchema.parse({ ...validInput, postcardEnabled: false, postcardDesignId: null, postcardText: "" }).postcardEnabled).toBe(false);
+  });
+
+  it("limits postcard messages to 200 characters", () => {
+    expect(() => submitCheckoutSchema.parse({ ...validInput, postcardText: "a".repeat(201) })).toThrow();
   });
 });

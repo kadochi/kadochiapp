@@ -44,7 +44,7 @@ function formatDate(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
 }
 
-/** Mirrors WordPress: the cart needs the longest product preparation time. */
+/** Mirrors WordPress: always show the next three calendar days and disable unavailable windows. */
 export function createDeliverySlots(cart: Pick<Cart, "items">, now = new Date()): DeliverySlot[] {
   const tehran = tehranParts(now);
   const preparationHours = cart.items.length ? Math.max(...cart.items.map((item) => item.preparationHours ?? 24)) : 24;
@@ -53,28 +53,21 @@ export function createDeliverySlots(cart: Pick<Cart, "items">, now = new Date())
   const date = new Date(Date.UTC(tehran.year, tehran.month - 1, tehran.day));
 
   const slots: DeliverySlot[] = [];
-  let availableSlots = 0;
-  while (availableSlots < 9) {
-    // Friday is 5 in JS's UTC day numbering (Sunday 0).
-    if (date.getUTCDay() !== 5) {
-      const isToday = formatDate(date) === `${tehran.year}-${String(tehran.month).padStart(2, "0")}-${String(tehran.day).padStart(2, "0")}`;
-      for (const window of windows) {
-        if (availableSlots === 9) break;
-        // Started windows are past. Future-but-unprepared windows stay visible
-        // for the checkout to disable, rather than looking like missing dates.
-        if (isToday && window.startHour <= tehran.hour) continue;
-        const dateString = formatDate(date);
-        const available = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), window.startHour) >= readyAt;
-        slots.push({
-          id: `${dateString}-${window.startHour}`,
-          date: dateString,
-          startHour: window.startHour,
-          endHour: window.endHour,
-          label: `${dateString}، ${window.startHour} تا ${window.endHour}`,
-          available,
-        });
-        if (available) availableSlots += 1;
-      }
+  for (let dayOffset = 0; dayOffset < 3; dayOffset += 1) {
+    const isToday = dayOffset === 0;
+    const isFriday = date.getUTCDay() === 5;
+    const dateString = formatDate(date);
+    for (const window of windows) {
+      const slotStart = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), window.startHour);
+      const available = !isFriday && (!isToday || window.startHour > tehran.hour) && slotStart >= readyAt;
+      slots.push({
+        id: `${dateString}-${window.startHour}`,
+        date: dateString,
+        startHour: window.startHour,
+        endHour: window.endHour,
+        label: `${dateString}، ${window.startHour} تا ${window.endHour}`,
+        available,
+      });
     }
     date.setUTCDate(date.getUTCDate() + 1);
   }

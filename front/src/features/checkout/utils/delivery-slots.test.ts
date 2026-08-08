@@ -18,14 +18,14 @@ describe("createDeliverySlots", () => {
     ]);
   });
 
-  it("disables every following-day window when 24 hours are needed after a 9 PM order", () => {
+  it("keeps today's disabled windows visible when 24 hours are needed after a 9 PM order", () => {
     const now = new Date("2026-07-18T17:30:00.000Z"); // Saturday, 21:00 Tehran.
     const slots = createDeliverySlots(cart(24), now);
 
     expect(slots.slice(0, 3).map((slot) => [slot.id, slot.available])).toEqual([
-      ["2026-07-19-10", false],
-      ["2026-07-19-13", false],
-      ["2026-07-19-16", false],
+      ["2026-07-18-10", false],
+      ["2026-07-18-13", false],
+      ["2026-07-18-16", false],
     ]);
     expect(slots.find((slot) => slot.available)?.id).toBe("2026-07-20-10");
   });
@@ -37,20 +37,23 @@ describe("createDeliverySlots", () => {
     expect(slots.find((slot) => slot.available)?.id).toBe("2026-07-19-16");
   });
 
-  it("skips Fridays while preserving disabled future windows", () => {
+  it("includes Fridays but disables all of their delivery windows", () => {
     const now = new Date("2026-07-16T04:30:00.000Z"); // Thursday, 08:00 Tehran.
     const slots = createDeliverySlots(cart(24), now);
 
     expect(slots[0]?.id).toBe("2026-07-16-10");
     expect(slots.find((slot) => slot.available)?.id).toBe("2026-07-18-10");
-    expect(slots.every((slot) => new Date(`${slot.date}T00:00:00Z`).getUTCDay() !== 5)).toBe(true);
+    expect(slots.filter((slot) => new Date(`${slot.date}T00:00:00Z`).getUTCDay() === 5).every((slot) => !slot.available)).toBe(true);
   });
 
-  it("removes a same-day window as soon as its start time is reached", () => {
+  it("keeps past same-day windows visible but disables them", () => {
     const now = new Date("2026-07-18T09:30:00.000Z"); // Saturday, 13:00 Tehran.
     const slots = createDeliverySlots(cart(1), now);
 
-    expect(slots[0]?.id).toBe("2026-07-18-16");
-    expect(slots[0]?.available).toBe(true);
+    expect(slots.slice(0, 3).map((slot) => [slot.id, slot.available])).toEqual([
+      ["2026-07-18-10", false],
+      ["2026-07-18-13", false],
+      ["2026-07-18-16", true],
+    ]);
   });
 });

@@ -157,6 +157,15 @@ export function ProfileOrderDetailPage({ orderId }: { orderId: number }) {
             <Divider />
             <DetailRow label="آدرس گیرنده" value={order.address || "—"} />
           </div>
+          {order.postcardMessage || order.postcardDesignTitle ? <>
+            <Divider size="md" variant="spacer" />
+            <SectionHeader subtitle="پیام و طرح انتخاب‌شده برای هدیه" title="کارت پستال" />
+            <div className="px-16 pb-16">
+              <DetailRow label="متن کارت پستال" value={order.postcardMessage || "—"} />
+              <Divider />
+              <DetailRow label="طرح کارت پستال" value={order.postcardDesignTitle || "—"} />
+            </div>
+          </> : null}
           <Divider size="md" variant="spacer" />
           <SectionHeader subtitle="لیست محصولات" title="اقلام سفارش" />
           <div className="flex gap-12 overflow-x-auto px-16 py-12 pb-28">

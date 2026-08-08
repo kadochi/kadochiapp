@@ -20,6 +20,12 @@ export const packagingOptionSchema = z.object({
   default: z.boolean(),
 }).strict();
 
+export const postcardDesignSchema = z.object({
+  id: z.number().int().positive(),
+  title: z.string().trim().min(1).max(200),
+  imageUrl: z.string().url(),
+}).strict();
+
 export const paymentMethodSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -42,10 +48,11 @@ export const savedAddressListSchema = z.object({ items: z.array(savedAddressSche
 export const checkoutStateSchema = z.object({
   cart: cartSchema,
   customer: customerSchema,
-  // A product may need up to 30 days of preparation, so retain disabled
-  // future windows before the nine selectable windows.
+  // Checkout always shows today and the next two calendar days; unavailable
+  // windows remain so the customer can see why they cannot be selected.
   deliverySlots: z.array(deliverySlotSchema).max(120),
   packagingOptions: z.array(packagingOptionSchema).length(2),
+  postcardDesigns: z.array(postcardDesignSchema).max(50),
   paymentMethod: paymentMethodSchema,
   savedAddresses: z.array(savedAddressSchema).max(20),
 }).strict();
@@ -81,9 +88,18 @@ export const submitCheckoutSchema = z.object({
   address: deliveryAddressSchema,
   deliverySlotId: deliverySlotSchema.shape.id,
   packagingId: z.enum(["gift", "normal"]),
-  postcardText: z.string().trim().max(500).optional().default(""),
+  postcardEnabled: z.boolean().default(false),
+  postcardDesignId: z.number().int().positive().nullable().optional().default(null),
+  postcardText: z.string().trim().max(200).optional().default(""),
   operationId: z.string().uuid(),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.postcardEnabled && !value.postcardDesignId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["postcardDesignId"], message: "یک طرح کارت پستال انتخاب کنید." });
+  }
+  if (!value.postcardEnabled && (value.postcardDesignId || value.postcardText)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["postcardEnabled"], message: "برای ثبت کارت پستال، آن را فعال کنید." });
+  }
+});
 
 export const checkoutResultSchema = z.object({
   orderId: z.number().int().positive().optional(),

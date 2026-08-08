@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { z } from "zod";
-import { Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,7 @@ const faDate = new Intl.DateTimeFormat("fa-IR", { day: "numeric", month: "long" 
 
 function deliveryPart(startHour: number) {
   if (startHour === 10) return "صبح";
-  if (startHour === 13) return "ظهر";
+  if (startHour === 13) return "بعدازظهر";
   return "عصر";
 }
 
@@ -71,6 +71,8 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
     initialState.packagingOptions.find((option) => option.default)?.id ?? "gift",
   );
   const [postcardText, setPostcardText] = useState("");
+  const [postcardEnabled, setPostcardEnabled] = useState(false);
+  const [postcardDesignId, setPostcardDesignId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingAddress, setSavingAddress] = useState(false);
   const [pendingRate, setPendingRate] = useState<string | null>(null);
@@ -280,6 +282,8 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         },
         deliverySlotId,
         packagingId,
+        postcardEnabled,
+        postcardDesignId,
         postcardText,
         operationId: operationId.current ?? (operationId.current = crypto.randomUUID()),
       });
@@ -336,9 +340,9 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         onEditAddress={(address) => { setEditingAddress(address); setAddressSheetOpen(true); }} onDeleteAddress={removeAddress} removingAddressId={removingAddressId}
       /> : null}
       {step === 1 ? <DeliveryStep
-        state={state} deliverySlotId={deliverySlotId} packagingId={packagingId} postcardText={postcardText}
+        state={state} deliverySlotId={deliverySlotId} packagingId={packagingId} postcardEnabled={postcardEnabled} postcardDesignId={postcardDesignId} postcardText={postcardText}
         pendingRate={pendingRate}
-        onDeliverySlot={setDeliverySlotId} onPackaging={setPackagingId} onPostcard={setPostcardText} onShippingRate={chooseShippingRate}
+        onDeliverySlot={setDeliverySlotId} onPackaging={setPackagingId} onPostcardEnabled={(enabled) => { setPostcardEnabled(enabled); if (enabled) { setPostcardDesignId((current) => current ?? state.postcardDesigns[0]?.id ?? null); } else { setPostcardDesignId(null); setPostcardText(""); } }} onPostcardDesign={setPostcardDesignId} onPostcard={setPostcardText} onShippingRate={chooseShippingRate}
       /> : null}
       {step === 2 ? <PaymentStep state={state} couponPending={pendingCoupon} onApplyCoupon={addCoupon} onRemoveCoupon={deleteCoupon} /> : null}
 
@@ -423,32 +427,53 @@ function DetailsStep(props: {
 }
 
 function DeliveryStep(props: {
-  state: CheckoutState; deliverySlotId: string; packagingId: "gift" | "normal"; postcardText: string; pendingRate: string | null;
-  onDeliverySlot: (value: string) => void; onPackaging: (value: "gift" | "normal") => void; onPostcard: (value: string) => void; onShippingRate: (packageId: number, rateId: string) => void;
+  state: CheckoutState; deliverySlotId: string; packagingId: "gift" | "normal"; postcardEnabled: boolean; postcardDesignId: number | null; postcardText: string; pendingRate: string | null;
+  onDeliverySlot: (value: string) => void; onPackaging: (value: "gift" | "normal") => void; onPostcardEnabled: (enabled: boolean) => void; onPostcardDesign: (id: number) => void; onPostcard: (value: string) => void; onShippingRate: (packageId: number, rateId: string) => void;
 }) {
+  const deliveryDays = props.state.deliverySlots.reduce<Array<{ date: string; slots: CheckoutState["deliverySlots"][number][] }>>((days, slot) => {
+    const day = days.find((item) => item.date === slot.date);
+    if (day) day.slots.push(slot);
+    else days.push({ date: slot.date, slots: [slot] });
+    return days;
+  }, []).slice(0, 3);
+  const selectedDay = deliveryDays.find((day) => day.slots.some((slot) => slot.id === props.deliverySlotId))
+    ?? deliveryDays.find((day) => day.slots.some((slot) => slot.available))
+    ?? deliveryDays[0];
+
   return <>
     <SectionHeader as="h2" subtitle="بازه زمانی تحویل را انتخاب کنید." title="انتخاب زمان دریافت" />
     <section className="px-16 pb-16">
-      <div className="flex snap-x snap-mandatory gap-16 overflow-x-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {props.state.deliverySlots.map((slot) => {
-          const selected = slot.available && slot.id === props.deliverySlotId;
-          const date = deliveryDate(slot.date);
+      <h3 className="m-0 text-label-12 font-regular text-surface-neutral-mid-emphasis">انتخاب روز تحویل</h3>
+      <div className="mt-8 grid grid-cols-3 gap-12">
+        {deliveryDays.map((day) => {
+          const available = day.slots.some((slot) => slot.available);
+          const selected = available && day === selectedDay;
+          const date = deliveryDate(day.date);
           return <button
-            key={slot.id}
-            aria-disabled={!slot.available}
+            key={day.date}
             aria-pressed={selected}
-            className={`grid h-[140px] w-[148px] shrink-0 snap-start place-items-center rounded-m border bg-surface-background p-12 text-center transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${selected ? "border-2 border-secondary shadow-[0_0_0_4px_var(--color-secondary-container)]" : "border-border-high-emphasis"} ${slot.available ? "" : "cursor-not-allowed opacity-40"}`}
-            disabled={!slot.available}
+            className={`grid min-h-[96px] place-items-center rounded-m border bg-surface-background p-12 text-center transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${selected ? "border-2 border-secondary shadow-[0_0_0_4px_var(--color-secondary-container)]" : "border-border-high-emphasis"} ${available ? "" : "cursor-not-allowed opacity-40"}`}
+            disabled={!available}
             type="button"
-            onClick={() => props.onDeliverySlot(slot.id)}
+            onClick={() => props.onDeliverySlot(day.slots.find((slot) => slot.available)!.id)}
           >
             <span className="text-label-14 text-surface-neutral-mid-emphasis">{date.weekday}</span>
             <span className="text-body-16 font-bold">{date.date}</span>
-            <span className="text-label-14 font-bold">{deliveryPart(slot.startHour)}</span>
-            <span className="text-label-14 text-surface-neutral-mid-emphasis">{slot.startHour} الی {slot.endHour}</span>
           </button>;
         })}
       </div>
+      {selectedDay ? <div className="mt-20">
+        <h3 className="m-0 text-label-12 font-regular text-surface-neutral-mid-emphasis">انتخاب بازه زمانی تحویل</h3>
+        <RadioGroup className="mt-8 gap-12" value={props.deliverySlotId} onValueChange={props.onDeliverySlot}>
+          {selectedDay.slots.map((slot) => <RadioGroupItem
+            key={slot.id}
+            className="w-full rounded-m border border-border-high-emphasis p-16 has-[[data-state=checked]]:border-2 has-[[data-state=checked]]:border-secondary has-[[data-state=checked]]:shadow-[0_0_0_4px_var(--color-secondary-container)]"
+            disabled={!slot.available}
+            label={<span className="flex w-full items-center justify-between gap-12 text-body-14"><span className="font-bold">{deliveryPart(slot.startHour)}</span><span className="text-surface-neutral-mid-emphasis">{slot.startHour} الی {slot.endHour}</span></span>}
+            value={slot.id}
+          />)}
+        </RadioGroup>
+      </div> : null}
     </section>
 
     {props.state.cart.shippingRates.map((group) => group.rates.length > 1 ? <div key={group.packageId}>
@@ -470,16 +495,17 @@ function DeliveryStep(props: {
     <Divider size="md" variant="spacer" />
     <SectionHeader as="h2" subtitle="بسته‌بندی سفارش خود را انتخاب کنید" title="انتخاب نوع بسته‌بندی" />
     <section className="px-16 pb-16">
-      <div className="grid gap-16 min-[420px]:grid-cols-2">
+      <div className="grid grid-cols-2 gap-12 min-[420px]:gap-16">
         {props.state.packagingOptions.map((option) => {
           const selected = option.id === props.packagingId;
           return <button
             key={option.id}
             aria-pressed={selected}
-            className={`grid min-h-[190px] content-center justify-items-center gap-8 rounded-m border bg-surface-background p-16 text-center transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${selected ? "border-2 border-secondary shadow-[0_0_0_4px_var(--color-secondary-container)]" : "border-border-high-emphasis"}`}
+            className={`relative grid min-h-[190px] content-center justify-items-center gap-8 rounded-m border bg-surface-background p-12 text-center transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 min-[420px]:p-16 ${selected ? "border-2 border-secondary shadow-[0_0_0_4px_var(--color-secondary-container)]" : "border-border-high-emphasis"}`}
             type="button"
             onClick={() => props.onPackaging(option.id)}
           >
+            <span className="absolute left-8 top-8 rounded-full bg-secondary-container px-8 py-2 text-label-12 font-bold text-on-secondary-container">رایگان</span>
             <Image alt="" className="size-56 object-contain" height={56} src={option.imageUrl} width={56} />
             <span className="text-body-16 font-bold">{option.label}</span>
             <span className="text-label-14 text-surface-neutral-mid-emphasis">{option.id === "gift" ? "کاغذ کادو، روبان، پوشال و کارت" : "جعبه مقوایی پستی"}</span>
@@ -490,9 +516,31 @@ function DeliveryStep(props: {
     </section>
 
     <Divider size="md" variant="spacer" />
-    <SectionHeader as="h2" subtitle="یک پیام کوتاه برای قرار گرفتن داخل کادو" title="متن کارت پستال" />
+    <SectionHeader as="h2" leftSlot={<Button disabled={!props.state.postcardDesigns.length} size="small" variant={props.postcardEnabled ? "secondary-tonal" : "tertiary-outline"} onClick={() => props.onPostcardEnabled(!props.postcardEnabled)}>{props.postcardEnabled ? "حذف کارت‌پستال" : <><Plus aria-hidden="true" /> افزودن کارت‌پستال</>}</Button>} subtitle="کارت پستال و متن مورد نظرتان" title="کارت پستال" />
     <section className="px-16 pb-16">
-      <TextArea label="متن کارت پستال" maxLength={500} placeholder="پیام شما…" showCount value={props.postcardText} onChange={(event) => props.onPostcard(event.target.value)} />
+      {props.postcardEnabled ? <>
+        <h3 className="m-0 text-label-12 font-regular text-surface-neutral-mid-emphasis">انتخاب طرح کارت</h3>
+        <div className="mt-8 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-max min-w-full snap-x snap-mandatory gap-12 pb-4">
+            {props.state.postcardDesigns.map((design) => {
+              const selected = design.id === props.postcardDesignId;
+              const controlClassName = selected
+                ? "border-green-600 bg-green-600 text-white"
+                : "border-surface-neutral-high-emphasis text-surface-neutral-high-emphasis";
+              return <article className="w-[148px] shrink-0 snap-start" key={design.id}>
+                <div className="relative aspect-[1/1.1] overflow-hidden rounded-m bg-surface-neutral-low-emphasis">
+                  <Image alt={design.title} className="object-cover" fill sizes="148px" src={design.imageUrl} />
+                  <Button aria-label={selected ? `طرح ${design.title} انتخاب شده است` : `انتخاب طرح ${design.title}`} aria-pressed={selected} className={`absolute bottom-8 right-8 z-10 size-48 rounded-full bg-surface-background p-0 shadow-sm ${controlClassName}`} size="medium" variant="tertiary-outline" onClick={() => props.onPostcardDesign(design.id)}>
+                    {selected ? <Check aria-hidden="true" className="size-20" strokeWidth={3} /> : <Plus aria-hidden="true" className="size-24" />}
+                  </Button>
+                </div>
+                <h3 className="m-0 mt-8 line-clamp-2 text-center text-title-14 font-bold">{design.title}</h3>
+              </article>;
+            })}
+          </div>
+        </div>
+        <div className="mt-20"><TextArea label="متن کارت پستال" maxLength={200} placeholder="پیام شما…" showCount value={props.postcardText} onChange={(event) => props.onPostcard(event.target.value)} /></div>
+      </> : null}
     </section>
   </>;
 }

@@ -22,6 +22,7 @@ final class Kadochi_Core {
 	const CHECKOUT_FIELD_DELIVERY_SLOT = 'kadochi/delivery-slot';
 	const CHECKOUT_FIELD_PACKAGING = 'kadochi/packaging';
 	const CHECKOUT_FIELD_POSTCARD = 'kadochi/postcard';
+	const CHECKOUT_FIELD_POSTCARD_DESIGN = 'kadochi/postcard-design';
 	const CHECKOUT_FIELD_LOCATION = 'kadochi/location';
 	const CHECKOUT_FIELD_OPERATION = 'kadochi/operation-id';
 	const PRODUCT_ACTIONS_DB_VERSION = '1';
@@ -77,6 +78,7 @@ final class Kadochi_Core {
 		add_action( 'woocommerce_validate_additional_field', array( $this, 'validate_checkout_field' ), 10, 3 );
 		add_action( 'woocommerce_check_cart_items', array( $this, 'clear_stale_store_api_cart_notices' ), 0 );
 		add_action( 'woocommerce_store_api_checkout_update_order_from_request', array( $this, 'validate_store_checkout_order' ), 10, 2 );
+		add_action( 'woocommerce_admin_order_data_after_order_details', array( $this, 'render_postcard_order_details' ) );
 		add_action( 'woocommerce_store_api_checkout_order_processed', array( $this, 'lock_store_checkout_order' ), 1 );
 		add_action( 'woocommerce_payment_complete', array( $this, 'notify_paid_order' ) );
 		add_action( 'woocommerce_order_status_changed', array( $this, 'notify_order_status_change' ), 10, 4 );
@@ -264,6 +266,25 @@ final class Kadochi_Core {
 		// enforced by the homepage response, rather than by deleting content.
 		$this->register_post_type( 'story', 'Stories', 'Story', array( 'title', 'thumbnail' ), false, 'dashicons-format-image' );
 		$this->register_post_type( 'occasion', 'Occasions', 'Occasion', array( 'title', 'editor', 'thumbnail', 'author' ), false, 'dashicons-calendar-alt' );
+		// Postcards are editorial assets. Their native title and Featured Image
+		// controls give staff a simple place to add, publish, reorder, and retire
+		// designs without making the assets public WordPress pages.
+		register_post_type( 'postcard', array(
+			'labels' => array( 'name' => __( 'Postcard designs', 'kadochi-core' ), 'singular_name' => __( 'Postcard design', 'kadochi-core' ), 'menu_name' => __( 'Postcards', 'kadochi-core' ), 'add_new_item' => __( 'Add new postcard design', 'kadochi-core' ) ),
+			'public' => false,
+			'publicly_queryable' => false,
+			'show_ui' => true,
+			'show_in_menu' => true,
+			'exclude_from_search' => true,
+			'show_in_rest' => false,
+			'has_archive' => false,
+			'rewrite' => false,
+			'query_var' => false,
+			'menu_icon' => 'dashicons-format-image',
+			'supports' => array( 'title', 'thumbnail', 'page-attributes' ),
+			'capability_type' => 'post',
+			'map_meta_cap' => true,
+		) );
 	}
 
 	/**
@@ -404,6 +425,11 @@ final class Kadochi_Core {
 					'sanitize_callback' => 'sanitize_text_field',
 				),
 			),
+		) );
+		register_rest_route( self::REST_NAMESPACE, '/checkout/postcard-designs', array(
+			'methods' => WP_REST_Server::READABLE,
+			'callback' => array( $this, 'postcard_designs' ),
+			'permission_callback' => '__return_true',
 		) );
 		register_rest_route( self::REST_NAMESPACE, '/auth/otp/start', array(
 			'methods' => WP_REST_Server::CREATABLE,
@@ -2059,6 +2085,7 @@ final class Kadochi_Core {
 			array( 'id' => self::CHECKOUT_FIELD_DELIVERY_SLOT, 'label' => __( 'Delivery slot', 'kadochi-core' ), 'location' => 'order', 'required' => true, 'sanitize_callback' => 'sanitize_text_field' ),
 			array( 'id' => self::CHECKOUT_FIELD_PACKAGING, 'label' => __( 'Packaging', 'kadochi-core' ), 'location' => 'order', 'required' => true, 'type' => 'select', 'options' => array( array( 'value' => 'gift', 'label' => __( 'Gift packaging', 'kadochi-core' ) ), array( 'value' => 'normal', 'label' => __( 'Normal packaging', 'kadochi-core' ) ) ) ),
 			array( 'id' => self::CHECKOUT_FIELD_POSTCARD, 'label' => __( 'Postcard message', 'kadochi-core' ), 'optionalLabel' => __( 'Postcard message', 'kadochi-core' ), 'location' => 'order', 'required' => false, 'sanitize_callback' => 'sanitize_textarea_field' ),
+			array( 'id' => self::CHECKOUT_FIELD_POSTCARD_DESIGN, 'label' => __( 'Postcard design', 'kadochi-core' ), 'optionalLabel' => __( 'Postcard design', 'kadochi-core' ), 'location' => 'order', 'required' => false, 'sanitize_callback' => 'sanitize_text_field' ),
 			array( 'id' => self::CHECKOUT_FIELD_LOCATION, 'label' => __( 'Delivery location', 'kadochi-core' ), 'optionalLabel' => __( 'Delivery location', 'kadochi-core' ), 'location' => 'order', 'required' => false, 'sanitize_callback' => 'sanitize_text_field' ),
 			array( 'id' => self::CHECKOUT_FIELD_OPERATION, 'label' => __( 'Kadochi checkout operation', 'kadochi-core' ), 'location' => 'order', 'required' => true, 'sanitize_callback' => 'sanitize_text_field' ),
 		);
@@ -2240,40 +2267,27 @@ final class Kadochi_Core {
 	}
 
 	/**
-	 * Recomputes every selectable window in Tehran time. We retain unavailable
-	 * future windows in the response so the checkout can visibly disable them,
-	 * but only an available window is accepted when the order is placed.
+	 * Recomputes the three visible calendar days in Tehran time. Every day and
+	 * time window stays in the response so checkout can disable unavailable
+	 * choices, while only an available window is accepted when an order is placed.
 	 */
 	private function delivery_slots() {
 		$timezone = new DateTimeZone( 'Asia/Tehran' );
 		$now = new DateTimeImmutable( 'now', $timezone );
 		$today = $now->setTime( 0, 0, 0 );
 		$ready_at = $now->modify( '+' . $this->cart_preparation_hours() . ' hours' );
-		$day = $today;
 		$windows = array( array( 10, 13 ), array( 13, 16 ), array( 16, 19 ) );
 		$slots = array();
-		$available_slots = 0;
-		while ( $available_slots < 9 ) {
-			if ( '5' !== $day->format( 'N' ) ) { // Friday.
-				$is_today = $day->format( 'Y-m-d' ) === $today->format( 'Y-m-d' );
-				foreach ( $windows as $window ) {
-					if ( $available_slots >= 9 ) {
-						break;
-					}
-					// A started window is in the past; future but unprepared windows stay visible and disabled.
-					if ( $is_today && $window[0] <= (int) $now->format( 'G' ) ) {
-						continue;
-					}
-					$date = $day->format( 'Y-m-d' );
-					$slot_start = $day->setTime( $window[0], 0, 0 );
-					$available = $slot_start >= $ready_at;
-					$slots[] = array( 'id' => $date . '-' . $window[0], 'date' => $date, 'startHour' => $window[0], 'endHour' => $window[1], 'label' => $date . '، ' . $window[0] . ' تا ' . $window[1], 'available' => $available );
-					if ( $available ) {
-						$available_slots++;
-					}
-				}
+		for ( $offset = 0; $offset < 3; $offset++ ) {
+			$day = $today->modify( '+' . $offset . ' days' );
+			$is_today = 0 === $offset;
+			$is_friday = '5' === $day->format( 'N' );
+			foreach ( $windows as $window ) {
+				$date = $day->format( 'Y-m-d' );
+				$slot_start = $day->setTime( $window[0], 0, 0 );
+				$available = ! $is_friday && ( ! $is_today || $window[0] > (int) $now->format( 'G' ) ) && $slot_start >= $ready_at;
+				$slots[] = array( 'id' => $date . '-' . $window[0], 'date' => $date, 'startHour' => $window[0], 'endHour' => $window[1], 'label' => $date . '، ' . $window[0] . ' تا ' . $window[1], 'available' => $available );
 			}
-			$day = $day->modify( '+1 day' );
 		}
 		return $slots;
 	}
@@ -2297,8 +2311,11 @@ final class Kadochi_Core {
 		if ( self::CHECKOUT_FIELD_PACKAGING === $field_key && ! in_array( $field_value, array( 'gift', 'normal' ), true ) ) {
 			$errors->add( 'kadochi_invalid_packaging', __( 'Choose a valid packaging option.', 'kadochi-core' ) );
 		}
-		if ( self::CHECKOUT_FIELD_POSTCARD === $field_key && ( ! is_string( $field_value ) || $this->string_length( $field_value ) > 500 ) ) {
+		if ( self::CHECKOUT_FIELD_POSTCARD === $field_key && ( ! is_string( $field_value ) || $this->string_length( $field_value ) > 200 ) ) {
 			$errors->add( 'kadochi_invalid_postcard', __( 'The postcard message is too long.', 'kadochi-core' ) );
+		}
+		if ( self::CHECKOUT_FIELD_POSTCARD_DESIGN === $field_key && '' !== (string) $field_value && ! $this->postcard_design( $field_value ) ) {
+			$errors->add( 'kadochi_invalid_postcard_design', __( 'Choose a valid postcard design.', 'kadochi-core' ) );
 		}
 		if ( self::CHECKOUT_FIELD_LOCATION === $field_key && '' !== $field_value && ( ! is_string( $field_value ) || ! preg_match( '/^-?\d{1,2}(?:\.\d{1,6})?,-?\d{1,3}(?:\.\d{1,6})?$/', $field_value ) ) ) {
 			$errors->add( 'kadochi_invalid_location', __( 'The delivery location is invalid.', 'kadochi-core' ) );
@@ -2353,6 +2370,17 @@ final class Kadochi_Core {
 		$packaging = (string) $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_PACKAGING, true );
 		if ( ! in_array( $packaging, array( 'gift', 'normal' ), true ) ) {
 			throw new Exception( __( 'Choose a valid packaging option.', 'kadochi-core' ) );
+		}
+		$postcard_design = (string) $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_POSTCARD_DESIGN, true );
+		if ( '' !== $postcard_design ) {
+			$design = $this->postcard_design( $postcard_design );
+			if ( ! $design ) {
+				throw new Exception( __( 'Choose a valid postcard design.', 'kadochi-core' ) );
+			}
+			// Snapshot the title: a later editorial rename must not alter an order's fulfillment instructions.
+			$order->update_meta_data( '_kadochi_postcard_design_title', $design['title'] );
+		} else {
+			$order->delete_meta_data( '_kadochi_postcard_design_title' );
 		}
 		$operation = (string) $order->get_meta( $this->checkout_operation_meta_key(), true );
 		if ( ! preg_match( '/^[a-f0-9-]{36}$/i', $operation ) ) {
@@ -2801,6 +2829,8 @@ final class Kadochi_Core {
 			'receiver' => trim( sanitize_text_field( $order->get_shipping_first_name() ) . ' ' . sanitize_text_field( $order->get_shipping_last_name() ) ),
 			'deliverySlot' => ( $slot = $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_DELIVERY_SLOT, true ) ) ? sanitize_text_field( $slot ) : null,
 			'address' => implode( '، ', array_map( 'sanitize_text_field', $shipping_parts ) ),
+			'postcardMessage' => ( $message = $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_POSTCARD, true ) ) ? sanitize_textarea_field( $message ) : null,
+			'postcardDesignTitle' => ( $design_title = $order->get_meta( '_kadochi_postcard_design_title', true ) ) ? sanitize_text_field( $design_title ) : null,
 			'items' => $items,
 			'summary' => array(
 				'subtotal' => $this->money_value( $order->get_subtotal(), $order->get_currency() ),
@@ -2820,6 +2850,26 @@ final class Kadochi_Core {
 		}
 		$this->expire_draft_order_if_needed( $order );
 		return rest_ensure_response( $this->profile_order_detail_dto( $order ) );
+	}
+
+	/** Shows the durable postcard selection beside the native additional checkout fields in wp-admin. */
+	public function render_postcard_order_details( $order ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'get_meta' ) ) {
+			return;
+		}
+		$message = sanitize_textarea_field( (string) $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_POSTCARD, true ) );
+		$design_title = sanitize_text_field( (string) $order->get_meta( '_kadochi_postcard_design_title', true ) );
+		if ( '' === $message && '' === $design_title ) {
+			return;
+		}
+		echo '<div class="kadochi-postcard-order-details"><h3>' . esc_html__( 'Postcard', 'kadochi-core' ) . '</h3>';
+		if ( '' !== $message ) {
+			echo '<p><strong>' . esc_html__( 'Message:', 'kadochi-core' ) . '</strong> ' . nl2br( esc_html( $message ) ) . '</p>';
+		}
+		if ( '' !== $design_title ) {
+			echo '<p><strong>' . esc_html__( 'Design:', 'kadochi-core' ) . '</strong> ' . esc_html( $design_title ) . '</p>';
+		}
+		echo '</div>';
 	}
 
 	/** Starts the configured gateway only for the owner's still-active unpaid order. */
@@ -3094,6 +3144,33 @@ final class Kadochi_Core {
 
 	private function published( $type, $orderby = 'menu_order date' ) {
 		return get_posts( array( 'post_type' => $type, 'post_status' => 'publish', 'numberposts' => 50, 'orderby' => $orderby, 'order' => 'ASC' ) );
+	}
+
+	/** Returns a currently selectable design, or false for stale/tampered checkout input. */
+	private function postcard_design( $id ) {
+		$id = absint( $id );
+		$post = $id ? get_post( $id ) : null;
+		if ( ! $post || 'postcard' !== $post->post_type || 'publish' !== $post->post_status ) {
+			return false;
+		}
+		$image_url = function_exists( 'wp_get_attachment_image_url' ) ? wp_get_attachment_image_url( get_post_thumbnail_id( $post->ID ), 'medium_large' ) : false;
+		$title = sanitize_text_field( $post->post_title );
+		if ( ! $image_url || '' === $title ) {
+			return false;
+		}
+		return array( 'id' => (int) $post->ID, 'title' => $title, 'imageUrl' => esc_url_raw( $image_url ) );
+	}
+
+	/** Checkout-friendly list of the published, image-backed designs managed in wp-admin. */
+	public function postcard_designs() {
+		$items = array();
+		foreach ( $this->published( 'postcard' ) as $post ) {
+			$design = $this->postcard_design( $post->ID );
+			if ( $design ) {
+				$items[] = $design;
+			}
+		}
+		return rest_ensure_response( array( 'items' => $items ) );
 	}
 
 	/** Returns only image-backed stories that are still within their 48-hour lifetime. */
