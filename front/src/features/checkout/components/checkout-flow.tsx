@@ -525,8 +525,8 @@ function DeliveryStep(props: {
             {props.state.postcardDesigns.map((design) => {
               const selected = design.id === props.postcardDesignId;
               const controlClassName = selected
-                ? "border-green-600 bg-green-600 text-white"
-                : "border-surface-neutral-high-emphasis text-surface-neutral-high-emphasis";
+                ? "border-green-600 bg-green-600 text-white not-data-disabled:not-data-loading:hover:border-green-600 not-data-disabled:not-data-loading:hover:bg-green-600 not-data-disabled:not-data-loading:active:border-green-700 not-data-disabled:not-data-loading:active:bg-green-700"
+                : "border-surface-neutral-high-emphasis text-surface-neutral-high-emphasis not-data-disabled:not-data-loading:hover:border-green-600 not-data-disabled:not-data-loading:hover:bg-green-600 not-data-disabled:not-data-loading:hover:text-white not-data-disabled:not-data-loading:active:border-green-700 not-data-disabled:not-data-loading:active:bg-green-700 not-data-disabled:not-data-loading:active:text-white";
               return <article className="w-[148px] shrink-0 snap-start" key={design.id}>
                 <div className="relative aspect-[1/1.1] overflow-hidden rounded-m bg-surface-neutral-low-emphasis">
                   <Image alt={design.title} className="object-cover" fill sizes="148px" src={design.imageUrl} />

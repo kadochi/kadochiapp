@@ -39,8 +39,8 @@ export function CartCrossSells({ products, cartItems, pendingItems, onAdd, onRem
             const selectedItem = cartItems.find((item) => item.isCrossSell && item.productId === product.id);
             const pending = pendingItems.has(`cross-sell:${product.id}`) || (selectedItem ? pendingItems.has(selectedItem.key) : false);
             const controlClassName = selectedItem
-              ? "border-error text-error"
-              : "border-surface-neutral-high-emphasis text-surface-neutral-high-emphasis";
+              ? "border-error text-error not-data-disabled:not-data-loading:hover:border-error not-data-disabled:not-data-loading:hover:bg-error not-data-disabled:not-data-loading:hover:text-white not-data-disabled:not-data-loading:active:border-red-700 not-data-disabled:not-data-loading:active:bg-red-700 not-data-disabled:not-data-loading:active:text-white"
+              : "border-surface-neutral-high-emphasis text-surface-neutral-high-emphasis not-data-disabled:not-data-loading:hover:border-green-600 not-data-disabled:not-data-loading:hover:bg-green-600 not-data-disabled:not-data-loading:hover:text-white not-data-disabled:not-data-loading:active:border-green-700 not-data-disabled:not-data-loading:active:bg-green-700 not-data-disabled:not-data-loading:active:text-white";
 
             return (
               <article className="w-[calc((100vw-40px)/2.5)] min-w-[144px] max-w-[220px] shrink-0 snap-start px-4 text-center" key={product.id}>
