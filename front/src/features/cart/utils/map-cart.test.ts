@@ -47,6 +47,7 @@ describe("mapCart", () => {
       quantityLimits: { minimum: 1, maximum: 8, multipleOf: 1, editable: true },
       preparationHours: 4,
       fastDeliveryEligible: true,
+      isCrossSell: false,
     });
     expect(cart.totals.totalItems.amount).toBe("116000000");
     expect(cart.totals.totalDiscount.amount).toBe("12000000");

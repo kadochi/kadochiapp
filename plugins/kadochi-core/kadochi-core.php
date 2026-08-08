@@ -71,6 +71,7 @@ final class Kadochi_Core {
 		add_filter( 'rest_authentication_errors', array( $this, 'rest_authentication_errors' ), 30 );
 		add_action( 'woocommerce_init', array( $this, 'register_checkout_fields' ) );
 		add_action( 'woocommerce_blocks_loaded', array( $this, 'register_store_api_data' ) );
+		add_filter( 'woocommerce_store_api_add_to_cart_data', array( $this, 'mark_cross_sell_cart_item' ), 10, 2 );
 		add_action( 'woocommerce_product_options_general_product_data', array( $this, 'render_product_preparation_hours_field' ) );
 		add_action( 'woocommerce_process_product_meta', array( $this, 'save_product_preparation_hours_field' ) );
 		add_action( 'woocommerce_validate_additional_field', array( $this, 'validate_checkout_field' ), 10, 3 );
@@ -392,6 +393,18 @@ final class Kadochi_Core {
 	public function register_routes() {
 		register_rest_route( self::REST_NAMESPACE, '/health', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'health_response' ), 'permission_callback' => function () { return current_user_can( 'manage_options' ); } ) );
 		register_rest_route( self::REST_NAMESPACE, '/content/home', array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'homepage_content' ), 'permission_callback' => '__return_true' ) );
+		register_rest_route( self::REST_NAMESPACE, '/cart/cross-sells', array(
+			'methods' => WP_REST_Server::READABLE,
+			'callback' => array( $this, 'cart_cross_sells' ),
+			'permission_callback' => '__return_true',
+			'args' => array(
+				'productIds' => array(
+					'required' => true,
+					'type' => 'string',
+					'sanitize_callback' => 'sanitize_text_field',
+				),
+			),
+		) );
 		register_rest_route( self::REST_NAMESPACE, '/auth/otp/start', array(
 			'methods' => WP_REST_Server::CREATABLE,
 			'callback' => array( $this, 'start_otp' ),
@@ -465,6 +478,54 @@ final class Kadochi_Core {
 			'callback' => array( $this, 'create_editorial_article' ),
 			'permission_callback' => array( $this, 'authorize_editorial_request' ),
 		) );
+	}
+
+	/**
+	 * Returns up to five merchant-configured WooCommerce cross-sells for the
+	 * supplied cart products. Repeated recommendations rank first, then retain
+	 * the order configured on each product.
+	 */
+	public function cart_cross_sells( WP_REST_Request $request ) {
+		$raw_ids = explode( ',', (string) $request->get_param( 'productIds' ) );
+		$product_ids = array_values( array_unique( array_filter( array_map( 'absint', $raw_ids ) ) ) );
+		$product_ids = array_slice( $product_ids, 0, 50 );
+		if ( empty( $product_ids ) || ! function_exists( 'wc_get_product' ) ) {
+			return rest_ensure_response( array( 'ids' => array() ) );
+		}
+
+		$scores = array();
+		$positions = array();
+		$position = 0;
+		foreach ( $product_ids as $product_id ) {
+			$product = wc_get_product( $product_id );
+			if ( ! $product ) {
+				continue;
+			}
+			foreach ( $product->get_cross_sell_ids() as $cross_sell_id ) {
+				$cross_sell_id = absint( $cross_sell_id );
+				if ( ! $cross_sell_id || in_array( $cross_sell_id, $product_ids, true ) ) {
+					continue;
+				}
+				$candidate = wc_get_product( $cross_sell_id );
+				if ( ! $candidate || 'publish' !== $candidate->get_status() || ! $candidate->is_purchasable() || ! $candidate->is_in_stock() ) {
+					continue;
+				}
+				if ( ! isset( $scores[ $cross_sell_id ] ) ) {
+					$scores[ $cross_sell_id ] = 0;
+					$positions[ $cross_sell_id ] = $position++;
+				}
+				$scores[ $cross_sell_id ]++;
+			}
+		}
+
+		uksort( $scores, function( $left, $right ) use ( $scores, $positions ) {
+			if ( $scores[ $left ] === $scores[ $right ] ) {
+				return $positions[ $left ] <=> $positions[ $right ];
+			}
+			return $scores[ $right ] <=> $scores[ $left ];
+		} );
+
+		return rest_ensure_response( array( 'ids' => array_slice( array_map( 'absint', array_keys( $scores ) ), 0, 5 ) ) );
 	}
 
 	/**
@@ -2076,13 +2137,29 @@ final class Kadochi_Core {
 		}
 	}
 
+	/** Marks a Store API cart line added from the cart's cross-sell rail. */
+	public function mark_cross_sell_cart_item( $add_to_cart_data, $request ) {
+		if ( true === $request->get_param( 'kadochi_cross_sell' ) ) {
+			$add_to_cart_data['cart_item_data']['kadochi_cross_sell'] = true;
+		}
+		return $add_to_cart_data;
+	}
+
 	public function cart_item_extension_data( $cart_item ) {
 		$product = is_array( $cart_item ) && isset( $cart_item['data'] ) ? $cart_item['data'] : null;
-		return $this->product_delivery_data( $product );
+		$data = $this->product_delivery_data( $product );
+		$data['isCrossSell'] = is_array( $cart_item ) && ! empty( $cart_item['kadochi_cross_sell'] );
+		return $data;
 	}
 
 	public function cart_item_extension_schema() {
-		return $this->product_extension_schema();
+		$schema = $this->product_extension_schema();
+		$schema['isCrossSell'] = array(
+			'description' => __( 'Whether this cart line was added from Kadochi cross-sell suggestions.', 'kadochi-core' ),
+			'type' => 'boolean',
+			'readonly' => true,
+		);
+		return $schema;
 	}
 
 	public function product_extension_data( $product ) {

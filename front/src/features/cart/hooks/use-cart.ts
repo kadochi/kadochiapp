@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 
-import { removeItem, updateQuantity } from "../services/cart";
+import { addCrossSellItem, removeItem, updateQuantity } from "../services/cart";
 import type { Cart } from "../types";
 
 export function useCart(initialCart: Cart | null) {
@@ -29,6 +29,7 @@ export function useCart(initialCart: Cart | null) {
 
   const changeQuantity = useCallback((itemKey: string, quantity: number) => mutateItem(itemKey, () => updateQuantity(itemKey, quantity)), [mutateItem]);
   const remove = useCallback((itemKey: string) => mutateItem(itemKey, () => removeItem(itemKey)), [mutateItem]);
+  const addCrossSell = useCallback((productId: number) => mutateItem(`cross-sell:${productId}`, () => addCrossSellItem(productId)), [mutateItem]);
 
   return {
     cart,
@@ -36,6 +37,7 @@ export function useCart(initialCart: Cart | null) {
     pendingItems,
     changeQuantity,
     remove,
+    addCrossSell,
     dismissError: () => setError(null),
   };
 }

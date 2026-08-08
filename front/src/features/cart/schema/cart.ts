@@ -72,6 +72,8 @@ export const cartSchema = z.object({
     imageUrl: z.string().url().optional(),
     preparationHours: z.number().int().min(1).max(720),
     fastDeliveryEligible: z.boolean(),
+    /** Cross-sell lines are charged normally but rendered in the suggestion rail. */
+    isCrossSell: z.boolean(),
   }).strict()),
   totals: z.object({
     totalItems: moneySchema,

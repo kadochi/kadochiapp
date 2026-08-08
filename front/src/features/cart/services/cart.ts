@@ -1,6 +1,8 @@
 import { bffJson } from "@/lib/http/browser";
 import { cartSchema, addItemSchema, couponCodeSchema, selectShippingRateSchema, updateCustomerSchema, updateQuantitySchema } from "../schema/cart";
 import type { AddItemInput, CouponCodeInput, CustomerAddresses, ShippingRateInput } from "../types";
+import { productSchema } from "@/features/products/schema/products";
+import type { Product } from "@/features/products/types";
 
 export const cartChangedEvent = "kadochi:cart-changed";
 
@@ -14,6 +16,12 @@ export async function addItem(input: AddItemInput) {
   announceCartChange();
   return cart;
 }
+export async function addCrossSellItem(productId: number) {
+  const cart = await bffJson("/api/cart/cross-sells/items", { method: "POST", body: JSON.stringify({ productId }) }, (value) => cartSchema.parse(value));
+  announceCartChange();
+  return cart;
+}
+export const getCartCrossSells = () => bffJson("/api/cart/cross-sells", { method: "GET" }, (value): Product[] => productSchema.array().parse(value));
 export async function updateQuantity(itemKey: string, quantity: number) {
   const cart = await bffJson(`/api/cart/items/${encodeURIComponent(itemKey)}`, { method: "PATCH", body: JSON.stringify(updateQuantitySchema.parse({ quantity })) }, (value) => cartSchema.parse(value));
   announceCartChange();

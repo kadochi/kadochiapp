@@ -8,10 +8,16 @@ const money = (amount: string, currencyCode: string, minorUnit: number) => ({ am
 
 function productDeliveryData(extensions: Record<string, unknown>) {
   const extension = extensions.kadochi;
-  const candidate = extension && typeof extension === "object" ? extension as { preparationHours?: unknown; preparation_hours?: unknown } : {};
+  const candidate = extension && typeof extension === "object"
+    ? extension as { preparationHours?: unknown; preparation_hours?: unknown; isCrossSell?: unknown; is_cross_sell?: unknown }
+    : {};
   const rawHours = candidate.preparationHours ?? candidate.preparation_hours;
   const preparationHours = typeof rawHours === "number" && Number.isInteger(rawHours) && rawHours >= 1 && rawHours <= 720 ? rawHours : 24;
-  return { preparationHours, fastDeliveryEligible: preparationHours < 6 };
+  return {
+    preparationHours,
+    fastDeliveryEligible: preparationHours < 6,
+    isCrossSell: candidate.isCrossSell === true || candidate.is_cross_sell === true,
+  };
 }
 
 export function mapCart(cart: UpstreamCart) {
