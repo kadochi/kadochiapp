@@ -528,7 +528,7 @@ function DeliveryStep(props: {
                 ? "border-green-600 bg-green-600 text-white not-data-disabled:not-data-loading:hover:border-green-600 not-data-disabled:not-data-loading:hover:bg-green-600 not-data-disabled:not-data-loading:active:border-green-700 not-data-disabled:not-data-loading:active:bg-green-700"
                 : "border-surface-neutral-high-emphasis text-surface-neutral-high-emphasis not-data-disabled:not-data-loading:hover:border-green-600 not-data-disabled:not-data-loading:hover:bg-green-600 not-data-disabled:not-data-loading:hover:text-white not-data-disabled:not-data-loading:active:border-green-700 not-data-disabled:not-data-loading:active:bg-green-700 not-data-disabled:not-data-loading:active:text-white";
               return <article className="w-[148px] shrink-0 snap-start" key={design.id}>
-                <div className="relative aspect-[1/1.1] overflow-hidden rounded-m bg-surface-neutral-low-emphasis">
+                <div className="relative aspect-[1/1.1] overflow-hidden rounded-m border border-border-high-emphasis bg-surface-neutral-low-emphasis">
                   <Image alt={design.title} className="object-cover" fill sizes="148px" src={design.imageUrl} />
                   <Button aria-label={selected ? `طرح ${design.title} انتخاب شده است` : `انتخاب طرح ${design.title}`} aria-pressed={selected} className={`absolute bottom-8 right-8 z-10 size-48 rounded-full bg-surface-background p-0 shadow-sm ${controlClassName}`} size="medium" variant="tertiary-outline" onClick={() => props.onPostcardDesign(design.id)}>
                     {selected ? <Check aria-hidden="true" className="size-20" strokeWidth={3} /> : <Plus aria-hidden="true" className="size-24" />}
