@@ -206,7 +206,7 @@ services:
           "5",
           "--output",
           "/dev/null",
-          "http://127.0.0.1/wp-json/",
+          "http://127.0.0.1/wp-login.php",
         ]
       interval: 30s
       timeout: 6s
