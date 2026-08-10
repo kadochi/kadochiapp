@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 
@@ -21,6 +22,7 @@ export function ProductsSlider({ items, showOutOfStock = false }: Readonly<Produ
     useProductsSlider(visibleItems);
   const isLoading = items.length === 0;
   const placeholderCount = 8;
+  const [activeSlide, setActiveSlide] = useState(0);
 
   if (!isLoading && slides.length === 0) return null;
 
@@ -36,6 +38,7 @@ export function ProductsSlider({ items, showOutOfStock = false }: Readonly<Produ
         className="carousel-rail carousel-rail--products w-full [&_.swiper-wrapper]:items-stretch"
         slidesPerView={1.4}
         spaceBetween={12}
+        onSlideChange={(swiper) => setActiveSlide(swiper.realIndex)}
         watchOverflow
       >
         {isLoading
@@ -44,9 +47,10 @@ export function ProductsSlider({ items, showOutOfStock = false }: Readonly<Produ
                 <ProductCardSkeleton />
               </SwiperSlide>
             ))
-          : slides.map(({ product }) => (
+          : slides.map(({ product }, index) => (
               <SwiperSlide className="h-auto" key={product.id}>
                 <ProductCard
+                  eagerImage={Math.abs(index - activeSlide) <= 2}
                   product={product}
                   imageLoadingPlaceholder
                   sizes="(min-width: 1024px) 20vw, (min-width: 860px) 29vw, (min-width: 540px) 42vw, 72vw"

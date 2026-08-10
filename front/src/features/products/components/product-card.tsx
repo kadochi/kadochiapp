@@ -13,6 +13,8 @@ type ProductCardProps = {
   product: Product;
   href?: string;
   priority?: boolean;
+  /** Load images already in the user's initial or adjacent viewport without preloading them. */
+  eagerImage?: boolean;
   sizes?: string;
   className?: string;
   /** Displays an image placeholder while a carousel slide's image is loading. */
@@ -24,6 +26,7 @@ export function ProductCard({
   product,
   href,
   priority = false,
+  eagerImage = false,
   sizes = "(min-width: 1024px) 16vw, (min-width: 640px) 25vw, 50vw",
   className,
   imageLoadingPlaceholder = false,
@@ -51,6 +54,7 @@ export function ProductCard({
               alt={image.alt || product.name}
               image={image}
               key={image.url}
+              eager={eagerImage}
               priority={priority}
               sizes={sizes}
             />
@@ -60,7 +64,7 @@ export function ProductCard({
               className="absolute inset-0 size-full object-cover"
               fetchPriority={priority ? "high" : "auto"}
               fill
-              loading={priority ? undefined : "lazy"}
+              loading={priority || eagerImage ? "eager" : "lazy"}
               preload={priority}
               quality={55}
               sizes={sizes}
