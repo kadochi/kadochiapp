@@ -17,7 +17,7 @@ type UpstreamOptions = Omit<RequestInit, "body" | "headers"> & {
   headers?: HeadersInit;
   requestId: string;
   acceptStatuses?: readonly number[];
-  /** Maximum caller wait; cacheable reads continue filling the shared cache after it elapses. */
+  /** Maximum time the upstream request may remain in flight. */
   timeoutMs?: number;
 };
 
@@ -33,7 +33,14 @@ class UpstreamDeadlineError extends Error {
   }
 }
 
-const responseReadTimeouts = new WeakMap<Response, number>();
+type ResponseDeadline = {
+  controller: AbortController;
+  expiresAt: number;
+  timer: ReturnType<typeof setTimeout>;
+};
+
+const responseDeadlines = new WeakMap<Response, ResponseDeadline>();
+let inFlightRequests = 0;
 
 function retryAfter(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
@@ -47,13 +54,28 @@ function usesNextDataCache(options: UpstreamOptions): boolean {
     && (revalidate === false || (typeof revalidate === "number" && revalidate > 0));
 }
 
-async function withDeadline<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
+function hasUserSpecificHeaders(headers: HeadersInit | undefined): boolean {
+  const values = new Headers(headers);
+  return ["authorization", "cookie", "cart-token", "nonce", "x-wc-store-api-nonce"].some((name) => values.has(name));
+}
+
+function clearResponseDeadline(response: Response): void {
+  const deadline = responseDeadlines.get(response);
+  if (!deadline) return;
+  clearTimeout(deadline.timer);
+  responseDeadlines.delete(response);
+}
+
+async function withDeadline<T>(operation: Promise<T>, timeoutMs: number, controller?: AbortController): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
       operation,
       new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new UpstreamDeadlineError()), timeoutMs);
+        timer = setTimeout(() => {
+          controller?.abort();
+          reject(new UpstreamDeadlineError());
+        }, timeoutMs);
       }),
     ]);
   } finally {
@@ -89,30 +111,36 @@ export function wordpressErrorDetail(status: number, body: unknown, requestId: s
 /** Internal server-only transport. Feature services own endpoint selection and mapping. */
 export async function wordpressFetch(path: string, options: UpstreamOptions): Promise<Response> {
   const { acceptStatuses = [], requestId, timeoutMs = defaultTimeoutMs, ...requestOptions } = options;
-  const cacheableRead = usesNextDataCache(options);
-  const controller = cacheableRead ? undefined : new AbortController();
-  const timer = controller === undefined ? undefined : setTimeout(() => controller.abort(), timeoutMs);
+  const userSpecific = hasUserSpecificHeaders(requestOptions.headers);
+  const cacheableRead = usesNextDataCache(options) && !userSpecific;
+  const controller = new AbortController();
+  const expiresAt = Date.now() + timeoutMs;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = performance.now();
   const endpoint = new URL(path, env.WORDPRESS_INTERNAL_URL).pathname;
+  let responseRegistered = false;
+  inFlightRequests += 1;
   try {
     const request = fetch(new URL(path, env.WORDPRESS_INTERNAL_URL), {
       ...requestOptions,
+      ...(userSpecific ? { cache: "no-store", next: undefined } : {}),
       headers: {
         Accept: "application/json",
-        ...(cacheableRead ? {} : { "X-Request-ID": requestId }),
+        ...(!cacheableRead ? { "X-Request-ID": requestId } : {}),
         ...requestOptions.headers,
       },
-      ...(controller === undefined ? {} : { signal: controller.signal }),
+      signal: controller.signal,
     });
-    const response = cacheableRead ? await withDeadline(request, timeoutMs) : await request;
+    const response = await request;
     if (!response.ok && !acceptStatuses.includes(response.status)) {
-      const body: unknown = await withDeadline(response.json(), timeoutMs).catch((error: unknown) => {
-        if (error instanceof UpstreamDeadlineError) throw error;
+      const body: unknown = await response.json().catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") throw error;
         return undefined;
       });
       throw new UpstreamError(wordpressErrorDetail(response.status, body, requestId, response.headers.get("retry-after")));
     }
-    responseReadTimeouts.set(response, timeoutMs);
+    responseDeadlines.set(response, { controller, expiresAt, timer });
+    responseRegistered = true;
     return response;
   } catch (error) {
     if (error instanceof UpstreamError) {
@@ -124,6 +152,7 @@ export async function wordpressFetch(path: string, options: UpstreamOptions): Pr
         status: error.detail.status,
         durationMs: Math.round(performance.now() - startedAt),
         cacheable: cacheableRead,
+        inFlight: inFlightRequests,
       });
       throw error;
     }
@@ -143,22 +172,33 @@ export async function wordpressFetch(path: string, options: UpstreamOptions): Pr
       status: upstreamError.detail.status,
       durationMs: Math.round(performance.now() - startedAt),
       cacheable: cacheableRead,
+      inFlight: inFlightRequests,
     });
     throw upstreamError;
   } finally {
-    if (timer !== undefined) clearTimeout(timer);
+    inFlightRequests -= 1;
+    // Successful responses keep their timer until their body is consumed.
+    // Every failure has completed its caller lifecycle and must release it now.
+    if (!responseRegistered) clearTimeout(timer);
   }
 }
 
 export async function parseUpstreamJson<T>(response: Response, parse: (value: unknown) => T, requestId: string): Promise<T> {
+  const deadline = responseDeadlines.get(response);
   let value: unknown;
   try {
-    value = await withDeadline(response.json(), responseReadTimeouts.get(response) ?? defaultTimeoutMs);
+    value = await withDeadline(
+      response.json(),
+      deadline ? Math.max(1, deadline.expiresAt - Date.now()) : defaultTimeoutMs,
+      deadline?.controller,
+    );
   } catch (error) {
     if (error instanceof UpstreamDeadlineError || (error instanceof DOMException && error.name === "AbortError")) {
       throw new UpstreamError({ code: "timeout", status: 504, message: "The upstream service timed out.", requestId, retryable: true });
     }
     throw new UpstreamError({ code: "malformed_upstream_response", status: 502, message: "The upstream service returned invalid JSON.", requestId, retryable: true });
+  } finally {
+    clearResponseDeadline(response);
   }
   try {
     return parse(value);

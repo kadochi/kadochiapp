@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { wordpressMediaUrl } from "@/lib/server/wordpress-media";
 
 export const heroSlideSchema = z.object({
   id: z.number().int().positive(),
@@ -56,7 +57,7 @@ export function mapHeroPosts(value: unknown): HeroSlide[] {
       subtitle: text(parsed.data.acf.subtitle),
       ctaText: text(parsed.data.acf.cta_text),
       ctaLink: url(parsed.data.acf.cta_link) ?? null,
-      backgroundImage,
+      backgroundImage: wordpressMediaUrl(backgroundImage),
     }];
   });
 }

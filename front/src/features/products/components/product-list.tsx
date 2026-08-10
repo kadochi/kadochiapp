@@ -14,7 +14,6 @@ export function ProductList({ items }: Readonly<ProductListProps>) {
     >
       {items.map((product, index) => (
         <ProductCard
-          eagerImage={index < 4}
           imageLoadingPlaceholder
           key={product.id}
           priority={index === 0}

@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import { wordpressMediaUrl } from "@/lib/server/wordpress-media";
 import { productSchema, type upstreamProductSchemaExport } from "../schema/products";
 import { decodeProductSlug } from "./product-slug";
 
@@ -29,7 +30,12 @@ export function mapProduct(product: UpstreamProduct) {
     price: money(product.prices.price, product.prices),
     regularPrice: product.prices.regular_price ? money(product.prices.regular_price, product.prices) : undefined,
     salePrice: product.prices.sale_price ? money(product.prices.sale_price, product.prices) : undefined,
-    images: product.images.map((image) => ({ id: image.id, url: image.src, thumbnailUrl: image.thumbnail, alt: image.alt ?? "" })),
+    images: product.images.map((image) => ({
+      id: image.id,
+      url: wordpressMediaUrl(image.src),
+      thumbnailUrl: image.thumbnail ? wordpressMediaUrl(image.thumbnail) : undefined,
+      alt: image.alt ?? "",
+    })),
     categories: product.categories,
     tags: product.tags
       .map((tag) => ({ id: tag.id, name: tag.name.trim(), slug: tag.slug.trim() }))

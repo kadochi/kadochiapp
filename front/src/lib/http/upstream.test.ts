@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 describe("wordpressFetch", () => {
-  it("keeps identical revalidated GETs stable for the Next.js data cache and fetch deduplication", async () => {
+  it("keeps public revalidated GETs cacheable while attaching a cancellation signal", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -28,17 +28,19 @@ describe("wordpressFetch", () => {
 
     const firstInit = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const secondInit = fetchMock.mock.calls[1]?.[1] as RequestInit;
-    expect(firstInit).toEqual(secondInit);
-    expect(firstInit).not.toHaveProperty("signal");
     expect(firstInit.headers).toEqual({ Accept: "application/json" });
+    expect(secondInit.headers).toEqual({ Accept: "application/json" });
+    expect(firstInit.signal).toBeInstanceOf(AbortSignal);
+    expect(secondInit.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it("times out a cacheable caller without aborting or varying the cache-fill request", async () => {
+  it("aborts a timed-out cacheable request", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn((url: URL, init?: RequestInit) => {
       void url;
-      void init;
-      return new Promise<Response>(() => undefined);
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+      });
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -60,8 +62,25 @@ describe("wordpressFetch", () => {
     await rejection;
 
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
-    expect(init).not.toHaveProperty("signal");
     expect(init.headers).toEqual({ Accept: "application/json" });
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(init.signal?.aborted).toBe(true);
+  });
+
+  it("forces requests carrying customer credentials out of the shared cache", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await wordpressFetch("/wp-json/wc/store/v1/cart", {
+      headers: { Authorization: "Bearer private-token" },
+      next: { revalidate: 60, tags: ["cart"] },
+      requestId: "request-private",
+    });
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(init.cache).toBe("no-store");
+    expect(init.next).toBeUndefined();
+    expect(init.headers).toEqual({ Accept: "application/json", Authorization: "Bearer private-token", "X-Request-ID": "request-private" });
   });
 
   it("keeps correlation and timeout aborts for no-store mutations", async () => {
