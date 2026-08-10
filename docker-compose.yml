@@ -28,8 +28,6 @@ services:
     depends_on:
       wordpress:
         condition: service_started
-      redis:
-        condition: service_healthy
 
     # Production secrets are supplied by the deployment host. URL values below
     # override public values with Docker-internal endpoints where appropriate.
@@ -54,7 +52,6 @@ services:
       INTERNAL_SITE_ORIGIN: http://127.0.0.1:3000
       COOKIE_DOMAIN: ""
       COOKIE_SECURE: "true"
-      REDIS_URL: redis://redis:6379
       ZARINPAL_MODE: production
       # HMAC-authenticates private OTP calls from Next.js to WordPress.
       KADOCHI_INTERNAL_API_SECRET: ${KADOCHI_INTERNAL_API_SECRET:?Set KADOCHI_INTERNAL_API_SECRET in the deployment environment}
@@ -115,7 +112,7 @@ services:
       start_period: 20s
 
     networks:
-      - web
+      - backend
 
   # Redis cache
   redis:
@@ -124,7 +121,22 @@ services:
     restart: unless-stopped
     logging: *kadochi-logging
 
-    command: redis-server --appendonly yes
+    # Redis is a bounded, disposable object cache. WordPress remains the
+    # source of truth in MySQL, so persistence would only grow disk usage and
+    # extend stale cache state across restarts.
+    command:
+      [
+        "redis-server",
+        "--save",
+        "",
+        "--appendonly",
+        "no",
+        "--maxmemory",
+        "256mb",
+        "--maxmemory-policy",
+        "allkeys-lfu",
+      ]
+    mem_limit: 384m
 
     volumes:
       - redis_data:/data
@@ -136,7 +148,7 @@ services:
       retries: 20
 
     networks:
-      - web
+      - backend
 
   # WordPress
   wordpress:
@@ -228,6 +240,7 @@ services:
 
     networks:
       - web
+      - backend
 
 volumes:
   mysql_data:
@@ -237,3 +250,6 @@ volumes:
 networks:
   web:
     external: true
+  # Database and cache traffic must not be reachable from unrelated services
+  # attached to the shared reverse-proxy network.
+  backend:

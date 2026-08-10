@@ -32,8 +32,9 @@ WordPress core, uploads, and plugins are persisted in `wordpress_data`. Docker v
 ## Production
 
 The default `docker-compose.yml` is the production stack. It builds production
-Next.js and WordPress images, runs MySQL and Redis, and attaches all services to
-the existing external `web` network used by Traefik.
+Next.js and WordPress images and runs MySQL and Redis. Only the HTTP services
+join the existing external `web` network used by Traefik; MySQL and Redis stay
+on the project-private `backend` network.
 
 1. Create the shared network once if the edge stack has not already created it:
    `docker network create web`
@@ -71,8 +72,10 @@ docker compose exec --user www-data wordpress \
   docker-entrypoint-kadochi.sh kadochi-enable-redis-object-cache
 ```
 
-WordPress uses Redis database 1 by default, leaving database 0 available to
-Next.js. Confirm the reported Redis status before considering the rollout
+WordPress uses Redis database 1 with a dedicated key prefix. Next.js does not
+connect to Redis. The cache is disposable, capped at 256 MB with LFU eviction,
+and constrained by a 384 MB container memory limit; MySQL remains the source of
+truth. Confirm the reported Redis status before considering the rollout
 complete. To roll back object caching without depending on a healthy Redis
 connection, run:
 
