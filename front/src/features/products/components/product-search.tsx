@@ -87,7 +87,9 @@ export function ProductSearch() {
       } catch {
         if (!controller.signal.aborted) setStatus("error");
       }
-    }, 200);
+    // Give fast typists enough time to finish a term before starting the two
+    // catalog partition reads behind this endpoint.
+    }, 400);
 
     return () => {
       window.clearTimeout(timer);

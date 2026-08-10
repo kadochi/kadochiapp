@@ -11,7 +11,14 @@ export type SimilarProductsProps = {
 
 /** Fetches related products and hands them to the existing slider. */
 export async function SimilarProducts({ category, excludeId }: Readonly<SimilarProductsProps>) {
-  const products = await listSimilarProducts({ categoryId: category?.id, excludeId });
+  let products: Awaited<ReturnType<typeof listSimilarProducts>>;
+  try {
+    products = await listSimilarProducts({ categoryId: category?.id, excludeId });
+  } catch {
+    // Recommendations are optional; a transient catalog failure must not turn
+    // an otherwise valid product detail page into the route error boundary.
+    return null;
+  }
   const availableProducts = products.filter((product) => product.inStock);
 
   const allHref = category

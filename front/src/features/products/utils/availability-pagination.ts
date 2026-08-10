@@ -29,22 +29,38 @@ export function availabilityFirstPage({
   const start = (page - 1) * perPage;
   const segments: AvailabilityPageSegment[] = [];
 
+  const appendSegments = (
+    partition: AvailabilityPartition,
+    partitionStart: number,
+    requestedCount: number,
+  ) => {
+    let cursor = partitionStart;
+    let remaining = requestedCount;
+
+    while (remaining > 0) {
+      const offset = cursor % perPage;
+      const take = Math.min(remaining, perPage - offset);
+      segments.push({
+        partition,
+        page: Math.floor(cursor / perPage) + 1,
+        offset,
+        take,
+      });
+      cursor += take;
+      remaining -= take;
+    }
+  };
+
   if (start < availableTotal) {
-    const offset = start % perPage;
     const take = Math.min(perPage, availableTotal - start);
-    segments.push({ partition: "available", page: Math.floor(start / perPage) + 1, offset, take });
+    appendSegments("available", start, take);
 
     if (take < perPage && unavailableTotal > 0) {
-      segments.push({ partition: "unavailable", page: 1, offset: 0, take: perPage - take });
+      appendSegments("unavailable", 0, Math.min(perPage - take, unavailableTotal));
     }
   } else if (start < total) {
     const unavailableStart = start - availableTotal;
-    segments.push({
-      partition: "unavailable",
-      page: Math.floor(unavailableStart / perPage) + 1,
-      offset: unavailableStart % perPage,
-      take: Math.min(perPage, unavailableTotal - unavailableStart),
-    });
+    appendSegments("unavailable", unavailableStart, Math.min(perPage, unavailableTotal - unavailableStart));
   }
 
   return { segments, total, totalPages };
