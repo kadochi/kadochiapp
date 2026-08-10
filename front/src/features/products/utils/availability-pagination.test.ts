@@ -18,7 +18,29 @@ describe("availabilityFirstPage", () => {
     expect(availabilityFirstPage({ page: 3, perPage: 10, availableTotal: 15, unavailableTotal: 18 })).toEqual({
       total: 33,
       totalPages: 4,
-      segments: [{ partition: "unavailable", page: 1, offset: 5, take: 10 }],
+      segments: [
+        { partition: "unavailable", page: 1, offset: 5, take: 5 },
+        { partition: "unavailable", page: 2, offset: 0, take: 5 },
+      ],
+    });
+  });
+
+  it("does not skip unavailable products on later pages after an uneven boundary", () => {
+    expect(availabilityFirstPage({ page: 4, perPage: 10, availableTotal: 15, unavailableTotal: 28 })).toEqual({
+      total: 43,
+      totalPages: 5,
+      segments: [
+        { partition: "unavailable", page: 2, offset: 5, take: 5 },
+        { partition: "unavailable", page: 3, offset: 0, take: 5 },
+      ],
+    });
+  });
+
+  it("limits the final segment to the remaining unavailable products", () => {
+    expect(availabilityFirstPage({ page: 4, perPage: 10, availableTotal: 15, unavailableTotal: 18 })).toEqual({
+      total: 33,
+      totalPages: 4,
+      segments: [{ partition: "unavailable", page: 2, offset: 5, take: 3 }],
     });
   });
 

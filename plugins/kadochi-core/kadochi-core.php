@@ -18,6 +18,8 @@ final class Kadochi_Core {
 	const OTP_MAX_ATTEMPTS = 5;
 	const OTP_RESEND_LIMIT_PER_HOUR = 3;
 	const OTP_SEND_LIMIT_PER_HOUR = self::OTP_RESEND_LIMIT_PER_HOUR + 1;
+	const OTP_GLOBAL_ATTEMPT_LIMIT_PER_HOUR = 120;
+	const OTP_INTERNAL_AUTH_SKEW_SECONDS = 120;
 	const JWT_TTL_SECONDS = 604800;
 	const CHECKOUT_FIELD_DELIVERY_SLOT = 'kadochi/delivery-slot';
 	const CHECKOUT_FIELD_PACKAGING = 'kadochi/packaging';
@@ -849,20 +851,82 @@ final class Kadochi_Core {
 		return $this->transient_key( 'otp_rate_' . $scope, $value );
 	}
 
-	private function counter_value( $key ) {
+	private function counter_state( $key, $now = null ) {
+		$now = null === $now ? time() : (int) $now;
 		$value = get_transient( $key );
-		return is_array( $value ) && isset( $value['count'] ) ? max( 0, (int) $value['count'] ) : 0;
+		if ( ! is_array( $value ) || ! isset( $value['count'], $value['expiresAt'] ) || (int) $value['expiresAt'] <= $now ) {
+			return array( 'count' => 0, 'expiresAt' => $now + HOUR_IN_SECONDS );
+		}
+		return array( 'count' => max( 0, (int) $value['count'] ), 'expiresAt' => (int) $value['expiresAt'] );
+	}
+
+	private function counter_value( $key ) {
+		$state = $this->counter_state( $key );
+		return (int) $state['count'];
+	}
+
+	private function counter_retry_after( $key ) {
+		$state = $this->counter_state( $key );
+		return max( 1, (int) $state['expiresAt'] - time() );
 	}
 
 	private function increment_counter( $key, $ttl ) {
-		$count = $this->counter_value( $key ) + 1;
-		set_transient( $key, array( 'count' => $count ), $ttl );
-		return $count;
+		$now = time();
+		$state = $this->counter_state( $key, $now );
+		$count = (int) $state['count'] + 1;
+		$expires_at = max( $now + 1, min( (int) $state['expiresAt'], $now + max( 1, (int) $ttl ) ) );
+		return set_transient( $key, array( 'count' => $count, 'expiresAt' => $expires_at ), $expires_at - $now ) ? $count : false;
 	}
 
-	private function request_ip() {
-		$ip = isset( $_SERVER['HTTP_X_KADOCHI_CLIENT_IP'] ) ? $_SERVER['HTTP_X_KADOCHI_CLIENT_IP'] : ( isset( $_SERVER['REMOTE_ADDR'] ) ? $_SERVER['REMOTE_ADDR'] : 'unknown' );
-		return substr( sanitize_text_field( (string) $ip ), 0, 200 ) ?: 'unknown';
+	private function otp_lock_name( $scope, $value ) {
+		return 'kadochi_otp_' . substr( hash( 'sha256', $scope . "\0" . $value ), 0, 52 );
+	}
+
+	/** MySQL named locks serialize challenge/counter mutations across PHP workers. */
+	private function acquire_otp_lock( $scope, $value, $timeout = 0 ) {
+		global $wpdb;
+		$result = $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $this->otp_lock_name( $scope, $value ), max( 0, (int) $timeout ) ) );
+		if ( null === $result ) {
+			$this->otp_log( 'otp_lock_failed', array( 'failureCategory' => 'database', 'lockScope' => $scope ) );
+			return null;
+		}
+		return 1 === (int) $result;
+	}
+
+	private function release_otp_lock( $scope, $value ) {
+		global $wpdb;
+		$result = $wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $this->otp_lock_name( $scope, $value ) ) );
+		if ( 1 !== (int) $result ) {
+			$this->otp_log( 'otp_lock_release_failed', array( 'failureCategory' => 'database', 'lockScope' => $scope ) );
+		}
+	}
+
+	/** Deletes security state and confirms it is no longer readable. */
+	private function delete_transient_confirmed( $key ) {
+		delete_transient( $key );
+		return false === get_transient( $key );
+	}
+
+	private function otp_internal_request_auth( WP_REST_Request $request, $purpose, $payload ) {
+		$secret = trim( (string) getenv( 'KADOCHI_INTERNAL_API_SECRET' ) );
+		if ( ! is_string( $secret ) || strlen( $secret ) < 32 ) {
+			$this->otp_log( 'internal_auth_failed', array( 'failureCategory' => 'configuration' ) );
+			return $this->auth_error( 'kadochi_otp_unavailable', __( 'The verification service is unavailable.', 'kadochi-core' ), 503 );
+		}
+		$timestamp = trim( (string) $request->get_header( 'X-Kadochi-Internal-Timestamp' ) );
+		$signature = strtolower( trim( (string) $request->get_header( 'X-Kadochi-Internal-Auth' ) ) );
+		$request_id = $this->otp_request_id();
+		if ( ! preg_match( '/^\d{10}$/', $timestamp ) || abs( time() - (int) $timestamp ) > self::OTP_INTERNAL_AUTH_SKEW_SECONDS || 'unknown' === $request_id || ! preg_match( '/^[a-f0-9]{64}$/', $signature ) ) {
+			$this->otp_log( 'internal_auth_failed', array( 'failureCategory' => 'invalid_headers' ) );
+			return $this->auth_error( 'kadochi_internal_request_required', __( 'The request is not authorized.', 'kadochi-core' ), 403 );
+		}
+		$message = "kadochi-internal-v1\n" . $purpose . "\n" . $timestamp . "\n" . $request_id . "\n" . $payload;
+		$expected = hash_hmac( 'sha256', $message, $secret );
+		if ( ! hash_equals( $expected, $signature ) ) {
+			$this->otp_log( 'internal_auth_failed', array( 'failureCategory' => 'signature' ) );
+			return $this->auth_error( 'kadochi_internal_request_required', __( 'The request is not authorized.', 'kadochi-core' ), 403 );
+		}
+		return true;
 	}
 
 	private function otp_digest( $phone, $code ) {
@@ -982,29 +1046,77 @@ final class Kadochi_Core {
 			return rest_ensure_response( array( 'expiresIn' => self::OTP_TTL_SECONDS, 'retryAfter' => self::OTP_RESEND_SECONDS, 'codeLength' => 4 ) );
 		}
 
-		$phone_rate_key = $this->rate_key( 'phone', $phone );
-		$ip_rate_key = $this->rate_key( 'ip', $this->request_ip() );
-		$challenge = $this->recoverable_otp_challenge( $phone );
-		if ( is_array( $challenge ) ) {
-			$this->otp_log( 'existing_challenge_recovered' );
-			return rest_ensure_response( $this->otp_response( $challenge ) );
+		$internal_auth = $this->otp_internal_request_auth( $request, 'otp-start', $phone );
+		if ( is_wp_error( $internal_auth ) ) {
+			return $internal_auth;
 		}
-		if ( $this->counter_value( $phone_rate_key ) >= self::OTP_SEND_LIMIT_PER_HOUR || $this->counter_value( $ip_rate_key ) >= self::OTP_SEND_LIMIT_PER_HOUR ) {
-			$this->otp_log( 'hourly_limit_reached' );
-			return $this->auth_error( 'kadochi_otp_rate_limited', __( 'Too many verification-code requests. Please try again later.', 'kadochi-core' ), 429, array( 'retryAfter' => HOUR_IN_SECONDS ) );
+		$phone_rate_key = $this->rate_key( 'phone', $phone );
+		$global_rate_key = $this->rate_key( 'global', 'otp-start' );
+		$phone_lock = $this->acquire_otp_lock( 'phone', $phone );
+		if ( null === $phone_lock ) {
+			return $this->auth_error( 'kadochi_otp_unavailable', __( 'The verification service is unavailable.', 'kadochi-core' ), 503 );
+		}
+		if ( ! $phone_lock ) {
+			$this->otp_log( 'otp_start_in_progress' );
+			return $this->auth_error( 'kadochi_otp_cooldown', __( 'A verification-code request is already in progress.', 'kadochi-core' ), 429, array( 'retryAfter' => 3 ) );
 		}
 
-		$code = $this->relay_code( $phone );
-		if ( is_wp_error( $code ) ) {
-			return $code;
+		try {
+			$challenge = $this->recoverable_otp_challenge( $phone );
+			if ( is_array( $challenge ) ) {
+				$this->otp_log( 'existing_challenge_recovered' );
+				return rest_ensure_response( $this->otp_response( $challenge ) );
+			}
+			$phone_count = $this->counter_value( $phone_rate_key );
+			if ( $phone_count >= self::OTP_SEND_LIMIT_PER_HOUR ) {
+				$this->otp_log( 'hourly_limit_reached' );
+				return $this->auth_error( 'kadochi_otp_rate_limited', __( 'Too many verification-code requests. Please try again later.', 'kadochi-core' ), 429, array( 'retryAfter' => $this->counter_retry_after( $phone_rate_key ) ) );
+			}
+
+			// The deployment is behind a CDN whose client-IP header contract is not
+			// controlled here. A global circuit breaker is deterministic and avoids
+			// both spoofable IP limits and carrier-NAT false positives.
+			$global_lock = $this->acquire_otp_lock( 'global', 'otp-start', 1 );
+			if ( null === $global_lock ) {
+				return $this->auth_error( 'kadochi_otp_unavailable', __( 'The verification service is unavailable.', 'kadochi-core' ), 503 );
+			}
+			if ( ! $global_lock ) {
+				$this->otp_log( 'otp_start_global_busy' );
+				return $this->auth_error( 'kadochi_otp_cooldown', __( 'A verification-code request is already in progress.', 'kadochi-core' ), 429, array( 'retryAfter' => 2 ) );
+			}
+			try {
+				if ( $this->counter_value( $global_rate_key ) >= self::OTP_GLOBAL_ATTEMPT_LIMIT_PER_HOUR ) {
+					$this->otp_log( 'hourly_limit_reached' );
+					return $this->auth_error( 'kadochi_otp_rate_limited', __( 'Too many verification-code requests. Please try again later.', 'kadochi-core' ), 429, array( 'retryAfter' => $this->counter_retry_after( $global_rate_key ) ) );
+				}
+				if ( false === $this->increment_counter( $global_rate_key, HOUR_IN_SECONDS ) ) {
+					$this->otp_log( 'rate_counter_store_failed' );
+					return $this->auth_error( 'kadochi_otp_unavailable', __( 'The verification service is unavailable.', 'kadochi-core' ), 503 );
+				}
+			} finally {
+				$this->release_otp_lock( 'global', 'otp-start' );
+			}
+
+			if ( false === $this->increment_counter( $phone_rate_key, HOUR_IN_SECONDS ) ) {
+				$this->otp_log( 'rate_counter_store_failed' );
+				return $this->auth_error( 'kadochi_otp_unavailable', __( 'The verification service is unavailable.', 'kadochi-core' ), 503 );
+			}
+
+			$code = $this->relay_code( $phone );
+			if ( is_wp_error( $code ) ) {
+				return $code;
+			}
+			$now = time();
+			$challenge = array( 'digest' => $this->otp_digest( $phone, $code ), 'attempts' => 0, 'codeLength' => strlen( $code ), 'expiresAt' => $now + self::OTP_TTL_SECONDS, 'retryAt' => $now + self::OTP_RESEND_SECONDS );
+			if ( ! set_transient( $this->challenge_key( $phone ), $challenge, self::OTP_TTL_SECONDS ) ) {
+				$this->otp_log( 'challenge_store_failed' );
+				return $this->auth_error( 'kadochi_otp_unavailable', __( 'The verification service is unavailable.', 'kadochi-core' ), 503 );
+			}
+			$this->otp_log( 'challenge_stored' );
+			return rest_ensure_response( $this->otp_response( $challenge, $now ) );
+		} finally {
+			$this->release_otp_lock( 'phone', $phone );
 		}
-		$now = time();
-		$challenge = array( 'digest' => $this->otp_digest( $phone, $code ), 'attempts' => 0, 'codeLength' => strlen( $code ), 'expiresAt' => $now + self::OTP_TTL_SECONDS, 'retryAt' => $now + self::OTP_RESEND_SECONDS );
-		set_transient( $this->challenge_key( $phone ), $challenge, self::OTP_TTL_SECONDS );
-		$this->increment_counter( $phone_rate_key, HOUR_IN_SECONDS );
-		$this->increment_counter( $ip_rate_key, HOUR_IN_SECONDS );
-		$this->otp_log( 'challenge_stored' );
-		return rest_ensure_response( $this->otp_response( $challenge, $now ) );
 	}
 
 	private function invalid_otp() {
@@ -1021,14 +1133,20 @@ final class Kadochi_Core {
 		if ( ! hash_equals( (string) $challenge['digest'], $this->otp_digest( $phone, $code ) ) ) {
 			$attempts = (int) ( isset( $challenge['attempts'] ) ? $challenge['attempts'] : 0 ) + 1;
 			if ( $attempts >= self::OTP_MAX_ATTEMPTS ) {
-				delete_transient( $challenge_key );
+				if ( ! $this->delete_transient_confirmed( $challenge_key ) ) {
+					$this->otp_log( 'challenge_state_failed', array( 'failureCategory' => 'attempt_consume' ) );
+					return $this->auth_error( 'kadochi_otp_unavailable', __( 'The verification service is unavailable.', 'kadochi-core' ), 503 );
+				}
 			} else {
 				$challenge['attempts'] = $attempts;
-				set_transient( $challenge_key, $challenge, max( 1, (int) $challenge['expiresAt'] - time() ) );
+				if ( ! set_transient( $challenge_key, $challenge, max( 1, (int) $challenge['expiresAt'] - time() ) ) ) {
+					$this->delete_transient_confirmed( $challenge_key );
+					$this->otp_log( 'challenge_state_failed', array( 'failureCategory' => 'attempt_update' ) );
+					return $this->auth_error( 'kadochi_otp_unavailable', __( 'The verification service is unavailable.', 'kadochi-core' ), 503 );
+				}
 			}
 			return $this->invalid_otp();
 		}
-		delete_transient( $challenge_key );
 		return true;
 	}
 
@@ -1869,25 +1987,56 @@ final class Kadochi_Core {
 	public function verify_otp( WP_REST_Request $request ) {
 		$phone = $request->get_param( 'phone' );
 		$code = $request->get_param( 'code' );
-		if ( $this->local_auth_enabled() ) {
+		$local_auth = $this->local_auth_enabled();
+		if ( $local_auth ) {
 			if ( '+989121234567' !== $phone || '1234' !== $code ) {
 				return $this->invalid_otp();
 			}
 		} else {
-			$verified = $this->verify_stored_otp( $phone, $code );
-			if ( is_wp_error( $verified ) ) {
-				return $verified;
+			$internal_auth = $this->otp_internal_request_auth( $request, 'otp-verify', $phone . "\n" . $code );
+			if ( is_wp_error( $internal_auth ) ) {
+				return $internal_auth;
+			}
+			$phone_lock = $this->acquire_otp_lock( 'phone', $phone, 1 );
+			if ( null === $phone_lock ) {
+				return $this->auth_error( 'kadochi_otp_unavailable', __( 'The verification service is unavailable.', 'kadochi-core' ), 503 );
+			}
+			if ( ! $phone_lock ) {
+				$this->otp_log( 'otp_verify_failed', array( 'failureCategory' => 'request_in_progress' ) );
+				return $this->auth_error( 'kadochi_otp_cooldown', __( 'A verification request is already in progress.', 'kadochi-core' ), 429, array( 'retryAfter' => 2 ) );
 			}
 		}
-		$user_id = $this->resolve_customer( $phone );
-		if ( is_wp_error( $user_id ) ) {
-			return $user_id;
+
+		try {
+			if ( ! $local_auth ) {
+				$verified = $this->verify_stored_otp( $phone, $code );
+				if ( is_wp_error( $verified ) ) {
+					$this->otp_log( 'otp_verify_failed', array( 'failureCategory' => 'invalid_or_expired' ) );
+					return $verified;
+				}
+			}
+			$user_id = $this->resolve_customer( $phone );
+			if ( is_wp_error( $user_id ) ) {
+				$this->otp_log( 'otp_verify_failed', array( 'failureCategory' => 'customer_resolution' ) );
+				return $user_id;
+			}
+			$customer = $this->customer_dto( $user_id );
+			if ( ! $customer ) {
+				$this->otp_log( 'otp_verify_failed', array( 'failureCategory' => 'customer_contract' ) );
+				return $this->auth_error( 'kadochi_customer_unavailable', __( 'The customer service is unavailable.', 'kadochi-core' ), 503 );
+			}
+			$response = rest_ensure_response( array( 'token' => $this->issue_jwt( $user_id, $phone ), 'expiresIn' => self::JWT_TTL_SECONDS, 'customer' => $customer ) );
+			if ( ! $local_auth && ! $this->delete_transient_confirmed( $this->challenge_key( $phone ) ) ) {
+				$this->otp_log( 'otp_verify_failed', array( 'failureCategory' => 'challenge_consume' ) );
+				return $this->auth_error( 'kadochi_otp_unavailable', __( 'The verification service is unavailable.', 'kadochi-core' ), 503 );
+			}
+			$this->otp_log( 'otp_verify_completed' );
+			return $response;
+		} finally {
+			if ( ! $local_auth ) {
+				$this->release_otp_lock( 'phone', $phone );
+			}
 		}
-		$customer = $this->customer_dto( $user_id );
-		if ( ! $customer ) {
-			return $this->auth_error( 'kadochi_customer_unavailable', __( 'The customer service is unavailable.', 'kadochi-core' ), 503 );
-		}
-		return rest_ensure_response( array( 'token' => $this->issue_jwt( $user_id, $phone ), 'expiresIn' => self::JWT_TTL_SECONDS, 'customer' => $customer ) );
 	}
 
 	public function health_response() {

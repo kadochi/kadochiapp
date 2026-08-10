@@ -7,6 +7,7 @@ import { ServiceError } from "@/lib/http/errors";
 import { parseUpstreamJson, wordpressFetch } from "@/lib/http/upstream";
 import { customerSchema, otpStartResponseSchema, wordpressOtpVerifyResponseSchema } from "../schema/auth";
 import type { OtpStartResponse, StartOtpInput, VerifyOtpInput } from "../types";
+import { otpInternalHeaders } from "./internal-auth";
 
 const authTokenCookie = "kadochi_auth_token";
 const otpStartPath = "/wp-json/kadochi/v1/auth/otp/start";
@@ -39,12 +40,6 @@ function unauthenticated(requestId: string): ServiceError {
   });
 }
 
-function forwardedClientIp(request?: Request): string | undefined {
-  const value = request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-    || request?.headers.get("x-real-ip")?.trim();
-  return value?.slice(0, 200) || undefined;
-}
-
 /** Reads only the opaque WordPress JWT; browser code never receives this value. */
 export async function getStoredAuthToken(): Promise<string | undefined> {
   return (await cookies()).get(authTokenCookie)?.value;
@@ -65,13 +60,13 @@ export function clearAuthToken(response: CookieResponse): void {
 }
 
 export async function startOtp(input: StartOtpInput, requestId: string, request?: Request): Promise<OtpStartResponse> {
-  const clientIp = forwardedClientIp(request);
+  void request;
   const response = await wordpressFetch(otpStartPath, {
     method: "POST",
     body: JSON.stringify({ phone: input.phone }),
     headers: {
       "Content-Type": "application/json",
-      ...(clientIp ? { "X-Kadochi-Client-IP": clientIp } : {}),
+      ...otpInternalHeaders("otp-start", input.phone, requestId),
     },
     cache: "no-store",
     requestId,
@@ -84,7 +79,10 @@ export async function verifyOtp(input: VerifyOtpInput, requestId: string): Promi
   const response = await wordpressFetch(otpVerifyPath, {
     method: "POST",
     body: JSON.stringify(input),
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...otpInternalHeaders("otp-verify", `${input.phone}\n${input.code}`, requestId),
+    },
     cache: "no-store",
     requestId,
   });

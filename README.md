@@ -39,15 +39,60 @@ the existing external `web` network used by Traefik.
    `docker network create web`
 2. Copy `front/.env.production.example` to `front/.env.production` and replace
    every placeholder.
-3. Set `MELIPAYAMAK_OTP_URL`, `KADOCHI_EDITORIAL_API_SECRET`, and
-   `KADOCHI_REVALIDATE_SECRET` in the root `.env` file or the shell/secret
-   manager environment used to run Compose. `front/.env.production` is loaded
-   only by Next.js; it does not configure WordPress-side services.
+3. Set `MELIPAYAMAK_OTP_URL`, `KADOCHI_EDITORIAL_API_SECRET`,
+   `KADOCHI_REVALIDATE_SECRET`, and a separate 32+ character
+   `KADOCHI_INTERNAL_API_SECRET` in the root `.env` file or the shell/secret
+   manager environment used to run Compose. The internal secret
+   HMAC-authenticates private OTP calls between Next.js and WordPress. Also set
+   `MYSQL_PASSWORD` and `MYSQL_ROOT_PASSWORD`. For an existing deployment, copy
+   the current database passwords exactly; this deployment must not be used to
+   rotate them.
+   `front/.env.production` is loaded only by Next.js; it does not configure
+   WordPress-side services.
 4. Keep the same deployment directory and Compose project name so Compose
    continues using the existing `mysql_data`, `wordpress_data`, and
    `redis_data` volumes.
 5. Back up the database, then start the stack without deleting volumes:
    `docker compose up --build -d`
+
+The production stack scopes its DNS override to Next.js and WordPress. The
+defaults are the production-verified `217.218.127.127` followed by `9.9.9.9`;
+use `KADOCHI_DNS_PRIMARY` and `KADOCHI_DNS_SECONDARY` only after verifying any
+replacement resolvers from the deployment host. Docker JSON logs rotate at
+10 MB with five files per container; `KADOCHI_LOG_MAX_SIZE` and
+`KADOCHI_LOG_MAX_FILES` can tune those bounds.
+
+The image provisions the checksum-pinned Redis Object Cache plugin but does not
+activate it or create a drop-in during normal startup. After WordPress and Redis
+are healthy, enable it explicitly with the idempotent command below:
+
+```sh
+docker compose exec --user www-data wordpress \
+  docker-entrypoint-kadochi.sh kadochi-enable-redis-object-cache
+```
+
+WordPress uses Redis database 1 by default, leaving database 0 available to
+Next.js. Confirm the reported Redis status before considering the rollout
+complete. To roll back object caching without depending on a healthy Redis
+connection, run:
+
+```sh
+docker compose exec --user www-data wordpress \
+  docker-entrypoint-kadochi.sh kadochi-disable-redis-object-cache
+```
+
+The rollback command moves only the verified Redis drop-in to
+`wp-content/object-cache.php.kadochi-disabled` and deactivates the plugin. It
+refuses to alter an unknown drop-in. As an emergency configuration-only bypass,
+set `KADOCHI_WP_REDIS_DISABLED=true` and recreate only the WordPress container.
+
+Redis, URL, query-auth HTTPS, and cron constants are supplied by an image-owned
+PHP prepend file instead of `WORDPRESS_CONFIG_EXTRA`. This makes the settings
+effective when the existing `wp-config.php` volume is reused, and removing the
+prepend INI file in a rollback image removes the behavior without rewriting the
+persistent configuration. Production defaults `KADOCHI_DISABLE_WP_CRON` to
+`true`; this prevents the overdue cron backlog from running automatically after
+DNS recovery. No system cron is installed by this Compose change.
 
 The production Compose file keeps the existing data mount destinations:
 MySQL at `/var/lib/mysql`, WordPress at `/var/www/html`, and Redis at `/data`.

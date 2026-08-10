@@ -1,3 +1,9 @@
+x-kadochi-logging: &kadochi-logging
+  driver: json-file
+  options:
+    max-size: "${KADOCHI_LOG_MAX_SIZE:-10m}"
+    max-file: "${KADOCHI_LOG_MAX_FILES:-5}"
+
 services:
   # Next.js frontend
   nextjs:
@@ -11,6 +17,13 @@ services:
     image: kadochi-nextjs:latest
     container_name: kadochi-nextjs
     restart: unless-stopped
+    logging: *kadochi-logging
+
+    # Keep the production DNS workaround scoped to workloads that resolve
+    # external APIs. Docker's embedded DNS still handles service discovery.
+    dns:
+      - ${KADOCHI_DNS_PRIMARY:-217.218.127.127}
+      - ${KADOCHI_DNS_SECONDARY:-9.9.9.9}
 
     depends_on:
       wordpress:
@@ -43,8 +56,23 @@ services:
       COOKIE_SECURE: "true"
       REDIS_URL: redis://redis:6379
       ZARINPAL_MODE: production
+      # HMAC-authenticates private OTP calls from Next.js to WordPress.
+      KADOCHI_INTERNAL_API_SECRET: ${KADOCHI_INTERNAL_API_SECRET:?Set KADOCHI_INTERNAL_API_SECRET in the deployment environment}
       # Shared with WordPress solely for the private cache-invalidation route.
       REVALIDATE_SECRET: ${KADOCHI_REVALIDATE_SECRET:?Set KADOCHI_REVALIDATE_SECRET in the deployment environment}
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/robots.txt', { signal: AbortSignal.timeout(4000) }).then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
     labels:
       - "traefik.enable=true"
@@ -62,12 +90,13 @@ services:
     image: mysql:8.0
     container_name: kadochi-mysql
     restart: unless-stopped
+    logging: *kadochi-logging
 
     environment:
       MYSQL_DATABASE: kadochi
       MYSQL_USER: kadochi
-      MYSQL_PASSWORD: zyzba1-vyqxem-muareZ
-      MYSQL_ROOT_PASSWORD: zyzba1-vyqxem-muareZ
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD to the existing application database password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD to the existing database root password}
 
     command: --default-authentication-plugin=mysql_native_password
 
@@ -93,6 +122,7 @@ services:
     image: redis:7-alpine
     container_name: kadochi-redis
     restart: unless-stopped
+    logging: *kadochi-logging
 
     command: redis-server --appendonly yes
 
@@ -116,6 +146,11 @@ services:
     image: kadochi-wordpress:php8.2-apache
     container_name: kadochi-wordpress
     restart: unless-stopped
+    logging: *kadochi-logging
+
+    dns:
+      - ${KADOCHI_DNS_PRIMARY:-217.218.127.127}
+      - ${KADOCHI_DNS_SECONDARY:-9.9.9.9}
 
     depends_on:
       mysql:
@@ -127,13 +162,14 @@ services:
       WORDPRESS_DB_HOST: mysql:3306
       WORDPRESS_DB_NAME: kadochi
       WORDPRESS_DB_USER: kadochi
-      WORDPRESS_DB_PASSWORD: zyzba1-vyqxem-muareZ
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD to the existing application database password}
       WP_ENVIRONMENT_TYPE: production
       # This must come from the root Compose environment (for example ./.env
       # on the deployment host), not front/.env.production. WordPress sends
       # the OTP relay request, so failing before startup is safer than a 503
       # from the login endpoint.
       MELIPAYAMAK_OTP_URL: ${MELIPAYAMAK_OTP_URL:?Set MELIPAYAMAK_OTP_URL in the deployment environment}
+      KADOCHI_INTERNAL_API_SECRET: ${KADOCHI_INTERNAL_API_SECRET:?Set KADOCHI_INTERNAL_API_SECRET in the deployment environment}
       KADOCHI_PAYMENT_METHOD_ID: ${KADOCHI_PAYMENT_METHOD_ID:-WC_ZPal}
       KADOCHI_FRONTEND_URL: https://kadochi.com
       # The editorial service accepts requests only with this secret. Keep it
@@ -141,18 +177,41 @@ services:
       KADOCHI_EDITORIAL_API_SECRET: ${KADOCHI_EDITORIAL_API_SECRET:?Set KADOCHI_EDITORIAL_API_SECRET in the deployment environment}
       KADOCHI_REVALIDATE_SECRET: ${KADOCHI_REVALIDATE_SECRET:?Set KADOCHI_REVALIDATE_SECRET in the deployment environment}
       KADOCHI_FRONTEND_REVALIDATE_URL: http://kadochi-nextjs:3000/api/revalidate
+      WP_REDIS_HOST: redis
+      WP_REDIS_PORT: "6379"
+      # Keep WordPress isolated from any current or future Next.js Redis keys.
+      WP_REDIS_DATABASE: "${KADOCHI_WP_REDIS_DATABASE:-1}"
+      WP_REDIS_PREFIX: "${KADOCHI_WP_REDIS_PREFIX:-kadochi:wordpress:}"
+      WP_REDIS_CLIENT: predis
+      WP_REDIS_TIMEOUT: "1"
+      WP_REDIS_READ_TIMEOUT: "1"
+      WP_REDIS_DISABLE_DROPIN_AUTOUPDATE: "true"
+      # Emergency rollback switch; the explicit disable command is preferred.
+      WP_REDIS_DISABLED: "${KADOCHI_WP_REDIS_DISABLED:-false}"
+      WP_CACHE: "true"
+      WP_HOME: https://api.kadochi.com
+      WP_SITEURL: https://api.kadochi.com
+      # Keep the overdue backlog paused until a controlled scheduler rollout.
+      DISABLE_WP_CRON: "${KADOCHI_DISABLE_WP_CRON:-true}"
 
-      WORDPRESS_CONFIG_EXTRA: |
-        define('WP_REDIS_HOST', 'redis');
-        define('WP_REDIS_PORT', 6379);
-        define('WP_CACHE', true);
-        define('WP_HOME', 'https://api.kadochi.com');
-        define('WP_SITEURL', 'https://api.kadochi.com');
-        // Internal Docker HTTP: Woo query-key auth must be treated as HTTPS.
-        // Use $$ so Compose does not interpolate $$_GET / $$_SERVER.
-        if (!empty($$_GET['consumer_key']) && !empty($$_GET['consumer_secret'])) {
-          $$_SERVER['HTTPS'] = 'on';
-        }
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "--fail",
+          "--silent",
+          "--show-error",
+          "--max-time",
+          "5",
+          "--output",
+          "/dev/null",
+          "http://127.0.0.1/wp-json/",
+        ]
+      interval: 30s
+      timeout: 6s
+      retries: 3
+      start_period: 40s
 
     volumes:
       - wordpress_data:/var/www/html
