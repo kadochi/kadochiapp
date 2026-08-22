@@ -1,8 +1,14 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { ServiceError } from "@/lib/http/errors";
+import {
+  AuthRefreshCoordinator,
+  publishAuthChange,
+  statusAfterRefreshFailure,
+  subscribeToAuthChanges,
+} from "./auth-coordination";
 import { getCurrentCustomer, logout as logoutRequest, startOtp as startOtpRequest, verifyOtp as verifyOtpRequest } from "./services/auth";
 import type { AuthStatus, Customer, OtpStartResponse, StartOtpInput, VerifyOtpInput } from "./types";
 
@@ -16,120 +22,98 @@ type AuthContextValue = {
   logout: () => Promise<void>;
 };
 
-const authChannel = "kadochi-auth";
-const authStorageKey = "kadochi-auth-change";
 const tabId = Math.random().toString(36).slice(2);
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const authRefreshRetryMs = 400;
 
-type AuthChange = { type: "changed"; sender: string };
-
-function isAuthChange(value: unknown): value is AuthChange {
-  return typeof value === "object" && value !== null
-    && (value as { type?: unknown }).type === "changed"
-    && typeof (value as { sender?: unknown }).sender === "string";
-}
-
-function publishAuthChange(): void {
-  if (typeof window === "undefined") return;
-  const change: AuthChange = { type: "changed", sender: tabId };
-  if ("BroadcastChannel" in window) {
-    const channel = new BroadcastChannel(authChannel);
-    channel.postMessage(change);
-    channel.close();
-  }
+async function currentCustomerWithRetry(): Promise<Customer | null> {
   try {
-    window.localStorage.setItem(authStorageKey, JSON.stringify(change));
-  } catch {
-    // Private browsing can disable localStorage; BroadcastChannel remains a best-effort sync path.
+    return await getCurrentCustomer();
+  } catch (error) {
+    if (error instanceof ServiceError && !error.detail.retryable) throw error;
+    await new Promise((resolve) => window.setTimeout(resolve, authRefreshRetryMs));
+    return getCurrentCustomer();
   }
 }
 
-export function AuthProvider({ children, hasStoredSession = false }: { children: ReactNode; hasStoredSession?: boolean }) {
+export function AuthProvider({ children }: { children: ReactNode; hasStoredSession?: boolean }) {
   const [customer, setCustomer] = useState<Customer | null>(null);
-  // The server can safely tell us whether the HttpOnly session cookie exists
-  // without exposing its value. This prevents a full-page navigation from
-  // painting an authenticated customer as signed out while /api/auth/current
-  // validates the token.
-  const [status, setStatus] = useState<AuthStatus>(() => hasStoredSession ? "authenticated" : "loading");
+  // Cookie presence is only a hint; authenticated means /current has supplied
+  // a confirmed customer during this provider's lifetime.
+  const [status, setStatus] = useState<AuthStatus>("loading");
   const [error, setError] = useState<Error | null>(null);
+  const customerRef = useRef<Customer | null>(null);
+  const [refreshCoordinator] = useState(() => new AuthRefreshCoordinator<Customer | null>());
 
-  const refresh = useCallback(async (): Promise<Customer | null> => {
+  const refresh = useCallback((): Promise<Customer | null> => {
     // Session validation is a background operation for an already signed-in
     // customer. Keep that state visible until the server confirms otherwise.
-    setStatus((current) => current === "authenticated" ? current : "loading");
+    setStatus(customerRef.current ? "authenticated" : "loading");
     setError(null);
-    try {
-      const nextCustomer = await getCurrentCustomer();
-      if (!nextCustomer) {
-        setCustomer(null);
-        setStatus("anonymous");
-        return null;
-      }
-      setCustomer(nextCustomer);
-      setStatus("authenticated");
-      return nextCustomer;
-    } catch (caught) {
-      if (caught instanceof ServiceError && caught.detail.code === "unauthenticated") {
-        setCustomer(null);
-        setStatus("anonymous");
-        return null;
-      }
-      const nextError = caught instanceof Error ? caught : new Error("Unable to refresh authentication.");
-      setCustomer(null);
-      setStatus("error");
-      setError(nextError);
-      throw nextError;
-    }
-  }, []);
+    return refreshCoordinator.run(
+      async () => {
+        try {
+          return await currentCustomerWithRetry();
+        } catch (caught) {
+          if (caught instanceof ServiceError && caught.detail.code === "unauthenticated") return null;
+          throw caught;
+        }
+      },
+      (nextCustomer) => {
+        customerRef.current = nextCustomer;
+        setCustomer(nextCustomer);
+        setStatus(nextCustomer ? "authenticated" : "anonymous");
+      },
+      (caught) => {
+        const nextError = caught instanceof Error ? caught : new Error("Unable to refresh authentication.");
+        // Keep a previously confirmed customer visible during a temporary
+        // failure, but never promote a bare cookie hint to authenticated.
+        setStatus(statusAfterRefreshFailure(customerRef.current));
+        setError(nextError);
+      },
+    );
+  }, [refreshCoordinator]);
 
   useEffect(() => {
     // Do not defer the initial check: a 15-second delay left new page loads
     // visibly anonymous even though their authentication cookie was present.
     const timer = window.setTimeout(() => void refresh().catch(() => undefined), 0);
-    return () => window.clearTimeout(timer);
-  }, [refresh]);
+    return () => {
+      window.clearTimeout(timer);
+      refreshCoordinator.invalidate();
+    };
+  }, [refresh, refreshCoordinator]);
 
   useEffect(() => {
-    const refreshIfChanged = (value: unknown) => {
-      if (isAuthChange(value) && value.sender !== tabId) void refresh().catch(() => undefined);
-    };
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key !== authStorageKey || !event.newValue) return;
-      try {
-        refreshIfChanged(JSON.parse(event.newValue));
-      } catch {
-        // Ignore unrelated or corrupted local storage values.
-      }
-    };
-
-    const channel = "BroadcastChannel" in window ? new BroadcastChannel(authChannel) : undefined;
-    if (channel) channel.onmessage = (event: MessageEvent<unknown>) => refreshIfChanged(event.data);
-    window.addEventListener("storage", handleStorage);
-    return () => {
-      channel?.close();
-      window.removeEventListener("storage", handleStorage);
-    };
-  }, [refresh]);
+    return subscribeToAuthChanges(window, tabId, () => {
+      refreshCoordinator.invalidate();
+      void refresh().catch(() => undefined);
+    });
+  }, [refresh, refreshCoordinator]);
 
   const startOtp = useCallback((input: StartOtpInput) => startOtpRequest(input), []);
   const verifyOtp = useCallback(async (input: VerifyOtpInput) => {
     const nextCustomer = await verifyOtpRequest(input);
+    refreshCoordinator.invalidate();
+    customerRef.current = nextCustomer;
     setCustomer(nextCustomer);
     setStatus("authenticated");
     setError(null);
-    publishAuthChange();
+    publishAuthChange(window, tabId);
     return nextCustomer;
-  }, []);
+  }, [refreshCoordinator]);
   const logout = useCallback(async () => {
     try {
       await logoutRequest();
     } finally {
+      refreshCoordinator.invalidate();
+      customerRef.current = null;
       setCustomer(null);
       setStatus("anonymous");
       setError(null);
-      publishAuthChange();
+      publishAuthChange(window, tabId);
     }
-  }, []);
+  }, [refreshCoordinator]);
 
   const value = useMemo<AuthContextValue>(() => ({ customer, status, error, startOtp, verifyOtp, refresh, logout }), [customer, status, error, startOtp, verifyOtp, refresh, logout]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

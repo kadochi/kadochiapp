@@ -5,7 +5,10 @@ import { ServiceError, type ApiError } from "./errors";
 import { UpstreamError } from "./upstream";
 
 export function requestId(request: Request): string {
-  return request.headers.get("x-request-id")?.slice(0, 128) || crypto.randomUUID();
+  const forwarded = request.headers.get("x-request-id")
+    ?.replace(/[^A-Za-z0-9._:-]/g, "")
+    .slice(0, 128);
+  return forwarded || crypto.randomUUID();
 }
 
 export function jsonError(error: unknown, id: string): NextResponse {

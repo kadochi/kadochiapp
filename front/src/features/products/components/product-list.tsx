@@ -13,7 +13,12 @@ export function ProductList({ items }: Readonly<ProductListProps>) {
       className="grid grid-cols-2 gap-16 px-16 pb-24 pt-8 min-[640px]:grid-cols-4 min-[1024px]:grid-cols-6 min-[1024px]:gap-20"
     >
       {items.map((product, index) => (
-        <ProductCard key={product.id} priority={index === 0} product={product} />
+        <ProductCard
+          imageLoadingPlaceholder
+          key={product.id}
+          priority={index === 0}
+          product={product}
+        />
       ))}
     </section>
   );

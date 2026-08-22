@@ -11,7 +11,6 @@ import { MagazineCard } from "@/features/magazine/components/magazine-card";
 import { MagazineComment } from "@/features/magazine/components/magazine-comment";
 import { MagazineComments } from "@/features/magazine/components/magazine-comments";
 import { MagazineDiscoverySidebar } from "@/features/magazine/components/magazine-discovery-sidebar";
-import { ArticleRelatedProducts } from "@/features/magazine/components/article-related-products";
 import { MagazineViewTracker } from "@/features/magazine/components/magazine-view-tracker";
 import { MagazineTags } from "@/features/magazine/components/magazine-tags";
 import { getMagazineArticleBySlug, listMagazineArticles } from "@/features/magazine/services/magazine.server";
@@ -123,12 +122,6 @@ export default async function MagazineArticlePage({ params }: { params: Promise<
         </div>
       </Container>
 
-      <Divider variant="spacer" />
-      <Container className="max-w-[1440px]" px="none">
-        <Suspense fallback={<div aria-hidden className="h-[280px] animate-pulse bg-surface-soft" />}>
-          <ArticleRelatedProducts article={article} />
-        </Suspense>
-      </Container>
       {article.tags.length ? <><Divider variant="spacer" /><MagazineTags tags={article.tags} /></> : null}
       <Divider variant="spacer" />
       <MagazineComment nextPath={`/magazine/${article.slug}`} postId={article.id} />

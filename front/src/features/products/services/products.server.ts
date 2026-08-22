@@ -249,14 +249,17 @@ export async function recordProductView(productId: number, requestId: string): P
 
 export async function listSimilarProducts({ categoryId, excludeId, perPage = 8 }: SimilarProductsQuery) {
   const query = { exclude: [excludeId], perPage, orderby: "popularity" as const };
-  if (!categoryId) return (await listProducts(query)).items;
+  if (!categoryId) return (await listProductsByAvailability(query, "available", 1)).items;
 
-  const categoryProducts = await listProducts({ ...query, category: categoryId });
+  // Recommendation rails never render unavailable products. Querying only the
+  // available partition preserves their visible order while avoiding the
+  // redundant out-of-stock request and count work performed by listProducts.
+  const categoryProducts = await listProductsByAvailability({ ...query, category: categoryId }, "available", 1);
   // A category can be empty or only contain the current product. Keep a useful
   // related-products rail by falling back to the catalog's popular products.
   return categoryProducts.items.length
     ? categoryProducts.items
-    : (await listProducts(query)).items;
+    : (await listProductsByAvailability(query, "available", 1)).items;
 }
 
 const articleTermStopWords = new Set([

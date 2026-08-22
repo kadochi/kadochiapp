@@ -10,11 +10,13 @@ type ProductCardImageProps = {
   image: Product["images"][number];
   alt: string;
   priority: boolean;
+  /** Fetches an image that is already visible, without adding a preload hint. */
+  eager: boolean;
   sizes: string;
 };
 
 /** Keeps each carousel card stable while its individual product image decodes. */
-export function ProductCardImage({ image, alt, priority, sizes }: Readonly<ProductCardImageProps>) {
+export function ProductCardImage({ image, alt, eager, priority, sizes }: Readonly<ProductCardImageProps>) {
   const imageRef = useRef<HTMLImageElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -39,7 +41,7 @@ export function ProductCardImage({ image, alt, priority, sizes }: Readonly<Produ
         )}
         fetchPriority={priority ? "high" : "auto"}
         fill
-        loading={priority ? undefined : "lazy"}
+        loading={priority || eager ? "eager" : "lazy"}
         onError={() => setIsLoaded(true)}
         onLoad={() => setIsLoaded(true)}
         preload={priority}

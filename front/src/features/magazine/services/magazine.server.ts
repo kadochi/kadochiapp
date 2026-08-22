@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { ServiceError } from "@/lib/http/errors";
 import { parseUpstreamJson, wordpressFetch } from "@/lib/http/upstream";
+import { wordpressMediaUrl } from "@/lib/server/wordpress-media";
 import { magazineArticleSchema, magazineQuerySchema, upstreamMagazineCategoriesSchema, upstreamMagazinesSchema } from "../schema/magazine";
 import type { MagazineArticle, MagazineCategory, MagazineListResult, MagazineQuery, MagazineTag } from "../types";
 import { articleText, readingTime } from "../utils/article-text";
@@ -48,7 +49,7 @@ function mapMagazineArticle(upstream: z.infer<typeof upstreamMagazinesSchema>[nu
     publishedAt: upstream.date,
     modifiedAt: upstream.modified,
     authorName: upstream._embedded?.author?.[0]?.name || "تحریریه کادوچی",
-    image: imageUrl ? { url: imageUrl, alt: media?.alt_text || articleText(upstream.title.rendered) } : undefined,
+    image: imageUrl ? { url: wordpressMediaUrl(imageUrl), alt: media?.alt_text || articleText(upstream.title.rendered) } : undefined,
     categories,
     tags,
     readingTime: readingTime(content),

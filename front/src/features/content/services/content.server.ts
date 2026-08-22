@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "crypto";
 import { parseUpstreamJson, wordpressFetch } from "@/lib/http/upstream";
+import { wordpressMediaUrl } from "@/lib/server/wordpress-media";
 import { homepageContentSchema } from "../schema/content";
 import { mapHeroPosts } from "../utils/hero-posts";
 
@@ -13,7 +14,17 @@ export async function getHomepageContent() {
     timeoutMs: 20_000,
     next: { revalidate: 60, tags: ["homepage-content"] },
   });
-  return parseUpstreamJson(response, (value) => homepageContentSchema.parse(value), requestId);
+  return parseUpstreamJson(response, (value) => {
+    const content = homepageContentSchema.parse(value);
+    const image = <T extends { url: string; alt: string } | null>(value: T): T => value ? { ...value, url: wordpressMediaUrl(value.url) } : value;
+    return {
+      ...content,
+      banners: content.banners.map((item) => ({ ...item, backgroundImage: image(item.backgroundImage) })),
+      heroes: content.heroes.map((item) => ({ ...item, backgroundImage: image(item.backgroundImage) })),
+      sliders: content.sliders.map((item) => ({ ...item, backgroundImage: image(item.backgroundImage) })),
+      stories: content.stories.map((item) => ({ ...item, image: image(item.image) })),
+    };
+  }, requestId);
 }
 
 /** Reads published Hero posts directly from SCF's WordPress REST representation. */
