@@ -144,9 +144,9 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   useEffect(() => {
     let active = true;
     void saveCheckoutDraft({})
-      .catch((caught) => {
-        if (active) setError(caught instanceof Error ? caught.message : "ایجاد پیش‌نویس سفارش انجام نشد.");
-      })
+      // A checkout draft is best-effort. Woo can keep this data in its cart
+      // session until payment, so an early draft failure must not block ordering.
+      .catch(() => undefined)
       .finally(() => {
         if (active) setStartingDraft(false);
       });
@@ -213,7 +213,12 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         });
         const draft = draftProgress(false);
         if (!draft) return;
-        await saveCheckoutDraft(draft);
+        try {
+          await saveCheckoutDraft(draft);
+        } catch {
+          // The final checkout request includes the complete data and can still
+          // materialize the order when Woo could not create an early draft.
+        }
         setState((current) => ({ ...current, cart, ...(updatedCustomer ? { customer: updatedCustomer } : {}) }));
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "محاسبه هزینه ارسال و مالیات انجام نشد.");
@@ -229,9 +234,9 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
       setSavingDraft(true);
       try {
         await saveCheckoutDraft(draft);
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "ذخیره اطلاعات سفارش انجام نشد.");
-        return;
+      } catch {
+        // Keep the customer moving: payment submits the same complete checkout
+        // payload and Woo will create the order at that point if needed.
       } finally {
         setSavingDraft(false);
       }

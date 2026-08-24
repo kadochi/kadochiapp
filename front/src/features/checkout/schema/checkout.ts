@@ -159,10 +159,11 @@ const upstreamCheckoutResultSchema = z.object({
 }).passthrough();
 
 export const upstreamCheckoutDraftSchema = z.object({
-  // WooCommerce 10.8+ may keep the PUT draft in the shopper session and return 0
-  // until POST materializes the real order.
+  // Some WooCommerce Store API versions keep checkout details in the cart session
+  // until payment starts. A real order reference is therefore optional here.
   order_id: z.number().int().nonnegative().optional(),
-  status: z.string().optional(),
+  order_key: z.string().min(1).max(200).optional(),
+  status: z.string().min(1),
 }).passthrough();
 
 export function mapCheckoutResult(value: unknown) {

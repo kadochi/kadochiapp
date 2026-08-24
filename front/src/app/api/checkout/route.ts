@@ -1,5 +1,5 @@
 import { applyCartToken } from "@/features/cart/services/cart.server";
-import { checkout, checkoutState, saveCheckoutDraft } from "@/features/checkout/services/checkout.server";
+import { applyCheckoutDraft, checkout, checkoutState, saveCheckoutDraft } from "@/features/checkout/services/checkout.server";
 import { assertSameOrigin, jsonError, jsonOk, requestId } from "@/lib/http/route";
 
 export async function GET(request: Request) {
@@ -34,6 +34,7 @@ export async function PUT(request: Request) {
     const saved = await saveCheckoutDraft(await request.json(), id);
     const response = jsonOk({}, id, { headers: { "Cache-Control": "no-store" } });
     applyCartToken(response, saved.cartToken);
+    if (saved.draft) applyCheckoutDraft(response, saved.draft);
     return response;
   } catch (error) {
     return jsonError(error, id);

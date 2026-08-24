@@ -91,6 +91,14 @@ function response(body: unknown, cartToken?: string, status = 200) {
   });
 }
 
+function checkoutDraft(orderId: number) {
+  return { order_id: orderId, order_key: `wc_order_${orderId}`, status: "checkout-draft" };
+}
+
+function sessionCheckout() {
+  return { order_id: 0, status: "checkout-draft" };
+}
+
 function input() {
   return {
     sender: { firstName: "Sender", lastName: "Name" },
@@ -167,14 +175,14 @@ describe("checkout service", () => {
   it("creates the current checkout draft before persisting the first completed step", async () => {
     transport.fetch
       .mockResolvedValueOnce(response(rawCart, "cart-1"))
-      .mockResolvedValueOnce(response({ order_id: 81, status: "checkout-draft" }, "cart-2"))
-      .mockResolvedValueOnce(response({ order_id: 81, status: "checkout-draft" }, "cart-3"));
+      .mockResolvedValueOnce(response(checkoutDraft(81), "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(81), "cart-3"));
 
     await expect(saveCheckoutDraft({
       sender: input().sender,
       recipient: input().recipient,
       address: input().address,
-    }, "request-1")).resolves.toEqual({ cartToken: "cart-3" });
+    }, "request-1")).resolves.toEqual({ cartToken: "cart-3", draft: { orderId: 81, orderKey: "wc_order_81" } });
 
     expect(transport.fetch.mock.calls.map(([path]) => path)).toEqual([
       "/wp-json/wc/store/v1/cart",
@@ -194,22 +202,23 @@ describe("checkout service", () => {
   it("submits server-owned identity and rotates the cart token through payment", async () => {
     transport.fetch
       .mockResolvedValueOnce(response(rawCart, "cart-1"))
-      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(90), "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(90), "cart-3"))
       .mockResolvedValueOnce(response({
         order_id: 90,
         status: "pending",
         payment_result: { payment_status: "pending", redirect_url: "https://payment.zarinpal.com/pg/StartPay/authority" },
-      }, "cart-3"));
+      }, "cart-4"));
 
     const completed = await checkout(input(), "request-1");
 
     expect(completed).toMatchObject({
-      cartToken: "cart-3",
+      cartToken: "cart-4",
       result: { orderId: 90, status: "pending", paymentResult: { redirectUrl: "https://payment.zarinpal.com/pg/StartPay/authority" } },
     });
-    const [postPath, postOptions] = transport.fetch.mock.calls[2] as [string, RequestInit];
-    expect(postPath).toBe("/wp-json/wc/store/v1/checkout");
-    expect(postOptions.headers).toMatchObject({ "Cart-Token": "cart-2", "Idempotency-Key": operationId });
+    const [postPath, postOptions] = transport.fetch.mock.calls[3] as [string, RequestInit];
+    expect(postPath).toBe("/wp-json/wc/store/v1/checkout/90?key=wc_order_90");
+    expect(postOptions.headers).toMatchObject({ "Cart-Token": "cart-3", "Idempotency-Key": operationId });
     expect(JSON.parse(postOptions.body as string)).toMatchObject({
       billing_address: { first_name: "Sender", email: customer.email, phone: customer.phone, country: "IR", city: "تهران" },
       shipping_address: { first_name: "Recipient", last_name: "Person", phone: "+989121234567", country: "IR", city: "تهران" },
@@ -223,13 +232,34 @@ describe("checkout service", () => {
         "kadochi/operation-id": operationId,
       },
     });
-    expect(transport.fetch).toHaveBeenCalledTimes(3);
+    expect(transport.fetch).toHaveBeenCalledTimes(4);
+  });
+
+  it("continues payment through Woo's session checkout when no early draft order exists", async () => {
+    transport.fetch
+      .mockResolvedValueOnce(response(rawCart, "cart-1"))
+      .mockResolvedValueOnce(response(sessionCheckout(), "cart-2"))
+      .mockResolvedValueOnce(response(sessionCheckout(), "cart-3"))
+      .mockResolvedValueOnce(response({
+        order_id: 101,
+        status: "pending",
+        payment_result: { payment_status: "pending", redirect_url: "https://payment.zarinpal.com/pg/StartPay/authority" },
+      }, "cart-4"));
+
+    await expect(checkout(input(), "request-1")).resolves.toMatchObject({
+      cartToken: "cart-4",
+      result: { orderId: 101, status: "pending", paymentResult: { redirectUrl: "https://payment.zarinpal.com/pg/StartPay/authority" } },
+    });
+    const [postPath, postOptions] = transport.fetch.mock.calls[3] as [string, RequestInit];
+    expect(postPath).toBe("/wp-json/wc/store/v1/checkout");
+    expect(postOptions.headers).toMatchObject({ "Cart-Token": "cart-3", "Idempotency-Key": operationId });
   });
 
   it("starts the gateway when Woo returns its intermediate order-pay page", async () => {
     transport.fetch
       .mockResolvedValueOnce(response(rawCart, "cart-1"))
-      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(93), "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(93), "cart-3"))
       .mockResolvedValueOnce(response({
         order_id: 93,
         status: "pending",
@@ -237,7 +267,7 @@ describe("checkout service", () => {
           payment_status: "pending",
           redirect_url: "http://localhost:8080/checkout/order-pay/93/?key=wc_order_test",
         },
-      }, "cart-3"))
+      }, "cart-4"))
       .mockResolvedValueOnce(new Response(null, {
         status: 302,
         headers: { Location: "https://payment.zarinpal.com/pg/StartPay/authority" },
@@ -246,8 +276,8 @@ describe("checkout service", () => {
     await expect(checkout(input(), "request-1")).resolves.toMatchObject({
       result: { orderId: 93, paymentResult: { paymentStatus: "pending", redirectUrl: "https://payment.zarinpal.com/pg/StartPay/authority" } },
     });
-    expect(transport.fetch.mock.calls[3]?.[0]).toBe("/wp-json/kadochi/v1/profile/orders/93/retry-payment");
-    expect(transport.fetch.mock.calls[3]?.[1]).toMatchObject({
+    expect(transport.fetch.mock.calls[4]?.[0]).toBe("/wp-json/kadochi/v1/profile/orders/93/retry-payment");
+    expect(transport.fetch.mock.calls[4]?.[1]).toMatchObject({
       method: "POST",
       body: JSON.stringify({ attemptId: operationId }),
       headers: { Authorization: "Bearer jwt", "Content-Type": "application/json" },
@@ -263,12 +293,13 @@ describe("checkout service", () => {
       auth.getCurrentCustomer.mockResolvedValue(customer);
       transport.fetch
         .mockResolvedValueOnce(response(rawCart, `cart-${index}-1`))
-        .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, `cart-${index}-2`))
+        .mockResolvedValueOnce(response(checkoutDraft(200 + index), `cart-${index}-2`))
+        .mockResolvedValueOnce(response(checkoutDraft(200 + index), `cart-${index}-3`))
         .mockResolvedValueOnce(response({
           order_id: 200 + index,
           status: "pending",
           payment_result: { payment_status: "pending", redirect_url: `http://localhost:8080/checkout/order-pay/${200 + index}/?key=wc_order_test` },
-        }, `cart-${index}-3`))
+        }, `cart-${index}-4`))
         .mockResolvedValueOnce(new Response(null, {
           status: 302,
           headers: { Location: `https://payment.zarinpal.com/pg/StartPay/authority-${index}` },
@@ -278,7 +309,7 @@ describe("checkout service", () => {
         result: { orderId: 200 + index, paymentResult: { redirectUrl: `https://payment.zarinpal.com/pg/StartPay/authority-${index}` } },
       });
       expect(transport.fetch.mock.calls.filter(([path]) => path === `/wp-json/kadochi/v1/profile/orders/${200 + index}/retry-payment`)).toHaveLength(1);
-      expect(transport.fetch.mock.calls[3]?.[1]).toMatchObject({ body: JSON.stringify({ attemptId: inputForAttempt(index).operationId }) });
+      expect(transport.fetch.mock.calls[4]?.[1]).toMatchObject({ body: JSON.stringify({ attemptId: inputForAttempt(index).operationId }) });
     }
   });
 
@@ -292,44 +323,47 @@ describe("checkout service", () => {
   it("reconciles an ambiguous failure after the payment request starts", async () => {
     transport.fetch
       .mockResolvedValueOnce(response(rawCart, "cart-1"))
-      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(91), "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(91), "cart-3"))
       .mockRejectedValueOnce(networkError())
       .mockResolvedValueOnce(response(orderSummary(91, true)));
 
     await expect(checkout(input(), "request-1")).resolves.toMatchObject({
       result: { orderId: 91, status: "processing", reconciliation: "paid" },
-      cartToken: "cart-2",
+      cartToken: "cart-3",
     });
-    expect(transport.fetch.mock.calls[3]?.[0]).toBe(`/wp-json/kadochi/v1/checkout/operations/${operationId}`);
+    expect(transport.fetch.mock.calls[4]?.[0]).toBe(`/wp-json/kadochi/v1/checkout/operations/${operationId}`);
   });
 
   it("routes a definite payment-start rejection to the order failure result", async () => {
     transport.fetch
       .mockResolvedValueOnce(response(rawCart, "cart-1"))
-      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(96), "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(96), "cart-3"))
       .mockResolvedValueOnce(response({
         order_id: 96,
         status: "pending",
         payment_result: { payment_status: "pending", redirect_url: "http://localhost:8080/checkout/order-pay/96/?key=wc_order_test" },
-      }, "cart-3"))
+      }, "cart-4"))
       .mockRejectedValueOnce(definitiveGatewayError())
       .mockResolvedValueOnce(response(orderSummary(96, false)));
 
     await expect(checkout(input(), "request-1")).resolves.toMatchObject({
       result: { orderId: 96, status: "pending", reconciliation: "unpaid" },
     });
-    expect(transport.fetch).toHaveBeenCalledTimes(5);
+    expect(transport.fetch).toHaveBeenCalledTimes(6);
   });
 
   it("recovers a gateway-start timeout through the same payment attempt", async () => {
     transport.fetch
       .mockResolvedValueOnce(response(rawCart, "cart-1"))
-      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(95), "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(95), "cart-3"))
       .mockResolvedValueOnce(response({
         order_id: 95,
         status: "pending",
         payment_result: { payment_status: "pending", redirect_url: "http://localhost:8080/checkout/order-pay/95/?key=wc_order_test" },
-      }, "cart-3"))
+      }, "cart-4"))
       .mockRejectedValueOnce(networkError())
       .mockResolvedValueOnce(response(orderSummary(95, false)))
       .mockResolvedValueOnce(new Response(null, {
@@ -339,22 +373,23 @@ describe("checkout service", () => {
 
     await expect(checkout(input(), "request-1")).resolves.toMatchObject({
       result: { orderId: 95, status: "pending", paymentResult: { redirectUrl: "https://payment.zarinpal.com/pg/StartPay/recovered-authority" } },
-      cartToken: "cart-3",
+      cartToken: "cart-4",
     });
     expect(transport.fetch.mock.calls.filter(([path]) => path === "/wp-json/kadochi/v1/profile/orders/95/retry-payment")).toHaveLength(2);
-    expect(transport.fetch.mock.calls[4]?.[0]).toBe(`/wp-json/kadochi/v1/checkout/operations/${operationId}`);
-    expect(transport.fetch.mock.calls[5]?.[1]).toMatchObject({ body: JSON.stringify({ attemptId: operationId }) });
+    expect(transport.fetch.mock.calls[5]?.[0]).toBe(`/wp-json/kadochi/v1/checkout/operations/${operationId}`);
+    expect(transport.fetch.mock.calls[6]?.[1]).toMatchObject({ body: JSON.stringify({ attemptId: operationId }) });
   });
 
   it("starts the gateway when Woo returns HTTP 400 after materializing an unpaid order", async () => {
     transport.fetch
       .mockResolvedValueOnce(response(rawCart, "cart-1"))
-      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(92), "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(92), "cart-3"))
       .mockResolvedValueOnce(response({
         order_id: 92,
         status: "failed",
         payment_result: { payment_status: "failure", redirect_url: "" },
-      }, "cart-3", 400))
+      }, "cart-4", 400))
       .mockResolvedValueOnce(response(orderSummary(92, false)))
       .mockResolvedValueOnce(new Response(null, {
         status: 302,
@@ -363,37 +398,39 @@ describe("checkout service", () => {
 
     await expect(checkout(input(), "request-1")).resolves.toMatchObject({
       result: { orderId: 92, status: "pending", paymentResult: { paymentStatus: "pending", redirectUrl: "https://payment.zarinpal.com/pg/StartPay/authority" } },
-      cartToken: "cart-3",
+      cartToken: "cart-4",
     });
-    expect((transport.fetch.mock.calls[2]?.[1] as { acceptStatuses?: number[] }).acceptStatuses).toEqual([400]);
-    expect(transport.fetch.mock.calls[3]?.[0]).toBe(`/wp-json/kadochi/v1/checkout/operations/${operationId}`);
-    expect(transport.fetch.mock.calls[4]?.[0]).toBe("/wp-json/kadochi/v1/profile/orders/92/retry-payment");
+    expect((transport.fetch.mock.calls[3]?.[1] as { acceptStatuses?: number[] }).acceptStatuses).toEqual([400]);
+    expect(transport.fetch.mock.calls[4]?.[0]).toBe(`/wp-json/kadochi/v1/checkout/operations/${operationId}`);
+    expect(transport.fetch.mock.calls[5]?.[0]).toBe("/wp-json/kadochi/v1/profile/orders/92/retry-payment");
   });
 
   it("returns paid reconciliation for an HTTP 400 materialized order without starting another payment", async () => {
     transport.fetch
       .mockResolvedValueOnce(response(rawCart, "cart-1"))
-      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
-      .mockResolvedValueOnce(response({ code: "gateway_failure" }, "cart-3", 400))
+      .mockResolvedValueOnce(response(checkoutDraft(94), "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(94), "cart-3"))
+      .mockResolvedValueOnce(response({ code: "gateway_failure" }, "cart-4", 400))
       .mockResolvedValueOnce(response(orderSummary(94, true)));
 
     await expect(checkout(input(), "request-1")).resolves.toMatchObject({
       result: { orderId: 94, status: "processing", reconciliation: "paid" },
-      cartToken: "cart-3",
+      cartToken: "cart-4",
     });
-    expect(transport.fetch).toHaveBeenCalledTimes(4);
+    expect(transport.fetch).toHaveBeenCalledTimes(5);
   });
 
   it("keeps an HTTP 400 without a materialized order as a safe checkout error", async () => {
     transport.fetch
       .mockResolvedValueOnce(response(rawCart, "cart-1"))
-      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
-      .mockResolvedValueOnce(response({ code: "invalid_address", message: "unsafe upstream detail" }, "cart-3", 400))
+      .mockResolvedValueOnce(response(checkoutDraft(97), "cart-2"))
+      .mockResolvedValueOnce(response(checkoutDraft(97), "cart-3"))
+      .mockResolvedValueOnce(response({ code: "invalid_address", message: "unsafe upstream detail" }, "cart-4", 400))
       .mockRejectedValueOnce(notFoundError());
 
     await expect(checkout(input(), "request-1")).rejects.toMatchObject({
       detail: { code: "validation", status: 400, message: "The checkout could not be completed." },
     });
-    expect(transport.fetch).toHaveBeenCalledTimes(4);
+    expect(transport.fetch).toHaveBeenCalledTimes(5);
   });
 });

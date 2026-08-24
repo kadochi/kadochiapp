@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkoutDraftSchema, savedAddressSchema, submitCheckoutSchema } from "./checkout";
+import { checkoutDraftSchema, savedAddressSchema, submitCheckoutSchema, upstreamCheckoutDraftSchema } from "./checkout";
 
 const validInput = {
   sender: { firstName: "A", lastName: "B" },
@@ -79,5 +79,12 @@ describe("savedAddressSchema", () => {
       address2: "طبقه دوم",
       location: null,
     })).toMatchObject({ buildingNumber: "", unitNumber: "" });
+  });
+});
+
+describe("upstreamCheckoutDraftSchema", () => {
+  it("accepts both session-only and persisted checkout responses", () => {
+    expect(upstreamCheckoutDraftSchema.parse({ order_id: 0, status: "checkout-draft" })).toMatchObject({ order_id: 0 });
+    expect(upstreamCheckoutDraftSchema.parse({ order_id: 81, order_key: "wc_order_81", status: "checkout-draft" })).toMatchObject({ order_id: 81 });
   });
 });
