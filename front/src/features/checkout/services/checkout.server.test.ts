@@ -37,7 +37,7 @@ vi.mock("@/lib/http/upstream", () => {
 });
 
 import { UpstreamError } from "@/lib/http/upstream";
-import { checkout } from "./checkout.server";
+import { checkout, saveCheckoutDraft } from "./checkout.server";
 import { createDeliverySlots } from "../utils/delivery-slots";
 
 const operationId = "c5012c57-cd10-4ed6-b2be-9f28df81c49e";
@@ -162,6 +162,33 @@ describe("checkout service", () => {
     auth.getStoredAuthToken.mockResolvedValue("jwt");
     auth.wordpressBearerHeaders.mockResolvedValue({ Authorization: "Bearer jwt" });
     auth.getCurrentCustomer.mockResolvedValue(customer);
+  });
+
+  it("creates the current checkout draft before persisting the first completed step", async () => {
+    transport.fetch
+      .mockResolvedValueOnce(response(rawCart, "cart-1"))
+      .mockResolvedValueOnce(response({ order_id: 81, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response({ order_id: 81, status: "checkout-draft" }, "cart-3"));
+
+    await expect(saveCheckoutDraft({
+      sender: input().sender,
+      recipient: input().recipient,
+      address: input().address,
+    }, "request-1")).resolves.toEqual({ cartToken: "cart-3" });
+
+    expect(transport.fetch.mock.calls.map(([path]) => path)).toEqual([
+      "/wp-json/wc/store/v1/cart",
+      "/wp-json/wc/store/v1/checkout",
+      "/wp-json/wc/store/v1/checkout?__experimental_calc_totals=true",
+    ]);
+    expect(transport.fetch.mock.calls[2]?.[1]).toMatchObject({
+      method: "PUT",
+      headers: { "Cart-Token": "cart-2" },
+    });
+    expect(JSON.parse((transport.fetch.mock.calls[2]?.[1] as RequestInit).body as string)).toMatchObject({
+      billing_address: { email: customer.email, phone: customer.phone },
+      shipping_address: { phone: "+989121234567" },
+    });
   });
 
   it("submits server-owned identity and rotates the cart token through payment", async () => {

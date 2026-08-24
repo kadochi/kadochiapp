@@ -14,6 +14,7 @@ import { createDeliverySlots } from "../utils/delivery-slots";
 import {
   checkoutResultSchema,
   checkoutStateSchema,
+  checkoutDraftSchema,
   createSavedAddressSchema,
   mapCheckoutResult,
   orderSummarySchema,
@@ -170,6 +171,84 @@ function additionalFields(input: ReturnType<typeof submitCheckoutSchema.parse>) 
   };
 }
 
+function draftAdditionalFields(input: ReturnType<typeof checkoutDraftSchema.parse>) {
+  return {
+    ...(input.deliverySlotId ? { [deliveryField]: input.deliverySlotId } : {}),
+    ...(input.packagingId ? { [packagingField]: input.packagingId } : {}),
+    ...(input.postcardText !== undefined ? { [postcardField]: input.postcardText } : {}),
+    ...(input.postcardEnabled !== undefined ? {
+      [postcardDesignField]: input.postcardEnabled && input.postcardDesignId ? String(input.postcardDesignId) : "",
+    } : {}),
+    ...(input.address?.location ? {
+      [locationField]: `${input.address.location.latitude},${input.address.location.longitude}`,
+    } : input.address ? { [locationField]: "" } : {}),
+  };
+}
+
+function draftAddresses(input: ReturnType<typeof checkoutDraftSchema.parse>, customer: Awaited<ReturnType<typeof authenticatedCustomer>>) {
+  if (!input.sender || !input.recipient || !input.address) return {};
+  const recipient = input.recipient.kind === "self"
+    ? { ...input.sender, phone: customer.phone }
+    : { firstName: input.recipient.firstName, lastName: input.recipient.lastName, phone: input.recipient.phone };
+  const sharedAddress = {
+    address_1: input.address.address1,
+    address_2: input.address.address2 ?? "",
+    city: "تهران",
+    country: "IR",
+  };
+  return {
+    billing_address: {
+      first_name: input.sender.firstName,
+      last_name: input.sender.lastName,
+      email: customer.email,
+      phone: customer.phone,
+      ...sharedAddress,
+    },
+    shipping_address: {
+      first_name: recipient.firstName,
+      last_name: recipient.lastName,
+      phone: recipient.phone,
+      ...sharedAddress,
+    },
+  };
+}
+
+/** Stores the current checkout progress in Woo's draft without starting payment. */
+async function persistCheckoutDraft(
+  input: ReturnType<typeof checkoutDraftSchema.parse>,
+  customer: Awaited<ReturnType<typeof authenticatedCustomer>>,
+  cartToken: string | null,
+  requestId: string,
+) {
+  const draft = await wordpressFetch("/wp-json/wc/store/v1/checkout?__experimental_calc_totals=true", {
+    method: "PUT",
+    headers: { ...(await checkoutHeaders(cartToken ?? undefined)), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...draftAddresses(input, customer),
+      // The phone is deliberately sent even before the customer has completed a
+      // checkout form, so the first draft is attributable to the logged-in user.
+      ...(!input.sender ? { billing_address: { email: customer.email, phone: customer.phone } } : {}),
+      payment_method: env.KADOCHI_PAYMENT_METHOD_ID,
+      additional_fields: draftAdditionalFields(input),
+    }),
+    cache: "no-store",
+    requestId,
+  });
+  await parseUpstreamJson(draft, (value) => upstreamCheckoutDraftSchema.parse(value), requestId);
+  return draft.headers.get("cart-token") ?? cartToken;
+}
+
+/** Loads Woo's current checkout draft, creating it from the cart when needed. */
+async function ensureCheckoutDraft(cartToken: string | null, requestId: string) {
+  const draft = await wordpressFetch("/wp-json/wc/store/v1/checkout", {
+    headers: await checkoutHeaders(cartToken ?? undefined),
+    cache: "no-store",
+    requestId,
+  });
+  await parseUpstreamJson(draft, (value) => upstreamCheckoutDraftSchema.parse(value), requestId);
+  return draft.headers.get("cart-token") ?? cartToken;
+}
+
 function isTrustedZarinpalRedirect(url: string | undefined): boolean {
   if (!url) return false;
   try {
@@ -233,6 +312,18 @@ export async function checkoutState(requestId: string) {
     savedAddresses: savedAddresses.items,
   });
   return { state, cartToken };
+}
+
+/** Saves a completed checkout step to the current WooCommerce draft order. */
+export async function saveCheckoutDraft(input: unknown, requestId: string) {
+  const parsed = checkoutDraftSchema.parse(input);
+  const customer = await authenticatedCustomer(requestId);
+  const initialHeaders = await checkoutHeaders();
+  const { cart: currentCart, cartToken } = await cartForCheckout(initialHeaders, requestId);
+  const cart = checkoutCart(requestId, currentCart);
+  paymentMethod(requestId, cart.paymentMethodIds);
+  const draftCartToken = await ensureCheckoutDraft(cartToken, requestId);
+  return { cartToken: await persistCheckoutDraft(parsed, customer, draftCartToken, requestId) };
 }
 
 export async function createSavedAddress(input: unknown, requestId: string) {

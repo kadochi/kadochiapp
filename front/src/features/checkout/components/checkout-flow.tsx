@@ -21,7 +21,7 @@ import { formatIrrAsToman } from "@/features/cart/utils/money";
 import { AddressEditorSheet } from "./address-editor-sheet";
 import { SavedAddressCard } from "./saved-address-card";
 import { submitCheckoutSchema } from "../schema/checkout";
-import { createSavedAddress, deleteSavedAddress, submitCheckout, updateSavedAddress } from "../services/checkout";
+import { createSavedAddress, deleteSavedAddress, saveCheckoutDraft, submitCheckout, updateSavedAddress } from "../services/checkout";
 import type { CheckoutState, SavedAddress } from "../types";
 import { checkoutResultAction } from "../utils/checkout-result";
 import { logPaymentFailure, paymentErrorMessage } from "../utils/payment-error";
@@ -74,7 +74,9 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   const [postcardEnabled, setPostcardEnabled] = useState(false);
   const [postcardDesignId, setPostcardDesignId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [startingDraft, setStartingDraft] = useState(true);
   const [savingAddress, setSavingAddress] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [pendingRate, setPendingRate] = useState<string | null>(null);
   const [pendingCoupon, setPendingCoupon] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -82,6 +84,30 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   const submissionLock = useRef(false);
   const operationId = useRef<string | null>(null);
   const selectedAddress = savedAddresses.find((address) => address.id === selectedAddressId);
+
+  const draftProgress = (includeDelivery: boolean) => {
+    const address = selectedAddress;
+    if (!address) return null;
+    const recipient = recipientKind === "self"
+      ? { kind: "self" as const }
+      : { kind: "other" as const, firstName: recipientFirstName, lastName: recipientLastName, phone: iranianPhoneSchema.parse(recipientPhone) };
+    return {
+      sender: { firstName: senderFirstName, lastName: senderLastName },
+      recipient,
+      address: {
+        address1: address.address1,
+        address2: address.address2 || undefined,
+        location: address.location ?? undefined,
+      },
+      ...(includeDelivery ? {
+        deliverySlotId,
+        packagingId,
+        postcardEnabled,
+        postcardDesignId,
+        postcardText,
+      } : {}),
+    };
+  };
 
   const openNewAddress = () => {
     setEditingAddress(null);
@@ -107,6 +133,18 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [step]);
+
+  useEffect(() => {
+    let active = true;
+    void saveCheckoutDraft({})
+      .catch((caught) => {
+        if (active) setError(caught instanceof Error ? caught.message : "ایجاد پیش‌نویس سفارش انجام نشد.");
+      })
+      .finally(() => {
+        if (active) setStartingDraft(false);
+      });
+    return () => { active = false; };
+  }, []);
 
   const validateDetails = (): DetailsErrors => {
     const validationErrors: DetailsErrors = {};
@@ -161,6 +199,9 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
             country: "IR",
           },
         });
+        const draft = draftProgress(false);
+        if (!draft) return;
+        await saveCheckoutDraft(draft);
         setState((current) => ({ ...current, cart }));
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "محاسبه هزینه ارسال و مالیات انجام نشد.");
@@ -169,7 +210,20 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         setSavingAddress(false);
       }
     }
-    if (step === 1 && !deliverySlotId) return setError("یک بازه ارسال انتخاب کنید.");
+    if (step === 1) {
+      if (!deliverySlotId) return setError("یک بازه ارسال انتخاب کنید.");
+      const draft = draftProgress(true);
+      if (!draft) return setError("یک نشانی برای دریافت سفارش انتخاب کنید.");
+      setSavingDraft(true);
+      try {
+        await saveCheckoutDraft(draft);
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "ذخیره اطلاعات سفارش انجام نشد.");
+        return;
+      } finally {
+        setSavingDraft(false);
+      }
+    }
     setStep((current) => Math.min(2, current + 1));
   };
 
@@ -351,7 +405,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         onNext={next}
         onPay={pay}
         onPrevious={previous}
-        nextPending={savingAddress}
+        nextPending={startingDraft || savingAddress || savingDraft}
         reconciliationUnknown={reconciliationUnknown}
         step={step}
         submitting={submitting}

@@ -2591,6 +2591,7 @@ final class Kadochi_Core {
 			return;
 		}
 		$this->release_payment_attempt( $order, null, 'cancelled' );
+		$this->record_cancelled_gateway_payment( $order );
 		$this->payment_log( 'payment_cancelled', array( 'order_id' => absint( $order->get_id() ), 'gateway' => 'zarinpal' ) );
 		$failure_url = $this->frontend_checkout_result_url( 'failure', $order );
 		if ( ! $failure_url ) {
@@ -2598,6 +2599,41 @@ final class Kadochi_Core {
 		}
 		wp_safe_redirect( $failure_url );
 		exit;
+	}
+
+	/** Records that the shopper reached the payment page before the gateway redirects away. */
+	private function record_payment_gateway_reached( $order, $attempt_id ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'update_meta_data' ) ) {
+			return;
+		}
+		$previous_attempt = method_exists( $order, 'get_meta' ) ? (string) $order->get_meta( '_kadochi_payment_gateway_attempt', true ) : '';
+		if ( $previous_attempt && hash_equals( $previous_attempt, $attempt_id ) ) {
+			return;
+		}
+		$order->update_meta_data( '_kadochi_payment_gateway_reached_at', gmdate( 'c' ) );
+		$order->update_meta_data( '_kadochi_payment_gateway_attempt', sanitize_text_field( $attempt_id ) );
+		$order->delete_meta_data( '_kadochi_payment_gateway_outcome' );
+		if ( method_exists( $order, 'add_order_note' ) ) {
+			$order->add_order_note( __( 'Customer reached the payment gateway and payment is pending.', 'kadochi-core' ) );
+		}
+		if ( method_exists( $order, 'save' ) ) {
+			$order->save();
+		}
+	}
+
+	/** Makes a returned or cancelled gateway visit explicit on the unpaid order. */
+	private function record_cancelled_gateway_payment( $order ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'update_meta_data' ) ) {
+			return;
+		}
+		$order->update_meta_data( '_kadochi_payment_gateway_outcome', 'cancelled' );
+		$order->update_meta_data( '_kadochi_payment_gateway_cancelled_at', gmdate( 'c' ) );
+		if ( method_exists( $order, 'add_order_note' ) ) {
+			$order->add_order_note( __( 'Customer returned from the payment gateway without completing payment.', 'kadochi-core' ) );
+		}
+		if ( method_exists( $order, 'save' ) ) {
+			$order->save();
+		}
 	}
 
 	/** Writes support-safe, structured ZarinPal lifecycle logs through WooCommerce. */
@@ -2727,6 +2763,10 @@ final class Kadochi_Core {
 			$existing['redirectedAt'] = time();
 			update_option( $lock_key, $existing, false );
 			$this->active_payment_attempt['redirectCaptured'] = true;
+			$order = function_exists( 'wc_get_order' ) ? wc_get_order( absint( $this->active_payment_attempt['orderId'] ) ) : false;
+			if ( $order ) {
+				$this->record_payment_gateway_reached( $order, $attempt_id );
+			}
 			$this->payment_log( 'payment_authority_ready', array( 'order_id' => absint( $this->active_payment_attempt['orderId'] ), 'attempt_id' => $attempt_id, 'duration_ms' => max( 0, (int) round( ( microtime( true ) - $this->active_payment_attempt['startedAt'] ) * 1000 ) ) ) );
 		}
 		return $location;
@@ -3086,6 +3126,7 @@ final class Kadochi_Core {
 			$this->payment_log( 'payment_gateway_start_failed', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'reason' => 'invalid_redirect' ) );
 			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway could not start a payment.', 'kadochi-core' ), 502 );
 		}
+		$this->record_payment_gateway_reached( $order, $attempt_id );
 		$this->payment_log( 'payment_start_redirect_ready', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id ) );
 		return rest_ensure_response( array( 'redirectUrl' => $redirect ) );
 	}

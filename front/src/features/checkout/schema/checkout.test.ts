@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { submitCheckoutSchema } from "./checkout";
+import { checkoutDraftSchema, submitCheckoutSchema } from "./checkout";
 
 const validInput = {
   sender: { firstName: "A", lastName: "B" },
@@ -46,5 +46,26 @@ describe("submitCheckoutSchema", () => {
 
   it("limits postcard messages to 200 characters", () => {
     expect(() => submitCheckoutSchema.parse({ ...validInput, postcardText: "a".repeat(201) })).toThrow();
+  });
+});
+
+describe("checkoutDraftSchema", () => {
+  it("accepts the empty snapshot used when checkout opens", () => {
+    expect(checkoutDraftSchema.parse({})).toEqual({});
+  });
+
+  it("accepts completed step data without client-controlled payment fields", () => {
+    const draft = {
+      sender: validInput.sender,
+      recipient: validInput.recipient,
+      address: validInput.address,
+      deliverySlotId: validInput.deliverySlotId,
+      packagingId: validInput.packagingId,
+      postcardEnabled: validInput.postcardEnabled,
+      postcardDesignId: validInput.postcardDesignId,
+      postcardText: validInput.postcardText,
+    };
+    expect(checkoutDraftSchema.parse(draft)).toEqual(draft);
+    expect(() => checkoutDraftSchema.parse({ ...draft, paymentMethod: "cod" })).toThrow();
   });
 });

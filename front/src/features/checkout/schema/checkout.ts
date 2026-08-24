@@ -81,6 +81,28 @@ const deliveryAddressSchema = z.object({
   }).strict().optional(),
 }).strict();
 
+/**
+ * A partial snapshot of checkout progress. Totals, payment method, and the
+ * authenticated customer's contact details remain server-owned.
+ */
+export const checkoutDraftSchema = z.object({
+  sender: senderSchema.optional(),
+  recipient: recipientSchema.optional(),
+  address: deliveryAddressSchema.optional(),
+  deliverySlotId: deliverySlotSchema.shape.id.optional(),
+  packagingId: z.enum(["gift", "normal"]).optional(),
+  postcardEnabled: z.boolean().optional(),
+  postcardDesignId: z.number().int().positive().nullable().optional(),
+  postcardText: z.string().trim().max(200).optional(),
+}).strict().superRefine((value, context) => {
+  if (value.postcardEnabled === true && !value.postcardDesignId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["postcardDesignId"], message: "یک طرح کارت پستال انتخاب کنید." });
+  }
+  if (value.postcardEnabled === false && (value.postcardDesignId || value.postcardText)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["postcardEnabled"], message: "برای ثبت کارت پستال، آن را فعال کنید." });
+  }
+});
+
 /** Browser payload deliberately excludes totals, payment gateway, sender phone/email, country, and city. */
 export const submitCheckoutSchema = z.object({
   sender: senderSchema,
