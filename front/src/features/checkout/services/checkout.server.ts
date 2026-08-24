@@ -137,7 +137,7 @@ function checkoutAddresses(input: ReturnType<typeof submitCheckoutSchema.parse>,
     : { firstName: input.recipient.firstName, lastName: input.recipient.lastName, phone: input.recipient.phone };
   const sharedAddress = {
     address_1: input.address.address1,
-    address_2: input.address.address2 ?? "",
+    address_2: [input.address.buildingNumber ? `پلاک ${input.address.buildingNumber}` : "", input.address.unitNumber ? `واحد ${input.address.unitNumber}` : "", input.address.address2 ?? ""].filter(Boolean).join("، "),
     city: "تهران",
     country: "IR",
   };
@@ -192,7 +192,7 @@ function draftAddresses(input: ReturnType<typeof checkoutDraftSchema.parse>, cus
     : { firstName: input.recipient.firstName, lastName: input.recipient.lastName, phone: input.recipient.phone };
   const sharedAddress = {
     address_1: input.address.address1,
-    address_2: input.address.address2 ?? "",
+    address_2: [input.address.buildingNumber ? `پلاک ${input.address.buildingNumber}` : "", input.address.unitNumber ? `واحد ${input.address.unitNumber}` : "", input.address.address2 ?? ""].filter(Boolean).join("، "),
     city: "تهران",
     country: "IR",
   };

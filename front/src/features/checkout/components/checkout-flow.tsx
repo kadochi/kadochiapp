@@ -18,6 +18,7 @@ import SectionHeader from "@/components/layout/section-header";
 import { TextArea } from "@/components/ui/textarea";
 import { applyCoupon, removeCoupon, selectShippingRate, updateCustomer } from "@/features/cart/services/cart";
 import { formatIrrAsToman } from "@/features/cart/utils/money";
+import { updateProfile } from "@/features/profile/services/profile";
 import { AddressEditorSheet } from "./address-editor-sheet";
 import { SavedAddressCard } from "./saved-address-card";
 import { submitCheckoutSchema } from "../schema/checkout";
@@ -48,6 +49,10 @@ function deliveryPart(startHour: number) {
 function deliveryDate(date: string) {
   const value = new Date(`${date}T12:00:00Z`);
   return { weekday: faWeekday.format(value), date: faDate.format(value) };
+}
+
+function deliveryAddressLine2(address: SavedAddress) {
+  return [address.buildingNumber ? `پلاک ${address.buildingNumber}` : "", address.unitNumber ? `واحد ${address.unitNumber}` : "", address.address2].filter(Boolean).join("، ");
 }
 
 export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) {
@@ -97,6 +102,8 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
       address: {
         address1: address.address1,
         address2: address.address2 || undefined,
+        buildingNumber: address.buildingNumber || undefined,
+        unitNumber: address.unitNumber || undefined,
         location: address.location ?? undefined,
       },
       ...(includeDelivery ? {
@@ -178,14 +185,19 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
       const recipient = recipientKind === "self"
         ? { firstName: senderFirstName, lastName: senderLastName, phone: state.customer.phone }
         : { firstName: recipientFirstName, lastName: recipientLastName, phone: iranianPhoneSchema.parse(recipientPhone) };
+      const addressLine2 = deliveryAddressLine2(address);
       setSavingAddress(true);
       try {
+        const accountNameMissing = !state.customer.firstName.trim() || !state.customer.lastName.trim();
+        const updatedCustomer = accountNameMissing
+          ? await updateProfile({ firstName: senderFirstName, lastName: senderLastName })
+          : null;
         const cart = await updateCustomer({
           billingAddress: {
             firstName: senderFirstName,
             lastName: senderLastName,
             address1: address.address1,
-            address2: address.address2 || undefined,
+            address2: addressLine2 || undefined,
             city: "تهران",
             country: "IR",
             email: state.customer.email,
@@ -194,7 +206,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
           shippingAddress: {
             ...recipient,
             address1: address.address1,
-            address2: address.address2 || undefined,
+            address2: addressLine2 || undefined,
             city: "تهران",
             country: "IR",
           },
@@ -202,7 +214,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         const draft = draftProgress(false);
         if (!draft) return;
         await saveCheckoutDraft(draft);
-        setState((current) => ({ ...current, cart }));
+        setState((current) => ({ ...current, cart, ...(updatedCustomer ? { customer: updatedCustomer } : {}) }));
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "محاسبه هزینه ارسال و مالیات انجام نشد.");
         return;
@@ -332,6 +344,8 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         address: {
           address1: address.address1,
           address2: address.address2 || undefined,
+          buildingNumber: address.buildingNumber || undefined,
+          unitNumber: address.unitNumber || undefined,
           location: address.location ?? undefined,
         },
         deliverySlotId,

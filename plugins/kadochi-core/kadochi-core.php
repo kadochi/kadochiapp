@@ -1354,6 +1354,8 @@ final class Kadochi_Core {
 		$title = isset( $address['title'] ) && is_string( $address['title'] ) ? sanitize_text_field( $address['title'] ) : '';
 		$address_1 = isset( $address['address1'] ) && is_string( $address['address1'] ) ? sanitize_text_field( $address['address1'] ) : '';
 		$address_2 = isset( $address['address2'] ) && is_string( $address['address2'] ) ? sanitize_text_field( $address['address2'] ) : '';
+		$building_number = isset( $address['buildingNumber'] ) && is_string( $address['buildingNumber'] ) ? sanitize_text_field( $address['buildingNumber'] ) : '';
+		$unit_number = isset( $address['unitNumber'] ) && is_string( $address['unitNumber'] ) ? sanitize_text_field( $address['unitNumber'] ) : '';
 		if ( '' === $title || '' === $address_1 ) {
 			return null;
 		}
@@ -1365,7 +1367,7 @@ final class Kadochi_Core {
 				$location = array( 'latitude' => $latitude, 'longitude' => $longitude );
 			}
 		}
-		return array( 'id' => $address['id'], 'title' => $title, 'address1' => $address_1, 'address2' => $address_2, 'location' => $location );
+		return array( 'id' => $address['id'], 'title' => $title, 'address1' => $address_1, 'address2' => $address_2, 'buildingNumber' => $building_number, 'unitNumber' => $unit_number, 'location' => $location );
 	}
 
 	private function saved_customer_addresses( $user_id ) {
@@ -1390,13 +1392,15 @@ final class Kadochi_Core {
 	/** Persists checkout addresses on the account immediately, before an order is paid. */
 	public function create_customer_address( WP_REST_Request $request ) {
 		$input = $request->get_json_params();
-		if ( ! is_array( $input ) || ! isset( $input['title'], $input['address1'] ) || ! is_string( $input['title'] ) || ! is_string( $input['address1'] ) || ( isset( $input['address2'] ) && ! is_string( $input['address2'] ) ) ) {
+		if ( ! is_array( $input ) || ! isset( $input['title'], $input['address1'] ) || ! is_string( $input['title'] ) || ! is_string( $input['address1'] ) || ( isset( $input['address2'] ) && ! is_string( $input['address2'] ) ) || ( isset( $input['buildingNumber'] ) && ! is_string( $input['buildingNumber'] ) ) || ( isset( $input['unitNumber'] ) && ! is_string( $input['unitNumber'] ) ) ) {
 			return $this->auth_error( 'kadochi_invalid_address', __( 'Address details are invalid.', 'kadochi-core' ), 400 );
 		}
 		$title = sanitize_text_field( $input['title'] );
 		$address_1 = sanitize_text_field( $input['address1'] );
 		$address_2 = isset( $input['address2'] ) ? sanitize_text_field( $input['address2'] ) : '';
-		if ( '' === $title || '' === $address_1 || $this->string_length( $title ) > 100 || $this->string_length( $address_1 ) < 5 || $this->string_length( $address_1 ) > 200 || $this->string_length( $address_2 ) > 200 ) {
+		$building_number = isset( $input['buildingNumber'] ) ? sanitize_text_field( $input['buildingNumber'] ) : '';
+		$unit_number = isset( $input['unitNumber'] ) ? sanitize_text_field( $input['unitNumber'] ) : '';
+		if ( '' === $title || '' === $address_1 || $this->string_length( $title ) > 100 || $this->string_length( $address_1 ) < 5 || $this->string_length( $address_1 ) > 200 || $this->string_length( $address_2 ) > 200 || $this->string_length( $building_number ) > 30 || $this->string_length( $unit_number ) > 30 ) {
 			return $this->auth_error( 'kadochi_invalid_address', __( 'Address details are invalid.', 'kadochi-core' ), 400 );
 		}
 		$location = null;
@@ -1412,7 +1416,7 @@ final class Kadochi_Core {
 			$location = array( 'latitude' => $latitude, 'longitude' => $longitude );
 		}
 		$user_id = get_current_user_id();
-		$address = array( 'id' => wp_generate_uuid4(), 'title' => $title, 'address1' => $address_1, 'address2' => $address_2, 'location' => $location );
+		$address = array( 'id' => wp_generate_uuid4(), 'title' => $title, 'address1' => $address_1, 'address2' => $address_2, 'buildingNumber' => $building_number, 'unitNumber' => $unit_number, 'location' => $location );
 		$addresses = $this->saved_customer_addresses( $user_id );
 		array_unshift( $addresses, $address );
 		update_user_meta( $user_id, 'kadochi_saved_addresses', array_slice( $addresses, 0, 20 ) );
@@ -1422,13 +1426,15 @@ final class Kadochi_Core {
 	/** Updates an address owned by the currently authenticated customer. */
 	public function update_customer_address( WP_REST_Request $request ) {
 		$input = $request->get_json_params();
-		if ( ! is_array( $input ) || ! isset( $input['title'], $input['address1'] ) || ! is_string( $input['title'] ) || ! is_string( $input['address1'] ) || ( isset( $input['address2'] ) && ! is_string( $input['address2'] ) ) ) {
+		if ( ! is_array( $input ) || ! isset( $input['title'], $input['address1'] ) || ! is_string( $input['title'] ) || ! is_string( $input['address1'] ) || ( isset( $input['address2'] ) && ! is_string( $input['address2'] ) ) || ( isset( $input['buildingNumber'] ) && ! is_string( $input['buildingNumber'] ) ) || ( isset( $input['unitNumber'] ) && ! is_string( $input['unitNumber'] ) ) ) {
 			return $this->auth_error( 'kadochi_invalid_address', __( 'Address details are invalid.', 'kadochi-core' ), 400 );
 		}
 		$title = sanitize_text_field( $input['title'] );
 		$address_1 = sanitize_text_field( $input['address1'] );
 		$address_2 = isset( $input['address2'] ) ? sanitize_text_field( $input['address2'] ) : '';
-		if ( '' === $title || '' === $address_1 || $this->string_length( $title ) > 100 || $this->string_length( $address_1 ) < 5 || $this->string_length( $address_1 ) > 200 || $this->string_length( $address_2 ) > 200 ) {
+		$building_number = isset( $input['buildingNumber'] ) ? sanitize_text_field( $input['buildingNumber'] ) : '';
+		$unit_number = isset( $input['unitNumber'] ) ? sanitize_text_field( $input['unitNumber'] ) : '';
+		if ( '' === $title || '' === $address_1 || $this->string_length( $title ) > 100 || $this->string_length( $address_1 ) < 5 || $this->string_length( $address_1 ) > 200 || $this->string_length( $address_2 ) > 200 || $this->string_length( $building_number ) > 30 || $this->string_length( $unit_number ) > 30 ) {
 			return $this->auth_error( 'kadochi_invalid_address', __( 'Address details are invalid.', 'kadochi-core' ), 400 );
 		}
 		$location = null;
@@ -1449,7 +1455,7 @@ final class Kadochi_Core {
 			if ( $id !== $address['id'] ) {
 				continue;
 			}
-			$updated = array( 'id' => $address['id'], 'title' => $title, 'address1' => $address_1, 'address2' => $address_2, 'location' => $location );
+			$updated = array( 'id' => $address['id'], 'title' => $title, 'address1' => $address_1, 'address2' => $address_2, 'buildingNumber' => $building_number, 'unitNumber' => $unit_number, 'location' => $location );
 			$addresses[ $index ] = $updated;
 			update_user_meta( get_current_user_id(), 'kadochi_saved_addresses', $addresses );
 			return rest_ensure_response( $updated );

@@ -38,6 +38,8 @@ function AddressEditorSheetForm({
   const [title, setTitle] = useState(address?.title ?? "");
   const [address1, setAddress1] = useState(address?.address1 ?? "");
   const [address2, setAddress2] = useState(address?.address2 ?? "");
+  const [buildingNumber, setBuildingNumber] = useState(address?.buildingNumber ?? "");
+  const [unitNumber, setUnitNumber] = useState(address?.unitNumber ?? "");
   const [location, setLocation] = useState<DeliveryLocation | null>(address?.location ?? null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -56,6 +58,8 @@ function AddressEditorSheetForm({
         title: title.trim() || fallbackTitle,
         address1: normalizedAddress,
         address2: address2.trim(),
+        buildingNumber: buildingNumber.trim(),
+        unitNumber: unitNumber.trim(),
         location,
       });
       onOpenChange(false);
@@ -68,7 +72,7 @@ function AddressEditorSheetForm({
 
   return <BottomSheet open={open} onOpenChange={onOpenChange}>
     <BottomSheetContent
-      footer={<div className="border-t border-border-mid-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))] pt-16"><Button className="w-full" loading={saving} size="large" variant="primary-filled" onClick={() => void save()}>{editing ? "ذخیره تغییرات" : "ذخیره آدرس"}</Button></div>}
+      footer={<div className="border-t border-border-mid-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))] pt-16"><div className="flex gap-12"><Button className="flex-1" loading={saving} size="large" variant="primary-filled" onClick={() => void save()}>{editing ? "ذخیره تغییرات" : "ذخیره آدرس"}</Button><Button disabled={saving} size="large" variant="tertiary-outline" onClick={() => onOpenChange(false)}>بستن</Button></div></div>}
       size="md"
     >
       <BottomSheetHeader>
@@ -79,7 +83,8 @@ function AddressEditorSheetForm({
         {error ? <Alert tone="error">{error}</Alert> : null}
         <Input label="عنوان آدرس" placeholder="مثلاً خانه، محل کار" value={title} onChange={(event) => setTitle(event.target.value)} />
         <Input description="در حال حاضر کادوچی فقط در شهر تهران فعال است." disabled label="انتخاب شهر" value="تهران" />
-        <TextArea label="آدرس گیرنده" maxLength={200} placeholder="خیابان، کوچه، پلاک، واحد…" required showCount value={address1} onChange={(event) => setAddress1(event.target.value)} />
+        <TextArea label="آدرس گیرنده" maxLength={200} placeholder="خیابان و کوچه…" required showCount value={address1} onChange={(event) => setAddress1(event.target.value)} />
+        <div className="grid grid-cols-2 gap-12"><Input label="شماره پلاک" maxLength={30} value={buildingNumber} onChange={(event) => setBuildingNumber(event.target.value)} /><Input label="شماره واحد" maxLength={30} value={unitNumber} onChange={(event) => setUnitNumber(event.target.value)} /></div>
         <Input label="توضیحات" value={address2} onChange={(event) => setAddress2(event.target.value)} />
         <LocationPickerMap value={location} onChange={setLocation} />
       </div>

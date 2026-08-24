@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkoutDraftSchema, submitCheckoutSchema } from "./checkout";
+import { checkoutDraftSchema, savedAddressSchema, submitCheckoutSchema } from "./checkout";
 
 const validInput = {
   sender: { firstName: "A", lastName: "B" },
@@ -67,5 +67,17 @@ describe("checkoutDraftSchema", () => {
     };
     expect(checkoutDraftSchema.parse(draft)).toEqual(draft);
     expect(() => checkoutDraftSchema.parse({ ...draft, paymentMethod: "cod" })).toThrow();
+  });
+});
+
+describe("savedAddressSchema", () => {
+  it("keeps existing saved addresses compatible while adding building and unit values", () => {
+    expect(savedAddressSchema.parse({
+      id: "c5012c57-cd10-4ed6-b2be-9f28df81c49e",
+      title: "خانه",
+      address1: "تهران، خیابان مثال",
+      address2: "طبقه دوم",
+      location: null,
+    })).toMatchObject({ buildingNumber: "", unitNumber: "" });
   });
 });

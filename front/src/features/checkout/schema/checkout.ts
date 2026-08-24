@@ -36,6 +36,8 @@ export const savedAddressSchema = z.object({
   title: z.string().trim().min(1).max(100),
   address1: z.string().trim().min(5).max(200),
   address2: z.string().trim().max(200),
+  buildingNumber: z.string().trim().max(30).default(""),
+  unitNumber: z.string().trim().max(30).default(""),
   location: z.object({
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
@@ -75,6 +77,8 @@ const recipientSchema = z.discriminatedUnion("kind", [
 const deliveryAddressSchema = z.object({
   address1: z.string().trim().min(5, "نشانی گیرنده را وارد کنید.").max(200),
   address2: z.string().trim().max(200).optional(),
+  buildingNumber: z.string().trim().max(30).optional(),
+  unitNumber: z.string().trim().max(30).optional(),
   location: z.object({
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
