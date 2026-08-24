@@ -14,7 +14,6 @@ import { createDeliverySlots } from "../utils/delivery-slots";
 import {
   checkoutResultSchema,
   checkoutStateSchema,
-  checkoutDraftSchema,
   createSavedAddressSchema,
   mapCheckoutResult,
   orderSummarySchema,
@@ -26,7 +25,6 @@ import {
 } from "../schema/checkout";
 
 const cartTokenCookie = "kadochi_cart_token";
-const checkoutDraftCookie = "kadochi_checkout_draft";
 const deliveryField = "kadochi/delivery-slot";
 const packagingField = "kadochi/packaging";
 const postcardField = "kadochi/postcard";
@@ -35,12 +33,6 @@ const locationField = "kadochi/location";
 const operationField = "kadochi/operation-id";
 
 type ZarinpalPaymentMetadata = NonNullable<import("@/lib/http/errors").ApiError["payment"]>;
-type CheckoutDraft = { orderId: number; orderKey: string };
-
-const checkoutDraftCookieSchema = z.object({
-  orderId: z.number().int().positive(),
-  orderKey: z.string().min(1).max(200),
-}).strict();
 
 const zarinpalCategories: Record<number, ZarinpalPaymentMetadata["category"]> = {
   "-9": "rejected",
@@ -98,36 +90,6 @@ async function checkoutHeaders(cartToken?: string): Promise<Record<string, strin
     ...(storedCartToken ? { "Cart-Token": storedCartToken } : {}),
     ...(await wordpressBearerHeaders()),
   };
-}
-
-async function storedCheckoutDraft(): Promise<CheckoutDraft | null> {
-  const value = (await cookies()).get(checkoutDraftCookie)?.value;
-  if (!value) return null;
-  try {
-    const parsed = checkoutDraftCookieSchema.safeParse(JSON.parse(value));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-}
-
-function checkoutDraft(value: unknown): CheckoutDraft | null {
-  const parsed = upstreamCheckoutDraftSchema.parse(value);
-  if (!parsed.order_id || !parsed.order_key) return null;
-  return { orderId: parsed.order_id, orderKey: parsed.order_key };
-}
-
-export function applyCheckoutDraft(
-  response: { cookies: { set: (name: string, value: string, options: Record<string, unknown>) => void } },
-  draft: CheckoutDraft,
-) {
-  response.cookies.set(checkoutDraftCookie, JSON.stringify(draft), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24,
-  });
 }
 
 function paymentMethod(requestId: string, paymentMethodIds: string[]) {
@@ -208,84 +170,6 @@ function additionalFields(input: ReturnType<typeof submitCheckoutSchema.parse>) 
   };
 }
 
-function draftAdditionalFields(input: ReturnType<typeof checkoutDraftSchema.parse>) {
-  return {
-    ...(input.deliverySlotId ? { [deliveryField]: input.deliverySlotId } : {}),
-    ...(input.packagingId ? { [packagingField]: input.packagingId } : {}),
-    ...(input.postcardText !== undefined ? { [postcardField]: input.postcardText } : {}),
-    ...(input.postcardEnabled !== undefined ? {
-      [postcardDesignField]: input.postcardEnabled && input.postcardDesignId ? String(input.postcardDesignId) : "",
-    } : {}),
-    ...(input.address?.location ? {
-      [locationField]: `${input.address.location.latitude},${input.address.location.longitude}`,
-    } : input.address ? { [locationField]: "" } : {}),
-  };
-}
-
-function draftAddresses(input: ReturnType<typeof checkoutDraftSchema.parse>, customer: Awaited<ReturnType<typeof authenticatedCustomer>>) {
-  if (!input.sender || !input.recipient || !input.address) return {};
-  const recipient = input.recipient.kind === "self"
-    ? { ...input.sender, phone: customer.phone }
-    : { firstName: input.recipient.firstName, lastName: input.recipient.lastName, phone: input.recipient.phone };
-  const sharedAddress = {
-    address_1: input.address.address1,
-    address_2: [input.address.buildingNumber ? `پلاک ${input.address.buildingNumber}` : "", input.address.unitNumber ? `واحد ${input.address.unitNumber}` : "", input.address.address2 ?? ""].filter(Boolean).join("، "),
-    city: "تهران",
-    country: "IR",
-  };
-  return {
-    billing_address: {
-      first_name: input.sender.firstName,
-      last_name: input.sender.lastName,
-      email: customer.email,
-      phone: customer.phone,
-      ...sharedAddress,
-    },
-    shipping_address: {
-      first_name: recipient.firstName,
-      last_name: recipient.lastName,
-      phone: recipient.phone,
-      ...sharedAddress,
-    },
-  };
-}
-
-/** Stores checkout progress in Woo's draft or cart session without starting payment. */
-async function persistCheckoutDraft(
-  input: ReturnType<typeof checkoutDraftSchema.parse>,
-  customer: Awaited<ReturnType<typeof authenticatedCustomer>>,
-  cartToken: string | null,
-  requestId: string,
-) {
-  const draft = await wordpressFetch("/wp-json/wc/store/v1/checkout?__experimental_calc_totals=true", {
-    method: "PUT",
-    headers: { ...(await checkoutHeaders(cartToken ?? undefined)), "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ...draftAddresses(input, customer),
-      // The phone is deliberately sent even before the customer has completed a
-      // checkout form, so the first draft is attributable to the logged-in user.
-      ...(!input.sender ? { billing_address: { email: customer.email, phone: customer.phone } } : {}),
-      payment_method: env.KADOCHI_PAYMENT_METHOD_ID,
-      additional_fields: draftAdditionalFields(input),
-    }),
-    cache: "no-store",
-    requestId,
-  });
-  const persistedDraft = await parseUpstreamJson(draft, checkoutDraft, requestId);
-  return { draft: persistedDraft, cartToken: draft.headers.get("cart-token") ?? cartToken };
-}
-
-/** Loads Woo's persisted draft when available, otherwise its cart-backed checkout session. */
-async function ensureCheckoutDraft(cartToken: string | null, requestId: string) {
-  const draft = await wordpressFetch("/wp-json/wc/store/v1/checkout", {
-    headers: await checkoutHeaders(cartToken ?? undefined),
-    cache: "no-store",
-    requestId,
-  });
-  const currentDraft = await parseUpstreamJson(draft, checkoutDraft, requestId);
-  return { draft: currentDraft, cartToken: draft.headers.get("cart-token") ?? cartToken };
-}
-
 function isTrustedZarinpalRedirect(url: string | undefined): boolean {
   if (!url) return false;
   try {
@@ -349,22 +233,6 @@ export async function checkoutState(requestId: string) {
     savedAddresses: savedAddresses.items,
   });
   return { state, cartToken };
-}
-
-/** Saves a completed checkout step to WooCommerce's draft or checkout session. */
-export async function saveCheckoutDraft(input: unknown, requestId: string) {
-  const parsed = checkoutDraftSchema.parse(input);
-  const customer = await authenticatedCustomer(requestId);
-  const initialHeaders = await checkoutHeaders();
-  const { cart: currentCart, cartToken } = await cartForCheckout(initialHeaders, requestId);
-  const cart = checkoutCart(requestId, currentCart);
-  paymentMethod(requestId, cart.paymentMethodIds);
-  const currentDraft = await ensureCheckoutDraft(cartToken, requestId);
-  const persistedDraft = await persistCheckoutDraft(parsed, customer, currentDraft.cartToken, requestId);
-  if (persistedDraft.draft && currentDraft.draft && (persistedDraft.draft.orderId !== currentDraft.draft.orderId || persistedDraft.draft.orderKey !== currentDraft.draft.orderKey)) {
-    throw new ServiceError({ code: "conflict", status: 409, message: "The checkout draft changed. Please review the order again.", requestId, retryable: false });
-  }
-  return persistedDraft;
 }
 
 export async function createSavedAddress(input: unknown, requestId: string) {
@@ -444,14 +312,7 @@ export async function checkout(input: unknown, requestId: string) {
     paymentMethod(requestId, cart.paymentMethodIds);
     if (!createDeliverySlots(cart).some((slot) => slot.id === parsed.deliverySlotId && slot.available)) unavailableSlot(requestId);
 
-    const currentDraft = await ensureCheckoutDraft(lastCartToken, requestId);
-    const storedDraft = await storedCheckoutDraft();
-    if (storedDraft && currentDraft.draft && (storedDraft.orderId !== currentDraft.draft.orderId || storedDraft.orderKey !== currentDraft.draft.orderKey)) {
-      throw new ServiceError({ code: "conflict", status: 409, message: "The checkout draft changed. Please review the order again.", requestId, retryable: false });
-    }
-    lastCartToken = currentDraft.cartToken;
-
-    const draftHeaders = await checkoutHeaders(lastCartToken ?? undefined);
+    const draftHeaders = await checkoutHeaders(cartToken ?? undefined);
     const draft = await wordpressFetch("/wp-json/wc/store/v1/checkout?__experimental_calc_totals=true", {
       method: "PUT",
       headers: { ...draftHeaders, "Content-Type": "application/json" },
@@ -463,15 +324,10 @@ export async function checkout(input: unknown, requestId: string) {
       requestId,
     });
     lastCartToken = draft.headers.get("cart-token") ?? lastCartToken;
-    const persistedDraft = await parseUpstreamJson(draft, checkoutDraft, requestId);
-    if (persistedDraft && currentDraft.draft && (persistedDraft.orderId !== currentDraft.draft.orderId || persistedDraft.orderKey !== currentDraft.draft.orderKey)) {
-      throw new ServiceError({ code: "conflict", status: 409, message: "The checkout draft changed. Please review the order again.", requestId, retryable: false });
-    }
+    await parseUpstreamJson(draft, (value) => upstreamCheckoutDraftSchema.parse(value), requestId);
 
     paymentSubmitted = true;
-    const response = await wordpressFetch(persistedDraft
-      ? `/wp-json/wc/store/v1/checkout/${persistedDraft.orderId}?key=${encodeURIComponent(persistedDraft.orderKey)}`
-      : "/wp-json/wc/store/v1/checkout", {
+    const response = await wordpressFetch("/wp-json/wc/store/v1/checkout", {
       method: "POST",
       headers: {
         ...(await checkoutHeaders(lastCartToken ?? undefined)),
@@ -531,19 +387,12 @@ export async function checkout(input: unknown, requestId: string) {
         throw error;
       }
     }
-    let mappedResult;
+    let result;
     try {
-      mappedResult = mapCheckoutResult(responseBody);
+      result = mapCheckoutResult(responseBody);
     } catch {
       throw new UpstreamError({ code: "malformed_upstream_response", status: 502, message: "The upstream service returned an unexpected response.", requestId, retryable: true });
     }
-    if (persistedDraft && mappedResult.orderId && mappedResult.orderId !== persistedDraft.orderId) {
-      throw new UpstreamError({ code: "malformed_upstream_response", status: 502, message: "The upstream service returned an unexpected order.", requestId, retryable: false });
-    }
-    const result = checkoutResultSchema.parse({
-      ...mappedResult,
-      ...(persistedDraft ? { orderId: persistedDraft.orderId } : {}),
-    });
     // The pinned ZarinPal gateway normally returns Woo's intermediate order-pay
     // URL from Store API. Its retry endpoint performs the real authority request.
     // A direct, validated ZarinPal URL is already a completed gateway start and

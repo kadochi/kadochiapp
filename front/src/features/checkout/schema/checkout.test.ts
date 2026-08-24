@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkoutDraftSchema, savedAddressSchema, submitCheckoutSchema, upstreamCheckoutDraftSchema } from "./checkout";
+import { savedAddressSchema, submitCheckoutSchema } from "./checkout";
 
 const validInput = {
   sender: { firstName: "A", lastName: "B" },
@@ -49,27 +49,6 @@ describe("submitCheckoutSchema", () => {
   });
 });
 
-describe("checkoutDraftSchema", () => {
-  it("accepts the empty snapshot used when checkout opens", () => {
-    expect(checkoutDraftSchema.parse({})).toEqual({});
-  });
-
-  it("accepts completed step data without client-controlled payment fields", () => {
-    const draft = {
-      sender: validInput.sender,
-      recipient: validInput.recipient,
-      address: validInput.address,
-      deliverySlotId: validInput.deliverySlotId,
-      packagingId: validInput.packagingId,
-      postcardEnabled: validInput.postcardEnabled,
-      postcardDesignId: validInput.postcardDesignId,
-      postcardText: validInput.postcardText,
-    };
-    expect(checkoutDraftSchema.parse(draft)).toEqual(draft);
-    expect(() => checkoutDraftSchema.parse({ ...draft, paymentMethod: "cod" })).toThrow();
-  });
-});
-
 describe("savedAddressSchema", () => {
   it("keeps existing saved addresses compatible while adding building and unit values", () => {
     expect(savedAddressSchema.parse({
@@ -79,12 +58,5 @@ describe("savedAddressSchema", () => {
       address2: "طبقه دوم",
       location: null,
     })).toMatchObject({ buildingNumber: "", unitNumber: "" });
-  });
-});
-
-describe("upstreamCheckoutDraftSchema", () => {
-  it("accepts both session-only and persisted checkout responses", () => {
-    expect(upstreamCheckoutDraftSchema.parse({ order_id: 0, status: "checkout-draft" })).toMatchObject({ order_id: 0 });
-    expect(upstreamCheckoutDraftSchema.parse({ order_id: 81, order_key: "wc_order_81", status: "checkout-draft" })).toMatchObject({ order_id: 81 });
   });
 });

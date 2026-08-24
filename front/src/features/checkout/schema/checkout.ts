@@ -85,28 +85,6 @@ const deliveryAddressSchema = z.object({
   }).strict().optional(),
 }).strict();
 
-/**
- * A partial snapshot of checkout progress. Totals, payment method, and the
- * authenticated customer's contact details remain server-owned.
- */
-export const checkoutDraftSchema = z.object({
-  sender: senderSchema.optional(),
-  recipient: recipientSchema.optional(),
-  address: deliveryAddressSchema.optional(),
-  deliverySlotId: deliverySlotSchema.shape.id.optional(),
-  packagingId: z.enum(["gift", "normal"]).optional(),
-  postcardEnabled: z.boolean().optional(),
-  postcardDesignId: z.number().int().positive().nullable().optional(),
-  postcardText: z.string().trim().max(200).optional(),
-}).strict().superRefine((value, context) => {
-  if (value.postcardEnabled === true && !value.postcardDesignId) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["postcardDesignId"], message: "یک طرح کارت پستال انتخاب کنید." });
-  }
-  if (value.postcardEnabled === false && (value.postcardDesignId || value.postcardText)) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["postcardEnabled"], message: "برای ثبت کارت پستال، آن را فعال کنید." });
-  }
-});
-
 /** Browser payload deliberately excludes totals, payment gateway, sender phone/email, country, and city. */
 export const submitCheckoutSchema = z.object({
   sender: senderSchema,
@@ -159,11 +137,10 @@ const upstreamCheckoutResultSchema = z.object({
 }).passthrough();
 
 export const upstreamCheckoutDraftSchema = z.object({
-  // Some WooCommerce Store API versions keep checkout details in the cart session
-  // until payment starts. A real order reference is therefore optional here.
+  // WooCommerce 10.8+ may keep the PUT draft in the shopper session and return 0
+  // until POST materializes the real order.
   order_id: z.number().int().nonnegative().optional(),
-  order_key: z.string().min(1).max(200).optional(),
-  status: z.string().min(1),
+  status: z.string().optional(),
 }).passthrough();
 
 export function mapCheckoutResult(value: unknown) {
