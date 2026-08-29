@@ -97,6 +97,10 @@ describe("legacy numeric product redirects", () => {
       ...product,
       name: "باکس هدیه ویژه",
       slug: "metadata-gift",
+      price: { amount: "850000", currencyCode: "IRR", minorUnit: 0 },
+      regularPrice: { amount: "1000000", currencyCode: "IRR", minorUnit: 0 },
+      images: [{ url: "https://kadochi.example/gift.jpg", alt: "باکس هدیه ویژه" }],
+      attributes: [{ name: "گارانتی", value: "ضمانت اصالت کالا" }],
     });
 
     const metadata = await generateMetadata({
@@ -106,5 +110,16 @@ describe("legacy numeric product redirects", () => {
     expect(metadata.alternates?.canonical).toBe("/product/metadata-gift");
     expect(metadata.description).toContain("باکس هدیه ویژه");
     expect(metadata.robots).toMatchObject({ index: true, follow: true });
+    expect(metadata.openGraph?.images).toEqual([
+      { url: "https://kadochi.example/gift.jpg", alt: "باکس هدیه ویژه" },
+    ]);
+    expect(metadata.other).toMatchObject({
+      product_id: "42",
+      product_name: "باکس هدیه ویژه",
+      product_price: "85000",
+      product_old_price: "100000",
+      availability: "instock",
+      guarantee: "ضمانت اصالت کالا",
+    });
   });
 });

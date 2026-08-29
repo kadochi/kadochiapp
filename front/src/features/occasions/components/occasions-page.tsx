@@ -233,7 +233,7 @@ export function OccasionsPage() {
             const dateParts = getPersianDateParts(date);
             return (
               <div key={isoDate}>
-                <article className="grid min-h-80 grid-cols-[72px_1fr] items-start gap-16 px-16 py-12">
+                <article className="grid min-h-80 grid-cols-[72px_minmax(0,1fr)] items-start gap-16 px-16 py-12">
                   <div className="grid justify-items-center gap-4 pt-2">
                     <span className="text-label-12 text-surface-neutral-mid-emphasis">
                       {getPersianWeekday(date)}
@@ -242,13 +242,13 @@ export function OccasionsPage() {
                       {dateParts.day}
                     </strong>
                   </div>
-                  <div className="grid min-h-56 content-center gap-8">
+                  <div className="grid min-h-56 min-w-0 content-center gap-8">
                     {dayOccasions.map((occasion) => (
                       <div
                         className={`flex min-h-48 items-center gap-12 rounded-m px-12 py-8 [direction:rtl] ${occasion.isPersonal ? "bg-success-container text-on-success-container" : "bg-secondary-container text-on-secondary-container"}`}
                         key={occasion.id}
                       >
-                        <strong className="min-w-0 flex-1 truncate text-right text-label-16" dir="rtl">
+                        <strong className="min-w-0 flex-1 break-words text-right text-label-16 line-clamp-2" dir="rtl">
                           {occasion.title}
                         </strong>
                         <span className="shrink-0 whitespace-nowrap text-label-12 text-surface-neutral-mid-emphasis" dir="rtl">

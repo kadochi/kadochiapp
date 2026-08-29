@@ -24,8 +24,11 @@ import { isProductIdIdentifier } from "@/features/products/utils/product-identif
 import {
   productBreadcrumbJsonLd,
   productDescription,
+  productGuarantee,
   productJsonLd,
+  productOldPriceInToman,
   productPath,
+  productPriceInToman,
   serializeJsonLd,
 } from "@/features/products/utils/product-seo";
 import { env } from "@/lib/server/env";
@@ -93,6 +96,16 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
       title: `کادوچی | ${product.name}`,
       description,
       images: image ? [{ url: image.url, alt: image.alt || product.name }] : undefined,
+    },
+    // `og:image` is emitted by openGraph above. These are the remaining
+    // crawler-specific product fields requested for every product detail page.
+    other: {
+      product_id: String(product.id),
+      product_name: product.name,
+      product_price: productPriceInToman(product.price),
+      product_old_price: productOldPriceInToman(product),
+      availability: product.inStock && product.purchasable ? "instock" : "outofstock",
+      guarantee: productGuarantee(product),
     },
   };
 }

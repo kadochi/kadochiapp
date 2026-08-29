@@ -21,6 +21,40 @@ function schemaPrice({ amount, minorUnit }: Money): string {
   return fraction ? `${whole}.${fraction}` : whole;
 }
 
+/** Converts WooCommerce's minor-unit price to the Toman amount used by product feeds. */
+export function productPriceInToman({ amount, currencyCode, minorUnit }: Money): string {
+  const divisor = BigInt(10) ** BigInt(minorUnit + (currencyCode === "IRR" ? 1 : 0));
+  return (BigInt(amount) / divisor).toString();
+}
+
+/** Returns a previous price only when the product is currently discounted. */
+export function productOldPriceInToman(product: Pick<Product, "price" | "regularPrice">): string {
+  const { price, regularPrice } = product;
+  if (
+    !regularPrice
+    || regularPrice.currencyCode !== price.currencyCode
+    || regularPrice.minorUnit !== price.minorUnit
+    || BigInt(regularPrice.amount) <= BigInt(price.amount)
+  ) {
+    return "";
+  }
+
+  return productPriceInToman(regularPrice);
+}
+
+/** Uses the product's warranty attribute, or a clear no-warranty value when none is supplied. */
+export function productGuarantee(product: Pick<Product, "attributes">): string {
+  const attribute = product.attributes.find(({ name }) => {
+    const normalizedName = name.trim().toLocaleLowerCase("fa-IR");
+    return normalizedName.includes("گارانتی")
+      || normalizedName.includes("ضمانت")
+      || normalizedName.includes("guarantee")
+      || normalizedName.includes("warranty");
+  });
+
+  return attribute?.value || "بدون گارانتی";
+}
+
 export function productPath(slug: string): string {
   return `/product/${encodeURIComponent(slug)}`;
 }
