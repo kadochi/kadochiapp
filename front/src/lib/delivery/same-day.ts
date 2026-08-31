@@ -6,8 +6,8 @@
 export type DeliverySlot = {
   id: string;
   date: string;
-  startHour: 10 | 13 | 16;
-  endHour: 13 | 16 | 19;
+  startHour: 10 | 13 | 16 | 19;
+  endHour: 13 | 16 | 19 | 22;
   label: string;
   available: boolean;
 };
@@ -17,6 +17,7 @@ const windows = [
   { startHour: 10 as const, endHour: 13 as const },
   { startHour: 13 as const, endHour: 16 as const },
   { startHour: 16 as const, endHour: 19 as const },
+  { startHour: 19 as const, endHour: 22 as const },
 ];
 
 function tehranParts(now: Date) {
@@ -55,7 +56,7 @@ export function createDeliverySlotsForPreparationHours(preparationHours: number,
   const date = new Date(Date.UTC(tehran.year, tehran.month - 1, tehran.day));
   const slots: DeliverySlot[] = [];
 
-  for (let dayOffset = 0; dayOffset < 3; dayOffset += 1) {
+  for (let dayOffset = 0; dayOffset < 4; dayOffset += 1) {
     const isToday = dayOffset === 0;
     const isFriday = date.getUTCDay() === 5;
     const dateString = formatDate(date);

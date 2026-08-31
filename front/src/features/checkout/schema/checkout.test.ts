@@ -17,6 +17,7 @@ const validInput = {
 describe("submitCheckoutSchema", () => {
   it("accepts the domain checkout payload", () => {
     expect(submitCheckoutSchema.parse(validInput)).toEqual(validInput);
+    expect(submitCheckoutSchema.parse({ ...validInput, deliverySlotId: "2026-07-18-19" }).deliverySlotId).toBe("2026-07-18-19");
   });
 
   it("does not let the browser choose totals, gateway, or customer identity", () => {

@@ -48,11 +48,11 @@ function formatDateTime(value: string) {
 
 function deliveryLabel(slot: string | null) {
   if (!slot) return "—";
-  const match = /^(\d{4}-\d{2}-\d{2})-(10|13|16)$/.exec(slot);
+  const match = /^(\d{4}-\d{2}-\d{2})-(10|13|16|19)$/.exec(slot);
   if (!match) return slot;
   const date = new Date(`${match[1]}T00:00:00`);
-  const ends: Record<string, string> = { "10": "۱۳", "13": "۱۶", "16": "۱۹" };
-  const starts: Record<string, string> = { "10": "۱۰", "13": "۱۳", "16": "۱۶" };
+  const ends: Record<string, string> = { "10": "۱۳", "13": "۱۶", "16": "۱۹", "19": "۲۲" };
+  const starts: Record<string, string> = { "10": "۱۰", "13": "۱۳", "16": "۱۶", "19": "۱۹" };
   return `${new Intl.DateTimeFormat("fa-IR", { year: "numeric", month: "long", day: "numeric" }).format(date)}، ساعت ${starts[match[2]]} تا ${ends[match[2]]}`;
 }
 

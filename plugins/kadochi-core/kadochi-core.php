@@ -2422,7 +2422,7 @@ final class Kadochi_Core {
 	}
 
 	/**
-	 * Recomputes the three visible calendar days in Tehran time. Every day and
+	 * Recomputes the four visible calendar days in Tehran time. Every day and
 	 * time window stays in the response so checkout can disable unavailable
 	 * choices, while only an available window is accepted when an order is placed.
 	 */
@@ -2431,9 +2431,9 @@ final class Kadochi_Core {
 		$now = new DateTimeImmutable( 'now', $timezone );
 		$today = $now->setTime( 0, 0, 0 );
 		$ready_at = $now->modify( '+' . $this->cart_preparation_hours() . ' hours' );
-		$windows = array( array( 10, 13 ), array( 13, 16 ), array( 16, 19 ) );
+		$windows = array( array( 10, 13 ), array( 13, 16 ), array( 16, 19 ), array( 19, 22 ) );
 		$slots = array();
-		for ( $offset = 0; $offset < 3; $offset++ ) {
+		for ( $offset = 0; $offset < 4; $offset++ ) {
 			$day = $today->modify( '+' . $offset . ' days' );
 			$is_today = 0 === $offset;
 			$is_friday = '5' === $day->format( 'N' );
@@ -2448,7 +2448,7 @@ final class Kadochi_Core {
 	}
 
 	private function valid_delivery_slot( $value ) {
-		if ( ! is_string( $value ) || ! preg_match( '/^\\d{4}-\\d{2}-\\d{2}-(10|13|16)$/', $value ) ) {
+		if ( ! is_string( $value ) || ! preg_match( '/^\\d{4}-\\d{2}-\\d{2}-(10|13|16|19)$/', $value ) ) {
 			return false;
 		}
 		foreach ( $this->delivery_slots() as $slot ) {

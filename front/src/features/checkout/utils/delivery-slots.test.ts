@@ -11,10 +11,11 @@ describe("createDeliverySlots", () => {
     const now = new Date("2026-07-18T04:30:00.000Z"); // Saturday, 08:00 Tehran.
     const slots = createDeliverySlots(cart(4), now);
 
-    expect(slots.slice(0, 3).map((slot) => [slot.id, slot.available])).toEqual([
+    expect(slots.slice(0, 4).map((slot) => [slot.id, slot.available])).toEqual([
       ["2026-07-18-10", false],
       ["2026-07-18-13", true],
       ["2026-07-18-16", true],
+      ["2026-07-18-19", true],
     ]);
   });
 
@@ -22,10 +23,11 @@ describe("createDeliverySlots", () => {
     const now = new Date("2026-07-18T17:30:00.000Z"); // Saturday, 21:00 Tehran.
     const slots = createDeliverySlots(cart(24), now);
 
-    expect(slots.slice(0, 3).map((slot) => [slot.id, slot.available])).toEqual([
+    expect(slots.slice(0, 4).map((slot) => [slot.id, slot.available])).toEqual([
       ["2026-07-18-10", false],
       ["2026-07-18-13", false],
       ["2026-07-18-16", false],
+      ["2026-07-18-19", false],
     ]);
     expect(slots.find((slot) => slot.available)?.id).toBe("2026-07-20-10");
   });
@@ -50,10 +52,23 @@ describe("createDeliverySlots", () => {
     const now = new Date("2026-07-18T09:30:00.000Z"); // Saturday, 13:00 Tehran.
     const slots = createDeliverySlots(cart(1), now);
 
-    expect(slots.slice(0, 3).map((slot) => [slot.id, slot.available])).toEqual([
+    expect(slots.slice(0, 4).map((slot) => [slot.id, slot.available])).toEqual([
       ["2026-07-18-10", false],
       ["2026-07-18-13", false],
       ["2026-07-18-16", true],
+      ["2026-07-18-19", true],
+    ]);
+  });
+
+  it("offers four calendar days starting today", () => {
+    const now = new Date("2026-07-18T04:30:00.000Z"); // Saturday, 08:00 Tehran.
+    const slots = createDeliverySlots(cart(1), now);
+
+    expect([...new Set(slots.map((slot) => slot.date))]).toEqual([
+      "2026-07-18",
+      "2026-07-19",
+      "2026-07-20",
+      "2026-07-21",
     ]);
   });
 });

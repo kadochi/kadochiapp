@@ -86,7 +86,7 @@ function OrderDetail({ label, value, last = false }: { label: string; value: str
 }
 
 function formatDeliverySlot(value: string | null) {
-  const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})-(10|13|16)$/);
+  const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})-(10|13|16|19)$/);
   if (!match) return "—";
   const [, year, month, day, start] = match;
   const date = new Date(`${year}-${month}-${day}T12:00:00Z`);

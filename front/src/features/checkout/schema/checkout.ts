@@ -4,10 +4,10 @@ import { customerSchema, iranianPhoneSchema } from "../../auth/schema/auth";
 import { cartSchema, moneySchema } from "../../cart/schema/cart";
 
 export const deliverySlotSchema = z.object({
-  id: z.string().regex(/^\d{4}-\d{2}-\d{2}-(10|13|16)$/),
+  id: z.string().regex(/^\d{4}-\d{2}-\d{2}-(10|13|16|19)$/),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  startHour: z.union([z.literal(10), z.literal(13), z.literal(16)]),
-  endHour: z.union([z.literal(13), z.literal(16), z.literal(19)]),
+  startHour: z.union([z.literal(10), z.literal(13), z.literal(16), z.literal(19)]),
+  endHour: z.union([z.literal(13), z.literal(16), z.literal(19), z.literal(22)]),
   label: z.string().min(1),
   available: z.boolean(),
 }).strict();
@@ -50,7 +50,7 @@ export const savedAddressListSchema = z.object({ items: z.array(savedAddressSche
 export const checkoutStateSchema = z.object({
   cart: cartSchema,
   customer: customerSchema,
-  // Checkout always shows today and the next two calendar days; unavailable
+  // Checkout always shows today and the next three calendar days; unavailable
   // windows remain so the customer can see why they cannot be selected.
   deliverySlots: z.array(deliverySlotSchema).max(120),
   packagingOptions: z.array(packagingOptionSchema).length(2),
