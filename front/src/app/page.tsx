@@ -23,21 +23,22 @@ import type { MagazineArticle } from "@/features/magazine/types";
 import {
   listCategories,
   listProducts,
-  listProductTags,
 } from "@/features/products/services/products.server";
 import type { Product, ProductCategory } from "@/features/products/types";
 import { serializeJsonLd } from "@/features/products/utils/product-seo";
 import { env } from "@/lib/server/env";
 
 export const revalidate = 60;
+// Same-day eligibility is tied to the live checkout windows.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "کادوچی | خرید کادو، گل و کیک با ارسال سریع",
+  title: "کادوچی | خرید کادو، هدیه، گل و کیک با ارسال سریع",
   description:
     "کادوچی فروشگاه آنلاین خرید کادو، گل، باکس گل و کیک با ارسال سریع. انتخاب هدیه برای تولد، سالگرد، ولنتاین و سایر مناسبت‌ها با بسته‌بندی شیک.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: "کادوچی | خرید کادو، گل و کیک با ارسال سریع",
+    title: "کادوچی | خرید کادو، هدیه، گل و کیک با ارسال سریع",
     description: "خرید انواع هدایا، گل و کیک با ارسال سریع و بسته‌بندی مخصوص هدیه در کادوچی.",
     locale: "fa_IR",
     type: "website",
@@ -45,7 +46,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary",
-    title: "کادوچی | خرید کادو، گل و کیک با ارسال سریع",
+    title: "کادوچی | خرید کادو، هدیه، گل و کیک با ارسال سریع",
     description: "خرید اینترنتی کادو، گل و کیک با ارسال سریع برای مناسبت‌های مختلف.",
   },
 };
@@ -66,32 +67,23 @@ async function fallback<T>(operation: Promise<T>, value: T): Promise<T> {
 }
 
 async function getLandingData() {
-  const [heroes, content, latest, popular, categories, tags, magazine] = await Promise.all([
+  const [heroes, content, latest, popular, categories, fastDelivery, magazine] = await Promise.all([
     fallback(getHeroSlides(), [] as HeroSlide[]),
     fallback(getHomepageContent(), emptyContent),
     fallback(listProducts({ order: "desc", orderby: "date", perPage: 12 }), { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 }),
     fallback(listProducts({ order: "desc", orderby: "popularity", perPage: 12 }), { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 }),
     fallback(listCategories({ hideEmpty: true, perPage: 12 }), [] as ProductCategory[]),
-    fallback(listProductTags(), []),
+    fallback(listProducts({ order: "desc", orderby: "date", perPage: 12, sameDayDelivery: true }), { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 }),
     fallback(listMagazineArticles({ perPage: 4 }), { items: [] as MagazineArticle[], page: 1, perPage: 4, total: 0, totalPages: 0 }),
   ]);
-  // Kadochi.Old used the long-standing fast-delivery tag (ID 25) directly.
-  // Resolve its slug when available, but retain the legacy ID so this rail is
-  // not removed merely because the tags endpoint is temporarily unavailable.
-  const fastDeliveryTagId = tags.find((tag) => tag.slug === "fast-delivery")?.id ?? 25;
-  const fastDelivery = await fallback(
-    listProducts({ order: "desc", orderby: "date", perPage: 12, tags: [fastDeliveryTagId] }),
-    { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 },
-  );
-
   return { categories, content, fastDelivery: fastDelivery.items, heroes, latest: latest.items, magazine: magazine.items, popular: popular.items };
 }
 
 const services = [
-  { href: "/products", icon: "/icons/all-gifts.svg", label: "محصولات کادویی", variant: "sq" },
+  { href: "/products", icon: "/icons/all-gifts.svg", label: "خرید کادو و هدیه", variant: "sq" },
   { href: "/gift-finder", icon: "/icons/giftf-inder.svg", isNew: true, label: "جستجوی کادوی مناسب", variant: "sq" },
   { href: "/occasions", icon: "/icons/ocassions-calendar.svg", label: "تقویم مناسبت‌ها", variant: "sq" },
-  { href: "/products?tag=fast-delivery", icon: "/icons/today-delivery.svg", label: "ارسال سریع امروز", variant: "sq" },
+  { href: "/products?delivery=today", icon: "/icons/today-delivery.svg", label: "ارسال سریع امروز", variant: "sq" },
   { href: "/products?category=flower", icon: "/icons/flower-box.svg", label: "باکس گل و دسته‌گل", variant: "sq" },
   { href: "/products?category=chocolate", icon: "/icons/birthday-cake.svg", label: "کیک تولد و برگزاری تولد", variant: "sq" },
   { href: "/profile/wishlist", icon: "/icons/wishlist.svg", label: "لیست آرزوهای من", variant: "sq" },
@@ -125,7 +117,7 @@ export default async function Homepage() {
 
   return (
     <LayoutContent mainClassName="mx-auto w-full max-w-[1440px]" showBottomNav>
-      <h1 className="sr-only">کادوچی | خرید کادو، گل و کیک با ارسال سریع</h1>
+      <h1 className="sr-only">کادوچی | خرید کادو، هدیه، گل و کیک با ارسال سریع</h1>
       <HeroSlider initialSlides={heroSlides.length ? heroSlides : undefined} />
       <ServicesNav items={[...services]} />
 
@@ -180,7 +172,7 @@ export default async function Homepage() {
       <Divider size="md" variant="spacer" />
       <LandingProductRail
         badge="fast-delivery"
-        href="/products?tag=fast-delivery"
+        href="/products?delivery=today"
         items={fastDelivery}
         subtitle="اگر خیلی سریع به دنبال یک کادو هستین"
         title="کادوهای ارسال روز"

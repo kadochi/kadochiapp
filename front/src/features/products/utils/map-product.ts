@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { wordpressMediaUrl } from "@/lib/server/wordpress-media";
+import { canReceiveToday } from "@/lib/delivery/same-day";
 import { productSchema, type upstreamProductSchemaExport } from "../schema/products";
 import { decodeProductSlug } from "./product-slug";
 
@@ -47,7 +48,7 @@ export function mapProduct(product: UpstreamProduct) {
       }))
       .filter((attribute) => attribute.name && attribute.value),
     preparationHours,
-    expressDeliveryEligible: preparationHours < 6,
+    expressDeliveryEligible: canReceiveToday(preparationHours),
     averageRating: Number.isFinite(rating) ? Math.min(5, Math.max(0, rating)) : 0,
     reviewCount: product.review_count ?? 0,
     inStock: product.is_in_stock,

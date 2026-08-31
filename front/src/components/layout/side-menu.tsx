@@ -46,6 +46,7 @@ type SideMenuProps = {
 const defaultMenuItems = [
   { label: "کادوچی", href: "/", icon: "/icons/home.svg" },
   { label: "محصولات", href: "/products", icon: "/icons/products.svg" },
+  { label: "ارسال امروز", href: "/products?delivery=today", icon: "/icons/today-delivery.svg" },
   { label: "مناسبت‌ها", href: "/occasions", icon: "/icons/occasions.svg" },
   { label: "مجله", href: "/magazine", icon: "/icons/document.svg" },
   { label: "درباره ما", href: "/about", icon: "/icons/info.svg" },

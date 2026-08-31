@@ -37,6 +37,7 @@ import { isProductIdIdentifier } from "../utils/product-identifier";
 import { decodeProductSlug, wordpressProductSlug } from "../utils/product-slug";
 import { stripHtml } from "../utils/strip-html";
 import { availabilityFirstPage, type AvailabilityPartition } from "../utils/availability-pagination";
+import { isSameDayDeliveryProduct } from "../utils/preparation-time";
 
 // The WordPress REST lookup is occasionally slower while its PHP workers are
 // busy. PDP data is public and cacheable, so it can wait longer than cart and
@@ -96,7 +97,7 @@ async function listProductsByAvailability(
 }
 
 /** Public, cacheable Woo Store API reads. Each method validates upstream data before returning it. */
-export async function listProducts(query: ProductQuery = {}): Promise<ProductListResult> {
+async function listProductsWithAvailability(query: ProductQuery = {}): Promise<ProductListResult> {
   const input = productQuerySchema.parse(query);
   const firstPages = await Promise.all([
     listProductsByAvailability(input, "available", 1),
@@ -134,6 +135,57 @@ export async function listProducts(query: ProductQuery = {}): Promise<ProductLis
     total,
     totalPages,
   };
+}
+
+/**
+ * Builds the live "ارسال امروز" collection from product preparation times.
+ * The Store API cannot filter a computed, time-sensitive condition, so each
+ * in-stock catalog page is evaluated against the exact checkout schedule.
+ */
+async function listSameDayDeliveryProducts(query: ProductQuery): Promise<ProductListResult> {
+  const input = productQuerySchema.parse({ ...query, sameDayDelivery: undefined });
+  const upstreamPageSize = 50;
+  const firstPage = await listProductsByAvailability(
+    { ...input, page: 1, perPage: upstreamPageSize },
+    "available",
+    1,
+  );
+  const pages = [firstPage];
+
+  // Fetch remaining Store API pages in small batches to avoid a burst against
+  // WordPress while still producing accurate totals and pagination.
+  for (let page = 2; page <= firstPage.totalPages; page += 6) {
+    const requestedPages = Array.from(
+      { length: Math.min(6, firstPage.totalPages - page + 1) },
+      (_, index) => page + index,
+    );
+    pages.push(...await Promise.all(requestedPages.map((currentPage) => (
+      listProductsByAvailability({ ...input, page: currentPage, perPage: upstreamPageSize }, "available", currentPage)
+    ))));
+  }
+
+  const now = new Date();
+  const eligibleItems = pages.flatMap((result) => result.items)
+    .filter((product) => product.inStock && product.purchasable && isSameDayDeliveryProduct(product.preparationHours, now));
+  const total = eligibleItems.length;
+  const totalPages = Math.ceil(total / input.perPage);
+  const start = (input.page - 1) * input.perPage;
+
+  return {
+    items: eligibleItems.slice(start, start + input.perPage),
+    page: input.page,
+    perPage: input.perPage,
+    total,
+    totalPages,
+  };
+}
+
+/** Public, cacheable Woo Store API reads, with a live same-day collection. */
+export async function listProducts(query: ProductQuery = {}): Promise<ProductListResult> {
+  const input = productQuerySchema.parse(query);
+  return input.sameDayDelivery
+    ? listSameDayDeliveryProducts(input)
+    : listProductsWithAvailability(input);
 }
 
 export async function getProductById(id: number) {

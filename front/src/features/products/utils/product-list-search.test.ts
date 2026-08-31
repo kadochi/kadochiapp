@@ -12,6 +12,11 @@ describe("product list URLs", () => {
     expect(parseProductListSearchParams({ category: "flower" }).category).toBe("flower");
   });
 
+  it("recognizes the live same-day catalog route", () => {
+    expect(parseProductListSearchParams({ delivery: "today" }).sameDayDelivery).toBe(true);
+    expect(parseProductListSearchParams({ delivery: "tomorrow" }).sameDayDelivery).toBe(false);
+  });
+
   it("generates encoded slug-based category links", () => {
     expect(productCategoryPath("گل و گیاه")).toBe(
       "/products?category=%DA%AF%D9%84+%D9%88+%DA%AF%DB%8C%D8%A7%D9%87",

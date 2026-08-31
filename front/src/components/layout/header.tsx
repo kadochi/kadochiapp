@@ -69,6 +69,8 @@ type NavigationItem = {
   href: string;
   label: string;
   emphasized?: boolean;
+  icon?: string;
+  animated?: boolean;
 };
 
 const navigationItems: readonly NavigationItem[] = [
@@ -78,6 +80,7 @@ const navigationItems: readonly NavigationItem[] = [
   { href: "/products?category=chocolate", label: "کیک تولد" },
   { href: "/occasions", label: "مناسبت‌ها" },
   { href: "/magazine", label: "مجله" },
+  { href: "/products?delivery=today", label: "ارسال روز", icon: "/icons/today-delivery.svg", animated: true },
 ];
 
 function getAccountLabel(user: HeaderUser | null) {
@@ -315,12 +318,14 @@ function DefaultHeader({
               <Link
                 key={item.href}
                 className={cn(
-                  "font-sans text-label-16 font-regular text-surface-neutral-high-emphasis no-underline",
+                  "inline-flex items-center gap-4 font-sans text-label-16 font-regular text-surface-neutral-high-emphasis no-underline",
                   item.emphasized && "font-bold",
+                  item.animated && "bg-[linear-gradient(90deg,var(--color-on-primary-container),var(--color-primary),var(--color-on-primary-container))] bg-[length:200%_100%] bg-clip-text text-transparent [-webkit-text-fill-color:transparent] [animation:hero-text-shimmer_4s_ease-in-out_infinite] motion-reduce:animate-none",
                 )}
                 href={item.href}
                 prefetch={false}
               >
+                {item.icon ? <Image alt="" aria-hidden className="size-16" height={16} src={item.icon} width={16} /> : null}
                 {item.label}
               </Link>
             ))}

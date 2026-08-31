@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const transport = vi.hoisted(() => ({ fetch: vi.fn() }));
 
@@ -11,7 +11,7 @@ vi.mock("@/lib/http/upstream", () => ({
 
 import { listProducts, listSimilarProducts } from "./products.server";
 
-function upstreamProduct(id: number) {
+function upstreamProduct(id: number, preparationHours = 24) {
   return {
     id,
     name: `Product ${id}`,
@@ -33,12 +33,12 @@ function upstreamProduct(id: number) {
     is_purchasable: true,
     average_rating: "0",
     review_count: 0,
-    extensions: {},
+    extensions: { kadochi: { preparationHours } },
   };
 }
 
-function productResponse(ids: readonly number[], total: number, perPage: number) {
-  return new Response(JSON.stringify(ids.map(upstreamProduct)), {
+function productResponse(ids: readonly number[], total: number, perPage: number, preparationHours?: readonly number[]) {
+  return new Response(JSON.stringify(ids.map((id, index) => upstreamProduct(id, preparationHours?.[index] ?? 24))), {
     headers: {
       "x-wp-total": String(total),
       "x-wp-totalpages": String(Math.ceil(total / perPage)),
@@ -52,6 +52,7 @@ function requestUrl(call: readonly unknown[]) {
 
 describe("product catalog availability", () => {
   beforeEach(() => transport.fetch.mockReset());
+  afterEach(() => vi.useRealTimers());
 
   it("continues into the next unavailable source page without skipping products", async () => {
     transport.fetch.mockImplementation(async (path: string) => {
@@ -98,5 +99,18 @@ describe("product catalog availability", () => {
     expect(urls[0].searchParams.get("category")).toBe("7");
     expect(urls[1].searchParams.has("category")).toBe(false);
     expect(urls.every((url) => !url.searchParams.getAll("stock_status[]").includes("outofstock"))).toBe(true);
+  });
+
+  it("builds the same-day collection from preparation time and live checkout slots", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-18T04:30:00.000Z")); // Saturday, 08:00 Tehran.
+    transport.fetch.mockResolvedValue(productResponse([1, 2, 3], 3, 50, [3, 7, 24]));
+
+    const result = await listProducts({ page: 1, perPage: 12, sameDayDelivery: true });
+
+    expect(result.items.map((product) => product.id)).toEqual([1, 2]);
+    expect(result).toMatchObject({ page: 1, perPage: 12, total: 2, totalPages: 1 });
+    expect(transport.fetch).toHaveBeenCalledTimes(1);
+    expect(requestUrl(transport.fetch.mock.calls[0]).searchParams.getAll("stock_status[]")).toEqual(["instock", "onbackorder"]);
   });
 });

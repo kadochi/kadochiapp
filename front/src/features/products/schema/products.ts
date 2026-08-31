@@ -17,6 +17,8 @@ export const productQuerySchema = z.object({
   maxPrice: z.string().regex(/^\d{1,12}$/).optional(),
   order: z.enum(["asc", "desc"]).optional(),
   orderby: z.enum(["date", "id", "menu_order", "popularity", "rating", "price", "title"]).optional(),
+  /** Applies the live checkout-slot eligibility rule instead of a product tag. */
+  sameDayDelivery: z.union([z.boolean(), z.literal("1"), z.literal("true")]).transform((value) => value === true || value === "1" || value === "true").optional(),
 });
 
 export const categoryQuerySchema = z.object({

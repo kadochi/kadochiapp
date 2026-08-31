@@ -36,6 +36,7 @@ const primaryLinks = [
   { label: "خرید کادو", href: "/products" },
   { label: "خرید گل", href: "/products?category=flower" },
   { label: "خرید کیک تولد", href: "/products?category=chocolate" },
+  { label: "ارسال امروز", href: "/products?delivery=today" },
   { label: "تقویم مناسبت‌ها", href: "/occasions" },
   { label: "مجله کادوچی", href: "/magazine" },
 ] as const satisfies readonly FooterLink[];

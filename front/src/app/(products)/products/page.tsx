@@ -23,6 +23,10 @@ import { redirectLegacyCategory } from "@/features/products/utils/redirect-legac
 import { stripHtml } from "@/features/products/utils/strip-html";
 import { env } from "@/lib/server/env";
 
+// The "ارسال امروز" collection changes as checkout slots pass, so its
+// eligibility must be recalculated for each catalog request.
+export const dynamic = "force-dynamic";
+
 type ProductsPageProps = {
   searchParams: Promise<Record<string, SearchParamValue>>;
 };
@@ -62,6 +66,7 @@ const getCatalogPage = cache(async (searchKey: string) => {
     maxPrice: search.maxPrice,
     order: search.order,
     orderby: search.orderby,
+    sameDayDelivery: search.sameDayDelivery || undefined,
   };
   const result = hasUnknownFilter ? emptyResult(search.page, 12) : await listProducts(query);
 
@@ -90,6 +95,7 @@ function catalogPath({
   if (search.search) params.set("q", search.search);
   if (search.minPrice) params.set("min_price", search.minPrice);
   if (search.maxPrice) params.set("max_price", search.maxPrice);
+  if (search.sameDayDelivery) params.set("delivery", "today");
   if (search.orderby !== "date") params.set("orderby", search.orderby);
   if (search.order !== "desc") params.set("order", search.order);
   if (page && page > 1) params.set("page", String(page));
@@ -114,14 +120,18 @@ export async function generateMetadata({ searchParams }: ProductsPageProps): Pro
   const { hasUnknownFilter, result, search, category, selectedTags } =
     await getCatalogPage(catalogSearchKey(await searchParams));
   const selectedTag = selectedTags.length === 1 ? selectedTags[0] : undefined;
-  const title = category
+  const title = search.sameDayDelivery
+    ? "کادوهای قابل ارسال امروز"
+    : category
     ? `خرید کادو ${category.name}`
     : selectedTag
       ? `خرید کادو برای ${selectedTag.name}`
       : search.search
         ? `جستجو برای «${search.search}» در کادوچی`
         : "لیست محصولات کادویی";
-  const description = category
+  const description = search.sameDayDelivery
+    ? "محصولاتی که با توجه به زمان آماده‌سازی و بازه‌های فعال تحویل، امروز قابل دریافت هستند."
+    : category
     ? category.description || `خرید انواع هدیه و کادو در دسته‌بندی ${category.name} با امکان فیلتر بر اساس قیمت و مناسبت.`
     : selectedTag
       ? stripHtml(selectedTag.description) || `محصولات کادویی مناسب ${selectedTag.name} با ارسال سریع.`
@@ -151,14 +161,18 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     await getCatalogPage(catalogSearchKey(resolvedSearchParams));
   if (!hasUnknownFilter && result.totalPages > 0 && search.page > result.totalPages) notFound();
   const selectedTag = selectedTags.length === 1 ? selectedTags[0] : undefined;
-  const title = category
+  const title = search.sameDayDelivery
+    ? "کادوهای قابل ارسال امروز"
+    : category
     ? `لیست کادوهای ${category.name}`
     : selectedTag
       ? `لیست کادوهای ${selectedTag.name}`
       : search.search
         ? `نتایج جستجو برای «${search.search}»`
         : "لیست محصولات کادویی";
-  const subtitle = category
+  const subtitle = search.sameDayDelivery
+    ? "محصولاتی که اکنون امکان تحویل در یکی از بازه‌های امروز را دارند"
+    : category
     ? "انواع هدایا و کادوهای مرتبط با این دسته‌بندی"
     : selectedTag
       ? selectedTag.description || "محصولات کادویی متناسب با انتخاب شما"
@@ -166,7 +180,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const breadcrumbs = [
     { label: "خانه", href: "/" },
     { label: "محصولات کادویی", href: "/products" },
-    ...(category ? [{ label: category.name }] : selectedTag ? [{ label: selectedTag.name }] : []),
+    ...(search.sameDayDelivery ? [{ label: "ارسال امروز" }] : category ? [{ label: category.name }] : selectedTag ? [{ label: selectedTag.name }] : []),
   ];
   const catalogKey = `${productListSearchKey(search)}:${category?.id ?? ""}:${query.tags?.join(",") ?? ""}`;
   const paginationBasePath = catalogPath({ category, search, selectedTags });

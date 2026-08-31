@@ -55,6 +55,7 @@ export function fetchProductsPage(
   if (input.maxPrice) params.set("maxPrice", input.maxPrice);
   if (input.order) params.set("order", input.order);
   if (input.orderby) params.set("orderby", input.orderby);
+  if (input.sameDayDelivery) params.set("sameDayDelivery", "1");
 
   return bffJson(
     `/api/products?${params}`,

@@ -35,7 +35,7 @@ export function ProductCard({
   const image = product.images[0];
   const showPrice = product.inStock;
   const badge = deliveryBadge(product.preparationHours);
-  const showDeliveryBadge = product.preparationHours <= 6;
+  const showDeliveryBadge = badge.usesFastDeliveryIcon;
 
   return (
     <Link

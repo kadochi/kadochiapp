@@ -7,6 +7,7 @@ export type ProductListSearch = {
   tags: string[];
   minPrice?: string;
   maxPrice?: string;
+  sameDayDelivery: boolean;
   order: "asc" | "desc";
   orderby: "date" | "price" | "popularity" | "rating";
 };
@@ -37,6 +38,7 @@ export function parseProductListSearchParams(
     : [];
   const search = firstValue(values.q)?.trim().slice(0, 100);
   const category = firstValue(values.category)?.trim().slice(0, 200);
+  const sameDayDelivery = firstValue(values.delivery) === "today";
 
   return {
     page: parsePage(firstValue(values.page)),
@@ -45,6 +47,7 @@ export function parseProductListSearchParams(
     tags,
     minPrice: digits(firstValue(values.min_price)),
     maxPrice: digits(firstValue(values.max_price)),
+    sameDayDelivery,
     order: rawOrder === "asc" ? "asc" : "desc",
     orderby:
       rawOrderby === "price" || rawOrderby === "popularity" || rawOrderby === "rating"
