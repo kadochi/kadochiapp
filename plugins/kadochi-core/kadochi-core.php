@@ -2439,8 +2439,10 @@ final class Kadochi_Core {
 			$is_friday = '5' === $day->format( 'N' );
 			foreach ( $windows as $window ) {
 				$date = $day->format( 'Y-m-d' );
-				$slot_start = $day->setTime( $window[0], 0, 0 );
-				$available = ! $is_friday && ( ! $is_today || $window[0] > (int) $now->format( 'G' ) ) && $slot_start >= $ready_at;
+				// A product may be prepared during a delivery window, provided it is
+				// ready before the window ends. Keep this identical to storefront eligibility.
+				$slot_end = $day->setTime( $window[1], 0, 0 );
+				$available = ! $is_friday && ( ! $is_today || $window[1] > (int) $now->format( 'G' ) ) && $slot_end >= $ready_at;
 				$slots[] = array( 'id' => $date . '-' . $window[0], 'date' => $date, 'startHour' => $window[0], 'endHour' => $window[1], 'label' => $date . '، ' . $window[0] . ' تا ' . $window[1], 'available' => $available );
 			}
 		}

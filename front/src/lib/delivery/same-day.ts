@@ -62,8 +62,10 @@ export function createDeliverySlotsForPreparationHours(preparationHours: number,
     const dateString = formatDate(date);
 
     for (const window of windows) {
-      const slotStart = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), window.startHour);
-      const available = !isFriday && (!isToday || window.startHour > tehran.hour) && slotStart >= readyAt;
+      // A delivery window remains usable until it ends: preparation can happen
+      // during the window as long as the product is ready before its end.
+      const slotEnd = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), window.endHour);
+      const available = !isFriday && (!isToday || window.endHour > tehran.hour) && slotEnd >= readyAt;
       slots.push({
         id: `${dateString}-${window.startHour}`,
         date: dateString,

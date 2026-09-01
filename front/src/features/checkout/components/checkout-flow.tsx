@@ -457,7 +457,7 @@ function DeliveryStep(props: {
     <SectionHeader as="h2" subtitle="بازه زمانی تحویل را انتخاب کنید." title="انتخاب زمان دریافت" />
     <section className="px-16 pb-16">
       <h3 className="m-0 text-label-12 font-regular text-surface-neutral-mid-emphasis">انتخاب روز تحویل</h3>
-      <div className="mt-8 grid grid-cols-4 gap-8">
+      <div className="mt-20 grid grid-cols-4 gap-8">
         {deliveryDays.map((day, index) => {
           const available = day.slots.some((slot) => slot.available);
           const selected = available && day === selectedDay;
@@ -465,25 +465,25 @@ function DeliveryStep(props: {
           return <button
             key={day.date}
             aria-pressed={selected}
-            className={`relative grid min-h-[96px] place-items-center rounded-m border bg-surface-background p-12 text-center transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${selected ? "border-2 border-secondary shadow-[0_0_0_4px_var(--color-secondary-container)]" : "border-border-high-emphasis"} ${available ? "" : "cursor-not-allowed border-disable bg-disable-container pt-40 text-on-disable"}`}
+            className={`relative grid min-h-[96px] place-items-center rounded-m border bg-surface-background p-12 text-center transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${selected ? "border-2 border-secondary shadow-[0_0_0_4px_var(--color-secondary-container)]" : "border-border-high-emphasis"} ${available ? "" : "cursor-not-allowed border-disable bg-disable-container text-on-disable"}`}
             disabled={!available}
             type="button"
             onClick={() => props.onDeliverySlot(day.slots.find((slot) => slot.available)!.id)}
           >
             <span className="text-label-14 text-surface-neutral-mid-emphasis">{date.weekday}</span>
             <span className="text-body-16 font-bold">{date.date}</span>
-            {!available ? <span className="absolute left-8 top-8 rounded-full bg-disable-container px-8 py-2 text-label-12 font-bold text-on-disable">غیر فعال</span> : null}
+            {!available ? <span className="absolute -top-12 left-8 rounded-full bg-disable-container px-8 py-2 text-label-12 font-bold text-on-disable">غیر فعال</span> : null}
           </button>;
         })}
       </div>
       {selectedDay ? <div className="mt-20">
         <h3 className="m-0 text-label-12 font-regular text-surface-neutral-mid-emphasis">انتخاب بازه زمانی تحویل</h3>
-        <RadioGroup className="mt-8 gap-12" value={props.deliverySlotId} onValueChange={props.onDeliverySlot}>
+        <RadioGroup className="mt-20 gap-12" value={props.deliverySlotId} onValueChange={props.onDeliverySlot}>
           {selectedDay.slots.map((slot) => <RadioGroupItem
             key={slot.id}
-            className={`relative w-full rounded-m border border-border-high-emphasis p-16 has-[:disabled]:border-disable has-[:disabled]:bg-disable-container has-[[data-state=checked]]:border-2 has-[[data-state=checked]]:border-secondary has-[[data-state=checked]]:shadow-[0_0_0_4px_var(--color-secondary-container)] ${!slot.available ? "pt-40" : ""}`}
+            className="relative w-full rounded-m border border-border-high-emphasis p-16 has-[:disabled]:border-disable has-[:disabled]:bg-disable-container has-[[data-state=checked]]:border-2 has-[[data-state=checked]]:border-secondary has-[[data-state=checked]]:shadow-[0_0_0_4px_var(--color-secondary-container)]"
             disabled={!slot.available}
-            label={<span className="flex w-full items-center justify-between gap-12 text-body-14"><span className="font-bold">{deliveryPart(slot.startHour)}</span><span className="text-surface-neutral-mid-emphasis">{slot.startHour} الی {slot.endHour}</span>{!slot.available ? <span className="absolute left-8 top-8 rounded-full bg-disable-container px-8 py-2 text-label-12 font-bold text-on-disable">غیر فعال</span> : null}</span>}
+            label={<span className="flex w-full items-center justify-between gap-12 text-body-14"><span className="font-bold">{deliveryPart(slot.startHour)}</span><span className="text-surface-neutral-mid-emphasis">{slot.startHour} الی {slot.endHour}</span>{!slot.available ? <span className="absolute -top-12 left-8 rounded-full bg-disable-container px-8 py-2 text-label-12 font-bold text-on-disable">غیر فعال</span> : null}</span>}
             value={slot.id}
           />)}
         </RadioGroup>
