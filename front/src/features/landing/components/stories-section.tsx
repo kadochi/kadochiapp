@@ -2,7 +2,7 @@
 
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -17,13 +17,7 @@ type StoriesSectionProps = {
   stories: readonly HomepageStory[];
 };
 
-const storyLifetimeMs = 48 * 60 * 60 * 1000;
 const viewerDurationMs = 5_500;
-
-function isActiveStory(story: HomepageStory, now: number) {
-  const publishedAt = Date.parse(story.publishedAt);
-  return Number.isFinite(publishedAt) && publishedAt <= now && now - publishedAt < storyLifetimeMs;
-}
 
 function elapsedTime(publishedAt: string) {
   const elapsedMinutes = Math.max(0, Math.floor((Date.now() - Date.parse(publishedAt)) / 60_000));
@@ -35,21 +29,11 @@ function elapsedTime(publishedAt: string) {
   return `${number.format(elapsedHours)} ساعت پیش`;
 }
 
-/** A 48-hour editorial story rail and an Instagram-style, keyboard-accessible viewer. */
+/** A persistent editorial story rail and an Instagram-style, keyboard-accessible viewer. */
 export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
-  // WordPress has already removed expired records on the server. Keeping that
-  // exact list through hydration prevents a client-clock difference from
-  // adding or removing a section while the homepage first paints.
-  const [now, setNow] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const activeStories = useMemo(() => now === null ? stories : stories.filter((story) => isActiveStory(story, now)), [now, stories]);
-  const selectedIndex = selectedId === null ? -1 : activeStories.findIndex((story) => story.id === selectedId);
-  const selectedStory = selectedIndex >= 0 ? activeStories[selectedIndex] : null;
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
+  const selectedIndex = selectedId === null ? -1 : stories.findIndex((story) => story.id === selectedId);
+  const selectedStory = selectedIndex >= 0 ? stories[selectedIndex] : null;
 
   useEffect(() => {
     if (!selectedStory) return;
@@ -62,23 +46,23 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
   }, [selectedStory]);
 
   const showStory = useCallback((index: number) => {
-    if (!activeStories.length) return;
-    const normalizedIndex = (index + activeStories.length) % activeStories.length;
-    setSelectedId(activeStories[normalizedIndex]?.id ?? null);
-  }, [activeStories]);
+    if (!stories.length) return;
+    const normalizedIndex = (index + stories.length) % stories.length;
+    setSelectedId(stories[normalizedIndex]?.id ?? null);
+  }, [stories]);
 
   useEffect(() => {
     if (!selectedStory) return;
 
     const advance = window.setTimeout(() => {
-      if (selectedIndex === activeStories.length - 1) {
+      if (selectedIndex === stories.length - 1) {
         setSelectedId(null);
       } else {
         showStory(selectedIndex + 1);
       }
     }, viewerDurationMs);
     return () => window.clearTimeout(advance);
-  }, [activeStories.length, selectedIndex, selectedStory, showStory]);
+  }, [stories.length, selectedIndex, selectedStory, showStory]);
 
   useEffect(() => {
     if (!selectedStory) return;
@@ -92,7 +76,7 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [selectedIndex, selectedStory, showStory]);
 
-  if (!activeStories.length) return null;
+  if (!stories.length) return null;
 
   return (
     <section aria-labelledby="stories-heading" className="bg-surface-background pb-16 pt-24">
@@ -109,7 +93,7 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
       </div>
 
       <div className="mt-16 flex gap-12 overflow-x-auto px-16 pb-4 [direction:rtl] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-[1024px]:px-32">
-        {activeStories.map((story, index) => (
+        {stories.map((story, index) => (
           <button
             aria-label={`نمایش استوری ${story.title || index + 1}`}
             className="group grid w-[76px] shrink-0 justify-items-center gap-6 border-0 bg-transparent p-0 font-sans text-label-12 text-surface-neutral-high-emphasis"
@@ -150,7 +134,7 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
 
             <div className="absolute inset-x-0 top-0 z-20 p-16">
               <div aria-hidden className="flex gap-4 [direction:ltr]">
-                {activeStories.map((story, index) => (
+                {stories.map((story, index) => (
                   <span className="h-2 flex-1 overflow-hidden rounded-full bg-white/35" key={story.id}>
                     <span
                       className={index === selectedIndex ? "story-viewer-progress block h-full bg-white" : "block h-full bg-white"}

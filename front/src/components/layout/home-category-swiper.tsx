@@ -6,8 +6,9 @@ import "swiper/css";
 
 type HomeCategory = {
   label: string;
-  href: string;
   image: string;
+  href?: string;
+  comingSoon?: boolean;
 };
 
 const categories: readonly HomeCategory[] = [
@@ -42,7 +43,7 @@ const categories: readonly HomeCategory[] = [
     label: "هدیه و کادو",
   },
   {
-    href: "/products",
+    comingSoon: true,
     image: "/images/home-categories/bundles.png",
     label: "باندل‌ها",
   },
@@ -52,31 +53,55 @@ const categories: readonly HomeCategory[] = [
     label: "تقویم مناسبت‌ها",
   },
   {
-    href: "/products?category=chocolate",
+    comingSoon: true,
     image: "/images/home-categories/gift-chocolate.png",
     label: "شکلات کادویی",
   },
   {
-    href: "/products",
+    comingSoon: true,
     image: "/images/home-categories/custom-gift.png",
     label: "هدیه سفارشی",
   },
 ];
 
 function CategoryCard({ category }: Readonly<{ category: HomeCategory }>) {
-  return (
-    <Link
-      aria-label={category.label}
-      className="relative flex flex-col items-center justify-start gap-4 px-2 py-4 text-center no-underline focus-visible:rounded-s focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary min-[860px]:px-0 min-[860px]:py-8"
-      href={category.href}
-      prefetch={false}
-    >
+  const className = "flex flex-col items-center justify-start gap-4 px-2 py-4 text-center min-[860px]:px-0 min-[860px]:py-8";
+  const content = (
+    <>
       {/* These fixed, local illustrations do not need an image optimizer request. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img alt="" className="size-88 object-contain" src={category.image} />
+      <span className="relative flex size-88 items-center justify-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          alt=""
+          className={`size-full object-contain${category.comingSoon ? " opacity-[0.56]" : ""}`}
+          src={category.image}
+        />
+        {category.comingSoon ? (
+          <span className="absolute inset-0 flex items-center justify-center" dir="rtl">
+            <span className="rounded-rounded bg-secondary-container px-8 py-4 text-label-10 font-bold leading-[var(--text-label-10--line-height)] text-on-secondary-container shadow-sm">
+              به زودی
+            </span>
+          </span>
+        ) : null}
+      </span>
       <span className="line-clamp-1 w-full text-label-12 font-bold leading-[var(--text-label-12--line-height)] text-surface-neutral-high-emphasis min-[860px]:w-auto min-[860px]:whitespace-nowrap">
         {category.label}
       </span>
+    </>
+  );
+
+  if (category.comingSoon) {
+    return <div className={className}>{content}</div>;
+  }
+
+  return (
+    <Link
+      aria-label={category.label}
+      className={`${className} no-underline focus-visible:rounded-s focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary`}
+      href={category.href!}
+      prefetch={false}
+    >
+      {content}
     </Link>
   );
 }

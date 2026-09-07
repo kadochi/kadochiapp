@@ -32,7 +32,6 @@ final class Kadochi_Core {
 	const NOTIFICATION_REMINDER_HOOK = 'kadochi_send_occasion_notifications';
 	const EDITORIAL_CAPABILITIES_VERSION = '4';
 	const MAGAZINE_TO_POSTS_MIGRATION_VERSION = '1';
-	const STORY_VISIBILITY_SECONDS = 172800;
 	const PRODUCT_VIEW_COUNT_META_KEY = '_kadochi_product_view_count';
 	const ARTICLE_VIEW_COUNT_META_KEY = '_kadochi_article_view_count';
 	const PRODUCT_PREPARATION_HOURS_META_KEY = '_kadochi_preparation_hours';
@@ -345,8 +344,8 @@ final class Kadochi_Core {
 		$this->register_post_type( 'slider', 'Sliders', 'Slider', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-images-alt2' );
 		$this->register_post_type( 'banner', 'Banners', 'Banner', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-megaphone' );
 		$this->register_post_type( 'hero', 'Heroes', 'Hero', array( 'title', 'editor', 'thumbnail' ), true, 'dashicons-superhero' );
-		// Stories use the native Featured Image uploader. Their public lifetime is
-		// enforced by the homepage response, rather than by deleting content.
+		// Stories use the native Featured Image uploader and remain available until
+		// they are manually unpublished or deleted.
 		$this->register_post_type( 'story', 'Stories', 'Story', array( 'title', 'thumbnail' ), false, 'dashicons-format-image' );
 		$this->register_post_type( 'occasion', 'Occasions', 'Occasion', array( 'title', 'editor', 'thumbnail', 'author' ), false, 'dashicons-calendar-alt' );
 		// Postcards are editorial assets. Their native title and Featured Image
@@ -3415,19 +3414,14 @@ final class Kadochi_Core {
 		return rest_ensure_response( array( 'items' => $items ) );
 	}
 
-	/** Returns only image-backed stories that are still within their 48-hour lifetime. */
-	private function active_stories() {
+	/** Returns all published, image-backed stories. */
+	private function homepage_stories() {
 		$query = new WP_Query( array(
 			'post_type' => 'story',
 			'post_status' => 'publish',
-			'posts_per_page' => 50,
+			'posts_per_page' => -1,
 			'orderby' => 'date',
 			'order' => 'DESC',
-			'date_query' => array( array(
-				'column' => 'post_date_gmt',
-				'after' => gmdate( 'Y-m-d H:i:s', time() - self::STORY_VISIBILITY_SECONDS ),
-				'inclusive' => true,
-			) ),
 			'no_found_rows' => true,
 		) );
 
@@ -3449,7 +3443,7 @@ final class Kadochi_Core {
 		$banners = array_map( function ( $post ) { return array( 'id' => (int) $post->ID, 'title' => sanitize_text_field( $this->value( $post->ID, 'title' ) ?: $post->post_title ), 'subtitle' => sanitize_text_field( $this->value( $post->ID, 'subtitle' ) ), 'ctaText' => sanitize_text_field( $this->value( $post->ID, 'cta_text' ) ), 'ctaLink' => $this->safe_url( $this->value( $post->ID, 'cta_link' ) ), 'backgroundGradient' => $this->safe_gradient( $this->value( $post->ID, 'background_gradient' ) ), 'backgroundImage' => $this->image( $this->value( $post->ID, 'background_image' ) ) ); }, $this->published( 'banner' ) );
 		$heroes = array_map( function ( $post ) { return array( 'id' => (int) $post->ID, 'title' => sanitize_text_field( $this->value( $post->ID, 'title' ) ?: $post->post_title ), 'subtitle' => sanitize_text_field( $this->value( $post->ID, 'subtitle' ) ), 'ctaText' => sanitize_text_field( $this->value( $post->ID, 'cta_text' ) ), 'ctaLink' => $this->safe_url( $this->value( $post->ID, 'cta_link' ) ), 'backgroundImage' => $this->image( $this->value( $post->ID, 'background_image' ) ) ); }, $this->published( 'hero', 'date' ) );
 		$sliders = array_map( function ( $post ) { return array( 'id' => (int) $post->ID, 'sliderTitle' => sanitize_text_field( $this->value( $post->ID, 'slider_title' ) ), 'sliderButtonText' => sanitize_text_field( $this->value( $post->ID, 'slider_button_text' ) ), 'sliderLink' => $this->safe_url( $this->value( $post->ID, 'slider_link' ) ), 'backgroundImage' => $this->image( $this->value( $post->ID, 'background_image' ) ) ); }, $this->published( 'slider' ) );
-		$stories = $this->active_stories();
+		$stories = $this->homepage_stories();
 		$daily_special_product_id = $this->sanitize_daily_special_product( get_option( self::DAILY_SPECIAL_PRODUCT_OPTION, 0 ) );
 		$dailySpecial = $daily_special_product_id ? array( 'productId' => $daily_special_product_id ) : null;
 		return rest_ensure_response( compact( 'banners', 'heroes', 'sliders', 'stories', 'dailySpecial' ) );
