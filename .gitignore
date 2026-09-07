@@ -1,20 +1,72 @@
-.env
+# OS
 .DS_Store
+Thumbs.db
 
-# Next.js
-node_modules/
-front/node_modules/
-front/.next/
-front/tsconfig.tsbuildinfo
+# Certificates
+/certs
+letsencrypt/acme.json
+
+# Environment
+.env
+.env.*
+!.env.example
 front/.env*.local
 front/.env.production
+
+# Dependencies
+node_modules/
+front/node_modules/
+
+# Build output
+.next/
+front/.next/
+out/
+dist/
+build/
+coverage/
+storybook-static/
+front/tsconfig.tsbuildinfo
+*.tsbuildinfo
+next-env.d.ts
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*storybook.log
+
+# Caches & tooling
+.cache/
+.eslintcache
+.stylelintcache
+.vercel/
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
 front/.lighthouseci/
+
+# IDE
+.cursor
+.idea/
+.vscode/
+*.swp
+*.swo
 
 # Local backups and WordPress migration archives can be very large.
 *.wpress
+kadochi.old
 
 # Docker-managed data remains in named volumes, not this checkout.
 mysql-data/
 wordpress-data/
 
-kadochi.old
+# Local helper files
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
