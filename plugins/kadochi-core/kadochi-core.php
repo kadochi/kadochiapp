@@ -43,6 +43,7 @@ final class Kadochi_Core {
 	const PAYMENT_ATTEMPT_LOCK_SECONDS = 60;
 	const EDITORIAL_REQUESTS_PER_HOUR = 30;
 	const EDITORIAL_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+	const DAILY_SPECIAL_PRODUCT_OPTION = 'kadochi_daily_special_product_id';
 
 	/** @var array<string, string> */
 	private $health = array();
@@ -69,6 +70,9 @@ final class Kadochi_Core {
 		add_filter( 'robots_txt', array( $this, 'robots_txt' ), 10, 2 );
 		add_action( 'rest_pre_serve_request', array( $this, 'send_rest_noindex_header' ), 10, 4 );
 		add_action( 'admin_init', array( $this, 'send_noindex_header' ) );
+		add_action( 'admin_init', array( $this, 'register_daily_special_offer_setting' ) );
+		add_action( 'admin_menu', array( $this, 'add_daily_special_offer_menu' ) );
+		add_action( 'update_option_' . self::DAILY_SPECIAL_PRODUCT_OPTION, array( $this, 'revalidate_daily_special_offer' ), 10, 2 );
 		add_action( 'login_init', array( $this, 'send_noindex_header' ) );
 		add_filter( 'determine_current_user', array( $this, 'determine_current_user' ), 30 );
 		add_filter( 'rest_authentication_errors', array( $this, 'rest_authentication_errors' ), 30 );
@@ -142,6 +146,83 @@ final class Kadochi_Core {
 		if ( ! headers_sent() ) {
 			header( 'X-Robots-Tag: noindex, nofollow', true );
 		}
+	}
+
+	/** Adds the persistent, staff-managed selection for the homepage daily offer. */
+	public function register_daily_special_offer_setting() {
+		register_setting( 'kadochi_daily_special_offer', self::DAILY_SPECIAL_PRODUCT_OPTION, array(
+			'type' => 'integer',
+			'sanitize_callback' => array( $this, 'sanitize_daily_special_product' ),
+			'default' => 0,
+		) );
+	}
+
+	/** Places the selector with the WooCommerce administration tools. */
+	public function add_daily_special_offer_menu() {
+		$parent = class_exists( 'WooCommerce' ) ? 'woocommerce' : 'options-general.php';
+		$capability = class_exists( 'WooCommerce' ) ? 'manage_woocommerce' : 'manage_options';
+		add_submenu_page(
+			$parent,
+			__( 'Daily special offer', 'kadochi-core' ),
+			__( 'Daily special offer', 'kadochi-core' ),
+			$capability,
+			'kadochi-daily-special-offer',
+			array( $this, 'render_daily_special_offer_page' )
+		);
+	}
+
+	/** Keeps the setting valid even when it is submitted outside the admin form. */
+	public function sanitize_daily_special_product( $product_id ) {
+		$product_id = absint( $product_id );
+		if ( ! $product_id || ! function_exists( 'wc_get_product' ) ) {
+			return 0;
+		}
+		$product = wc_get_product( $product_id );
+		return $product && 'publish' === get_post_status( $product_id ) ? $product_id : 0;
+	}
+
+	/** Clears the homepage cache as soon as staff change the selected product. */
+	public function revalidate_daily_special_offer( $old_value, $new_value ) {
+		if ( absint( $old_value ) === absint( $new_value ) ) {
+			return;
+		}
+		$this->frontend_revalidate( array( 'homepage-content' ) );
+	}
+
+	/** Renders a simple product selector; its value intentionally persists until staff replace it. */
+	public function render_daily_special_offer_page() {
+		$capability = class_exists( 'WooCommerce' ) ? 'manage_woocommerce' : 'manage_options';
+		if ( ! current_user_can( $capability ) ) {
+			wp_die( esc_html__( 'You do not have permission to manage the daily special offer.', 'kadochi-core' ) );
+		}
+
+		$selected_id = absint( get_option( self::DAILY_SPECIAL_PRODUCT_OPTION, 0 ) );
+		$products = function_exists( 'wc_get_products' )
+			? wc_get_products( array( 'status' => 'publish', 'limit' => -1, 'orderby' => 'title', 'order' => 'ASC' ) )
+			: array();
+		?>
+		<div class="wrap">
+			<h1><?php esc_html_e( 'Daily special offer', 'kadochi-core' ); ?></h1>
+			<p><?php esc_html_e( 'Choose the product shown beside the homepage hero. This choice repeats every day until you change or clear it.', 'kadochi-core' ); ?></p>
+			<form action="options.php" method="post">
+				<?php settings_fields( 'kadochi_daily_special_offer' ); ?>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="kadochi-daily-special-product"><?php esc_html_e( 'Product', 'kadochi-core' ); ?></label></th>
+						<td>
+							<select id="kadochi-daily-special-product" name="<?php echo esc_attr( self::DAILY_SPECIAL_PRODUCT_OPTION ); ?>">
+								<option value="0"><?php esc_html_e( '— No daily special —', 'kadochi-core' ); ?></option>
+								<?php foreach ( $products as $product ) : ?>
+									<option value="<?php echo esc_attr( $product->get_id() ); ?>" <?php selected( $selected_id, $product->get_id() ); ?>><?php echo esc_html( $product->get_name() ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+				</table>
+				<?php submit_button(); ?>
+			</form>
+		</div>
+		<?php
 	}
 
 	public static function activate() {
@@ -680,7 +761,7 @@ final class Kadochi_Core {
 		return (int) $attachment_id;
 	}
 
-	private function editorial_revalidate() {
+	private function frontend_revalidate( $tags ) {
 		$url = getenv( 'KADOCHI_FRONTEND_REVALIDATE_URL' );
 		$secret = getenv( 'KADOCHI_REVALIDATE_SECRET' );
 		if ( ! is_string( $url ) || '' === trim( $url ) || ! is_string( $secret ) || '' === trim( $secret ) ) {
@@ -689,8 +770,12 @@ final class Kadochi_Core {
 		wp_remote_post( $url, array(
 			'timeout' => 5,
 			'headers' => array( 'Content-Type' => 'application/json', 'X-Kadochi-Revalidate-Key' => $secret ),
-			'body' => wp_json_encode( array( 'tags' => array( 'magazine-articles', 'magazine-categories' ) ) ),
+			'body' => wp_json_encode( array( 'tags' => array_values( $tags ) ) ),
 		) );
+	}
+
+	private function editorial_revalidate() {
+		$this->frontend_revalidate( array( 'magazine-articles', 'magazine-categories' ) );
 	}
 
 	/** Creates a Post, terms, attachment, and featured image in one request. */
@@ -3365,7 +3450,9 @@ final class Kadochi_Core {
 		$heroes = array_map( function ( $post ) { return array( 'id' => (int) $post->ID, 'title' => sanitize_text_field( $this->value( $post->ID, 'title' ) ?: $post->post_title ), 'subtitle' => sanitize_text_field( $this->value( $post->ID, 'subtitle' ) ), 'ctaText' => sanitize_text_field( $this->value( $post->ID, 'cta_text' ) ), 'ctaLink' => $this->safe_url( $this->value( $post->ID, 'cta_link' ) ), 'backgroundImage' => $this->image( $this->value( $post->ID, 'background_image' ) ) ); }, $this->published( 'hero', 'date' ) );
 		$sliders = array_map( function ( $post ) { return array( 'id' => (int) $post->ID, 'sliderTitle' => sanitize_text_field( $this->value( $post->ID, 'slider_title' ) ), 'sliderButtonText' => sanitize_text_field( $this->value( $post->ID, 'slider_button_text' ) ), 'sliderLink' => $this->safe_url( $this->value( $post->ID, 'slider_link' ) ), 'backgroundImage' => $this->image( $this->value( $post->ID, 'background_image' ) ) ); }, $this->published( 'slider' ) );
 		$stories = $this->active_stories();
-		return rest_ensure_response( compact( 'banners', 'heroes', 'sliders', 'stories' ) );
+		$daily_special_product_id = $this->sanitize_daily_special_product( get_option( self::DAILY_SPECIAL_PRODUCT_OPTION, 0 ) );
+		$dailySpecial = $daily_special_product_id ? array( 'productId' => $daily_special_product_id ) : null;
+		return rest_ensure_response( compact( 'banners', 'heroes', 'sliders', 'stories', 'dailySpecial' ) );
 	}
 
 	private function valid_date( $date ) {

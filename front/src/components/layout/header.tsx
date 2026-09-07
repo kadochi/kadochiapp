@@ -11,6 +11,7 @@ import { cva } from "class-variance-authority";
 import { useOptionalAuth } from "@/features/auth/auth-provider";
 import { cartChangedEvent, getCart } from "@/features/cart/services/cart";
 import { useUnreadNotifications } from "@/features/profile/hooks/use-unread-notifications";
+import { ProductSearch } from "@/features/products/components/product-search";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 
@@ -74,7 +75,6 @@ type NavigationItem = {
 };
 
 const navigationItems: readonly NavigationItem[] = [
-  { href: "/", label: "کادوچی", emphasized: true },
   { href: "/products", label: "کادو‌ها" },
   { href: "/products?category=flower", label: "گل" },
   { href: "/products?category=chocolate", label: "کیک تولد" },
@@ -82,6 +82,96 @@ const navigationItems: readonly NavigationItem[] = [
   { href: "/magazine", label: "مجله" },
   { href: "/products?delivery=today", label: "ارسال روز", icon: "/icons/today-delivery.svg", animated: true },
 ];
+
+const searchProductNames = [
+  "گلدان گل رز سفید",
+  "گلدان گل لیسیانتوس",
+  "سبد گل حصیری هفت رنگ",
+  "گلدان گل لاکچری شکوفه",
+] as const;
+
+const SEARCH_PROMPT = "جستجوی محصول";
+const SEARCH_TEXT_HOLD_DURATION = 6000;
+
+/**
+ * Desktop-only entry point to the product catalog. Its text intentionally
+ * behaves like a placeholder so it can introduce both the search action and
+ * representative catalog items without competing with the navigation.
+ */
+function DesktopProductSearch() {
+  const [typedText, setTypedText] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    let timeoutId: number | undefined;
+
+    const wait = (duration: number) => new Promise<void>((resolve) => {
+      timeoutId = window.setTimeout(resolve, duration);
+    });
+
+    const type = async (value: string) => {
+      for (let character = 1; character <= value.length; character += 1) {
+        if (cancelled) return false;
+        setTypedText(value.slice(0, character));
+        await wait(90);
+      }
+      return !cancelled;
+    };
+
+    const erase = async (value: string) => {
+      for (let character = value.length - 1; character >= 0; character -= 1) {
+        if (cancelled) return false;
+        setTypedText(value.slice(0, character));
+        await wait(45);
+      }
+      return !cancelled;
+    };
+
+    const animate = async () => {
+      while (!cancelled) {
+        if (!(await type(SEARCH_PROMPT))) break;
+        await wait(SEARCH_TEXT_HOLD_DURATION);
+        if (cancelled || !(await erase(SEARCH_PROMPT))) break;
+
+        const productNames = [...searchProductNames]
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 2);
+
+        for (const productName of productNames) {
+          if (!(await type(productName))) return;
+          await wait(SEARCH_TEXT_HOLD_DURATION);
+          if (cancelled || !(await erase(productName))) return;
+        }
+      }
+    };
+
+    void animate();
+    return () => {
+      cancelled = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
+  }, []);
+
+  return (
+    <ProductSearch
+      trigger={(
+        <button
+          aria-label="جستجوی محصولات"
+          className="absolute top-16 left-1/2 hidden h-48 w-[360px] -translate-x-1/2 cursor-text items-center gap-8 rounded-rounded border border-surface-dim bg-surface-soft pr-12 pl-16 font-sans text-label-14 font-regular leading-[var(--text-label-14--line-height)] text-surface-neutral-mid-emphasis focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary min-[864px]:flex [direction:rtl]"
+          type="button"
+        >
+          <img alt="" aria-hidden className="size-24 shrink-0" height={24} src="/icons/search.svg" width={24} />
+          <span aria-hidden className="flex min-w-0 flex-1 items-baseline overflow-hidden whitespace-pre">
+            <span className="truncate bg-[linear-gradient(to_left,var(--color-surface-neutral-low-emphasis),var(--color-disable))] bg-clip-text text-transparent [-webkit-text-fill-color:transparent]">
+              {typedText}
+            </span>
+            <span className="shrink-0 animate-[header-search-cursor_1s_steps(1,end)_infinite] text-surface-neutral-low-emphasis [-webkit-text-fill-color:var(--color-surface-neutral-low-emphasis)] motion-reduce:animate-none">|</span>
+          </span>
+        </button>
+      )}
+    />
+  );
+}
 
 function getAccountLabel(user: HeaderUser | null) {
   const fullName = [user?.firstName, user?.lastName]
@@ -239,19 +329,19 @@ function DefaultHeader({
 
   return (
     <>
-      <div className={cn("sticky top-0 inset-x-0 z-50 bg-surface-background", className)}>
-        <header className="relative mx-auto flex h-88 w-full max-w-[1440px] items-center justify-between box-border bg-surface-background px-16 [direction:ltr]">
-          <div className="flex items-center gap-12">
+      <div className={cn("sticky top-0 inset-x-0 z-50 bg-surface-background min-[864px]:border-b min-[864px]:border-surface-dim", className)}>
+        <header className="relative mx-auto flex h-88 w-full max-w-[1440px] items-center justify-between box-border bg-surface-background px-16 min-[864px]:h-[124px] min-[864px]:px-32 [direction:ltr]">
+          <div className="flex items-center gap-12 min-[864px]:absolute min-[864px]:top-16 min-[864px]:left-32">
             <Link
               aria-label="سبد خرید"
-              className="flex cursor-pointer items-center gap-4 no-underline"
+              className="flex cursor-pointer items-center gap-4 no-underline min-[864px]:order-1 min-[864px]:h-48 min-[864px]:min-w-48 min-[864px]:justify-center min-[864px]:rounded-rounded min-[864px]:border min-[864px]:border-surface-neutral-high-emphasis min-[864px]:bg-surface-background min-[864px]:p-8"
               data-active={hasItems || undefined}
               href="/basket"
               prefetch={false}
             >
               <img
                 alt="Basket"
-                className="size-32"
+                className="size-32 min-[864px]:size-24"
                 decoding="async"
                 height={32}
                 loading="lazy"
@@ -271,7 +361,7 @@ function DefaultHeader({
 
             <Button
               aria-label={isAuthenticated ? "حساب کاربری" : "ورود / عضویت"}
-              className="hidden gap-6 px-12 py-8 pl-16 min-[864px]:inline-flex"
+              className="hidden gap-6 px-12 py-8 pl-16 min-[864px]:order-0 min-[864px]:inline-flex"
               onClick={() => router.push(isAuthenticated ? "/profile" : "/login")}
               size="medium"
               variant="secondary-tonal"
@@ -286,9 +376,21 @@ function DefaultHeader({
             </Button>
           </div>
 
-          <Link className="flex items-center justify-center" href="/" prefetch={false}>
-            <img alt="Logo" className="absolute left-1/2 h-56 w-[60px] -translate-x-1/2" decoding="async" fetchPriority="high" height={56} loading="eager" src="/images/logo.svg" width={60} />
+          <Link className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center min-[864px]:top-16 min-[864px]:right-32 min-[864px]:left-auto min-[864px]:translate-x-0 min-[864px]:translate-y-0" href="/" prefetch={false}>
+            <img alt="Logo" className="h-56 w-[60px]" decoding="async" fetchPriority="high" height={56} loading="eager" src="/images/logo.svg" width={60} />
           </Link>
+
+          <Link
+            aria-label="کادوچی، صفحه اصلی"
+            className="absolute top-16 right-[calc(var(--spacing-32)+60px+var(--spacing-8))] hidden h-56 flex-col items-start justify-center font-sans text-left text-surface-neutral-high-emphasis no-underline min-[864px]:flex [direction:rtl]"
+            href="/"
+            prefetch={false}
+          >
+            <span className="text-label-16 font-bold leading-[var(--text-label-16--line-height)]">کادوچی</span>
+            <span className="mt-2 text-label-10 font-regular leading-[var(--text-label-10--line-height)]">برای دیدن لبخند تو ...</span>
+          </Link>
+
+          <DesktopProductSearch />
 
           {shouldShowBack ? (
             <button
@@ -313,7 +415,7 @@ function DefaultHeader({
             </button>
           )}
 
-          <nav aria-label="پیمایش اصلی" className="hidden gap-24 min-[864px]:flex [direction:rtl]">
+          <nav aria-label="پیمایش اصلی" className="absolute right-32 bottom-16 hidden gap-24 min-[864px]:flex [direction:rtl]">
             {navigationItems.map((item) => (
               <Link
                 key={item.href}

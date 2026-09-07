@@ -11,7 +11,7 @@ function shimmer(className: string) {
 /** Route-level skeleton: gallery block, title/price/chips, and specs rows. */
 export function ProductDetailSkeleton() {
   return (
-    <div aria-hidden className="[direction:rtl]">
+    <div aria-hidden className="min-[864px]:pt-24 [direction:rtl]">
       <div className={shimmer("aspect-square w-full")} />
 
       <div className="px-16 pt-24 pb-16 text-center">

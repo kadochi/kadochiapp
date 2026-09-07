@@ -194,6 +194,12 @@
   --animate-toast-swipe-out: toast-swipe-out 120ms ease-out forwards;
 }
 
+@keyframes header-search-cursor {
+  50% {
+    opacity: 0;
+  }
+}
+
 @keyframes toast-in {
   from {
     opacity: 0;

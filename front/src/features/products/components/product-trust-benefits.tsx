@@ -33,7 +33,7 @@ export function ProductTrustBenefits() {
   return (
     <section
       aria-labelledby="product-trust-benefits-title"
-      className="px-16 pb-16 [direction:rtl]"
+      className="w-full px-16 pb-16 [direction:rtl] min-[864px]:mr-0 min-[864px]:ml-auto min-[864px]:max-w-[400px]"
     >
       <h2 id="product-trust-benefits-title" className="sr-only">
         مزایای خرید از کادوچی

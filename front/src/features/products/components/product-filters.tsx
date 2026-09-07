@@ -251,7 +251,7 @@ export function ProductFilters({ categories }: Readonly<ProductFiltersProps>) {
 
   return (
     <>
-      <div className="sticky top-88 z-40 bg-surface-background">
+      <div className="sticky top-88 z-40 bg-surface-background min-[864px]:top-[124px]">
         <div
           aria-hidden={!isSearchVisible}
           className={cn(
@@ -260,7 +260,7 @@ export function ProductFilters({ categories }: Readonly<ProductFiltersProps>) {
           )}
           inert={!isSearchVisible}
         >
-          <div className="min-h-0 overflow-hidden">
+          <div className="min-h-0 overflow-hidden min-[864px]:hidden">
             <ProductSearch />
           </div>
         </div>

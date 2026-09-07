@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Divider } from "@/components/ui/divider";
 import { Label } from "@/components/ui/label";
 import { ProductFilters } from "@/features/products/components/product-filters";
+import { FlowerProductLinks } from "@/features/products/components/flower-product-links";
 import { ProductList } from "@/features/products/components/product-list";
 import { ProductListPagination } from "@/features/products/components/product-list-pagination";
 import { listCategories, listProducts, listProductTags } from "@/features/products/services/products.server";
@@ -29,6 +30,12 @@ export const dynamic = "force-dynamic";
 
 type ProductsPageProps = {
   searchParams: Promise<Record<string, SearchParamValue>>;
+};
+
+const flowerTagPageTitles: Record<string, string> = {
+  "flower-bouquet": "خرید دسته‌گل",
+  "flower-box": "خرید باکس گل",
+  "flower-jar": "خرید جار گل",
 };
 
 const listFilterOptions = cache(async () => {
@@ -120,10 +127,17 @@ export async function generateMetadata({ searchParams }: ProductsPageProps): Pro
   const { hasUnknownFilter, result, search, category, selectedTags } =
     await getCatalogPage(catalogSearchKey(await searchParams));
   const selectedTag = selectedTags.length === 1 ? selectedTags[0] : undefined;
+  const flowerTagTitle = selectedTag
+    ? flowerTagPageTitles[selectedTag.slug]
+    : search.tags.length === 1
+      ? flowerTagPageTitles[search.tags[0]]
+      : undefined;
   const title = search.sameDayDelivery
     ? "کادوهای قابل ارسال امروز"
     : category
     ? `خرید کادو ${category.name}`
+    : flowerTagTitle
+      ? flowerTagTitle
     : selectedTag
       ? `خرید کادو برای ${selectedTag.name}`
       : search.search
@@ -161,10 +175,17 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     await getCatalogPage(catalogSearchKey(resolvedSearchParams));
   if (!hasUnknownFilter && result.totalPages > 0 && search.page > result.totalPages) notFound();
   const selectedTag = selectedTags.length === 1 ? selectedTags[0] : undefined;
+  const flowerTagTitle = selectedTag
+    ? flowerTagPageTitles[selectedTag.slug]
+    : search.tags.length === 1
+      ? flowerTagPageTitles[search.tags[0]]
+      : undefined;
   const title = search.sameDayDelivery
     ? "کادوهای قابل ارسال امروز"
     : category
     ? `لیست کادوهای ${category.name}`
+    : flowerTagTitle
+      ? flowerTagTitle
     : selectedTag
       ? `لیست کادوهای ${selectedTag.name}`
       : search.search
@@ -214,6 +235,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       <Divider />
       <Breadcrumb items={breadcrumbs} />
       <Divider />
+      {category?.slug === "flower" ? <FlowerProductLinks /> : null}
 
       <section aria-label={title}>
         <SectionHeader

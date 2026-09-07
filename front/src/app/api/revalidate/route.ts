@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-const allowedTags = new Set(["magazine-articles", "magazine-categories"]);
+const allowedTags = new Set(["homepage-content", "magazine-articles", "magazine-categories"]);
 
 function secretsMatch(provided: string, expected: string): boolean {
   const providedBuffer = Buffer.from(provided);

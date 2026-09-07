@@ -9,6 +9,7 @@ describe("toHomepageHeroSlides", () => {
     expect(
       toHomepageHeroSlides({
         banners: [],
+        dailySpecial: null,
         heroes: [],
         sliders: [{
           id: 7,
@@ -33,6 +34,7 @@ describe("toHomepageHeroSlides", () => {
     expect(
       toHomepageHeroSlides({
         banners: [],
+        dailySpecial: null,
         heroes: [{
           id: 8,
           title: "Hero",

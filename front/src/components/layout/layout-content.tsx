@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { BottomNavigation } from "./bottom-navigation";
 import { Footer } from "./footer";
 import { Header, type HeaderProps } from "./header";
+import { TopBanner } from "./top-banner";
 import { cn } from "@/lib/utils";
 
 export type LayoutContentProps = {
@@ -31,6 +32,7 @@ function LayoutContent({
 }: Readonly<LayoutContentProps>) {
   return (
     <div className={cn("flex min-h-dvh flex-col", className)}>
+      <TopBanner />
       <Header {...headerProps} />
       <main className={cn("mx-auto w-full max-w-[1440px] flex-1", mainClassName)}>{children}</main>
       {showFooter ? <Footer /> : null}

@@ -17,7 +17,7 @@ export function ProductInfo({ product }: Readonly<ProductInfoProps>) {
   const badge = deliveryBadge(product.preparationHours);
 
   return (
-    <section className="px-16 pt-24 pb-16 text-center [direction:rtl]" aria-labelledby="pdp-title">
+    <section className="px-16 pt-24 pb-16 text-center min-[864px]:text-right [direction:rtl]" aria-labelledby="pdp-title">
       <h1
         id="pdp-title"
         className="m-0 mb-12 font-sans text-title-18 font-bold leading-[var(--text-title-18--line-height)] text-surface-neutral-high-emphasis"
@@ -25,7 +25,7 @@ export function ProductInfo({ product }: Readonly<ProductInfoProps>) {
         {product.name}
       </h1>
 
-      <div className="mb-16 inline-flex items-baseline justify-center" aria-label="قیمت">
+      <div className="mb-16 inline-flex items-baseline justify-center min-[864px]:flex min-[864px]:justify-start" aria-label="قیمت">
         {product.inStock ? (
           <Price current={current} offPercent={offPercent} orientation="horizontal" previous={previous} showArrowOnLargeH size="L" />
         ) : (
@@ -33,7 +33,7 @@ export function ProductInfo({ product }: Readonly<ProductInfoProps>) {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-8">
+      <div className="flex flex-wrap items-center justify-center gap-8 min-[864px]:justify-start">
         <Label
           appearance={badge.usesFastDeliveryIcon ? "gradient" : "soft"}
           leadingIcon={badge.usesFastDeliveryIcon ? <Image alt="" height={14} src="/icons/fast-delivery.svg" width={14} /> : <Clock />}

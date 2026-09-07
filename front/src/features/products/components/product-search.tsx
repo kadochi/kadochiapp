@@ -3,16 +3,20 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Dialog } from "radix-ui";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LoaderCircle, Search, X } from "lucide-react";
 
 import { Price } from "@/components/layout/price";
+import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { usePrice } from "../hooks/usePrice";
 import { fetchProductsPage } from "../services/products";
 import type { Product } from "../types";
 
 type SearchStatus = "idle" | "loading" | "success" | "error";
+type ProductSearchProps = { trigger?: ReactNode };
+
+const suggestedSearches = ["گل", "باکس گل", "کیک", "شکلات", "هدیه"] as const;
 
 function SearchResult({ onSelect, product }: Readonly<{ onSelect: () => void; product: Product }>) {
   const { current, previous, offPercent } = usePrice(product);
@@ -54,7 +58,7 @@ function SearchResult({ onSelect, product }: Readonly<{ onSelect: () => void; pr
 }
 
 /** Opens a focused, full-screen product search without changing the catalog filters. */
-export function ProductSearch() {
+export function ProductSearch({ trigger }: Readonly<ProductSearchProps>) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<Product[]>([]);
@@ -123,17 +127,22 @@ export function ProductSearch() {
         else close();
       }}
     >
-      <div className="px-16 pb-4 pt-16">
-        <button
-          aria-haspopup="dialog"
-          className="flex h-48 w-full cursor-text items-center gap-12 rounded-rounded border border-border-high-emphasis bg-surface-background px-16 text-start text-label-16 text-surface-neutral-mid-emphasis transition-[border-color,box-shadow] hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
-          onClick={() => setIsOpen(true)}
-          type="button"
-        >
-          <Search aria-hidden="true" className="size-20 shrink-0" />
-          <span>جستجو در محصولات</span>
-        </button>
-      </div>
+      {trigger ? (
+        <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
+      ) : (
+        <div className="px-16 pb-4 pt-16">
+          <Dialog.Trigger asChild>
+            <button
+              aria-haspopup="dialog"
+              className="flex h-48 w-full cursor-text items-center gap-12 rounded-rounded border border-border-high-emphasis bg-surface-background px-16 text-start text-label-16 text-surface-neutral-mid-emphasis transition-[border-color,box-shadow] hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+              type="button"
+            >
+              <Search aria-hidden="true" className="size-20 shrink-0" />
+              <span>جستجو در محصولات</span>
+            </button>
+          </Dialog.Trigger>
+        </div>
+      )}
 
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[1200] bg-surface-scrim" />
@@ -186,9 +195,31 @@ export function ProductSearch() {
 
             <div aria-live="polite" className="min-h-0 flex-1 overflow-y-auto pt-16">
               {status === "idle" ? (
-                <p className="py-32 text-center text-body-14 text-surface-neutral-mid-emphasis">
-                  برای پیدا کردن هدیه‌ی مناسب، جستجو را شروع کنید.
-                </p>
+                <div className="py-32">
+                  <p className="m-0 text-center text-body-14 text-surface-neutral-mid-emphasis">
+                    برای پیدا کردن هدیه‌ی مناسب، جستجو را شروع کنید.
+                  </p>
+                  <section aria-labelledby="suggested-searches-title" className="mx-auto mt-24 max-w-[520px]">
+                    <h2 id="suggested-searches-title" className="m-0 text-center text-label-14 font-bold text-surface-neutral-high-emphasis">
+                      پیشنهادهای پرجست‌وجو
+                    </h2>
+                    <div aria-label="پیشنهادهای جستجو" className="mt-12 flex flex-wrap justify-center gap-8">
+                      {suggestedSearches.map((term) => (
+                        <button
+                          className="inline-flex cursor-pointer border-0 bg-transparent p-0 text-inherit focus-visible:outline-none"
+                          key={term}
+                          onClick={() => {
+                            updateQuery(term);
+                            inputRef.current?.focus({ preventScroll: true });
+                          }}
+                          type="button"
+                        >
+                          <Chip variant="outline">{term}</Chip>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                </div>
               ) : null}
               {status === "loading" ? (
                 <div className="flex items-center justify-center gap-8 py-32 text-body-14 text-surface-neutral-mid-emphasis">

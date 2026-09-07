@@ -21,6 +21,7 @@ type HeroBannerProps = {
   backgroundImage: string;
   className?: string;
   priority?: boolean;
+  pairedWithDailyOffer?: boolean;
 };
 
 type HeroSlide = ContentHeroSlide;
@@ -31,6 +32,11 @@ type HeroSliderProps = {
    * avoids a second request after hydration while retaining the BFF fallback.
    */
   initialSlides?: readonly HeroSlide[];
+  className?: string;
+  /** Uses the 2:1 desktop aspect required when paired with the square daily offer. */
+  pairedWithDailyOffer?: boolean;
+  /** Enables touch handling when the slider is embedded in another Swiper. */
+  nested?: boolean;
 };
 
 const heroEndpoint = "/api/content/heroes";
@@ -43,11 +49,13 @@ function HeroBanner({
   backgroundImage,
   className,
   priority = false,
+  pairedWithDailyOffer = false,
 }: HeroBannerProps) {
   return (
     <div
       className={cn(
-        "relative isolate aspect-[1/1.2] w-full bg-[linear-gradient(to_bottom,var(--color-secondary),var(--color-on-secondary-container))] bg-cover bg-center bg-no-repeat min-[860px]:aspect-[2.87/1]",
+        "relative isolate aspect-[1/1.2] w-full bg-[linear-gradient(to_bottom,var(--color-secondary),var(--color-on-secondary-container))] bg-cover bg-center bg-no-repeat",
+        pairedWithDailyOffer ? "min-[860px]:aspect-[2/1]" : "min-[860px]:aspect-[3/1.01]",
         className,
       )}
       dir="rtl"
@@ -117,11 +125,11 @@ function HeroCallToAction({
   );
 }
 
-function HeroSliderPlaceholder() {
+function HeroSliderPlaceholder({ pairedWithDailyOffer = false }: Readonly<Pick<HeroSliderProps, "pairedWithDailyOffer">>) {
   return (
     <div
       aria-hidden="true"
-      className="relative isolate aspect-[1/1.2] w-full overflow-hidden rounded-xl bg-surface min-[860px]:aspect-[3/1.01]"
+      className={cn("relative isolate aspect-[1/1.2] w-full overflow-hidden rounded-xl bg-surface", pairedWithDailyOffer ? "min-[860px]:aspect-[2/1]" : "min-[860px]:aspect-[3/1.01]")}
     >
       <div className="absolute inset-0 rounded-xl bg-[linear-gradient(90deg,var(--color-surface-soft)_0%,var(--color-surface-dim)_50%,var(--color-surface-soft)_100%)] bg-[length:200%_100%] [animation:hero-skeleton-shimmer_1.2s_linear_infinite]" />
       <div className="absolute inset-x-0 bottom-10 mx-auto h-10 w-56 rounded-rounded bg-[linear-gradient(90deg,var(--color-surface-soft)_0%,var(--color-surface-dim)_50%,var(--color-surface-soft)_100%)] bg-[length:200%_100%] [animation:hero-skeleton-shimmer_1.2s_linear_infinite]" />
@@ -139,7 +147,7 @@ function toHeroSlides(data: unknown): HeroSlide[] {
   return parsed.data;
 }
 
-function HeroSlider({ initialSlides }: Readonly<HeroSliderProps>) {
+function HeroSlider({ initialSlides, className, pairedWithDailyOffer = false, nested = false }: Readonly<HeroSliderProps>) {
   const [slides, setSlides] = useState<HeroSlide[]>(() =>
     initialSlides ? [...initialSlides] : [],
   );
@@ -171,13 +179,13 @@ function HeroSlider({ initialSlides }: Readonly<HeroSliderProps>) {
       aria-label="اسلایدر بنر"
       aria-live="polite"
       aria-roledescription="carousel"
-      className="mx-auto w-[calc(100%-1.5rem)] max-w-[400px] min-[860px]:w-full min-[860px]:max-w-none min-[860px]:px-16"
+      className={cn("mx-auto min-w-0 w-[calc(100%_-_24px)] min-[860px]:w-full min-[860px]:px-16", className)}
       data-component="hero-slider"
       dir="rtl"
       role="region"
     >
       {slides.length === 0 ? (
-        <HeroSliderPlaceholder />
+        <HeroSliderPlaceholder pairedWithDailyOffer={pairedWithDailyOffer} />
       ) : (
         <Swiper
           allowTouchMove={hasMultipleSlides}
@@ -190,6 +198,7 @@ function HeroSlider({ initialSlides }: Readonly<HeroSliderProps>) {
           key={hasMultipleSlides ? "loop" : "no-loop"}
           loop={hasMultipleSlides}
           modules={[Autoplay, Pagination]}
+          nested={nested}
           pagination={{
             clickable: true,
             renderBullet: (index, className) =>
@@ -200,11 +209,11 @@ function HeroSlider({ initialSlides }: Readonly<HeroSliderProps>) {
           {slides.map((slide, index) => (
             <SwiperSlide
               aria-label={`اسلاید ${index + 1} از ${slides.length}`}
-              className="block aspect-[1/1.2] w-full bg-cover bg-center bg-no-repeat min-[860px]:aspect-[3/1.01]"
+              className={cn("block aspect-[1/1.2] w-full bg-cover bg-center bg-no-repeat", pairedWithDailyOffer ? "min-[860px]:aspect-[2/1]" : "min-[860px]:aspect-[3/1.01]")}
               key={slide.id}
               role="group"
             >
-              <HeroBanner {...slide} priority={index === 0} />
+              <HeroBanner {...slide} pairedWithDailyOffer={pairedWithDailyOffer} priority={index === 0} />
             </SwiperSlide>
           ))}
         </Swiper>

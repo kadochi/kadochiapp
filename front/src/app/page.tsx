@@ -3,7 +3,9 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
 import HeroSlider, { type HeroSlide } from "@/components/layout/hero-slider";
+import HomeCategorySwiper from "@/components/layout/home-category-swiper";
 import LayoutContent from "@/components/layout/layout-content";
+import MobileHeroOfferSwiper from "@/components/layout/mobile-hero-offer-swiper";
 import SectionHeader from "@/components/layout/section-header";
 import ServicesNav from "@/components/layout/services-nav";
 import { Button } from "@/components/ui/button";
@@ -15,6 +17,7 @@ import { MagazineRail } from "@/features/landing/components/magazine-rail";
 import { OccasionPrompt } from "@/features/landing/components/occasion-prompt";
 import { StoriesSection } from "@/features/landing/components/stories-section";
 import { UpcomingOccasionRail } from "@/features/landing/components/upcoming-occasion-rail";
+import { DailySpecialOffer } from "@/features/landing/components/daily-special-offer";
 import { getHeroSlides, getHomepageContent } from "@/features/content/services/content.server";
 import type { HomepageContent } from "@/features/content/types";
 import { toHomepageHeroSlides } from "@/features/content/utils/hero-slides";
@@ -22,6 +25,7 @@ import { listMagazineArticles } from "@/features/magazine/services/magazine.serv
 import type { MagazineArticle } from "@/features/magazine/types";
 import {
   listCategories,
+  getProductById,
   listProducts,
 } from "@/features/products/services/products.server";
 import type { Product, ProductCategory } from "@/features/products/types";
@@ -53,6 +57,7 @@ export const metadata: Metadata = {
 
 const emptyContent: HomepageContent = {
   banners: [],
+  dailySpecial: null,
   heroes: [],
   sliders: [],
   stories: [],
@@ -76,7 +81,10 @@ async function getLandingData() {
     fallback(listProducts({ order: "desc", orderby: "date", perPage: 12, sameDayDelivery: true }), { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 }),
     fallback(listMagazineArticles({ perPage: 4 }), { items: [] as MagazineArticle[], page: 1, perPage: 4, total: 0, totalPages: 0 }),
   ]);
-  return { categories, content, fastDelivery: fastDelivery.items, heroes, latest: latest.items, magazine: magazine.items, popular: popular.items };
+  const dailySpecial = content.dailySpecial
+    ? await fallback(getProductById(content.dailySpecial.productId), null as Product | null)
+    : null;
+  return { categories, content, dailySpecial, fastDelivery: fastDelivery.items, heroes, latest: latest.items, magazine: magazine.items, popular: popular.items };
 }
 
 const services = [
@@ -91,7 +99,7 @@ const services = [
 ] as const;
 
 export default async function Homepage() {
-  const { categories, content, fastDelivery, heroes, latest, magazine, popular } = await getLandingData();
+  const { categories, content, dailySpecial, fastDelivery, heroes, latest, magazine, popular } = await getLandingData();
   const heroSlides: HeroSlide[] = heroes.length ? heroes : toHomepageHeroSlides(content);
   const siteUrl = new URL(env.KADOCHI_FRONTEND_URL);
   const siteLd = {
@@ -118,7 +126,18 @@ export default async function Homepage() {
   return (
     <LayoutContent mainClassName="mx-auto w-full max-w-[1440px]" showBottomNav>
       <h1 className="sr-only">کادوچی | خرید کادو، هدیه، گل و کیک با ارسال سریع</h1>
-      <HeroSlider initialSlides={heroSlides.length ? heroSlides : undefined} />
+      <HomeCategorySwiper />
+      {dailySpecial ? (
+        <>
+          <MobileHeroOfferSwiper heroSlides={heroSlides} product={dailySpecial} />
+          <section className="hidden gap-12 px-16 min-[860px]:grid min-[860px]:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] min-[860px]:items-start" dir="rtl">
+            <HeroSlider className="w-full min-[860px]:px-0" initialSlides={heroSlides.length ? heroSlides : undefined} pairedWithDailyOffer />
+            <DailySpecialOffer product={dailySpecial} />
+          </section>
+        </>
+      ) : (
+        <HeroSlider initialSlides={heroSlides.length ? heroSlides : undefined} />
+      )}
       <ServicesNav items={[...services]} />
 
       <Divider size="md" variant="spacer" />

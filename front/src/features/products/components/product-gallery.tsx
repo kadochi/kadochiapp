@@ -91,8 +91,8 @@ export function ProductGallery({
   }
 
   return (
-    <div className="w-full overflow-hidden bg-surface-background" dir="rtl">
-      <div className="relative mx-auto w-[calc(100%-1.5rem)] max-w-[400px]">
+    <div className="w-full overflow-hidden bg-surface-background min-[864px]:pt-24" dir="rtl">
+      <div className="relative mx-auto w-[calc(100%-1.5rem)] max-w-[400px] min-[864px]:mr-0 min-[864px]:ml-auto min-[864px]:w-full">
         <Swiper
           className="w-full [&_.swiper-wrapper]:flex [&_.swiper-slide]:flex [&_.swiper-slide]:w-full [&_.swiper-slide]:justify-center"
           dir="rtl"

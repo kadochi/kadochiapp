@@ -129,13 +129,33 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
   return (
     <>
       <ProductViewTracker productId={product.id} />
-      <ProductGallery images={product.images} productId={product.id} title={product.name} />
-      <ProductInfo product={product} />
-      <ProductTrustBenefits />
-      <Divider variant="spacer" />
-      <ProductDescription product={product} />
-      <Divider variant="spacer" />
-      <ProductSpecs attributes={product.attributes} />
+      <div
+        className="mx-auto flex w-full max-w-[1440px] flex-col min-[864px]:grid min-[864px]:grid-cols-[400px_minmax(0,1fr)] min-[864px]:items-start min-[864px]:gap-x-24 min-[864px]:px-32"
+        dir="rtl"
+      >
+        <div className="contents min-[864px]:col-start-1 min-[864px]:flex min-[864px]:flex-col">
+          <div className="order-1 min-[864px]:order-none">
+            <ProductGallery images={product.images} productId={product.id} title={product.name} />
+          </div>
+          <div className="order-3 min-[864px]:order-none">
+            <ProductTrustBenefits />
+          </div>
+        </div>
+
+        <div className="contents min-[864px]:col-start-2 min-[864px]:flex min-[864px]:flex-col">
+          <div className="order-2 min-[864px]:order-none">
+            <ProductInfo product={product} />
+          </div>
+          <Divider className="order-4 min-[864px]:hidden" variant="spacer" />
+          <div className="order-5 min-[864px]:order-none">
+            <ProductDescription product={product} />
+          </div>
+          <Divider className="order-6 min-[864px]:hidden" variant="spacer" />
+          <div className="order-7 min-[864px]:order-none">
+            <ProductSpecs attributes={product.attributes} />
+          </div>
+        </div>
+      </div>
 
       {product.tags.length ? (
         <>
