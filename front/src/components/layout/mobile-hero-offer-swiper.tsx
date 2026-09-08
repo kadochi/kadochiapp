@@ -53,7 +53,10 @@ function MobileHeroOfferSwiper({ heroSlides, product }: Readonly<MobileHeroOffer
           role="tab"
           type="button"
         >
-          پیشنهاد ویژه روز
+          <span className="inline-flex items-center gap-4">
+            <span>پیشنهاد ویژه روز</span>
+            <span aria-hidden className="inline-flex size-16 items-center justify-center rounded-full bg-error text-label-10 font-bold leading-none text-on-error">%</span>
+          </span>
         </button>
       </div>
       <Swiper
