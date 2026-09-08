@@ -289,6 +289,33 @@
   width: calc((100% - 4.8px) / 1.4);
 }
 
+/* These homepage rails are rendered on the server before Swiper can attach
+ * inline dimensions. Matching their numeric `slidesPerView` calculations here
+ * prevents the initial 100%-wide slide from flashing before hydration. */
+.home-category-swiper:not(.swiper-initialized) .swiper-wrapper {
+  gap: var(--spacing-4);
+}
+
+.home-category-swiper:not(.swiper-initialized) .swiper-slide {
+  width: calc((100% - 14px) / 4.5);
+}
+
+.home-category-swiper:not(.swiper-initialized) .swiper-slide:first-child {
+  margin-inline-start: var(--spacing-8);
+}
+
+.mobile-hero-offer-swiper:not(.swiper-initialized) .swiper-wrapper {
+  gap: var(--spacing-12);
+}
+
+.mobile-hero-offer-swiper:not(.swiper-initialized) .swiper-slide {
+  width: calc((100% - 0.96px) / 1.08);
+}
+
+.mobile-hero-offer-swiper:not(.swiper-initialized) .swiper-slide:first-child {
+  margin-inline-start: var(--spacing-12);
+}
+
 @media (min-width: 540px) {
   .carousel-rail--products .swiper-slide,
   .carousel-rail--occasions .swiper-slide,

@@ -5,6 +5,7 @@ const storySchema = z.object({
   id: z.number().int().positive(),
   title: z.string(),
   image: z.object({ url: z.string().url(), alt: z.string() }),
+  ctaLink: z.string().url().nullable().default(null),
   publishedAt: z.string().datetime(),
 });
 export const homepageContentSchema = z.object({

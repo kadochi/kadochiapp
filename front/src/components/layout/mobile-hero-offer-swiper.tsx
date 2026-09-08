@@ -1,7 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { Swiper as SwiperInstance } from "swiper";
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
@@ -16,74 +15,52 @@ type MobileHeroOfferSwiperProps = {
   product: Product;
 };
 
-type ArrowPosition = { left: number; top: number };
-
-/**
- * Treats the existing editorial hero carousel and daily offer as two cards in
- * one touch rail on small screens. A little of the following card remains in
- * view as a swipe affordance, while desktop keeps both side by side.
- */
+/** Mobile rail containing the existing hero carousel and the daily offer. */
 function MobileHeroOfferSwiper({ heroSlides, product }: Readonly<MobileHeroOfferSwiperProps>) {
-  const railRef = useRef<HTMLElement>(null);
   const [outerSwiper, setOuterSwiper] = useState<SwiperInstance | null>(null);
-  const [arrowPosition, setArrowPosition] = useState<ArrowPosition | null>(null);
-  const [arrowDirection, setArrowDirection] = useState<"next" | "previous">("next");
-  const [isArrowVisible, setIsArrowVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState<"hero" | "offer">("hero");
 
-  const updateNavigation = useCallback((swiper: SwiperInstance, revealArrow = false) => {
-    window.requestAnimationFrame(() => {
-      const rail = railRef.current;
-      const activeSlide = swiper.slides[swiper.activeIndex];
-      const isAtFirstSlide = swiper.isBeginning;
-      const card = isAtFirstSlide
-        ? activeSlide?.querySelector<HTMLElement>(".hero-slider") ?? activeSlide?.querySelector<HTMLElement>("[data-component='hero-slider']")
-        : activeSlide?.querySelector<HTMLElement>("[data-component='daily-special-offer']");
-
-      if (!rail || !card) return;
-
-      const railBounds = rail.getBoundingClientRect();
-      const cardBounds = card.getBoundingClientRect();
-
-      setArrowDirection(isAtFirstSlide ? "next" : "previous");
-      setArrowPosition({
-        left: (isAtFirstSlide ? cardBounds.left : cardBounds.right) - railBounds.left,
-        top: cardBounds.top - railBounds.top + (cardBounds.height / 2),
-      });
-
-      if (revealArrow) {
-        // Render the new position while invisible first, so the incoming
-        // control never visibly jumps across the moving slides.
-        window.requestAnimationFrame(() => setIsArrowVisible(true));
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!outerSwiper) return;
-
-    const handleResize = () => updateNavigation(outerSwiper);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [outerSwiper, updateNavigation]);
+  const selectTab = (tab: "hero" | "offer") => {
+    setActiveTab(tab);
+    outerSwiper?.slideTo(tab === "hero" ? 0 : 1);
+  };
 
   return (
     <section
       aria-label="بنرها و پیشنهاد ویژه روز"
       aria-roledescription="carousel"
-      className="relative min-[860px]:hidden"
+      className="min-[860px]:hidden"
       data-component="mobile-hero-offer-swiper"
       dir="rtl"
-      ref={railRef}
       role="region"
     >
+      <div aria-label="بخش‌های پیشنهادهای کادوچی" className="mx-auto mb-12 flex w-[calc(100%_-_24px)] border-b border-border-low-emphasis" role="tablist">
+        <button
+          aria-controls="mobile-hero-offer-panel"
+          aria-selected={activeTab === "hero"}
+          className={`relative flex-1 px-12 py-12 text-label-14 font-regular transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${activeTab === "hero" ? "text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-2 after:bg-primary" : "text-surface-neutral-mid-emphasis"}`}
+          onClick={() => selectTab("hero")}
+          role="tab"
+          type="button"
+        >
+          ویترین
+        </button>
+        <button
+          aria-controls="mobile-hero-offer-panel"
+          aria-selected={activeTab === "offer"}
+          className={`relative flex-1 px-12 py-12 text-label-14 font-regular transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${activeTab === "offer" ? "text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-2 after:bg-primary" : "text-surface-neutral-mid-emphasis"}`}
+          onClick={() => selectTab("offer")}
+          role="tab"
+          type="button"
+        >
+          پیشنهاد ویژه روز
+        </button>
+      </div>
       <Swiper
         className="mobile-hero-offer-swiper overflow-visible"
-        onSlideChange={() => setIsArrowVisible(false)}
-        onSlideChangeTransitionEnd={(swiper) => updateNavigation(swiper, true)}
-        onSwiper={(swiper) => {
-          setOuterSwiper(swiper);
-          updateNavigation(swiper, true);
-        }}
+        id="mobile-hero-offer-panel"
+        onSlideChange={(swiper) => setActiveTab(swiper.activeIndex === 0 ? "hero" : "offer")}
+        onSwiper={setOuterSwiper}
         slidesOffsetAfter={12}
         slidesOffsetBefore={12}
         slidesPerView={1.08}
@@ -100,21 +77,6 @@ function MobileHeroOfferSwiper({ heroSlides, product }: Readonly<MobileHeroOffer
           <DailySpecialOffer className="aspect-[1/1.2]" product={product} />
         </SwiperSlide>
       </Swiper>
-      {arrowPosition ? (
-        <button
-          aria-label={arrowDirection === "next" ? "نمایش پیشنهاد ویژه روز" : "بازگشت به بنرها"}
-          className={`absolute z-30 grid size-40 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-border-low-emphasis bg-surface-background/95 text-text-primary transition-[opacity,transform] duration-150 ease-out hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:scale-95 ${isArrowVisible ? "opacity-100" : "pointer-events-none opacity-0"}`}
-          onClick={() => {
-            setIsArrowVisible(false);
-            if (arrowDirection === "next") outerSwiper?.slideNext();
-            else outerSwiper?.slidePrev();
-          }}
-          style={{ left: arrowPosition.left, top: arrowPosition.top }}
-          type="button"
-        >
-          {arrowDirection === "next" ? <ChevronLeft aria-hidden className="size-24" /> : <ChevronRight aria-hidden className="size-24" />}
-        </button>
-      ) : null}
     </section>
   );
 }

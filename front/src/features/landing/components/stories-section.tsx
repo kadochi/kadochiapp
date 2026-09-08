@@ -10,6 +10,7 @@ export type HomepageStory = {
   id: number;
   title: string;
   image: { url: string; alt: string };
+  ctaLink: string | null;
   publishedAt: string;
 };
 
@@ -134,7 +135,14 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
               className="object-cover"
               fill
               key={selectedStory.id}
-              onLoad={() => setLoadedStoryId(selectedStory.id)}
+              onLoad={() => {
+                setLoadedStoryId(selectedStory.id);
+                void fetch(`/api/stories/${selectedStory.id}/views`, {
+                  method: "POST",
+                  credentials: "same-origin",
+                  keepalive: true,
+                }).catch(() => undefined);
+              }}
               sizes="(min-width: 768px) 428px, 100vw"
               src={selectedStory.image.url}
             />
@@ -166,6 +174,13 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
                 </div>
               </div>
             </div>
+
+            {selectedStory.ctaLink ? (
+              <a className="absolute bottom-[56px] left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-4 rounded-rounded bg-white px-20 py-12 text-label-14 font-bold text-surface-neutral-high-emphasis shadow-lg transition-opacity hover:opacity-90" href={selectedStory.ctaLink}>
+                مشاهده
+                <ChevronLeft aria-hidden className="size-18" />
+              </a>
+            ) : null}
 
             <button aria-label="استوری قبلی" className="absolute bottom-0 left-0 top-0 z-10 w-1/3 cursor-w-resize border-0 bg-transparent" onClick={() => showStory(selectedIndex - 1)} type="button" />
             <button aria-label="استوری بعدی" className="absolute bottom-0 right-0 top-0 z-10 w-1/3 cursor-e-resize border-0 bg-transparent" onClick={() => showStory(selectedIndex + 1)} type="button" />

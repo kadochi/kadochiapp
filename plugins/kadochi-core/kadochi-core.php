@@ -34,6 +34,7 @@ final class Kadochi_Core {
 	const MAGAZINE_TO_POSTS_MIGRATION_VERSION = '1';
 	const PRODUCT_VIEW_COUNT_META_KEY = '_kadochi_product_view_count';
 	const ARTICLE_VIEW_COUNT_META_KEY = '_kadochi_article_view_count';
+	const STORY_VIEW_COUNT_META_KEY = '_kadochi_story_view_count';
 	const PRODUCT_PREPARATION_HOURS_META_KEY = '_kadochi_preparation_hours';
 	const DEFAULT_PRODUCT_PREPARATION_HOURS = 24;
 	const MAX_PRODUCT_PREPARATION_HOURS = 720;
@@ -113,6 +114,10 @@ final class Kadochi_Core {
 		add_action( 'manage_post_posts_custom_column', array( $this, 'render_article_view_column' ), 10, 2 );
 		add_filter( 'posts_clauses', array( $this, 'sort_articles_by_views' ), 10, 2 );
 		add_action( 'admin_head-edit.php', array( $this, 'style_article_view_column' ) );
+		add_filter( 'manage_edit-story_columns', array( $this, 'add_story_view_column' ), 20 );
+		add_filter( 'hidden_columns', array( $this, 'keep_story_views_column_visible' ), 10, 2 );
+		add_action( 'manage_story_posts_custom_column', array( $this, 'render_story_view_column' ), 10, 2 );
+		add_action( 'admin_head-edit.php', array( $this, 'style_story_view_column' ) );
 		add_action( 'admin_notices', array( $this, 'render_admin_notices' ) );
 	}
 
@@ -489,6 +494,7 @@ final class Kadochi_Core {
 			array( 'key' => 'group_684b373196d67', 'title' => 'Banner', 'fields' => array( $this->field( 'field_684b3731a9469', 'Title', 'title', 'text' ), $this->field( 'field_684b3761a946a', 'Subtitle', 'subtitle', 'text' ), $this->field( 'field_684b376ca946b', 'CTA Text', 'cta_text', 'text' ), $this->field( 'field_684b377ba946c', 'CTA Link', 'cta_link', 'url' ), $this->field( 'field_684b3788a946d', 'Background Gradient', 'background_gradient', 'text' ), $this->field( 'field_684b37cea946e', 'Background Image', 'background_image', 'image', $image_url ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'banner' ) ) ), 'active' => true, 'show_in_rest' => 0 ),
 			array( 'key' => 'group_68ff3b5e2403e', 'title' => 'Hero', 'fields' => array( $this->field( 'field_68ff3b5e2bc20', 'Title', 'title', 'text' ), $this->field( 'field_68ff3b5e2bc21', 'Subtitle', 'subtitle', 'text' ), $this->field( 'field_68ff3b5e2bccb', 'CTA Text', 'cta_text', 'text' ), $this->field( 'field_68ff3b5e2bd1c', 'CTA Link', 'cta_link', 'url' ), $this->field( 'field_68ff3b5e2bdb4', 'Background Image', 'background_image', 'image', $image_url ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'hero' ) ) ), 'active' => true, 'show_in_rest' => 1 ),
 			array( 'key' => 'group_684ada15be887', 'title' => 'Image Slider', 'fields' => array( $this->field( 'field_684ada1598922', 'Background Image', 'background_image', 'image', array( 'return_format' => 'array', 'library' => 'all', 'preview_size' => 'medium' ) ), $this->field( 'field_684ada7298923', 'Slider Title', 'slider_title', 'text' ), $this->field( 'field_684adaa998924', 'Slider Button Text', 'slider_button_text', 'text' ), $this->field( 'field_684adabd98925', 'Slider Link', 'slider_link', 'link', array( 'return_format' => 'url' ) ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'slider' ) ) ), 'active' => true, 'show_in_rest' => 0 ),
+			array( 'key' => 'group_6b1f7a2d436e1', 'title' => 'Story action', 'fields' => array( $this->field( 'field_6b1f7a2d436e2', 'Action link', 'story_action_link', 'url', array( 'instructions' => 'Optional URL opened by the button at the bottom of this story.' ) ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'story' ) ) ), 'active' => true, 'show_in_rest' => 0 ),
 			array( 'key' => 'group_68690d0e375df', 'title' => 'Occasion', 'fields' => array( $this->field( 'field_68690d0e8d04d', 'title', 'title', 'text' ), $this->field( 'field_68690d148d04e', 'occasion date', 'occasion_date', 'date_picker', array( 'display_format' => 'Y-m-d', 'return_format' => 'Y-m-d', 'first_day' => 6, 'default_to_current_date' => 0 ) ), $this->field( 'field_6a0c001e8d04f', 'Repeat annually', 'repeat_annually', 'true_false', array( 'default_value' => 1, 'ui' => 1 ) ), $this->field( 'field_699c24f932f43', 'user', 'user', 'user', array( 'return_format' => 'id', 'multiple' => 0, 'allow_null' => 0 ) ) ), 'location' => array( array( array( 'param' => 'post_type', 'operator' => '==', 'value' => 'occasion' ) ) ), 'active' => true, 'show_in_rest' => 0 ),
 		);
 	}
@@ -569,6 +575,9 @@ final class Kadochi_Core {
 		) );
 		register_rest_route( self::REST_NAMESPACE, '/magazine-views', array(
 			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'record_article_view' ), 'permission_callback' => '__return_true' ),
+		) );
+		register_rest_route( self::REST_NAMESPACE, '/story-views', array(
+			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( $this, 'record_story_view' ), 'permission_callback' => '__return_true' ),
 		) );
 		register_rest_route( self::REST_NAMESPACE, '/occasions', array(
 			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( $this, 'list_occasions' ), 'permission_callback' => '__return_true' ),
@@ -1828,6 +1837,71 @@ final class Kadochi_Core {
 		$wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->postmeta} SET meta_value = CAST(meta_value AS UNSIGNED) + 1 WHERE post_id = %d AND meta_key = %s", $post_id, self::ARTICLE_VIEW_COUNT_META_KEY ) );
 
 		return rest_ensure_response( array( 'views' => $this->article_view_count( $post_id ) ) );
+	}
+
+	/** Adds a simple, always-visible view total to the Stories list in wp-admin. */
+	public function add_story_view_column( $columns ) {
+		$updated_columns = array();
+		$added = false;
+		foreach ( $columns as $column_name => $label ) {
+			$updated_columns[ $column_name ] = $label;
+			if ( ! $added && 'title' === $column_name ) {
+				$updated_columns['kadochi_story_views'] = __( 'Views', 'kadochi-core' );
+				$added = true;
+			}
+		}
+		if ( ! $added ) {
+			$updated_columns['kadochi_story_views'] = __( 'Views', 'kadochi-core' );
+		}
+		return $updated_columns;
+	}
+
+	/** Keeps the story view count visible for staff with saved Screen Options. */
+	public function keep_story_views_column_visible( $hidden, $screen ) {
+		if ( ! $screen || 'edit-story' !== $screen->id || ! is_array( $hidden ) ) {
+			return $hidden;
+		}
+		return array_values( array_diff( $hidden, array( 'kadochi_story_views' ) ) );
+	}
+
+	public function render_story_view_column( $column_name, $post_id ) {
+		if ( 'kadochi_story_views' !== $column_name ) {
+			return;
+		}
+		echo esc_html( number_format_i18n( $this->story_view_count( $post_id ) ) );
+	}
+
+	public function style_story_view_column() {
+		$screen = get_current_screen();
+		if ( ! $screen || 'edit-story' !== $screen->id ) {
+			return;
+		}
+		?>
+		<style>
+			.post-type-story .column-kadochi_story_views { width: 72px; text-align: center; white-space: nowrap; }
+		</style>
+		<?php
+	}
+
+	private function story_view_count( $story_id ) {
+		return max( 0, absint( get_post_meta( absint( $story_id ), self::STORY_VIEW_COUNT_META_KEY, true ) ) );
+	}
+
+	/** Counts a story only when its image has loaded in the storefront viewer. */
+	public function record_story_view( WP_REST_Request $request ) {
+		$story = get_post( absint( $request->get_param( 'storyId' ) ) );
+		if ( ! $story || 'story' !== $story->post_type || 'publish' !== $story->post_status ) {
+			return $this->auth_error( 'kadochi_story_not_found', __( 'The story was not found.', 'kadochi-core' ), 404 );
+		}
+
+		$story_id = (int) $story->ID;
+		if ( '' === get_post_meta( $story_id, self::STORY_VIEW_COUNT_META_KEY, true ) ) {
+			add_post_meta( $story_id, self::STORY_VIEW_COUNT_META_KEY, 0, true );
+		}
+		global $wpdb;
+		$wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->postmeta} SET meta_value = CAST(meta_value AS UNSIGNED) + 1 WHERE post_id = %d AND meta_key = %s", $story_id, self::STORY_VIEW_COUNT_META_KEY ) );
+
+		return rest_ensure_response( array( 'views' => $this->story_view_count( $story_id ) ) );
 	}
 
 	private function product_actions_table() {
@@ -3434,6 +3508,7 @@ final class Kadochi_Core {
 				'id' => (int) $post->ID,
 				'title' => sanitize_text_field( $post->post_title ),
 				'image' => $image,
+				'ctaLink' => $this->safe_url( $this->value( $post->ID, 'story_action_link' ) ),
 				'publishedAt' => get_post_time( 'Y-m-d\\TH:i:s\\Z', true, $post ),
 			);
 		}, $query->posts ) ) );
