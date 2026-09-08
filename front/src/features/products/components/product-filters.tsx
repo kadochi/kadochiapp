@@ -33,7 +33,7 @@ import { SegmentSelector } from "@/components/ui/segment-selector";
 import { Toggle } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
 import { useProductFilterNavigation } from "../hooks/useProductFilterNavigation";
-import { ProductSearch } from "./product-search";
+import { AnimatedProductSearch } from "./product-search";
 
 type CategoryOption = { id: number; name: string; slug: string };
 type SortId = "latest" | "oldest" | "popular";
@@ -261,7 +261,9 @@ export function ProductFilters({ categories }: Readonly<ProductFiltersProps>) {
           inert={!isSearchVisible}
         >
           <div className="min-h-0 overflow-hidden min-[864px]:hidden">
-            <ProductSearch />
+            <div className="px-16 pb-4 pt-16">
+              <AnimatedProductSearch />
+            </div>
           </div>
         </div>
         <nav aria-label="فیلتر محصولات" className="overflow-x-auto px-16 py-12 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

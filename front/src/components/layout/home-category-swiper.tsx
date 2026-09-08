@@ -25,7 +25,7 @@ const categories: readonly HomeCategory[] = [
   {
     href: "/products?tag=flower-jar",
     image: "/images/home-categories/flower-jar.png",
-    label: "گل جار",
+    label: "جار گل",
   },
   {
     href: "/products?tag=flower-box",

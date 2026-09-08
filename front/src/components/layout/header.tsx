@@ -11,7 +11,7 @@ import { cva } from "class-variance-authority";
 import { useOptionalAuth } from "@/features/auth/auth-provider";
 import { cartChangedEvent, getCart } from "@/features/cart/services/cart";
 import { useUnreadNotifications } from "@/features/profile/hooks/use-unread-notifications";
-import { ProductSearch } from "@/features/products/components/product-search";
+import { AnimatedProductSearch } from "@/features/products/components/product-search";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 
@@ -82,96 +82,6 @@ const navigationItems: readonly NavigationItem[] = [
   { href: "/magazine", label: "مجله" },
   { href: "/products?delivery=today", label: "ارسال روز", icon: "/icons/today-delivery.svg", animated: true },
 ];
-
-const searchProductNames = [
-  "گلدان گل رز سفید",
-  "گلدان گل لیسیانتوس",
-  "سبد گل حصیری هفت رنگ",
-  "گلدان گل لاکچری شکوفه",
-] as const;
-
-const SEARCH_PROMPT = "جستجوی محصول";
-const SEARCH_TEXT_HOLD_DURATION = 6000;
-
-/**
- * Desktop-only entry point to the product catalog. Its text intentionally
- * behaves like a placeholder so it can introduce both the search action and
- * representative catalog items without competing with the navigation.
- */
-function DesktopProductSearch() {
-  const [typedText, setTypedText] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    let timeoutId: number | undefined;
-
-    const wait = (duration: number) => new Promise<void>((resolve) => {
-      timeoutId = window.setTimeout(resolve, duration);
-    });
-
-    const type = async (value: string) => {
-      for (let character = 1; character <= value.length; character += 1) {
-        if (cancelled) return false;
-        setTypedText(value.slice(0, character));
-        await wait(90);
-      }
-      return !cancelled;
-    };
-
-    const erase = async (value: string) => {
-      for (let character = value.length - 1; character >= 0; character -= 1) {
-        if (cancelled) return false;
-        setTypedText(value.slice(0, character));
-        await wait(45);
-      }
-      return !cancelled;
-    };
-
-    const animate = async () => {
-      while (!cancelled) {
-        if (!(await type(SEARCH_PROMPT))) break;
-        await wait(SEARCH_TEXT_HOLD_DURATION);
-        if (cancelled || !(await erase(SEARCH_PROMPT))) break;
-
-        const productNames = [...searchProductNames]
-          .sort(() => Math.random() - 0.5)
-          .slice(0, 2);
-
-        for (const productName of productNames) {
-          if (!(await type(productName))) return;
-          await wait(SEARCH_TEXT_HOLD_DURATION);
-          if (cancelled || !(await erase(productName))) return;
-        }
-      }
-    };
-
-    void animate();
-    return () => {
-      cancelled = true;
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-    };
-  }, []);
-
-  return (
-    <ProductSearch
-      trigger={(
-        <button
-          aria-label="جستجوی محصولات"
-          className="absolute top-16 left-1/2 hidden h-48 w-[360px] -translate-x-1/2 cursor-text items-center gap-8 rounded-rounded border border-surface-dim bg-surface-soft pr-12 pl-16 font-sans text-label-14 font-regular leading-[var(--text-label-14--line-height)] text-surface-neutral-mid-emphasis focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary min-[864px]:flex [direction:rtl]"
-          type="button"
-        >
-          <img alt="" aria-hidden className="size-24 shrink-0" height={24} src="/icons/search.svg" width={24} />
-          <span aria-hidden className="flex min-w-0 flex-1 items-baseline overflow-hidden whitespace-pre">
-            <span className="truncate bg-[linear-gradient(to_left,var(--color-surface-neutral-low-emphasis),var(--color-disable))] bg-clip-text text-transparent [-webkit-text-fill-color:transparent]">
-              {typedText}
-            </span>
-            <span className="shrink-0 animate-[header-search-cursor_1s_steps(1,end)_infinite] text-surface-neutral-low-emphasis [-webkit-text-fill-color:var(--color-surface-neutral-low-emphasis)] motion-reduce:animate-none">|</span>
-          </span>
-        </button>
-      )}
-    />
-  );
-}
 
 function getAccountLabel(user: HeaderUser | null) {
   const fullName = [user?.firstName, user?.lastName]
@@ -390,7 +300,7 @@ function DefaultHeader({
             <span className="mt-2 text-label-10 font-regular leading-[var(--text-label-10--line-height)]">برای دیدن لبخند تو ...</span>
           </Link>
 
-          <DesktopProductSearch />
+          <AnimatedProductSearch className="absolute top-16 left-1/2 hidden w-[360px] -translate-x-1/2 min-[864px]:flex" />
 
           {shouldShowBack ? (
             <button

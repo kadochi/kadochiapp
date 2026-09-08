@@ -32,8 +32,10 @@ function elapsedTime(publishedAt: string) {
 /** A persistent editorial story rail and an Instagram-style, keyboard-accessible viewer. */
 export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [loadedStoryId, setLoadedStoryId] = useState<number | null>(null);
   const selectedIndex = selectedId === null ? -1 : stories.findIndex((story) => story.id === selectedId);
   const selectedStory = selectedIndex >= 0 ? stories[selectedIndex] : null;
+  const isSelectedImageLoaded = selectedStory?.id === loadedStoryId;
 
   useEffect(() => {
     if (!selectedStory) return;
@@ -48,11 +50,12 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
   const showStory = useCallback((index: number) => {
     if (!stories.length) return;
     const normalizedIndex = (index + stories.length) % stories.length;
+    setLoadedStoryId(null);
     setSelectedId(stories[normalizedIndex]?.id ?? null);
   }, [stories]);
 
   useEffect(() => {
-    if (!selectedStory) return;
+    if (!selectedStory || !isSelectedImageLoaded) return;
 
     const advance = window.setTimeout(() => {
       if (selectedIndex === stories.length - 1) {
@@ -62,7 +65,7 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
       }
     }, viewerDurationMs);
     return () => window.clearTimeout(advance);
-  }, [stories.length, selectedIndex, selectedStory, showStory]);
+  }, [isSelectedImageLoaded, stories.length, selectedIndex, selectedStory, showStory]);
 
   useEffect(() => {
     if (!selectedStory) return;
@@ -98,7 +101,10 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
             aria-label={`نمایش استوری ${story.title || index + 1}`}
             className="group grid w-[76px] shrink-0 justify-items-center gap-6 border-0 bg-transparent p-0 font-sans text-label-12 text-surface-neutral-high-emphasis"
             key={story.id}
-            onClick={() => setSelectedId(story.id)}
+            onClick={() => {
+              setLoadedStoryId(null);
+              setSelectedId(story.id);
+            }}
             type="button"
           >
             <span className="block h-[76px] w-[76px] shrink-0 aspect-square rounded-full bg-[linear-gradient(135deg,#f9ce34,#ee2a7b_48%,#6228d7)] p-[3px]">
@@ -127,6 +133,8 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
               alt={selectedStory.image.alt || selectedStory.title}
               className="object-cover"
               fill
+              key={selectedStory.id}
+              onLoad={() => setLoadedStoryId(selectedStory.id)}
               sizes="(min-width: 768px) 428px, 100vw"
               src={selectedStory.image.url}
             />
@@ -137,9 +145,9 @@ export function StoriesSection({ stories }: Readonly<StoriesSectionProps>) {
                 {stories.map((story, index) => (
                   <span className="h-2 flex-1 overflow-hidden rounded-full bg-white/35" key={story.id}>
                     <span
-                      className={index === selectedIndex ? "story-viewer-progress block h-full bg-white" : "block h-full bg-white"}
+                      className={index === selectedIndex && isSelectedImageLoaded ? "story-viewer-progress block h-full bg-white" : "block h-full origin-left bg-white"}
                       key={`${story.id}-${selectedStory.id}`}
-                      style={{ transform: index < selectedIndex ? "scaleX(1)" : index > selectedIndex ? "scaleX(0)" : undefined }}
+                      style={{ transform: index < selectedIndex ? "scaleX(1)" : index > selectedIndex || !isSelectedImageLoaded ? "scaleX(0)" : undefined }}
                     />
                   </span>
                 ))}

@@ -9,6 +9,7 @@ import { LoaderCircle, Search, X } from "lucide-react";
 import { Price } from "@/components/layout/price";
 import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { usePrice } from "../hooks/usePrice";
 import { fetchProductsPage } from "../services/products";
 import type { Product } from "../types";
@@ -17,6 +18,14 @@ type SearchStatus = "idle" | "loading" | "success" | "error";
 type ProductSearchProps = { trigger?: ReactNode };
 
 const suggestedSearches = ["گل", "باکس گل", "کیک", "شکلات", "هدیه"] as const;
+const searchProductNames = [
+  "گلدان گل رز سفید",
+  "گلدان گل لیسیانتوس",
+  "سبد گل حصیری هفت رنگ",
+  "گلدان گل لاکچری شکوفه",
+] as const;
+const SEARCH_PROMPT = "جستجوی محصول";
+const SEARCH_TEXT_HOLD_DURATION = 6000;
 
 function SearchResult({ onSelect, product }: Readonly<{ onSelect: () => void; product: Product }>) {
   const { current, previous, offPercent } = usePrice(product);
@@ -54,6 +63,85 @@ function SearchResult({ onSelect, product }: Readonly<{ onSelect: () => void; pr
         </div>
       </div>
     </Link>
+  );
+}
+
+/** A catalog-search trigger with the animated placeholder used across the site. */
+export function AnimatedProductSearch({ className }: Readonly<{ className?: string }>) {
+  const [typedText, setTypedText] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    let timeoutId: number | undefined;
+
+    const wait = (duration: number) => new Promise<void>((resolve) => {
+      timeoutId = window.setTimeout(resolve, duration);
+    });
+
+    const type = async (value: string) => {
+      for (let character = 1; character <= value.length; character += 1) {
+        if (cancelled) return false;
+        setTypedText(value.slice(0, character));
+        await wait(90);
+      }
+      return !cancelled;
+    };
+
+    const erase = async (value: string) => {
+      for (let character = value.length - 1; character >= 0; character -= 1) {
+        if (cancelled) return false;
+        setTypedText(value.slice(0, character));
+        await wait(45);
+      }
+      return !cancelled;
+    };
+
+    const animate = async () => {
+      while (!cancelled) {
+        if (!(await type(SEARCH_PROMPT))) break;
+        await wait(SEARCH_TEXT_HOLD_DURATION);
+        if (cancelled || !(await erase(SEARCH_PROMPT))) break;
+
+        const productNames = [...searchProductNames]
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 2);
+
+        for (const productName of productNames) {
+          if (!(await type(productName))) return;
+          await wait(SEARCH_TEXT_HOLD_DURATION);
+          if (cancelled || !(await erase(productName))) return;
+        }
+      }
+    };
+
+    void animate();
+    return () => {
+      cancelled = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
+  }, []);
+
+  return (
+    <ProductSearch
+      trigger={(
+        <button
+          aria-label="جستجوی محصولات"
+          className={cn(
+            "flex h-48 w-full cursor-text items-center gap-8 rounded-rounded border border-surface-dim bg-surface-soft pr-12 pl-16 font-sans text-label-14 font-regular leading-[var(--text-label-14--line-height)] text-surface-neutral-mid-emphasis focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary [direction:rtl]",
+            className,
+          )}
+          type="button"
+        >
+          <Image alt="" aria-hidden className="size-24 shrink-0" height={24} src="/icons/search.svg" width={24} />
+          <span aria-hidden className="flex min-w-0 flex-1 items-baseline overflow-hidden whitespace-pre">
+            <span className="truncate bg-[linear-gradient(to_left,var(--color-surface-neutral-low-emphasis),var(--color-disable))] bg-clip-text text-transparent [-webkit-text-fill-color:transparent]">
+              {typedText}
+            </span>
+            <span className="shrink-0 animate-[search-cursor_1s_steps(1,end)_infinite] text-surface-neutral-low-emphasis [-webkit-text-fill-color:var(--color-surface-neutral-low-emphasis)] motion-reduce:animate-none">|</span>
+          </span>
+        </button>
+      )}
+    />
   );
 }
 
