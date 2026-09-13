@@ -27,10 +27,13 @@
 .quickStartTrack {
   animation: quick-start-drift 8s ease-in-out infinite alternate;
   display: flex;
+  flex: none;
   gap: 0.5rem;
   justify-content: center;
+  left: 50%;
   min-width: 100%;
   padding-inline: 2rem;
+  position: relative;
   width: max-content;
   will-change: transform;
 }
@@ -48,6 +51,11 @@
   animation-duration: 7.25s;
 }
 
+.quickStartTrackFour {
+  animation-direction: alternate-reverse;
+  animation-duration: 8.75s;
+}
+
 .quickStartRail:hover .quickStartTrack,
 .quickStartRail:focus-within .quickStartTrack {
   animation-play-state: paused;
@@ -55,17 +63,60 @@
 
 @keyframes quick-start-drift {
   from {
-    transform: translate3d(0.75rem, 0, 0);
+    transform: translate3d(calc(-50% - 0.5rem), 0, 0);
   }
 
   to {
-    transform: translate3d(-0.75rem, 0, 0);
+    transform: translate3d(calc(-50% + 0.5rem), 0, 0);
+  }
+}
+
+.typingDots {
+  display: inline-flex;
+  height: var(--text-body-14--line-height);
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.typingDots > span {
+  width: 0.375rem;
+  height: 0.375rem;
+  animation: typing-dot 1.2s ease-in-out infinite;
+  border-radius: 999px;
+  background-color: var(--color-surface-neutral-mid-emphasis);
+}
+
+.typingDots > span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typingDots > span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-0.1875rem);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .quickStartTrack {
     animation: none;
+    transform: translateX(-50%);
+  }
+
+  .typingDots > span {
+    animation: none;
+    opacity: 0.65;
   }
 }
 

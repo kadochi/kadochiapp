@@ -31,7 +31,8 @@ const category: GiftFinderCategoryOption = {
 };
 
 const today = giftFinderDeliveryOptions[0];
-const flexibleDelivery = giftFinderDeliveryOptions[1];
+const tomorrow = giftFinderDeliveryOptions[1];
+const flexibleDelivery = giftFinderDeliveryOptions[2];
 const midRange = giftFinderPriceOptions[1];
 const tehran = giftFinderCityOptions[0];
 
@@ -94,6 +95,15 @@ describe("gift finder flow", () => {
     expect(withRecipient.currentStep).toBe(3);
     expect(completedState().currentStep).toBe(5);
     expect(completedState().answers.city).toBe(tehran);
+  });
+
+  it("uses the three supported delivery-time choices", () => {
+    expect(giftFinderDeliveryOptions).toEqual([
+      { filters: { deliveryTime: "today" }, id: "today", label: "امروز" },
+      { filters: { deliveryTime: "tomorrow" }, id: "tomorrow", label: "فردا" },
+      { filters: {}, id: "flexible", label: "فرقی ندارد" },
+    ]);
+    expect(tomorrow.filters.deliveryTime).toBe("tomorrow");
   });
 
   it("prefills a structured delivery option and skips that question", () => {
@@ -201,6 +211,15 @@ describe("gift finder flow", () => {
         category,
       }),
     ).toContain("category=flower");
+    expect(
+      giftFinderProductPath({
+        occasion,
+        delivery: tomorrow,
+        recipient,
+        price: midRange,
+        city: tehran,
+      }),
+    ).toContain("delivery=tomorrow");
   });
 
   it("builds occasion and category shortcuts only from available options", () => {

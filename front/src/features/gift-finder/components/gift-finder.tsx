@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowRight, MapPin, RotateCcw, X } from "lucide-react";
+import { MapPin, RotateCcw, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useReducer, useRef, useState, useTransition } from "react";
 
 import {
   BottomSheet,
+  BottomSheetClose,
   BottomSheetContent,
   BottomSheetDescription,
   BottomSheetHeader,
@@ -32,6 +33,8 @@ import {
 import { cn } from "@/lib/utils";
 
 import styles from "./gift-finder.module.css";
+
+const TYPING_DELAY_MS = 2000;
 
 type GiftFinderProps = {
   recipientOptions: GiftFinderTagOption[];
@@ -125,6 +128,22 @@ function QuestionBubble({ id, children }: { id: string; children: string }) {
   );
 }
 
+function TypingBubble() {
+  return (
+    <div
+      aria-label="در حال نوشتن پاسخ"
+      className="ms-auto inline-flex w-fit items-center gap-4 rounded-xl rounded-tl-xs border border-border-low-emphasis bg-surface-soft px-16 py-12"
+      role="status"
+    >
+      <span aria-hidden className={styles.typingDots}>
+        <span />
+        <span />
+        <span />
+      </span>
+    </div>
+  );
+}
+
 function SelectedAnswer({
   emoji,
   option,
@@ -178,21 +197,30 @@ function ChipButton({
   );
 }
 
-function QuickStartRows({
+function QuickStartRowGroup({
+  className,
   options,
   onSelect,
+  rowCount,
 }: {
+  className: string;
   options: readonly GiftFinderQuickStart[];
   onSelect: (option: GiftFinderQuickStart) => void;
+  rowCount: number;
 }) {
-  const rows = Array.from({ length: 3 }, () => [] as GiftFinderQuickStart[]);
+  const rows = Array.from({ length: rowCount }, () => [] as GiftFinderQuickStart[]);
   options.forEach((option, index) => rows[index % rows.length].push(option));
-  const rowStyles = [styles.quickStartTrackOne, styles.quickStartTrackTwo, styles.quickStartTrackThree];
+  const rowStyles = [
+    styles.quickStartTrackOne,
+    styles.quickStartTrackTwo,
+    styles.quickStartTrackThree,
+    styles.quickStartTrackFour,
+  ];
 
   return (
     <div
       aria-label="پیشنهادهای شروع سریع"
-      className="grid gap-8"
+      className={className}
       role="group"
     >
       {rows.map((row, rowIndex) => (
@@ -210,6 +238,31 @@ function QuickStartRows({
         </div>
       ))}
     </div>
+  );
+}
+
+function QuickStartRows({
+  options,
+  onSelect,
+}: {
+  options: readonly GiftFinderQuickStart[];
+  onSelect: (option: GiftFinderQuickStart) => void;
+}) {
+  return (
+    <>
+      <QuickStartRowGroup
+        className="grid gap-8 min-[864px]:hidden"
+        options={options}
+        rowCount={4}
+        onSelect={onSelect}
+      />
+      <QuickStartRowGroup
+        className="hidden gap-8 min-[864px]:grid"
+        options={options}
+        rowCount={2}
+        onSelect={onSelect}
+      />
+    </>
   );
 }
 
@@ -287,6 +340,8 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
   const [state, dispatch] = useReducer(giftFinderReducer, initialGiftFinderState);
   const [isOpen, setIsOpen] = useState(true);
   const [isNavigating, startNavigation] = useTransition();
+  const [revealedStep, setRevealedStep] = useState(0);
+  const [isTyping, setIsTyping] = useState(false);
   const conversationEndRef = useRef<HTMLDivElement>(null);
   const optionGroups: readonly (readonly GiftFinderOption[])[] = [
     occasionOptions,
@@ -306,7 +361,16 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
 
   useEffect(() => {
     conversationEndRef.current?.scrollIntoView({ block: "nearest" });
-  }, [state.currentStep, state.stage]);
+  }, [isTyping, revealedStep, state.stage]);
+
+  useEffect(() => {
+    if (!isTyping) return;
+    const timeoutId = window.setTimeout(() => {
+      setRevealedStep(state.currentStep);
+      setIsTyping(false);
+    }, TYPING_DELAY_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [isTyping, state.currentStep]);
 
   const closeFinder = () => {
     setIsOpen(false);
@@ -314,6 +378,8 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
   };
 
   const selectOption = (step: number, option: GiftFinderOption) => {
+    setRevealedStep(step);
+    setIsTyping(true);
     if (step === 0) {
       dispatch({ type: "select-occasion", option: option as GiftFinderTagOption });
     } else if (step === 1) {
@@ -323,6 +389,24 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
     } else {
       dispatch({ type: "select-price", option: option as GiftFinderFilterOption });
     }
+  };
+
+  const applyQuickStart = (suggestion: GiftFinderQuickStart) => {
+    setRevealedStep(-1);
+    setIsTyping(true);
+    dispatch({ type: "apply-quick-start", suggestion });
+  };
+
+  const editAnswer = (step: number) => {
+    setIsTyping(false);
+    setRevealedStep(step);
+    dispatch({ type: "edit", step });
+  };
+
+  const restartFinder = () => {
+    setIsTyping(false);
+    setRevealedStep(0);
+    dispatch({ type: "restart" });
   };
 
   const showRecommendations = () => {
@@ -335,20 +419,10 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
     <BottomSheet open={isOpen} onOpenChange={(open) => !open && closeFinder()}>
       <BottomSheetContent
         aria-describedby="gift-finder-description"
-        className="top-0 h-dvh max-h-none max-w-none rounded-none shadow-none min-[864px]:top-auto min-[864px]:h-[min(720px,calc(100svh-var(--spacing-64)))] min-[864px]:max-h-[calc(100svh-var(--spacing-64))] min-[864px]:max-w-[56rem] min-[864px]:rounded-t-xl min-[864px]:shadow-[0_-8px_24px_rgb(0_0_0_/_0.08)]"
-        footer={isComplete ? (
-          <div className="flex items-center gap-12 border-t border-border-low-emphasis bg-surface-background p-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))]">
+        footer={isComplete && !isTyping ? (
+          <div className="border-t border-border-low-emphasis bg-surface-background p-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))]">
             <Button
-              className="shrink-0"
-              disabled={isNavigating}
-              size="large"
-              variant="tertiary-outline"
-              onClick={() => dispatch({ type: "restart" })}
-            >
-              شروع دوباره
-            </Button>
-            <Button
-              className="flex-1"
+              className="w-full"
               loading={isNavigating}
               size="large"
               variant="secondary-filled"
@@ -358,22 +432,23 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
             </Button>
           </div>
         ) : undefined}
-        size="lg"
+        showHandle={false}
+        size="md"
       >
-        <BottomSheetHeader className="sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-start gap-8 border-b border-border-low-emphasis bg-surface-background py-12">
-          <div className="flex min-w-0 items-center gap-4 justify-self-start">
-            {state.stage === "questions" && state.currentStep > 0 ? (
-              <Button
-                aria-label="بازگشت به پرسش قبل"
-                className="size-40 px-0"
-                size="small"
-                title="بازگشت"
-                variant="link-ghost"
-                onClick={() => dispatch({ type: "previous" })}
-              >
-                <ArrowRight aria-hidden />
-              </Button>
-            ) : null}
+        <BottomSheetHeader className="sticky top-0 z-10 flex-row items-center justify-between border-b border-border-low-emphasis bg-surface-background py-16">
+          <div className="min-w-0">
+            <BottomSheetTitle className="m-0 text-title-18 font-bold text-text-primary">
+              جستجوی کادو
+            </BottomSheetTitle>
+            <BottomSheetDescription
+              className="mt-4 text-body-14 text-text-secondary"
+              id="gift-finder-description"
+            >
+              با چند مرحله ساده به پیشنهاد مناسب برسید
+            </BottomSheetDescription>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-4">
             {state.stage === "questions" ? (
               <Button
                 aria-label="شروع دوباره جستجوی کادو"
@@ -382,41 +457,29 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
                 size="small"
                 title="شروع دوباره"
                 variant="link-ghost"
-                onClick={() => dispatch({ type: "restart" })}
+                onClick={restartFinder}
               >
                 <RotateCcw aria-hidden />
               </Button>
             ) : null}
+            <BottomSheetClose asChild>
+              <Button
+                aria-label="بستن جستجوی کادو"
+                className="size-40 px-0 [--button-icon-size:24px]"
+                disabled={isNavigating}
+                size="small"
+                title="بستن"
+                variant="link-ghost"
+              >
+                <X aria-hidden />
+              </Button>
+            </BottomSheetClose>
           </div>
-
-          <div className="min-w-0 text-center">
-            <BottomSheetTitle className="m-0 text-title-18 font-bold text-secondary">
-              جستجوی کادو
-            </BottomSheetTitle>
-            <BottomSheetDescription
-              className="mt-2 text-label-12 text-surface-neutral-mid-emphasis"
-              id="gift-finder-description"
-            >
-              با چند مرحله ساده به پیشنهاد مناسب برسید
-            </BottomSheetDescription>
-          </div>
-
-          <Button
-            aria-label="بستن جستجوی کادو"
-            className="size-40 justify-self-end px-0"
-            disabled={isNavigating}
-            size="small"
-            title="بستن"
-            variant="link-ghost"
-            onClick={closeFinder}
-          >
-            <X aria-hidden />
-          </Button>
         </BottomSheetHeader>
 
-        <div className="mx-auto w-full max-w-[44rem] [direction:rtl]">
+        <div className="w-full [direction:rtl]">
           {state.stage === "quick-start" ? (
-            <section aria-labelledby="gift-finder-quick-start-title" className="px-16 pb-36 pt-40 min-[864px]:px-24 min-[864px]:pb-48 min-[864px]:pt-48">
+            <section aria-labelledby="gift-finder-quick-start-title" className="px-20 pb-32 pt-32">
               <p
                 className="mx-auto max-w-[30rem] text-center text-body-14 leading-[var(--text-body-14--line-height)] text-surface-neutral-mid-emphasis"
                 id="gift-finder-quick-start-title"
@@ -427,7 +490,7 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
               <div className="mt-28">
                 <QuickStartRows
                   options={preferenceStarts}
-                  onSelect={(suggestion) => dispatch({ type: "apply-quick-start", suggestion })}
+                  onSelect={applyQuickStart}
                 />
               </div>
 
@@ -442,13 +505,13 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
                   <ChipButton
                     emoji={guidedStart.emoji}
                     option={guidedStart}
-                    onSelect={() => dispatch({ type: "apply-quick-start", suggestion: guidedStart })}
+                    onSelect={() => applyQuickStart(guidedStart)}
                   />
                 </div>
               ) : null}
             </section>
           ) : (
-            <div className="px-16 py-20 min-[864px]:px-24">
+            <div className="px-20 py-16">
               <LineProgress value={state.currentStep} />
 
               <section aria-label="گفت‌وگوی جستجوی کادو" className="flex flex-col gap-12">
@@ -456,16 +519,16 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
                   <SelectedAnswer
                     emoji={state.quickStart.emoji}
                     option={state.quickStart}
-                    onEdit={() => dispatch({ type: "restart" })}
+                    onEdit={restartFinder}
                   />
                 ) : null}
 
                 {steps.map((step, index) => {
-                  if (index > state.currentStep) return null;
+                  if (index > revealedStep) return null;
                   const answer = answerAt(state.answers, index);
                   if (answer && state.quickStart?.prefilledStep === index) return null;
                   const questionId = `gift-finder-question-${step.id}`;
-                  const active = index === state.currentStep;
+                  const active = !isTyping && index === state.currentStep;
 
                   if (step.id === "city") {
                     return (
@@ -492,7 +555,7 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
                         <SelectedAnswer
                           emoji={optionEmoji(answer, step.id)}
                           option={answer}
-                          onEdit={() => dispatch({ type: "edit", step: index })}
+                          onEdit={() => editAnswer(index)}
                         />
                       ) : null}
                       {active && !answer ? (
@@ -510,7 +573,9 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
                   );
                 })}
 
-                {isComplete ? (
+                {isTyping ? <TypingBubble /> : null}
+
+                {isComplete && !isTyping ? (
                   <div aria-live="polite" className="ms-auto max-w-[88%] rounded-xl rounded-tl-xs bg-primary-container px-16 py-12 text-body-14 text-on-primary-container min-[864px]:max-w-[72%]">
                     عالی است؛ پیشنهادها بر اساس همین انتخاب‌ها آماده‌اند.
                   </div>

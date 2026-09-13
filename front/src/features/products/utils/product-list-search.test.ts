@@ -12,9 +12,10 @@ describe("product list URLs", () => {
     expect(parseProductListSearchParams({ category: "flower" }).category).toBe("flower");
   });
 
-  it("recognizes the live same-day catalog route", () => {
-    expect(parseProductListSearchParams({ delivery: "today" }).sameDayDelivery).toBe(true);
-    expect(parseProductListSearchParams({ delivery: "tomorrow" }).sameDayDelivery).toBe(false);
+  it("recognizes the supported preparation-time catalog routes", () => {
+    expect(parseProductListSearchParams({ delivery: "today" }).deliveryTime).toBe("today");
+    expect(parseProductListSearchParams({ delivery: "tomorrow" }).deliveryTime).toBe("tomorrow");
+    expect(parseProductListSearchParams({ delivery: "later" }).deliveryTime).toBeUndefined();
   });
 
   it("generates encoded slug-based category links", () => {

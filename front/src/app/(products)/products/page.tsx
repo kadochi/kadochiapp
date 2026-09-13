@@ -73,7 +73,7 @@ const getCatalogPage = cache(async (searchKey: string) => {
     maxPrice: search.maxPrice,
     order: search.order,
     orderby: search.orderby,
-    sameDayDelivery: search.sameDayDelivery || undefined,
+    deliveryTime: search.deliveryTime,
   };
   const result = hasUnknownFilter ? emptyResult(search.page, 12) : await listProducts(query);
 
@@ -102,7 +102,7 @@ function catalogPath({
   if (search.search) params.set("q", search.search);
   if (search.minPrice) params.set("min_price", search.minPrice);
   if (search.maxPrice) params.set("max_price", search.maxPrice);
-  if (search.sameDayDelivery) params.set("delivery", "today");
+  if (search.deliveryTime) params.set("delivery", search.deliveryTime);
   if (search.orderby !== "date") params.set("orderby", search.orderby);
   if (search.order !== "desc") params.set("order", search.order);
   if (page && page > 1) params.set("page", String(page));
@@ -132,8 +132,10 @@ export async function generateMetadata({ searchParams }: ProductsPageProps): Pro
     : search.tags.length === 1
       ? flowerTagPageTitles[search.tags[0]]
       : undefined;
-  const title = search.sameDayDelivery
+  const title = search.deliveryTime === "today"
     ? "کادوهای قابل ارسال امروز"
+    : search.deliveryTime === "tomorrow"
+      ? "کادوهای آماده تحویل فردا"
     : category
     ? `خرید کادو ${category.name}`
     : flowerTagTitle
@@ -143,8 +145,10 @@ export async function generateMetadata({ searchParams }: ProductsPageProps): Pro
       : search.search
         ? `جستجو برای «${search.search}» در کادوچی`
         : "لیست محصولات کادویی";
-  const description = search.sameDayDelivery
+  const description = search.deliveryTime === "today"
     ? "محصولاتی که با توجه به زمان آماده‌سازی و بازه‌های فعال تحویل، امروز قابل دریافت هستند."
+    : search.deliveryTime === "tomorrow"
+      ? "محصولاتی که بر اساس زمان آماده‌سازی درج‌شده، از فردا قابل تحویل هستند."
     : category
     ? category.description || `خرید انواع هدیه و کادو در دسته‌بندی ${category.name} با امکان فیلتر بر اساس قیمت و مناسبت.`
     : selectedTag
@@ -180,8 +184,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     : search.tags.length === 1
       ? flowerTagPageTitles[search.tags[0]]
       : undefined;
-  const title = search.sameDayDelivery
+  const title = search.deliveryTime === "today"
     ? "کادوهای قابل ارسال امروز"
+    : search.deliveryTime === "tomorrow"
+      ? "کادوهای آماده تحویل فردا"
     : category
     ? `لیست کادوهای ${category.name}`
     : flowerTagTitle
@@ -191,8 +197,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       : search.search
         ? `نتایج جستجو برای «${search.search}»`
         : "لیست محصولات کادویی";
-  const subtitle = search.sameDayDelivery
+  const subtitle = search.deliveryTime === "today"
     ? "محصولاتی که اکنون امکان تحویل در یکی از بازه‌های امروز را دارند"
+    : search.deliveryTime === "tomorrow"
+      ? "محصولاتی که زمان آماده‌سازی آن‌ها امکان تحویل از فردا را می‌دهد"
     : category
     ? "انواع هدایا و کادوهای مرتبط با این دسته‌بندی"
     : selectedTag
@@ -201,7 +209,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const breadcrumbs = [
     { label: "خانه", href: "/" },
     { label: "محصولات کادویی", href: "/products" },
-    ...(search.sameDayDelivery ? [{ label: "ارسال امروز" }] : category ? [{ label: category.name }] : selectedTag ? [{ label: selectedTag.name }] : []),
+    ...(search.deliveryTime ? [{ label: search.deliveryTime === "today" ? "ارسال امروز" : "تحویل فردا" }] : category ? [{ label: category.name }] : selectedTag ? [{ label: selectedTag.name }] : []),
   ];
   const catalogKey = `${productListSearchKey(search)}:${category?.id ?? ""}:${query.tags?.join(",") ?? ""}`;
   const paginationBasePath = catalogPath({ category, search, selectedTags });

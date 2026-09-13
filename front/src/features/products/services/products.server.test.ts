@@ -106,11 +106,22 @@ describe("product catalog availability", () => {
     vi.setSystemTime(new Date("2026-07-18T04:30:00.000Z")); // Saturday, 08:00 Tehran.
     transport.fetch.mockResolvedValue(productResponse([1, 2, 3], 3, 50, [3, 7, 24]));
 
-    const result = await listProducts({ page: 1, perPage: 12, sameDayDelivery: true });
+    const result = await listProducts({ deliveryTime: "today", page: 1, perPage: 12 });
 
     expect(result.items.map((product) => product.id)).toEqual([1, 2]);
     expect(result).toMatchObject({ page: 1, perPage: 12, total: 2, totalPages: 1 });
     expect(transport.fetch).toHaveBeenCalledTimes(1);
     expect(requestUrl(transport.fetch.mock.calls[0]).searchParams.getAll("stock_status[]")).toEqual(["instock", "onbackorder"]);
+  });
+
+  it("builds the tomorrow collection from the product-label preparation bucket", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-18T14:30:00.000Z")); // Saturday, 18:00 Tehran.
+    transport.fetch.mockResolvedValue(productResponse([1, 2, 3], 3, 50, [6, 24, 25]));
+
+    const result = await listProducts({ deliveryTime: "tomorrow", page: 1, perPage: 12 });
+
+    expect(result.items.map((product) => product.id)).toEqual([1, 2]);
+    expect(result).toMatchObject({ page: 1, perPage: 12, total: 2, totalPages: 1 });
   });
 });

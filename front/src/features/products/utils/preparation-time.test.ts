@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { deliveryBadge, formatPreparationTime, isSameDayDeliveryProduct } from "./preparation-time";
+import { deliveryBadge, formatPreparationTime, isDeliveryTimeProduct, isSameDayDeliveryProduct } from "./preparation-time";
 
 describe("formatPreparationTime", () => {
   it("uses hours below one day and rounded-up days from one day onward", () => {
@@ -24,5 +24,7 @@ describe("deliveryBadge", () => {
 
     expect(isSameDayDeliveryProduct(7, morning)).toBe(true);
     expect(isSameDayDeliveryProduct(6, lateAfternoon)).toBe(false);
+    expect(isDeliveryTimeProduct(6, "tomorrow", lateAfternoon)).toBe(true);
+    expect(isDeliveryTimeProduct(25, "tomorrow", morning)).toBe(false);
   });
 });

@@ -9,9 +9,9 @@ export type GiftFinderTagOption = GiftFinderOption & { tagSlugs: string[] };
 export type GiftFinderCategoryOption = GiftFinderOption & { slug: string };
 
 export type GiftFinderFilters = {
+  deliveryTime?: "today" | "tomorrow";
   maxPrice?: string;
   minPrice?: string;
-  sameDayDelivery?: boolean;
 };
 
 export type GiftFinderFilterOption = GiftFinderOption & {
@@ -62,14 +62,19 @@ export type GiftFinderAction =
 
 export const giftFinderDeliveryOptions: readonly GiftFinderFilterOption[] = [
   {
-    filters: { sameDayDelivery: true },
+    filters: { deliveryTime: "today" },
     id: "today",
     label: "امروز",
   },
   {
+    filters: { deliveryTime: "tomorrow" },
+    id: "tomorrow",
+    label: "فردا",
+  },
+  {
     filters: {},
     id: "flexible",
-    label: "زمان تحویل فرقی ندارد",
+    label: "فرقی ندارد",
   },
 ];
 
@@ -225,7 +230,7 @@ export function giftFinderProductPath(answers: GiftFinderAnswers) {
   const filters = { ...delivery.filters, ...price.filters };
   if (filters.minPrice) params.set("min_price", filters.minPrice);
   if (filters.maxPrice) params.set("max_price", filters.maxPrice);
-  if (filters.sameDayDelivery) params.set("delivery", "today");
+  if (filters.deliveryTime) params.set("delivery", filters.deliveryTime);
   return `/products?${params.toString()}`;
 }
 

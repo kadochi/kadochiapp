@@ -78,7 +78,7 @@ async function getLandingData() {
     fallback(listProducts({ order: "desc", orderby: "date", perPage: 12 }), { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 }),
     fallback(listProducts({ order: "desc", orderby: "popularity", perPage: 12 }), { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 }),
     fallback(listCategories({ hideEmpty: true, perPage: 12 }), [] as ProductCategory[]),
-    fallback(listProducts({ order: "desc", orderby: "date", perPage: 12, sameDayDelivery: true }), { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 }),
+    fallback(listProducts({ deliveryTime: "today", order: "desc", orderby: "date", perPage: 12 }), { items: [] as Product[], page: 1, perPage: 12, total: 0, totalPages: 0 }),
     fallback(listMagazineArticles({ perPage: 4 }), { items: [] as MagazineArticle[], page: 1, perPage: 4, total: 0, totalPages: 0 }),
   ]);
   const dailySpecial = content.dailySpecial

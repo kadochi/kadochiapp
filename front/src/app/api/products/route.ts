@@ -19,13 +19,13 @@ export async function GET(request: Request) {
       maxPrice: search.get("maxPrice") ?? undefined,
       order: search.get("order") ?? undefined,
       orderby: search.get("orderby") ?? undefined,
-      sameDayDelivery: search.get("sameDayDelivery") ?? undefined,
+      deliveryTime: search.get("deliveryTime") ?? undefined,
     });
     const result = await listProducts(query);
     return jsonOk(result, id, {
-      // A same-day result expires when a checkout window closes, so do not let
-      // a CDN serve a previously eligible product after that point.
-      headers: { "Cache-Control": query.sameDayDelivery ? "no-store" : "public, s-maxage=60, stale-while-revalidate=300" },
+      // Delivery eligibility changes with preparation windows, so filtered
+      // results must not be served after their current bucket changes.
+      headers: { "Cache-Control": query.deliveryTime ? "no-store" : "public, s-maxage=60, stale-while-revalidate=300" },
     });
   } catch (error) {
     return jsonError(error, id);
