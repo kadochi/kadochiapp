@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useId } from "react";
 
 import { Button } from "@/components/ui/button";
+import { rememberGiftFinderReturnScroll } from "@/features/gift-finder/gift-finder-route-state";
 import { cn } from "@/lib/utils";
 
 import styles from "./gift-finder-trigger.module.css";
@@ -78,7 +79,14 @@ export function GiftFinderTrigger({
       size="medium"
       variant="tertiary-outline"
     >
-      <Link aria-label="جستجوی کادوی مناسب" href="/gift-finder" prefetch={false}>
+      <Link
+        aria-label="جستجوی کادوی مناسب"
+        href="/gift-finder"
+        onKeyDown={(event) => {
+          if (event.key === "Enter") rememberGiftFinderReturnScroll();
+        }}
+        onPointerDown={rememberGiftFinderReturnScroll}
+      >
         <FinderIcon />
         <span className={compact ? "sr-only" : undefined}>کادو چی بخرم؟</span>
       </Link>

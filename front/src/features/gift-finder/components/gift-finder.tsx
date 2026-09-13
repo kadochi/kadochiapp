@@ -21,6 +21,7 @@ import {
   giftFinderPriceOptions,
   giftFinderProductPath,
   giftFinderQuickStarts,
+  giftFinderRecipientExperience,
   giftFinderReducer,
   initialGiftFinderState,
   type GiftFinderAnswers,
@@ -28,8 +29,13 @@ import {
   type GiftFinderFilterOption,
   type GiftFinderOption,
   type GiftFinderQuickStart,
+  type GiftFinderRecipientOption,
   type GiftFinderTagOption,
 } from "@/features/gift-finder/gift-finder-flow";
+import {
+  clearGiftFinderReturnScroll,
+  readGiftFinderReturnScroll,
+} from "@/features/gift-finder/gift-finder-route-state";
 import { cn } from "@/lib/utils";
 
 import styles from "./gift-finder.module.css";
@@ -37,10 +43,13 @@ import styles from "./gift-finder.module.css";
 const TYPING_DELAY_MS = 2000;
 
 type GiftFinderProps = {
-  recipientOptions: GiftFinderTagOption[];
+  recipientOptions: GiftFinderRecipientOption[];
   occasionOptions: GiftFinderTagOption[];
   categoryOptions: GiftFinderCategoryOption[];
+  dismissMode: GiftFinderDismissMode;
 };
+
+export type GiftFinderDismissMode = "back" | "home";
 
 const steps = [
   {
@@ -320,6 +329,7 @@ function optionEmoji(option: GiftFinderOption, step: (typeof steps)[number]["id"
   }
 
   if (step === "recipient") {
+    if (/any-child|any-teen|کودک|نوجوان/.test(searchable)) return "🧒";
     if (/girl|دختر/.test(searchable)) return "👧";
     if (/woman|زن/.test(searchable)) return "👩";
     if (/boy|پسر/.test(searchable)) return "👦";
@@ -335,7 +345,12 @@ function optionEmoji(option: GiftFinderOption, step: (typeof steps)[number]["id"
 }
 
 /** A route-backed, conversational finder that preserves the catalog query contract. */
-export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions }: Readonly<GiftFinderProps>) {
+export function GiftFinder({
+  recipientOptions,
+  occasionOptions,
+  categoryOptions,
+  dismissMode,
+}: Readonly<GiftFinderProps>) {
   const router = useRouter();
   const [state, dispatch] = useReducer(giftFinderReducer, initialGiftFinderState);
   const [isOpen, setIsOpen] = useState(true);
@@ -343,10 +358,15 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
   const [revealedStep, setRevealedStep] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
   const conversationEndRef = useRef<HTMLDivElement>(null);
+  const shouldRestoreScrollRef = useRef(dismissMode === "back");
+  const recipientExperience = useMemo(
+    () => giftFinderRecipientExperience(recipientOptions, state.answers.occasion),
+    [recipientOptions, state.answers.occasion],
+  );
   const optionGroups: readonly (readonly GiftFinderOption[])[] = [
     occasionOptions,
     giftFinderDeliveryOptions,
-    recipientOptions,
+    recipientExperience.options,
     giftFinderPriceOptions,
     giftFinderCityOptions,
   ];
@@ -372,9 +392,37 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
     return () => window.clearTimeout(timeoutId);
   }, [isTyping, state.currentStep]);
 
+  useEffect(() => {
+    if (dismissMode !== "back") return;
+
+    const storedPosition = readGiftFinderReturnScroll();
+    if (storedPosition === undefined) return;
+
+    const restorePosition = () => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => window.scrollTo(0, storedPosition));
+      });
+    };
+
+    restorePosition();
+
+    return () => {
+      clearGiftFinderReturnScroll();
+      if (!shouldRestoreScrollRef.current) return;
+
+      // Run after the intercepted route has been removed and Radix has released
+      // its body scroll lock. This keeps the underlying route exactly in place.
+      window.setTimeout(restorePosition, 0);
+    };
+  }, [dismissMode]);
+
   const closeFinder = () => {
     setIsOpen(false);
-    router.push("/");
+    if (dismissMode === "back") {
+      router.back();
+      return;
+    }
+    router.replace("/");
   };
 
   const selectOption = (step: number, option: GiftFinderOption) => {
@@ -412,6 +460,8 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
   const showRecommendations = () => {
     const path = giftFinderProductPath(state.answers);
     if (!path) return;
+    shouldRestoreScrollRef.current = false;
+    clearGiftFinderReturnScroll();
     startNavigation(() => router.push(path));
   };
 
@@ -419,6 +469,7 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
     <BottomSheet open={isOpen} onOpenChange={(open) => !open && closeFinder()}>
       <BottomSheetContent
         aria-describedby="gift-finder-description"
+        className="top-0 h-dvh max-h-none rounded-none min-[864px]:top-auto min-[864px]:h-[calc(100svh-4rem)] min-[864px]:max-h-[calc(100svh-4rem)] min-[864px]:rounded-t-xl"
         footer={isComplete && !isTyping ? (
           <div className="border-t border-border-low-emphasis bg-surface-background p-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))]">
             <Button
@@ -432,7 +483,8 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
             </Button>
           </div>
         ) : undefined}
-        showHandle={false}
+        handleClassName="hidden min-[864px]:flex"
+        showHandle
         size="md"
       >
         <BottomSheetHeader className="sticky top-0 z-10 flex-row items-center justify-between border-b border-border-low-emphasis bg-surface-background py-16">
@@ -452,14 +504,14 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
             {state.stage === "questions" ? (
               <Button
                 aria-label="شروع دوباره جستجوی کادو"
-                className="size-40 px-0"
+                className="size-40 px-0 [--button-icon-size:24px]"
                 disabled={isNavigating}
                 size="small"
                 title="شروع دوباره"
                 variant="link-ghost"
                 onClick={restartFinder}
               >
-                <RotateCcw aria-hidden />
+                <RotateCcw aria-hidden strokeWidth={2} />
               </Button>
             ) : null}
             <BottomSheetClose asChild>
@@ -528,6 +580,7 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
                   const answer = answerAt(state.answers, index);
                   if (answer && state.quickStart?.prefilledStep === index) return null;
                   const questionId = `gift-finder-question-${step.id}`;
+                  const question = step.id === "recipient" ? recipientExperience.question : step.question;
                   const active = !isTyping && index === state.currentStep;
 
                   if (step.id === "city") {
@@ -550,7 +603,7 @@ export function GiftFinder({ recipientOptions, occasionOptions, categoryOptions 
 
                   return (
                     <Fragment key={step.id}>
-                      <QuestionBubble id={questionId}>{step.question}</QuestionBubble>
+                      <QuestionBubble id={questionId}>{question}</QuestionBubble>
                       {answer ? (
                         <SelectedAnswer
                           emoji={optionEmoji(answer, step.id)}

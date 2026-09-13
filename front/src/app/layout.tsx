@@ -70,7 +70,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({
+  children,
+  modal,
+}: Readonly<{
+  children: React.ReactNode;
+  modal: React.ReactNode;
+}>) {
   // Only the boolean is sent to the browser; the opaque WordPress JWT remains
   // in its HttpOnly cookie and is validated by the BFF after hydration.
   const hasStoredSession = Boolean(await getStoredAuthToken());
@@ -111,6 +117,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               zIndex={2000}
             />
             <Toaster>{children}</Toaster>
+            {modal}
           </AuthProvider>
         </Direction.Provider>
       </body>

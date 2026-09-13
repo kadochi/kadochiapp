@@ -6,9 +6,11 @@ import {
   giftFinderPriceOptions,
   giftFinderProductPath,
   giftFinderQuickStarts,
+  giftFinderRecipientExperience,
   giftFinderReducer,
   initialGiftFinderState,
   type GiftFinderCategoryOption,
+  type GiftFinderRecipientOption,
   type GiftFinderTagOption,
 } from "./gift-finder-flow";
 
@@ -35,6 +37,21 @@ const tomorrow = giftFinderDeliveryOptions[1];
 const flexibleDelivery = giftFinderDeliveryOptions[2];
 const midRange = giftFinderPriceOptions[1];
 const tehran = giftFinderCityOptions[0];
+
+const recipientAudienceOptions: GiftFinderRecipientOption[] = [
+  { ageBand: "child", gender: "female", id: "baby-girl", label: "دختر بچه", tagSlugs: ["baby-girl"] },
+  { ageBand: "child", gender: "male", id: "baby-boy", label: "پسر بچه", tagSlugs: ["baby-boy"] },
+  { ageBand: "teen", gender: "female", id: "teenage-girl", label: "دختر نوجوان", tagSlugs: ["teenage-girl"] },
+  { ageBand: "teen", gender: "male", id: "teenage-boy", label: "پسر نوجوان", tagSlugs: ["teenage-boy"] },
+  { ageBand: "young-adult", gender: "female", id: "young-woman", label: "زن جوان", tagSlugs: ["young-woman"] },
+  { ageBand: "young-adult", gender: "male", id: "young-man", label: "مرد جوان", tagSlugs: ["young-man"] },
+  { ageBand: "adult", gender: "female", id: "adult-woman", label: "زن بزرگسال", tagSlugs: ["adult-woman"] },
+  { ageBand: "adult", gender: "male", id: "adult-man", label: "مرد بزرگسال", tagSlugs: ["adult-man"] },
+];
+
+function occasionFor(id: string, tagSlugs = [id]): GiftFinderTagOption {
+  return { id, label: id, tagSlugs };
+}
 
 function guidedState() {
   return giftFinderReducer(initialGiftFinderState, {
@@ -239,5 +256,69 @@ describe("gift finder flow", () => {
     ]);
     expect(suggestions.find((item) => item.id === "birthday")?.answers).toEqual({ occasion });
     expect(suggestions.find((item) => item.id === "flowers")?.answers).toEqual({ category });
+  });
+
+  it("limits romantic and formal occasions to adult recipient age bands", () => {
+    const romantic = giftFinderRecipientExperience(recipientAudienceOptions, occasionFor("valentine"));
+    const formal = giftFinderRecipientExperience(recipientAudienceOptions, occasionFor("professional-gift"));
+
+    expect(romantic.options.map((option) => option.ageBand)).toEqual([
+      "young-adult", "young-adult", "adult", "adult",
+    ]);
+    expect(formal.options.map((option) => option.ageBand)).toEqual([
+      "young-adult", "young-adult", "adult", "adult",
+    ]);
+  });
+
+  it("infers a parent recipient gender while retaining only the matching adult ages", () => {
+    const mothersDay = giftFinderRecipientExperience(recipientAudienceOptions, occasionFor("motherday"));
+    const fathersDay = giftFinderRecipientExperience(recipientAudienceOptions, occasionFor("fatherday"));
+
+    expect(mothersDay.inferredGender).toBe("female");
+    expect(mothersDay.question).toBe("سن گیرنده را انتخاب کنید.");
+    expect(mothersDay.options.map((option) => option.id)).toEqual(["young-woman", "adult-woman"]);
+    expect(fathersDay.inferredGender).toBe("male");
+    expect(fathersDay.options.map((option) => option.id)).toEqual(["young-man", "adult-man"]);
+  });
+
+  it("uses child-only gender choices for a child birthday", () => {
+    const experience = giftFinderRecipientExperience(
+      recipientAudienceOptions,
+      occasionFor("child-birthday"),
+    );
+
+    expect(experience.options.map((option) => option.id)).toEqual([
+      "baby-girl",
+      "baby-boy",
+      "teenage-girl",
+      "teenage-boy",
+      "any-child",
+      "any-teen",
+    ]);
+    expect(experience.options.filter((option) => option.gender === "any").map((option) => option.label)).toEqual([
+      "کودک، فرقی ندارد",
+      "نوجوان، فرقی ندارد",
+    ]);
+  });
+
+  it("keeps graduation from offering very young child options", () => {
+    const experience = giftFinderRecipientExperience(recipientAudienceOptions, occasionFor("graduation"));
+
+    expect(experience.options.map((option) => option.ageBand)).toEqual([
+      "teen", "teen", "young-adult", "young-adult", "adult", "adult",
+    ]);
+  });
+
+  it("adds the existing romantic tag to proposal recommendations", () => {
+    const proposal = occasionFor("proposal", ["proposal"]);
+    const proposalPath = giftFinderProductPath({
+      occasion: proposal,
+      delivery: today,
+      recipient,
+      price: midRange,
+      city: tehran,
+    });
+
+    expect(proposalPath).toContain("tag=young-woman%2Cproposal%2Cvalentine");
   });
 });

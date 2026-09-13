@@ -20,6 +20,20 @@ export type GiftFinderFilterOption = GiftFinderOption & {
 
 export type GiftFinderCityOption = GiftFinderOption;
 
+/** The audience facets attached to the existing recipient tags. */
+export type GiftFinderRecipientGender = "female" | "male" | "any";
+export type GiftFinderRecipientAgeBand = "child" | "teen" | "young-adult" | "adult";
+export type GiftFinderRecipientOption = GiftFinderTagOption & {
+  gender: GiftFinderRecipientGender;
+  ageBand: GiftFinderRecipientAgeBand;
+};
+
+export type GiftFinderRecipientExperience = {
+  inferredGender?: Exclude<GiftFinderRecipientGender, "any">;
+  options: GiftFinderRecipientOption[];
+  question: string;
+};
+
 export type GiftFinderAnswers = {
   occasion?: GiftFinderTagOption;
   delivery?: GiftFinderFilterOption;
@@ -113,6 +127,134 @@ export const giftFinderCityOptions: readonly GiftFinderCityOption[] = [
     label: "تهران",
   },
 ];
+
+type OccasionRecipientRule = {
+  ageBands: readonly GiftFinderRecipientAgeBand[];
+  gender?: Exclude<GiftFinderRecipientGender, "any">;
+  id: string;
+  /** Matches stable option IDs, taxonomy slugs, and Persian labels from structured occasion data. */
+  matchTerms: readonly string[];
+  question?: string;
+  recommendationTagSlugs?: readonly string[];
+  showChildGenderPreference?: boolean;
+};
+
+const recipientRules: readonly OccasionRecipientRule[] = [
+  {
+    ageBands: ["child", "teen"],
+    id: "child-birthday",
+    matchTerms: ["child-birthday", "birthday-child", "تولد کودک", "تولد بچه"],
+    question: "کادوی کودک برای چه کسی است؟",
+    showChildGenderPreference: true,
+  },
+  {
+    ageBands: ["young-adult", "adult"],
+    id: "parents",
+    matchTerms: ["parents", "روز مادر یا روز پدر"],
+  },
+  {
+    ageBands: ["young-adult", "adult"],
+    gender: "female",
+    id: "mothers-day",
+    matchTerms: ["motherday", "mother-day", "روز مادر"],
+    question: "سن گیرنده را انتخاب کنید.",
+  },
+  {
+    ageBands: ["young-adult", "adult"],
+    gender: "male",
+    id: "fathers-day",
+    matchTerms: ["fatherday", "father-day", "روز پدر"],
+    question: "سن گیرنده را انتخاب کنید.",
+  },
+  {
+    ageBands: ["young-adult", "adult"],
+    id: "proposal-engagement",
+    matchTerms: ["proposal", "engagement", "خواستگاری", "نامزدی"],
+    recommendationTagSlugs: ["valentine"],
+  },
+  {
+    ageBands: ["young-adult", "adult"],
+    id: "romantic-adult",
+    matchTerms: ["valentine", "romantic", "anniversary", "ولنتاین", "عشق", "سالگرد"],
+  },
+  {
+    ageBands: ["young-adult", "adult"],
+    id: "professional-adult",
+    matchTerms: ["professional", "formal", "کاری", "رسمی"],
+  },
+  {
+    ageBands: ["teen", "young-adult", "adult"],
+    id: "graduation",
+    matchTerms: ["graduation", "فارغ التحصیلی", "شروع مسیر جدید"],
+  },
+];
+
+const defaultRecipientRule: OccasionRecipientRule = {
+  ageBands: ["child", "teen", "young-adult", "adult"],
+  id: "default",
+  matchTerms: [],
+};
+
+const childAgeLabels: Record<Extract<GiftFinderRecipientAgeBand, "child" | "teen">, string> = {
+  child: "کودک، فرقی ندارد",
+  teen: "نوجوان، فرقی ندارد",
+};
+
+function normalizedRecipientRuleValue(value: string) {
+  return value.trim().toLocaleLowerCase("en-US");
+}
+
+function recipientRuleForOccasion(occasion?: GiftFinderTagOption) {
+  if (!occasion) return defaultRecipientRule;
+  const searchable = [occasion.id, occasion.label, ...occasion.tagSlugs]
+    .map(normalizedRecipientRuleValue)
+    .join(" ");
+  return recipientRules.find((rule) => (
+    rule.matchTerms.some((term) => searchable.includes(normalizedRecipientRuleValue(term)))
+  )) ?? defaultRecipientRule;
+}
+
+/**
+ * Produces the recipient/age options for an occasion from one policy table.
+ * This keeps selection UI and recommendation constraints aligned as new
+ * structured occasions become available.
+ */
+export function giftFinderRecipientExperience(
+  recipientOptions: readonly GiftFinderRecipientOption[],
+  occasion?: GiftFinderTagOption,
+): GiftFinderRecipientExperience {
+  const rule = recipientRuleForOccasion(occasion);
+  const options = recipientOptions.filter((option) => (
+    rule.ageBands.includes(option.ageBand) && (!rule.gender || option.gender === rule.gender)
+  ));
+
+  const childNoPreferenceOptions = rule.showChildGenderPreference
+    ? rule.ageBands.flatMap((ageBand) => {
+      if (ageBand !== "child" && ageBand !== "teen") return [];
+      return [{
+        ageBand,
+        description: ageBand === "child" ? "تا ۵ سال" : "۶ تا ۱۸ سال",
+        // There is no existing taxonomy term for a gender-neutral child.
+        // Omitting a recipient tag deliberately keeps this choice broad.
+        gender: "any" as const,
+        id: `any-${ageBand}`,
+        label: childAgeLabels[ageBand],
+        tagSlugs: [],
+      } satisfies GiftFinderRecipientOption];
+    })
+    : [];
+
+  return {
+    inferredGender: rule.gender,
+    options: [...options, ...childNoPreferenceOptions],
+    question: rule.question ?? "کادو برای چه کسی است؟",
+  };
+}
+
+/** Optional romance bias for occasions such as proposal and engagement. */
+export function giftFinderRecommendationTagSlugs(occasion?: GiftFinderTagOption) {
+  return recipientRuleForOccasion(occasion).recommendationTagSlugs ?? [];
+}
 
 export const initialGiftFinderState: GiftFinderState = {
   currentStep: 0,
@@ -222,7 +364,11 @@ export function giftFinderProductPath(answers: GiftFinderAnswers) {
   const { occasion, delivery, recipient, price, city, category } = answers;
   if (!occasion || !delivery || !recipient || !price || !city) return null;
 
-  const tags = [...new Set([...recipient.tagSlugs, ...occasion.tagSlugs])];
+  const tags = [...new Set([
+    ...recipient.tagSlugs,
+    ...occasion.tagSlugs,
+    ...giftFinderRecommendationTagSlugs(occasion),
+  ])];
   const params = new URLSearchParams();
   if (category) params.set("category", category.slug);
   if (tags.length) params.set("tag", tags.join(","));

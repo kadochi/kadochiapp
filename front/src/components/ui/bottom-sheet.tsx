@@ -38,6 +38,8 @@ type BottomSheetContentProps = ComponentPropsWithoutRef<typeof Dialog.Content> &
   VariantProps<typeof bottomSheetContentVariants> & {
     /** Shows the visual drag affordance above the scrollable content. */
     showHandle?: boolean;
+    /** Allows a sheet to use the shared drag affordance at a responsive breakpoint. */
+    handleClassName?: string;
     /** Keeps sheet actions visible while the body scrolls. */
     footer?: ReactNode;
   };
@@ -61,6 +63,7 @@ function BottomSheetContent({
   className,
   footer,
   showHandle = true,
+  handleClassName,
   size,
   style,
   ...props
@@ -125,7 +128,10 @@ function BottomSheetContent({
           {showHandle ? (
             <div
               aria-hidden="true"
-              className="flex touch-none cursor-grab justify-center pb-16 pt-8 active:cursor-grabbing"
+              className={cn(
+                "flex touch-none cursor-grab justify-center pb-16 pt-8 active:cursor-grabbing",
+                handleClassName,
+              )}
               onPointerCancel={handlePointerEnd}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
