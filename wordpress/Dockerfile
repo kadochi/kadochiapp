@@ -1,4 +1,4 @@
-FROM wordpress:7-php8.2-apache
+FROM wordpress:7-php8.4-apache
 
 ARG ZARINPAL_GATEWAY_VERSION=5.1.1
 ARG ZARINPAL_GATEWAY_SHA256=82eede70a9c3e1fd1f49c401560ee29b0fa3b20e39c8a4b5faf6b59ca27821ad
