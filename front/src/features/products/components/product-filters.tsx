@@ -31,6 +31,7 @@ import { Divider } from "@/components/ui/divider";
 import { Input } from "@/components/ui/input";
 import { SegmentSelector } from "@/components/ui/segment-selector";
 import { Toggle } from "@/components/ui/toggle";
+import { GiftFinderTrigger } from "@/features/gift-finder/components/gift-finder-trigger";
 import { cn } from "@/lib/utils";
 import { useProductFilterNavigation } from "../hooks/useProductFilterNavigation";
 import { AnimatedProductSearch } from "./product-search";
@@ -261,8 +262,9 @@ export function ProductFilters({ categories }: Readonly<ProductFiltersProps>) {
           inert={!isSearchVisible}
         >
           <div className="min-h-0 overflow-hidden min-[864px]:hidden">
-            <div className="px-16 pb-4 pt-16">
-              <AnimatedProductSearch />
+            <div className="flex items-center gap-8 px-16 pb-4 pt-16 [direction:rtl]">
+              <AnimatedProductSearch className="min-w-0 flex-1" />
+              <GiftFinderTrigger compact />
             </div>
           </div>
         </div>

@@ -11,6 +11,7 @@ import { cva } from "class-variance-authority";
 import { useOptionalAuth } from "@/features/auth/auth-provider";
 import { cartChangedEvent, getCart } from "@/features/cart/services/cart";
 import { useUnreadNotifications } from "@/features/profile/hooks/use-unread-notifications";
+import { GiftFinderTrigger } from "@/features/gift-finder/components/gift-finder-trigger";
 import { AnimatedProductSearch } from "@/features/products/components/product-search";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
@@ -300,7 +301,10 @@ function DefaultHeader({
             <span className="mt-2 text-label-10 font-regular leading-[var(--text-label-10--line-height)]">برای دیدن لبخند تو ...</span>
           </Link>
 
-          <AnimatedProductSearch className="absolute top-16 left-1/2 hidden w-[360px] -translate-x-1/2 min-[864px]:flex" />
+          <div className="absolute top-16 left-1/2 hidden w-[520px] -translate-x-1/2 items-center gap-8 min-[864px]:flex">
+            <AnimatedProductSearch className="min-w-0 flex-1" />
+            <GiftFinderTrigger className="shrink-0" />
+          </div>
 
           {shouldShowBack ? (
             <button

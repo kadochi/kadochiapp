@@ -1,0 +1,50 @@
+.trigger {
+  position: relative;
+  background-color: var(--color-surface-background);
+  border-color: transparent;
+  color: var(--color-text-primary);
+}
+
+.trigger::before {
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  border-radius: inherit;
+  animation: gift-finder-gradient-flow 3.6s ease-in-out infinite;
+  background: linear-gradient(
+    60deg,
+    var(--color-error),
+    var(--color-secondary),
+    var(--color-warning),
+    var(--color-error)
+  );
+  background-size: 300% 300%;
+  content: "";
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(var(--color-on-primary) 0 0) content-box,
+    linear-gradient(var(--color-on-primary) 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+@keyframes gift-finder-gradient-flow {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger::before {
+    animation: none;
+  }
+
+  .gradientMotion {
+    display: none;
+  }
+}

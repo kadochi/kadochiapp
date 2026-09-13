@@ -1,0 +1,76 @@
+.quickStartRail {
+  direction: ltr;
+  margin-inline: -1rem;
+  overflow-x: auto;
+  padding-block: 0.25rem;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black 2rem,
+    black calc(100% - 2rem),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black 2rem,
+    black calc(100% - 2rem),
+    transparent 100%
+  );
+}
+
+.quickStartRail::-webkit-scrollbar {
+  display: none;
+}
+
+.quickStartTrack {
+  animation: quick-start-drift 8s ease-in-out infinite alternate;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  min-width: 100%;
+  padding-inline: 2rem;
+  width: max-content;
+  will-change: transform;
+}
+
+.quickStartTrackOne {
+  animation-duration: 8s;
+}
+
+.quickStartTrackTwo {
+  animation-direction: alternate-reverse;
+  animation-duration: 9.5s;
+}
+
+.quickStartTrackThree {
+  animation-duration: 7.25s;
+}
+
+.quickStartRail:hover .quickStartTrack,
+.quickStartRail:focus-within .quickStartTrack {
+  animation-play-state: paused;
+}
+
+@keyframes quick-start-drift {
+  from {
+    transform: translate3d(0.75rem, 0, 0);
+  }
+
+  to {
+    transform: translate3d(-0.75rem, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quickStartTrack {
+    animation: none;
+  }
+}
+
+@media (min-width: 864px) {
+  .quickStartRail {
+    margin-inline: -1.5rem;
+  }
+}
