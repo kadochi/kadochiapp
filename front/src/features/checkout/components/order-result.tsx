@@ -6,10 +6,13 @@ import { formatIrrAsToman } from "@/features/cart/utils/money";
 import { OrderCelebration } from "./order-celebration";
 import { OrderFailure } from "./order-failure";
 import type { OrderSummary } from "../types";
+import type { PaymentState } from "@/features/payment/payment-state";
 
-export function OrderResult({ order, paid }: { order: OrderSummary; paid: boolean }) {
-  if (paid) return <OrderSuccess order={order} />;
-  return <OrderFailure order={order} />;
+type DisplayablePaymentState = Extract<PaymentState, "paid" | "failed" | "cancelled">;
+
+export function OrderResult({ order, state }: { order: OrderSummary; state: DisplayablePaymentState }) {
+  if (state === "paid") return <OrderSuccess order={order} />;
+  return <OrderFailure order={order} state={state} />;
 }
 
 function OrderSuccess({ order }: { order: OrderSummary }) {

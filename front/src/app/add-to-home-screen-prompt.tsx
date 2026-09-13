@@ -39,7 +39,7 @@ function track(eventName: string, parameters: Record<string, string>) {
 }
 
 function isPaymentFlow(pathname: string) {
-  return /^\/(checkout|payment)(?:\/|$)/.test(pathname) || pathname.includes("zp-callback");
+  return /^\/(checkout|payment)(?:\/|$)/.test(pathname);
 }
 
 function getPromptContext(): PromptContext {

@@ -33,7 +33,7 @@ export const apiErrorSchema = z.object({
   fieldErrors: z.record(z.string(), z.array(z.string())).optional(),
   /** Safe gateway context for customer support. Never includes an authority, card, or credential. */
   payment: z.object({
-    provider: z.literal("zarinpal"),
+    provider: z.string().regex(/^[a-z][a-z0-9-]{0,49}$/),
     code: z.number().int().optional(),
     category: z.enum(["configuration", "temporarily_unavailable", "rejected", "cancelled", "unknown"]),
   }).strict().optional(),

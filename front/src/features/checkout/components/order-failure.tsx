@@ -7,10 +7,13 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatIrrAsToman } from "@/features/cart/utils/money";
 import { retryProfileOrderPayment } from "@/features/profile/services/profile";
+import type { PaymentState } from "@/features/payment/payment-state";
 import type { OrderSummary } from "../types";
 import { logPaymentFailure, paymentErrorMessage } from "../utils/payment-error";
 
-export function OrderFailure({ order }: { order: OrderSummary }) {
+type RetryableTerminalState = Extract<PaymentState, "failed" | "cancelled">;
+
+export function OrderFailure({ order, state }: { order: OrderSummary; state: RetryableTerminalState }) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
   const attemptId = useRef<string | null>(null);
@@ -45,10 +48,12 @@ export function OrderFailure({ order }: { order: OrderSummary }) {
             width={200}
           />
           <h1 id="payment-failure-title" className="mb-8 mt-24 text-title-18 font-bold text-error">
-            پرداخت ناموفق
+            {state === "cancelled" ? "پرداخت لغو شد" : "پرداخت ناموفق"}
           </h1>
           <p className="m-0 text-body-14 leading-[1.75] text-text-secondary">
-            متاسفانه پرداخت سفارش با مشکل مواجه شد. لطفاً با انتخاب تلاش مجدد، پرداخت و ثبت سفارش خود را تکمیل نمایید.
+            {state === "cancelled"
+              ? "پرداخت سفارش لغو شده است. برای تکمیل ثبت سفارش می‌توانید دوباره تلاش کنید."
+              : "متاسفانه پرداخت سفارش با مشکل مواجه شد. لطفاً با انتخاب تلاش مجدد، پرداخت و ثبت سفارش خود را تکمیل نمایید."}
           </p>
         </section>
 

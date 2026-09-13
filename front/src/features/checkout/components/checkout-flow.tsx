@@ -83,7 +83,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   const [pendingRate, setPendingRate] = useState<string | null>(null);
   const [pendingCoupon, setPendingCoupon] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [reconciliationUnknown, setReconciliationUnknown] = useState(false);
+  const [paymentStateUnknown, setPaymentStateUnknown] = useState(false);
   const submissionLock = useRef(false);
   const operationId = useRef<string | null>(null);
   const selectedAddress = savedAddresses.find((address) => address.id === selectedAddressId);
@@ -256,7 +256,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   };
 
   const pay = async () => {
-    if (submissionLock.current || reconciliationUnknown) return;
+    if (submissionLock.current || paymentStateUnknown) return;
     const validationErrors = validateDetails();
     if (Object.keys(validationErrors).length) {
       setDetailsErrors(validationErrors);
@@ -313,7 +313,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
       }
       if (action.kind === "unknown") {
         unlockAfterAttempt = false;
-        setReconciliationUnknown(true);
+        setPaymentStateUnknown(true);
         setError("وضعیت پرداخت نامشخص است. دوباره پرداخت را شروع نکنید؛ چند دقیقه بعد از لینک بازگشت یا پشتیبانی پیگیری کنید.");
         return;
       }
@@ -364,7 +364,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         onPay={pay}
         onPrevious={previous}
         nextPending={savingAddress}
-        reconciliationUnknown={reconciliationUnknown}
+        paymentStateUnknown={paymentStateUnknown}
         step={step}
         submitting={submitting}
       />
@@ -633,13 +633,13 @@ function PaymentRow({ label, value, bold = false, className = "" }: { label: str
   return <div className={`flex min-h-56 items-center justify-between gap-16 ${bold ? "text-title-18 font-bold" : ""} ${className}`}><span>{label}</span><span className="text-left">{value}</span></div>;
 }
 
-function CheckoutFooter({ canContinue, nextPending, onNext, onPay, onPrevious, reconciliationUnknown, step, submitting }: {
-  canContinue: boolean; nextPending: boolean; onNext: () => void | Promise<void>; onPay: () => void; onPrevious: () => void; reconciliationUnknown: boolean; step: number; submitting: boolean;
+function CheckoutFooter({ canContinue, nextPending, onNext, onPay, onPrevious, paymentStateUnknown, step, submitting }: {
+  canContinue: boolean; nextPending: boolean; onNext: () => void | Promise<void>; onPay: () => void; onPrevious: () => void; paymentStateUnknown: boolean; step: number; submitting: boolean;
 }) {
   const isPayment = step === 2;
   return <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border-mid-emphasis bg-surface-background px-16 pb-[max(env(safe-area-inset-bottom),var(--spacing-24))] pt-16 shadow-[0_-8px_24px_rgba(0,0,0,.04)]">
     <div className={isPayment || step > 0 ? "mx-auto grid max-w-[580px] grid-cols-[minmax(0,1fr)_106px] gap-12" : "mx-auto max-w-[580px]"}>
-      <Button className="w-full" disabled={isPayment ? reconciliationUnknown : !canContinue || nextPending} loading={isPayment ? submitting : nextPending} onClick={isPayment ? onPay : onNext} size="large" variant="primary-filled">
+      <Button className="w-full" disabled={isPayment ? paymentStateUnknown : !canContinue || nextPending} loading={isPayment ? submitting : nextPending} onClick={isPayment ? onPay : onNext} size="large" variant="primary-filled">
         {isPayment ? "پرداخت" : "مرحله بعد"}
       </Button>
       {step > 0 ? <Button disabled={submitting} onClick={onPrevious} size="large" variant="tertiary-outline">مرحله قبل</Button> : null}

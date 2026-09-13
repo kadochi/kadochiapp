@@ -1,8 +1,10 @@
 import "server-only";
 
 import { wordpressBearerHeaders } from "@/features/auth/services/auth.server";
+import { isTrustedPaymentRedirect, paymentProviderByGatewayId } from "@/features/payment/providers";
 import { ServiceError } from "@/lib/http/errors";
 import { parseUpstreamJson, wordpressFetch } from "@/lib/http/upstream";
+import { env } from "@/lib/server/env";
 import { listProducts } from "@/features/products/services/products.server";
 
 import {
@@ -56,6 +58,16 @@ export async function getProfileOrder(orderId: number, requestId: string) {
 const paymentStartTimeoutMs = 25_000;
 
 export async function retryProfileOrderPayment(orderId: number, attemptId: string, requestId: string) {
+  const provider = paymentProviderByGatewayId(env.KADOCHI_PAYMENT_METHOD_ID);
+  if (!provider) {
+    throw new ServiceError({
+      code: "configuration",
+      status: 503,
+      message: "The configured payment gateway is not supported.",
+      requestId,
+      retryable: false,
+    });
+  }
   const body = profileOrderRetryPaymentRequestSchema.parse({ attemptId });
   const response = await wordpressFetch(`/wp-json/kadochi/v1/profile/orders/${orderId}/retry-payment`, {
     method: "POST",
@@ -65,16 +77,15 @@ export async function retryProfileOrderPayment(orderId: number, attemptId: strin
     acceptStatuses: [302],
     cache: "no-store",
     requestId,
-    // ZarinPal permits the authority request to take 15 seconds. This is the
-    // only WordPress request that needs the longer outer deadline.
+    // Gateway authority creation can take longer than ordinary WordPress reads.
+    // This is the only payment-start request with the longer outer deadline.
     timeoutMs: paymentStartTimeoutMs,
   });
   if (response.status === 302) {
     const redirectUrl = response.headers.get("location");
     try {
       const result = profileOrderRetryPaymentSchema.parse({ redirectUrl });
-      const host = new URL(result.redirectUrl).hostname;
-      if (host === "payment.zarinpal.com" || host === "sandbox.zarinpal.com") return result;
+      if (isTrustedPaymentRedirect(provider, result.redirectUrl)) return result;
     } catch {
       // Normalized below so the BFF returns a safe service error.
     }

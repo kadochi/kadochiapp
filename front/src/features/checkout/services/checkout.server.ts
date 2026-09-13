@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 
 import { getCurrentCustomer, getStoredAuthToken, wordpressBearerHeaders } from "@/features/auth/services/auth.server";
+import { isTrustedPaymentRedirect, paymentProviderByGatewayId, type PaymentProvider } from "@/features/payment/providers";
 import { retryProfileOrderPayment } from "@/features/profile/services/profile.server";
 import { ServiceError } from "@/lib/http/errors";
 import { parseUpstreamJson, UpstreamError, wordpressFetch } from "@/lib/http/upstream";
@@ -32,50 +33,15 @@ const postcardDesignField = "kadochi/postcard-design";
 const locationField = "kadochi/location";
 const operationField = "kadochi/operation-id";
 
-type ZarinpalPaymentMetadata = NonNullable<import("@/lib/http/errors").ApiError["payment"]>;
-
-const zarinpalCategories: Record<number, ZarinpalPaymentMetadata["category"]> = {
-  "-9": "rejected",
-  "-10": "configuration",
-  "-11": "configuration",
-  "-12": "temporarily_unavailable",
-  "-15": "configuration",
-  "-16": "configuration",
-  "-17": "configuration",
-  "-18": "configuration",
-  "-19": "rejected",
-  "-51": "cancelled",
-};
-
-function zarinpalFailure(value: unknown, requestId: string): ServiceError | null {
-  const response = z.object({
-    code: z.string().optional(),
-    message: z.string().optional(),
-    data: z.object({ status: z.number().int().optional(), code: z.union([z.number().int(), z.string()]).optional() }).passthrough().optional(),
-    errors: z.array(z.object({ code: z.union([z.number().int(), z.string()]).optional(), message: z.string().optional() }).passthrough()).optional(),
-  }).passthrough().safeParse(value);
-  if (!response.success) return null;
-  const message = response.data.message ?? response.data.errors?.[0]?.message ?? "";
-  // WooCommerce gateway errors are user-facing notices. Preserve only ZarinPal's
-  // documented numeric code; do not forward the raw gateway notice to browsers.
-  const code = response.data.errors?.[0]?.code ?? response.data.data?.code
-    ?? /(?:zarin\s*pal|زرین\s*پال).{0,80}?(?:code|کد)?\s*[:：#-]?\s*(-?\d+)/iu.exec(message)?.[1]
-    ?? /(?:code|کد)\s*[:：#-]?\s*(-?\d+)/iu.exec(message)?.[1];
-  const gatewayCode = code !== undefined && /^-?\d+$/.test(String(code)) ? Number(code) : undefined;
-  // This handler only invokes the configured ZarinPal gateway. Some plugin
-  // releases omit the provider name from their Store API notice, so a documented
-  // numeric code is sufficient to classify it safely here.
-  if (!/zarin\s*pal|زرین\s*پال/iu.test(message) && (gatewayCode === undefined || env.KADOCHI_PAYMENT_METHOD_ID !== "WC_ZPal")) return null;
-  const category = gatewayCode === undefined ? "unknown" : zarinpalCategories[gatewayCode] ?? "unknown";
-  const retryable = category === "temporarily_unavailable" || category === "unknown";
-  console.error("[payment] gateway_rejected_checkout", { requestId, provider: "zarinpal", gatewayCode, category });
-  return new ServiceError({
-    code: "upstream_failure",
-    status: category === "configuration" ? 503 : 422,
-    message: "The payment gateway could not start a payment.",
+function configuredPaymentProvider(requestId: string): PaymentProvider {
+  const provider = paymentProviderByGatewayId(env.KADOCHI_PAYMENT_METHOD_ID);
+  if (provider) return provider;
+  throw new ServiceError({
+    code: "configuration",
+    status: 503,
+    message: "The configured payment gateway is not supported.",
     requestId,
-    retryable,
-    payment: { provider: "zarinpal", ...(gatewayCode !== undefined ? { code: gatewayCode } : {}), category },
+    retryable: false,
   });
 }
 
@@ -94,6 +60,7 @@ async function checkoutHeaders(cartToken?: string): Promise<Record<string, strin
 
 function paymentMethod(requestId: string, paymentMethodIds: string[]) {
   const id = env.KADOCHI_PAYMENT_METHOD_ID;
+  const provider = configuredPaymentProvider(requestId);
   if (!paymentMethodIds.includes(id)) {
     throw new ServiceError({
       code: "configuration",
@@ -103,7 +70,7 @@ function paymentMethod(requestId: string, paymentMethodIds: string[]) {
       retryable: false,
     });
   }
-  return { id, title: "پرداخت آنلاین زرین‌پال" };
+  return { id, title: provider.title };
 }
 
 function checkoutCart(requestId: string, cart: ReturnType<typeof mapCart>) {
@@ -170,25 +137,39 @@ function additionalFields(input: ReturnType<typeof submitCheckoutSchema.parse>) 
   };
 }
 
-function isTrustedZarinpalRedirect(url: string | undefined): boolean {
-  if (!url) return false;
-  try {
-    const host = new URL(url).hostname;
-    return host === "payment.zarinpal.com" || host === "sandbox.zarinpal.com";
-  } catch {
-    return false;
-  }
-}
-
 /** Starts the gateway through the owner-protected endpoint used by payment retries. */
-async function startGatewayPayment(orderId: number, attemptId: string, requestId: string) {
+async function startGatewayPayment(orderId: number, attemptId: string, provider: PaymentProvider, requestId: string) {
   const { redirectUrl } = await retryProfileOrderPayment(orderId, attemptId, requestId);
-  return { paymentStatus: "pending", redirectUrl };
+  if (!isTrustedPaymentRedirect(provider, redirectUrl)) {
+    throw new ServiceError({
+      code: "upstream_failure",
+      status: 502,
+      message: "The payment gateway returned an invalid redirect.",
+      requestId,
+      retryable: true,
+    });
+  }
+  return { provider: provider.id, state: "pending" as const, redirectUrl };
 }
 
-function checkoutFailureAfterUnmaterializedOrder(responseBody: unknown, requestId: string): never {
-  const gatewayFailure = zarinpalFailure(responseBody, requestId);
-  if (gatewayFailure) throw gatewayFailure;
+function checkoutFailureAfterUnmaterializedOrder(responseBody: unknown, provider: PaymentProvider, requestId: string): never {
+  const gatewayFailure = provider.translateCheckoutFailure(responseBody);
+  if (gatewayFailure) {
+    console.error("[payment] gateway_rejected_checkout", {
+      requestId,
+      provider: gatewayFailure.provider,
+      gatewayCode: gatewayFailure.code,
+      category: gatewayFailure.category,
+    });
+    throw new ServiceError({
+      code: "upstream_failure",
+      status: gatewayFailure.category === "configuration" ? 503 : 422,
+      message: "The payment gateway could not start a payment.",
+      requestId,
+      retryable: gatewayFailure.retryable,
+      payment: gatewayFailure,
+    });
+  }
   throw new ServiceError({
     code: "validation",
     status: 400,
@@ -300,6 +281,7 @@ async function orderSummaryForOperation(operationId: string, requestId: string) 
 
 export async function checkout(input: unknown, requestId: string) {
   const parsed = submitCheckoutSchema.parse(input);
+  const provider = configuredPaymentProvider(requestId);
   const customer = await authenticatedCustomer(requestId);
   let lastCartToken: string | null = null;
   let paymentSubmitted = false;
@@ -361,53 +343,51 @@ export async function checkout(input: unknown, requestId: string) {
       // trust the partial Store API response to choose an order for payment.
       try {
         const summary = await orderSummaryForOperation(parsed.operationId, requestId);
-        if (summary.paid) {
+        if (summary.payment.state === "paid") {
           return {
             result: checkoutResultSchema.parse({
               orderId: summary.id,
               status: summary.status,
-              reconciliation: "paid",
+              payment: summary.payment,
             }),
             cartToken: lastCartToken,
           };
         }
-        const paymentResult = await startGatewayPayment(summary.id, parsed.operationId, requestId);
+        const payment = await startGatewayPayment(summary.id, parsed.operationId, provider, requestId);
         return {
           result: checkoutResultSchema.parse({
             orderId: summary.id,
             status: summary.status,
-            paymentResult,
+            payment,
           }),
           cartToken: lastCartToken,
         };
       } catch (error) {
         if (error instanceof UpstreamError && error.detail.code === "not_found") {
-          checkoutFailureAfterUnmaterializedOrder(responseBody, requestId);
+          checkoutFailureAfterUnmaterializedOrder(responseBody, provider, requestId);
         }
         throw error;
       }
     }
     let result;
     try {
-      result = mapCheckoutResult(responseBody);
+      result = mapCheckoutResult(responseBody, provider.id);
     } catch {
       throw new UpstreamError({ code: "malformed_upstream_response", status: 502, message: "The upstream service returned an unexpected response.", requestId, retryable: true });
     }
-    // The pinned ZarinPal gateway normally returns Woo's intermediate order-pay
-    // URL from Store API. Its retry endpoint performs the real authority request.
-    // A direct, validated ZarinPal URL is already a completed gateway start and
-    // must not create a second authority.
-    if (result.orderId && env.KADOCHI_PAYMENT_METHOD_ID === "WC_ZPal" && !isTrustedZarinpalRedirect(result.paymentResult?.redirectUrl)) {
-      const paymentResult = await startGatewayPayment(result.orderId, parsed.operationId, requestId);
+    // A gateway may return Woo's intermediate order-pay URL. The owner-protected
+    // payment-start endpoint returns only a provider-validated handoff URL.
+    if (result.orderId && !isTrustedPaymentRedirect(provider, result.payment?.redirectUrl)) {
+      const payment = await startGatewayPayment(result.orderId, parsed.operationId, provider, requestId);
       return {
-        result: checkoutResultSchema.parse({ ...result, paymentResult }),
+        result: checkoutResultSchema.parse({ ...result, payment }),
         cartToken: lastCartToken,
       };
     }
     return { result, cartToken: lastCartToken };
   } catch (error) {
-    // A known gateway rejection is definitive: move the customer to the order's
-    // failure result so a later explicit retry gets a fresh payment-attempt ID.
+    // A known gateway rejection is definitive only when WordPress's normalized
+    // order state says so. Browser routing never infers it from transport text.
     if (paymentSubmitted && error instanceof UpstreamError && error.detail.code === "upstream_failure" && !error.detail.retryable) {
       try {
         const summary = await orderSummaryForOperation(parsed.operationId, requestId);
@@ -415,7 +395,7 @@ export async function checkout(input: unknown, requestId: string) {
           result: checkoutResultSchema.parse({
             orderId: summary.id,
             status: summary.status,
-            reconciliation: summary.paid ? "paid" : "unpaid",
+            payment: summary.payment,
           }),
           cartToken: lastCartToken,
         };
@@ -423,31 +403,24 @@ export async function checkout(input: unknown, requestId: string) {
         // Preserve the definite gateway rejection if its operation cannot be read.
       }
     }
-    // A retryable failure after POST may hide a completed gateway call. Reconcile the
-    // recorded operation, then ask the payment-start endpoint to recover only this
-    // same attempt. WordPress returns a saved redirect or an in-progress response;
-    // it never creates a second authority for the same attempt ID.
+    // A retryable failure after POST may hide a completed gateway call. Read the
+    // owner-scoped normalized state but never create/recover a payment attempt
+    // implicitly: indeterminate outcomes must stay neutral until the customer
+    // checks the order again or explicitly retries a terminal result.
     if (paymentSubmitted && error instanceof UpstreamError && error.detail.retryable) {
       try {
         const summary = await orderSummaryForOperation(parsed.operationId, requestId);
-        if (summary.paid) {
-          return {
-            result: checkoutResultSchema.parse({ orderId: summary.id, status: summary.status, reconciliation: "paid" }),
-            cartToken: lastCartToken,
-          };
-        }
-        const paymentResult = await startGatewayPayment(summary.id, parsed.operationId, requestId);
         return {
           result: checkoutResultSchema.parse({
             orderId: summary.id,
             status: summary.status,
-            paymentResult,
+            payment: summary.payment,
           }),
           cartToken: lastCartToken,
         };
       } catch {
         return {
-          result: checkoutResultSchema.parse({ status: "unknown", reconciliation: "unknown" }),
+          result: checkoutResultSchema.parse({ status: "unknown", payment: { provider: provider.id, state: "unknown" } }),
           cartToken: lastCartToken,
         };
       }

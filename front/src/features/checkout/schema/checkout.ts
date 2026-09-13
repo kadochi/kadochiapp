@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { customerSchema, iranianPhoneSchema } from "../../auth/schema/auth";
 import { cartSchema, moneySchema } from "../../cart/schema/cart";
+import { paymentProviderIdSchema } from "../../payment/providers";
+import { paymentStateSchema } from "../../payment/payment-state";
 
 export const deliverySlotSchema = z.object({
   id: z.string().regex(/^\d{4}-\d{2}-\d{2}-(10|13|16)$/),
@@ -108,11 +110,11 @@ export const submitCheckoutSchema = z.object({
 export const checkoutResultSchema = z.object({
   orderId: z.number().int().positive().optional(),
   status: z.string(),
-  paymentResult: z.object({
-    paymentStatus: z.string(),
+  payment: z.object({
+    provider: paymentProviderIdSchema,
+    state: paymentStateSchema,
     redirectUrl: z.string().url().optional(),
   }).optional(),
-  reconciliation: z.enum(["paid", "unpaid", "unknown"]).optional(),
 }).strict();
 
 export const orderSummarySchema = z.object({
@@ -125,6 +127,10 @@ export const orderSummarySchema = z.object({
   recipient: z.object({ firstName: z.string(), lastName: z.string() }).strict(),
   deliverySlot: z.string().nullable(),
   address: z.string(),
+  payment: z.object({
+    provider: paymentProviderIdSchema,
+    state: paymentStateSchema,
+  }).strict(),
 }).strict();
 
 const upstreamCheckoutResultSchema = z.object({
@@ -143,13 +149,14 @@ export const upstreamCheckoutDraftSchema = z.object({
   status: z.string().optional(),
 }).passthrough();
 
-export function mapCheckoutResult(value: unknown) {
+export function mapCheckoutResult(value: unknown, provider: string) {
   const result = upstreamCheckoutResultSchema.parse(value);
   return checkoutResultSchema.parse({
     orderId: result.order_id,
     status: result.status,
-    paymentResult: result.payment_result ? {
-      paymentStatus: result.payment_result.payment_status,
+    payment: result.payment_result ? {
+      provider,
+      state: "pending",
       ...(result.payment_result.redirect_url ? { redirectUrl: result.payment_result.redirect_url } : {}),
     } : undefined,
   });

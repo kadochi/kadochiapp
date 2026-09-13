@@ -17,8 +17,11 @@ flowchart LR
   B -->|"internal HTTP; Cart-Token"| C
   W -->|"uses WooCommerce order + gateway"| C
   C -->|"gateway handoff"| Z
-  Z -->|"gateway callback / verification"| W
-  W -->|"trusted frontend redirect"| U
+  Z -->|"browser GET callback"| B
+  B -->|"allow-listed relay; no cookies/auth"| W
+  B -->|"HMAC state lookup"| W
+  W -->|"Woo verification + order mutation"| C
+  B -->|"same-origin 303 result"| U
 ```
 
 The browser never receives the opaque JWT or Woo cart token. The BFF owns them as `HttpOnly`, `SameSite=Lax`, path-wide cookies, secure in production:
@@ -72,23 +75,21 @@ flowchart TD
   review --> submit["SUBMITTING\nOne operation UUID; UI submission lock"]
 
   submit --> submitChoice{"BFF / Woo result"}
-  submitChoice -- "Paid reconciliation" --> success["DONE_SUCCESS\n/checkout/success?order=id"]
+  submitChoice -- "payment.state = paid" --> success["DONE_SUCCESS\n/checkout/success?order=id"]
   submitChoice -- "Trusted ZarinPal URL" --> gateway["PAYMENT_GATEWAY\nExternal ZarinPal page"]
   submitChoice -- "Order but no URL" --> returnPage["PAYMENT_RETURN_CHECK\n/checkout/return?order=id"]
-  submitChoice -- "Definite unpaid/rejected" --> failure["DONE_FAILURE\n/checkout/failure?order=id"]
+  submitChoice -- "payment.state = failed/cancelled" --> failure["DONE_FAILURE\n/checkout/failure?order=id"]
   submitChoice -- "Validation/configuration before order" --> review
   submitChoice -- "Ambiguous retryable failure" --> reconcile["RECONCILING\nLookup order by operation UUID"]
-  reconcile -- "Paid" --> success
-  reconcile -- "Unpaid order; safe same-attempt start" --> gateway
-  reconcile -- "Cannot establish outcome" --> unknown["PAYMENT_UNKNOWN\nDisable another payment attempt"]
+  reconcile -- "Authoritative paid" --> success
+  reconcile -- "Any non-terminal or unreachable state" --> unknown["PAYMENT_UNKNOWN\nNo automatic payment attempt"]
 
   gateway --> gatewayOutcome{"Gateway callback/result"}
-  gatewayOutcome -- "Verified paid" --> returnPage
-  gatewayOutcome -- "Cancelled" --> failure
-  gatewayOutcome -- "Failed / unpaid" --> returnPage
-  returnPage --> returned{"Owner-only order summary paid?"}
-  returned -- "Yes" --> success
-  returned -- "No" --> failure
+  gatewayOutcome -- "Next callback relay + state" --> returnPage
+  returnPage --> returned{"Owner-only payment.state"}
+  returned -- "paid" --> success
+  returned -- "failed/cancelled" --> failure
+  returned -- "pending/unknown" --> unknown
   failure --> retry{"Customer retries payment?"}
   retry -- "No" --> doneUnpaid(["Unpaid order remains visible"])
   retry -- "Yes: new attempt UUID" --> gateway
@@ -108,12 +109,12 @@ flowchart TD
 | `CHECKOUT_DETAILS` | Browser draft | Authenticated checkout state is valid | Save/select address, calculate cart destination, next step |
 | `CHECKOUT_DELIVERY` | Browser draft + Woo cart | Details and a saved address are valid | Select rate/slot/package/postcard, previous/next |
 | `CHECKOUT_PAYMENT_REVIEW` | Browser draft + authoritative cart | Delivery choices complete | Apply/remove one coupon, submit, previous |
-| `SUBMITTING` | Browser submission lock + BFF | Customer presses Pay | Gateway handoff, result, reconciliation, recoverable error |
+| `SUBMITTING` | Browser submission lock + BFF | Customer presses Pay | Gateway handoff, normalized result, recoverable error |
 | `PAYMENT_GATEWAY` | ZarinPal/Woo | A trusted ZarinPal redirect has been returned | Gateway callback/return/cancel |
-| `PAYMENT_RETURN_CHECK` | Next.js server | There is an order but no direct final result, or gateway has returned | Success or failure after owner-only summary lookup |
+| `PAYMENT_RETURN_CHECK` | Next.js server | There is an order but no direct final result, or gateway has returned | Success/failure/neutral screen after owner-only `payment.state` lookup |
 | `PAYMENT_UNKNOWN` | Browser | A retryable post-submit failure cannot be reconciled | No automatic or repeated payment; customer follows return link/support guidance |
-| `DONE_SUCCESS` | Woo order | Owner-only summary reports `paid: true` | View orders; cart clear attempted |
-| `DONE_FAILURE` | Woo order | Summary is unpaid, a definite gateway rejection occurs, or cancellation redirects here | Start a fresh payment attempt |
+| `DONE_SUCCESS` | Woo order | Owner-only summary reports `payment.state: paid` | View orders; cart clear attempted |
+| `DONE_FAILURE` | Woo order | Summary reports `failed` or `cancelled` | Start a fresh payment attempt |
 
 ## 1. Cart
 
@@ -277,26 +278,30 @@ The BFF first sends `PUT /wc/store/v1/checkout?__experimental_calc_totals=true` 
 
 Kadochi Core validates the final materialized order again, records `_kadochi_checkout_operation`, and atomically locks `kadochi_checkout_operation_{sha256(operationId)}` immediately before payment. Draft / checkout-draft orders expire after one hour (both on relevant requests and through a five-minute cron task).
 
-## 5. Payment start, reconciliation, and return
+## 5. Provider-neutral payment start, callback, and result
 
-### Checkout result handling
+### Shared payment contract
 
-| BFF result | Browser action | Why it is safe |
+Checkout and owner-scoped order summaries use one payment decision field:
+
+```ts
+payment: { provider, state, redirectUrl? }
+// state: "paid" | "failed" | "cancelled" | "pending" | "unknown"
+```
+
+`paid` and Woo `status` remain only compatibility fields on order summaries. Frontend payment routing does not branch on either one. A `redirectUrl` is usable only with `pending` and only after the registered provider adapter validates its exact HTTPS host.
+
+| State | Browser destination | Retry |
 | --- | --- | --- |
-| Reconciliation says `paid` with order ID | Replace location with `/checkout/success?order={id}` | Success page independently re-reads the owner-only order summary |
-| Result includes trusted `https://payment.zarinpal.com/...` or sandbox URL | Navigate externally to ZarinPal | Redirect host is explicitly allow-listed |
-| Woo returns its intermediate order-pay URL for ZarinPal | BFF calls the owner-only payment-start endpoint before returning to browser | Avoids exposing or navigating to Woo's intermediate page; gets actual ZarinPal authority |
-| Result has order ID but no redirect | Replace location with `/checkout/return?order={id}` | Return route decides from the owner-only order summary |
-| Definite gateway failure after an order exists | Return `{ orderId, reconciliation: unpaid }`; navigate to failure | The order is materialized, but payment did not start/complete |
-| Definitive validation/error before an order exists | Show error; do not route to an arbitrary order | Prevents treating a partial response as authority |
-| Retryable error after POST | Look up order by operation ID, then either return paid, safely start/recover payment, or return `reconciliation: unknown` | Never automatically reposts checkout |
-| No order can be recovered after ambiguous failure | `PAYMENT_UNKNOWN`; disable Pay | Customer is warned not to begin another payment attempt |
+| `paid` | `/checkout/success?order={id}` | Never |
+| `failed` / `cancelled` | `/checkout/failure?order={id}` | Explicit retry only |
+| `pending` / `unknown` | `/checkout/return?order={id}` | Never automatically |
 
-The post-submit reconciliation endpoint is `GET /wp-json/kadochi/v1/checkout/operations/{operationId}`. It is authenticated and owner-only; another customer's order is indistinguishable from missing.
+After a post-submit transport error, the BFF reads the owner-scoped operation summary but does not create or recover a payment attempt. A terminal state routes to its result page; `pending` and `unknown` remain neutral.
 
 ### Payment-start endpoint and attempt states
 
-For initial ZarinPal handoff and a retry from the failure screen, the BFF calls:
+For the initial registered-provider handoff and a retry from the failure screen, the BFF calls:
 
 `POST /api/profile/orders/{orderId}/retry-payment` → `POST /wp-json/kadochi/v1/profile/orders/{orderId}/retry-payment`
 
@@ -304,28 +309,26 @@ The request contains a payment `attemptId` UUID. The initial checkout uses its o
 
 | Payment-attempt branch | WordPress/Kadochi Core behavior | Browser-visible result |
 | --- | --- | --- |
-| Owner's unpaid payable order (`draft`, `checkout-draft`, `pending`, `pending-payment`, or `failed`) + new attempt | Atomically creates a per-order payment-attempt lock, invokes configured gateway | Trusted ZarinPal redirect |
+| Owner's unpaid payable order (`draft`, `checkout-draft`, `pending`, `pending-payment`, or `failed`) + new attempt | Atomically creates a per-order payment-attempt lock, records `pending`, invokes configured gateway | Trusted provider redirect |
 | Same/previous attempt already captured a trusted redirect | Returns the saved redirect rather than requesting a second authority | Navigate/re-navigate to the same gateway handoff |
 | Attempt is running and lock is <60 seconds old | Returns `409 payment_in_progress` with retry delay | Do not start a duplicate payment; retry/recovery waits |
 | Stale attempt lock | Releases stale lock and permits a new safe start | New gateway start may proceed |
 | Same attempt previously failed to start | Returns definitive `kadochi_payment_unavailable` | Failure/error; no hidden retry |
 | Order is paid, no longer payable, owned by another user, or has wrong gateway | Rejects the attempt (404/409 as appropriate) | No payment handoff |
-| Configured gateway missing/invalid redirect/no redirect | Releases lock, records bounded failure tombstone, returns safe error | Failure/error; later explicit retry is possible |
+| Configured gateway missing/invalid redirect/no redirect | Clears the lock, records `failed` and a bounded failure tombstone, returns a safe error | Failure/error; later explicit retry is possible |
 | Official `WC_ZPal` gateway | Captures and persists only a trusted ZarinPal redirect before its redirecting method exits | Ensures recovery requests do not create another authority |
 
 ZarinPal startup gets a 25-second BFF timeout to accommodate the permitted gateway authority time. Gateway logs retain safe event names, order/attempt/request IDs, and timing—not cards, credentials, authorities, addresses, or request bodies.
 
-### Gateway outcome and final pages
+### Gateway callback and final pages
 
-1. The customer completes, fails, or cancels payment at ZarinPal.
-2. The official gateway callback returns to WordPress, which performs gateway verification. Kadochi Core rewrites a verified payment's Woo return URL to `/checkout/return?order={id}` on the configured frontend origin.
-3. The return page requires a valid auth session, loads an owner-only safe order summary, and redirects to:
-   - `/checkout/success?order={id}` when `paid === true`;
-   - `/checkout/failure?order={id}` otherwise.
-4. A non-`OK` ZarinPal cancellation callback for an unpaid configured-gateway order releases the attempt lock and redirects directly to `/checkout/failure?order={id}`.
-5. Success/failure pages re-check ownership and paid state, so a stale URL cannot show the wrong terminal outcome. Each redirects to the other if the latest state requires it.
-6. The success page attempts to clear the tokenized Woo cart. If that cleanup fails, it preserves the confirmed success result; the paid order is never downgraded to failure.
-7. The failure page preserves the unpaid order summary and offers an explicit fresh payment retry. The order also remains accessible from the customer's order history.
+1. In `KADOCHI_PAYMENT_CALLBACK_MODE=frontend`, Woo's `woocommerce_api_request_url` filter publishes `/api/payments/callback/zarinpal`. In `wordpress` mode it keeps the original Woo WC-API URL, preserving in-flight payments and providing rollback.
+2. Next accepts only ZarinPal GET parameters `wc_order`, `Status`, and optional `Authority`; it validates their formats and never logs the authority or forwards cookies, authorization, credentials, or raw query strings.
+3. Next relays those allow-listed fields to the fixed internal `/?wc-api=WC_ZPal` handler with redirects disabled. WooCommerce and its gateway verify the transaction and remain the only order-mutating authority.
+4. Kadochi Core records safe metadata `{ provider, state, updatedAt }`: attempt start is `pending`, cancellation is `cancelled`, gateway rejection is `failed`, and `woocommerce_payment_complete` is `paid`. Paid is monotonic. Terminal outcomes clear the attempt lock; only an explicit retry may move `failed` or `cancelled` back to `pending`.
+5. Next reads `GET /wp-json/kadochi/v1/internal/payments/orders/{id}/state?provider=zarinpal` with a purpose- and payload-bound HMAC. The endpoint returns only `{ orderId, provider, state }`.
+6. Next responds with a same-origin `303`: terminal state goes to success/failure; `pending` or an ambiguous relay/reconciliation goes to the neutral return page. Invalid callbacks without an order go to generic failure.
+7. All success/failure/return pages load the owner-scoped summary and use the same resolver. Only `paid` displays success; only `failed`/`cancelled` display an explicit retry. `pending`/`unknown` have no automatic polling or retry.
 
 ## Complete error and recovery policy
 
@@ -337,9 +340,9 @@ ZarinPal startup gets a 25-second BFF timeout to accommodate the permitted gatew
 | Cart fetch/mutation/network failure | BFF/Woo transport | No mutation retry | Reload/retry explicitly; use latest authoritative cart |
 | OTP cooldown/rate limit/provider issue | BFF/WordPress | No automatic resend | Respect retry delay or try later |
 | Checkout config/gateway unavailable before payment | BFF/Woo | Fails closed | Return to cart/try later; no alternate payment path exists |
-| Gateway rejects checkout definitively | BFF reconciliation | Resolve materialized order to success/failure where possible | Failure page and explicit retry with new attempt ID |
+| Gateway rejects checkout definitively | BFF state summary | Use only the normalized state returned by WordPress | Failure page and explicit retry with new attempt ID |
 | Gateway start already in progress | WordPress attempt lock | Return `payment_in_progress`; do not issue another authority | Wait/recover the existing attempt |
-| Retryable timeout/network/malformed response after checkout POST | BFF reconciliation | Read owner-scoped operation summary; never repost checkout | Paid → success; unpaid → recover same handoff; unknown → do not pay again |
+| Retryable timeout/network/malformed response after checkout POST | BFF state summary | Read owner-scoped operation summary; never repost or restart payment | Paid → success; failed/cancelled → failure; pending/unknown → neutral manual check |
 | Unknown outcome after reconciliation fails | Checkout UI | Disables Pay (`PAYMENT_UNKNOWN`) | Follow return link later or contact support with request/order data when available |
 | Gateway cancel | WordPress callback | Release payment attempt lock | Show failure; retry explicitly if desired |
 | Paid cart cleanup fails | Success page | Log safe error only | Keep success state; cart can be refreshed later |
@@ -348,7 +351,8 @@ ZarinPal startup gets a 25-second BFF timeout to accommodate the permitted gatew
 
 - Cart BFF and token handling: `front/src/features/cart/services/cart.server.ts`, `front/src/app/api/cart/`
 - Auth contract and OTP/JWT bridge: `front/src/features/auth/CONTRACT.md`, `front/src/features/auth/services/auth.server.ts`, `front/src/app/api/auth/`
-- Checkout state, submit, reconciliation: `front/src/features/checkout/services/checkout.server.ts`, `front/src/features/checkout/schema/checkout.ts`, `front/src/app/api/checkout/route.ts`
+- Checkout state and submission: `front/src/features/checkout/services/checkout.server.ts`, `front/src/features/checkout/schema/checkout.ts`, `front/src/app/api/checkout/route.ts`
+- Provider registry and callback relay: `front/src/features/payment/providers.ts`, `front/src/features/payment/callbacks.server.ts`, `front/src/features/payment/payment.server.ts`, `front/src/app/api/payments/callback/[provider]/route.ts`
 - Checkout browser decisions: `front/src/features/checkout/components/checkout-flow.tsx`, `front/src/features/checkout/utils/checkout-result.ts`
 - Result routes: `front/src/app/checkout/page.tsx`, `front/src/app/checkout/return/page.tsx`, `front/src/app/checkout/success/page.tsx`, `front/src/app/checkout/failure/page.tsx`
 - WordPress ownership, fields, locks, payment handoff, and return: `plugins/kadochi-core/kadochi-core.php`

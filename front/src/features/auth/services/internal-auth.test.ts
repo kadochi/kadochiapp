@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { ServiceError } from "@/lib/http/errors";
-import { otpInternalHeaders } from "./internal-auth";
+import { internalRequestHeaders, otpInternalHeaders } from "./internal-auth";
 
 describe("private OTP transport authentication", () => {
   afterEach(() => {
@@ -37,5 +37,17 @@ describe("private OTP transport authentication", () => {
 
     expect(() => otpInternalHeaders("otp-verify", "+989121234567\n1234", "request-123"))
       .toThrowError(ServiceError);
+  });
+
+  it("binds payment-state lookup payloads without a customer credential", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T12:00:00Z"));
+    vi.stubEnv("KADOCHI_INTERNAL_API_SECRET", "a-production-secret-that-is-long-enough");
+
+    const headers = internalRequestHeaders("payment-state", "zarinpal\n42", "callback-123");
+
+    expect(headers["X-Kadochi-Internal-Auth"]).toBe(createHmac("sha256", "a-production-secret-that-is-long-enough")
+      .update("kadochi-internal-v1\npayment-state\n1786363200\ncallback-123\nzarinpal\n42")
+      .digest("hex"));
   });
 });

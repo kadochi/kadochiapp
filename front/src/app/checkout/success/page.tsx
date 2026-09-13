@@ -5,6 +5,7 @@ import { getStoredAuthToken } from "@/features/auth/services/auth.server";
 import { clearCart } from "@/features/cart/services/cart.server";
 import { OrderResult } from "@/features/checkout/components/order-result";
 import { orderSummary } from "@/features/checkout/services/checkout.server";
+import { resolvePaymentResult } from "@/features/payment/payment-result";
 import { hasApiErrorCode } from "@/lib/http/errors";
 import StateMessage from "@/components/layout/state-message";
 
@@ -15,7 +16,10 @@ type Props = { searchParams: Promise<{ order?: string | string[] }> };
 export default async function CheckoutSuccessRoute({ searchParams }: Props) {
   const value = (await searchParams).order;
   const orderId = typeof value === "string" ? Number(value) : NaN;
-  if (!Number.isSafeInteger(orderId) || orderId < 1 || !(await getStoredAuthToken())) redirect("/login?next=/checkout");
+  if (!Number.isSafeInteger(orderId) || orderId < 1) {
+    return <><Header variant="internal" title="وضعیت پرداخت" backUrl="/products" /><StateMessage imageSrc="/images/illustration-failed.png" title="پرداخت قابل تأیید نیست" subtitle="برای مشاهده وضعیت پرداخت، از لینک معتبر سفارش استفاده کنید." /></>;
+  }
+  if (!(await getStoredAuthToken())) redirect(`/login?next=${encodeURIComponent(`/checkout/success?order=${orderId}`)}`);
   let summary;
   try {
     summary = await orderSummary(orderId, crypto.randomUUID());
@@ -23,7 +27,8 @@ export default async function CheckoutSuccessRoute({ searchParams }: Props) {
     if (hasApiErrorCode(error, "unauthenticated")) redirect(`/login?next=${encodeURIComponent(`/checkout/success?order=${orderId}`)}`);
     return <><Header variant="internal" title="سفارش شما" backUrl="/products" /><StateMessage imageSrc="/images/illustration-failed.png" title="وضعیت سفارش در دسترس نیست" subtitle="لطفاً چند دقیقه دیگر دوباره وضعیت سفارش را بررسی کنید." /></>;
   }
-  if (!summary.paid) redirect(`/checkout/failure?order=${summary.id}`);
+  const payment = resolvePaymentResult(summary);
+  if (payment.kind !== "success") redirect(payment.href);
   try {
     await clearCart(crypto.randomUUID());
   } catch (error) {
@@ -31,5 +36,5 @@ export default async function CheckoutSuccessRoute({ searchParams }: Props) {
     // cart-clearing request is temporarily unavailable.
     console.error("[checkout] clear_paid_cart_failed", { orderId: summary.id, error });
   }
-  return <><Header /><OrderResult order={summary} paid /></>;
+  return <><Header /><OrderResult order={summary} state="paid" /></>;
 }

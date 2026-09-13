@@ -206,3 +206,22 @@ export async function parseUpstreamJson<T>(response: Response, parse: (value: un
     throw new UpstreamError({ code: "malformed_upstream_response", status: 502, message: "The upstream service returned an unexpected response.", requestId, retryable: true });
   }
 }
+
+/** Consumes a non-JSON upstream response while releasing its request deadline. */
+export async function discardUpstreamResponse(response: Response, requestId: string): Promise<void> {
+  const deadline = responseDeadlines.get(response);
+  try {
+    await withDeadline(
+      response.text(),
+      deadline ? Math.max(1, deadline.expiresAt - Date.now()) : defaultTimeoutMs,
+      deadline?.controller,
+    );
+  } catch (error) {
+    if (error instanceof UpstreamDeadlineError || (error instanceof DOMException && error.name === "AbortError")) {
+      throw new UpstreamError({ code: "timeout", status: 504, message: "The upstream service timed out.", requestId, retryable: true });
+    }
+    throw new UpstreamError({ code: "network", status: 502, message: "The upstream service is unavailable.", requestId, retryable: true });
+  } finally {
+    clearResponseDeadline(response);
+  }
+}

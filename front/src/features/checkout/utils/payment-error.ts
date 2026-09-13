@@ -27,7 +27,7 @@ export function paymentErrorMessage(error: unknown, fallback = "شروع پرد�
     : typeof error === "object" && error !== null && "detail" in error
       ? apiErrorSchema.safeParse((error as { detail: unknown }).detail).data
       : undefined;
-  if (!detail?.payment || detail.payment.provider !== "zarinpal") {
+  if (!detail?.payment) {
     if (detail?.code === "payment_in_progress") {
       return {
         message: "پرداخت قبلی هنوز در حال شروع است. لطفاً چند لحظه بعد دوباره بررسی کنید.",
@@ -46,7 +46,7 @@ export function paymentErrorMessage(error: unknown, fallback = "شروع پرد�
         ? "تنظیمات درگاه پرداخت نیاز به بررسی دارد. لطفاً با پشتیبانی تماس بگیرید."
         : fallback;
   return {
-    message: code !== undefined ? zarinpalMessages[code] ?? categoryMessage : categoryMessage,
+    message: detail.payment.provider === "zarinpal" && code !== undefined ? zarinpalMessages[code] ?? categoryMessage : categoryMessage,
     requestId: detail.requestId,
     code,
     retryable: detail.retryable,
@@ -56,9 +56,14 @@ export function paymentErrorMessage(error: unknown, fallback = "شروع پرد�
 /** Browser diagnostics deliberately contain only support-safe identifiers. */
 export function logPaymentFailure(event: string, error: unknown): void {
   const payment = paymentErrorMessage(error);
+  const detail = error instanceof ServiceError
+    ? error.detail
+    : typeof error === "object" && error !== null && "detail" in error
+      ? apiErrorSchema.safeParse((error as { detail: unknown }).detail).data
+      : undefined;
   console.error("[payment]", {
     event,
-    provider: "zarinpal",
+    provider: detail?.payment?.provider ?? "unknown",
     requestId: payment.requestId,
     gatewayCode: payment.code,
     retryable: payment.retryable,

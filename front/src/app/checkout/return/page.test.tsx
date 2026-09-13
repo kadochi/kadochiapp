@@ -15,14 +15,15 @@ import CheckoutReturnRoute from "./page";
 
 describe("CheckoutReturnRoute", () => {
   it.each([
-    [true, "/checkout/success?order=72"],
-    [false, "/checkout/failure?order=72"],
-  ])("branches a verified gateway return without swallowing the redirect", async (paid, destination) => {
+    ["paid", "/checkout/success?order=72"],
+    ["failed", "/checkout/failure?order=72&state=failed"],
+    ["cancelled", "/checkout/failure?order=72&state=cancelled"],
+  ])("routes terminal authoritative states without swallowing the redirect", async (state, destination) => {
     mocks.redirect.mockReset().mockImplementation(() => {
       throw new Error("NEXT_REDIRECT");
     });
     mocks.getStoredAuthToken.mockResolvedValue("jwt");
-    mocks.orderSummary.mockResolvedValue({ id: 72, paid });
+    mocks.orderSummary.mockResolvedValue({ id: 72, payment: { provider: "zarinpal", state } });
 
     await expect(CheckoutReturnRoute({ searchParams: Promise.resolve({ order: "72" }) }))
       .rejects.toThrow("NEXT_REDIRECT");

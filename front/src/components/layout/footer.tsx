@@ -26,7 +26,6 @@ const hiddenRoutes: readonly (string | RegExp)[] = [
   "/checkout",
   /^\/profile(?:\/|$)/,
   "/checkout/success",
-  "/checkout/zp-callback",
   /^\/product\/.+/,
   /orders\/.+/,
 ];
