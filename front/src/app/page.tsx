@@ -124,7 +124,11 @@ export default async function Homepage() {
   };
 
   return (
-    <LayoutContent mainClassName="mx-auto w-full max-w-[1440px]" showBottomNav>
+    <LayoutContent
+      headerProps={{ showMobileSearch: true }}
+      mainClassName="mx-auto w-full max-w-[1440px]"
+      showBottomNav
+    >
       <h1 className="sr-only">کادوچی | خرید کادو، هدیه، گل و کیک با ارسال سریع</h1>
       <HomeCategorySwiper />
       {dailySpecial ? (

@@ -32,3 +32,22 @@ Deactivate Kadochi Core to remove its custom REST routes and registrations, then
 - `GET /wp-json/kadochi/v1/orders/{id}` and `GET /wp-json/kadochi/v1/checkout/operations/{uuid}`: authenticated, owner-only safe order summaries used for payment return and timeout reconciliation. An order owned by another customer is indistinguishable from missing.
 - `GET|POST /wp-json/kadochi/v1/occasions` and `GET|PATCH|DELETE /wp-json/kadochi/v1/occasions/{id}`: authenticated owner-only records; no owner input is accepted or serialized.
 - Browser cart/checkout/customer/occasion traffic uses explicit `/api/...` Next.js handlers. Cart tokens are held only in `kadochi_cart_token`, an HttpOnly same-site cookie. Checkout forwards that token and the opaque bearer token, persists delivery/packaging/postcard/operation additional fields, then lets Woo's configured Zarinpal gateway handle payment and verification. Kadochi Core rewrites the verified gateway return destination to `/checkout/return?order=…`; it does not implement a payment callback.
+
+## Support center
+
+Kadochi Core registers hidden `support_conversation` and `support_message` records
+and installs the indexed `kadochi_support_conversations` and
+`kadochi_support_messages` lookup tables on activation or upgrade. Administrators
+and shop managers receive `manage_kadochi_support` and can use the **Support**
+screen in WordPress administration.
+
+Storefront requests use the same-origin `/api/support/*` BFF. Signed guest
+identity is kept in the 180-day HttpOnly `kadochi_support_guest` cookie; it is
+never returned to browser JavaScript. No support-specific environment secret is
+required because WordPress derives the signing key from its authentication salt.
+
+Back up the database before deployment, deploy the plugin files, and visit any
+WordPress request once to run the versioned table/capability upgrade. Verify the
+Support menu, create one guest conversation, reply as staff, and confirm the
+storefront receives the reply. Deactivation removes routes and UI registration
+but deliberately retains conversation posts and lookup tables.

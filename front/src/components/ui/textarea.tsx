@@ -63,6 +63,10 @@ type TextAreaProps = Omit<ComponentPropsWithoutRef<"textarea">, "size"> &
     description?: ReactNode;
     /** Decorative content placed at the inline start of the field. */
     leadingIcon?: ReactNode;
+    /** Interactive content placed inside the inline end of the field. */
+    trailingAction?: ReactNode;
+    /** Classes applied to the bordered textarea field. */
+    fieldClassName?: string;
     /** Shows the current character count; pairs naturally with `maxLength`. */
     showCount?: boolean;
   };
@@ -80,6 +84,8 @@ const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
       label,
       description,
       leadingIcon,
+      trailingAction,
+      fieldClassName,
       showCount = false,
       size,
       status,
@@ -125,7 +131,10 @@ const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
           </label>
         ) : null}
 
-        <div className={textAreaFieldVariants({ size, status })} dir={dir}>
+        <div
+          className={cn(textAreaFieldVariants({ size, status }), fieldClassName)}
+          dir={dir}
+        >
           {leadingIcon ? (
             <span
               aria-hidden="true"
@@ -146,6 +155,7 @@ const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
             className={cn(
               "h-full min-h-0 w-full resize-none overflow-y-auto border-0 bg-transparent p-0 font-sans text-label-16 font-regular text-surface-neutral-high-emphasis outline-none placeholder:text-surface-neutral-low-emphasis focus:placeholder:text-transparent disabled:cursor-not-allowed disabled:text-on-disable",
               leadingIcon && "ps-24",
+              trailingAction && "pe-56",
               className,
             )}
             disabled={disabled}
@@ -161,6 +171,11 @@ const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
               onChange?.(event);
             }}
           />
+          {trailingAction ? (
+            <span className="absolute end-4 bottom-4 inline-flex shrink-0 items-center justify-center">
+              {trailingAction}
+            </span>
+          ) : null}
         </div>
 
         {hasDescription || showCount ? (

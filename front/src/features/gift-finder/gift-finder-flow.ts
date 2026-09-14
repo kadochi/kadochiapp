@@ -135,17 +135,14 @@ type OccasionRecipientRule = {
   /** Matches stable option IDs, taxonomy slugs, and Persian labels from structured occasion data. */
   matchTerms: readonly string[];
   question?: string;
-  recommendationTagSlugs?: readonly string[];
-  showChildGenderPreference?: boolean;
 };
 
 const recipientRules: readonly OccasionRecipientRule[] = [
   {
     ageBands: ["child", "teen"],
     id: "child-birthday",
-    matchTerms: ["child-birthday", "birthday-child", "تولد کودک", "تولد بچه"],
+    matchTerms: ["child-birthday", "تولد کودک"],
     question: "کادوی کودک برای چه کسی است؟",
-    showChildGenderPreference: true,
   },
   {
     ageBands: ["young-adult", "adult"],
@@ -168,19 +165,8 @@ const recipientRules: readonly OccasionRecipientRule[] = [
   },
   {
     ageBands: ["young-adult", "adult"],
-    id: "proposal-engagement",
-    matchTerms: ["proposal", "engagement", "خواستگاری", "نامزدی"],
-    recommendationTagSlugs: ["valentine"],
-  },
-  {
-    ageBands: ["young-adult", "adult"],
     id: "romantic-adult",
-    matchTerms: ["valentine", "romantic", "anniversary", "ولنتاین", "عشق", "سالگرد"],
-  },
-  {
-    ageBands: ["young-adult", "adult"],
-    id: "professional-adult",
-    matchTerms: ["professional", "formal", "کاری", "رسمی"],
+    matchTerms: ["valentine", "anniversary", "ولنتاین", "عشق", "سالگرد"],
   },
   {
     ageBands: ["teen", "young-adult", "adult"],
@@ -193,11 +179,6 @@ const defaultRecipientRule: OccasionRecipientRule = {
   ageBands: ["child", "teen", "young-adult", "adult"],
   id: "default",
   matchTerms: [],
-};
-
-const childAgeLabels: Record<Extract<GiftFinderRecipientAgeBand, "child" | "teen">, string> = {
-  child: "کودک، فرقی ندارد",
-  teen: "نوجوان، فرقی ندارد",
 };
 
 function normalizedRecipientRuleValue(value: string) {
@@ -228,32 +209,11 @@ export function giftFinderRecipientExperience(
     rule.ageBands.includes(option.ageBand) && (!rule.gender || option.gender === rule.gender)
   ));
 
-  const childNoPreferenceOptions = rule.showChildGenderPreference
-    ? rule.ageBands.flatMap((ageBand) => {
-      if (ageBand !== "child" && ageBand !== "teen") return [];
-      return [{
-        ageBand,
-        description: ageBand === "child" ? "تا ۵ سال" : "۶ تا ۱۸ سال",
-        // There is no existing taxonomy term for a gender-neutral child.
-        // Omitting a recipient tag deliberately keeps this choice broad.
-        gender: "any" as const,
-        id: `any-${ageBand}`,
-        label: childAgeLabels[ageBand],
-        tagSlugs: [],
-      } satisfies GiftFinderRecipientOption];
-    })
-    : [];
-
   return {
     inferredGender: rule.gender,
-    options: [...options, ...childNoPreferenceOptions],
+    options,
     question: rule.question ?? "کادو برای چه کسی است؟",
   };
-}
-
-/** Optional romance bias for occasions such as proposal and engagement. */
-export function giftFinderRecommendationTagSlugs(occasion?: GiftFinderTagOption) {
-  return recipientRuleForOccasion(occasion).recommendationTagSlugs ?? [];
 }
 
 export const initialGiftFinderState: GiftFinderState = {
@@ -364,11 +324,7 @@ export function giftFinderProductPath(answers: GiftFinderAnswers) {
   const { occasion, delivery, recipient, price, city, category } = answers;
   if (!occasion || !delivery || !recipient || !price || !city) return null;
 
-  const tags = [...new Set([
-    ...recipient.tagSlugs,
-    ...occasion.tagSlugs,
-    ...giftFinderRecommendationTagSlugs(occasion),
-  ])];
+  const tags = [...new Set([...recipient.tagSlugs, ...occasion.tagSlugs])];
   const params = new URLSearchParams();
   if (category) params.set("category", category.slug);
   if (tags.length) params.set("tag", tags.join(","));

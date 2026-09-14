@@ -8,6 +8,7 @@ import { Toaster } from "../components/ui/toaster";
 import { AuthProvider } from "../features/auth/auth-provider";
 import { getStoredAuthToken } from "../features/auth/services/auth.server";
 import { env } from "../lib/server/env";
+import { SupportChat } from "../features/support/components/support-chat";
 import AddToHomeScreenPrompt from "./add-to-home-screen-prompt";
 import GATracker from "./ga-tracker";
 import "./globals.css";
@@ -117,6 +118,7 @@ export default async function RootLayout({
               zIndex={2000}
             />
             <Toaster>{children}</Toaster>
+            <SupportChat />
             {modal}
           </AuthProvider>
         </Direction.Provider>

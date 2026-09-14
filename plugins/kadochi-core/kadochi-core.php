@@ -10,6 +10,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+require_once __DIR__ . '/includes/class-kadochi-support.php';
+
 final class Kadochi_Core {
 	const REST_NAMESPACE = 'kadochi/v1';
 	const SCF_MIN_VERSION = '6.0.0';
@@ -235,6 +237,7 @@ final class Kadochi_Core {
 		update_option( 'kadochi_editorial_capabilities_version', self::EDITORIAL_CAPABILITIES_VERSION, false );
 		self::install_product_actions_table();
 		self::install_notifications_table();
+		Kadochi_Support::activate();
 		flush_rewrite_rules();
 	}
 
@@ -3608,4 +3611,6 @@ final class Kadochi_Core {
 
 $kadochi_core = new Kadochi_Core();
 $kadochi_core->boot();
+$kadochi_support = new Kadochi_Support();
+$kadochi_support->boot();
 register_activation_hook( __FILE__, array( 'Kadochi_Core', 'activate' ) );

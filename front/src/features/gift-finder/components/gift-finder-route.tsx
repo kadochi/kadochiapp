@@ -9,21 +9,24 @@ import type {
 } from "../gift-finder-flow";
 
 const recipientDefinitions = [
-  { ageBand: "child", description: "تا ۵ سال", gender: "male", imageUrl: "/images/gift-finder/boy-kid.png", label: "پسر بچه", tagName: "baby boy" },
-  { ageBand: "teen", description: "۶ تا ۱۸ سال", gender: "male", imageUrl: "/images/gift-finder/boy.png", label: "پسر نوجوان", tagName: "teenage boy" },
-  { ageBand: "young-adult", description: "۱۹ تا ۳۵ سال", gender: "male", imageUrl: "/images/gift-finder/man.png", label: "مرد جوان", tagName: "young man" },
-  { ageBand: "adult", description: "۳۶ سال به بالا", gender: "male", imageUrl: "/images/gift-finder/adult-man.png", label: "مرد بزرگسال", tagName: "adult man" },
-  { ageBand: "child", description: "تا ۵ سال", gender: "female", imageUrl: "/images/gift-finder/girl-kid.png", label: "دختر بچه", tagName: "baby girl" },
-  { ageBand: "teen", description: "۶ تا ۱۸ سال", gender: "female", imageUrl: "/images/gift-finder/girl.png", label: "دختر نوجوان", tagName: "teenage girl" },
-  { ageBand: "young-adult", description: "۱۹ تا ۳۵ سال", gender: "female", imageUrl: "/images/gift-finder/woman.png", label: "زن جوان", tagName: "young woman" },
-  { ageBand: "adult", description: "۳۶ سال به بالا", gender: "female", imageUrl: "/images/gift-finder/adult-woman.png", label: "زن بزرگسال", tagName: "adult woman" },
+  { ageBand: "child", description: "تا ۵ سال", gender: "female", imageUrl: "/images/gift-finder/girl-kid.png", label: "دختر بچه", tagName: "دختر بچه", tagSlug: "girl-kid" },
+  { ageBand: "child", description: "تا ۵ سال", gender: "male", imageUrl: "/images/gift-finder/boy-kid.png", label: "پسر بچه", tagName: "پسر بچه", tagSlug: "boy-kid" },
+  { ageBand: "child", description: "تا ۵ سال", gender: "any", label: "کودک، فرقی ندارد", tagName: "هدیه برای کودک", tagSlug: "هدیه-برای-کودک" },
+  { ageBand: "teen", description: "۶ تا ۱۸ سال", gender: "female", imageUrl: "/images/gift-finder/girl.png", label: "دختر نوجوان", tagName: "دختر نوجوان", tagSlug: "girl-teen" },
+  { ageBand: "teen", description: "۶ تا ۱۸ سال", gender: "male", imageUrl: "/images/gift-finder/boy.png", label: "پسر نوجوان", tagName: "پسر نوجوان", tagSlug: "boy-teen" },
+  { ageBand: "teen", description: "۶ تا ۱۸ سال", gender: "any", label: "نوجوان، فرقی ندارد", tagName: "هدیه برای نوجوان", tagSlug: "هدیه-برای-نوجوان" },
+  { ageBand: "young-adult", description: "۱۹ تا ۳۵ سال", gender: "female", imageUrl: "/images/gift-finder/woman.png", label: "زن جوان", tagName: "زن جوان", tagSlug: "woman" },
+  { ageBand: "young-adult", description: "۱۹ تا ۳۵ سال", gender: "male", imageUrl: "/images/gift-finder/man.png", label: "مرد جوان", tagName: "مرد جوان", tagSlug: "man" },
+  { ageBand: "adult", description: "۳۶ سال به بالا", gender: "female", imageUrl: "/images/gift-finder/adult-woman.png", label: "زن بزرگسال", tagName: "زن بزرگسال", tagSlug: "adult-woman" },
+  { ageBand: "adult", description: "۳۶ سال به بالا", gender: "male", imageUrl: "/images/gift-finder/adult-man.png", label: "مرد بزرگسال", tagName: "مرد بزرگسال", tagSlug: "adult-man" },
 ] as const satisfies readonly {
   ageBand: GiftFinderRecipientAgeBand;
   description: string;
-  gender: Exclude<GiftFinderRecipientGender, "any">;
-  imageUrl: string;
+  gender: GiftFinderRecipientGender;
+  imageUrl?: string;
   label: string;
   tagName: string;
+  tagSlug: string;
 }[];
 
 const occasionDefinitions = [
@@ -37,12 +40,6 @@ const occasionDefinitions = [
   { id: "newyear", imageUrl: "/images/gift-finder/occasion-newyear.png", label: "عید نوروز", tagSlugs: ["newyear"] },
   { id: "yalda", imageUrl: "/images/gift-finder/occasion-yalda.png", label: "شب یلدا", tagSlugs: ["yalda"] },
   { id: "valentine", imageUrl: "/images/gift-finder/occasion-valentine.png", label: "روز عشق و ولنتاین", tagSlugs: ["valentine"] },
-] as const;
-
-/** Optional occasions surface only when their existing product tags are present. */
-const optionalOccasionDefinitions = [
-  { id: "proposal-engagement", label: "خواستگاری و نامزدی", terms: ["proposal", "engagement", "خواستگاری", "نامزدی"] },
-  { id: "professional-gift", label: "هدیه رسمی و کاری", terms: ["professional", "formal", "کاری", "رسمی"] },
 ] as const;
 
 const categoryArtwork: Array<{ imageUrl: string; terms: readonly string[] }> = [
@@ -69,21 +66,12 @@ function categoryImage(category: ProductCategory) {
   return categoryArtwork.find((item) => item.terms.some((term) => matchesTerm(category, term)))?.imageUrl ?? category.imageUrl;
 }
 
-function matchingTagSlugs(tags: readonly ProductTag[], terms: readonly string[]) {
-  return tags
-    .filter((tag) => terms.some((term) => {
-      const target = normalized(term);
-      return normalized(tag.slug).includes(target) || normalized(tag.name).includes(target);
-    }))
-    .map((tag) => tag.slug);
-}
-
 function giftFinderOptions(tags: readonly ProductTag[], categories: readonly ProductCategory[]) {
-  const recipientOptions = recipientDefinitions.flatMap(({ tagName, ...definition }) => {
-    const tag = tags.find((item) => normalized(item.name) === tagName);
-    // Store API's tag endpoint omits empty tags. The finder still needs to
-    // present all of the WooCommerce recipient tags specified for this flow.
-    const slug = tag?.slug ?? tagName.replaceAll(" ", "-");
+  const recipientOptions = recipientDefinitions.flatMap(({ tagName, tagSlug, ...definition }) => {
+    const tag = tags.find((item) => item.slug === tagSlug || item.name === tagName);
+    // WordPress's tag endpoint can omit empty terms, so retain the exact
+    // canonical slug confirmed in the product-tag administration screens.
+    const slug = tag?.slug ?? tagSlug;
     return [{ id: slug, ...definition, tagSlugs: [slug] }];
   });
 
@@ -94,10 +82,6 @@ function giftFinderOptions(tags: readonly ProductTag[], categories: readonly Pro
       label,
       tagSlugs: [...tagSlugs],
     })),
-    ...optionalOccasionDefinitions.flatMap(({ id, label, terms }) => {
-      const tagSlugs = matchingTagSlugs(tags, terms);
-      return tagSlugs.length ? [{ id, label, tagSlugs }] : [];
-    }),
   ];
 
   const categoryOptions = categories.map((category) => ({

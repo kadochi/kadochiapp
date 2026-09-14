@@ -57,6 +57,6 @@ export function hasApiErrorCode(error: unknown, code: ApiError["code"]): boolean
 }
 
 export function errorForStatus(status: number, requestId: string, message = "The upstream service could not complete the request."): ApiError {
-  const code = status === 401 ? "unauthenticated" : status === 403 ? "forbidden" : status === 404 ? "not_found" : status === 409 ? "conflict" : status === 429 ? "rate_limited" : "upstream_failure";
+  const code = status === 400 ? "validation" : status === 401 ? "unauthenticated" : status === 403 ? "forbidden" : status === 404 ? "not_found" : status === 409 ? "conflict" : status === 429 ? "rate_limited" : "upstream_failure";
   return { code, status, message, requestId, retryable: status === 429 || status >= 500 };
 }

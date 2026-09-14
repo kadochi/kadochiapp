@@ -104,7 +104,7 @@ export function wordpressErrorDetail(status: number, body: unknown, requestId: s
     kadochi_payment_unavailable: { code: "upstream_failure", message: "The payment gateway could not start a payment.", retryable: false },
   };
   const mapped = typeof upstream.code === "string" ? otpErrors[upstream.code] ?? paymentErrors[upstream.code] : undefined;
-  if (!mapped) return errorForStatus(status, requestId);
+  if (!mapped) return { ...errorForStatus(status, requestId), ...(retryAfterSeconds === undefined ? {} : { retryAfter: retryAfterSeconds }) };
   return { ...mapped, status, requestId, ...(retryAfterSeconds === undefined ? {} : { retryAfter: retryAfterSeconds }) };
 }
 

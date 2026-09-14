@@ -37,7 +37,7 @@ export function jsonError(error: unknown, id: string): NextResponse {
     retryable: detail.retryable,
     payment: detail.payment,
   });
-  return NextResponse.json(detail, { status: detail.status, headers: { "Cache-Control": "no-store", "x-request-id": id } });
+  return NextResponse.json(detail, { status: detail.status, headers: { "Cache-Control": "no-store", "x-request-id": id, ...(detail.retryAfter === undefined ? {} : { "Retry-After": String(Math.ceil(detail.retryAfter)) }) } });
 }
 
 export function jsonOk<T>(body: T, id: string, init?: ResponseInit): NextResponse<T> {

@@ -1,0 +1,36 @@
+.kadochi-support-admin { max-width: 1500px; }
+.kadochi-support-filters { display:grid; grid-template-columns:minmax(220px,2fr) repeat(4,minmax(130px,1fr)); gap:8px; margin:16px 0; }
+.kadochi-support-filters input,.kadochi-support-filters select { width:100%; }
+.kadochi-support-grid { display:grid; grid-template-columns:minmax(280px,360px) minmax(420px,1fr); min-height:680px; border:1px solid #c3c4c7; background:#fff; }
+.kadochi-support-grid aside { border-inline-end:1px solid #dcdcde; }
+.kadochi-support-list { max-height:630px; overflow:auto; }
+.kadochi-support-list-item { position:relative; display:grid; gap:5px; width:100%; padding:14px; border:0; border-bottom:1px solid #eee; background:#fff; text-align:start; cursor:pointer; }
+.kadochi-support-list-item:hover,.kadochi-support-list-item.is-selected { background:#f0f6fc; }
+.kadochi-support-list-item span { color:#646970; font-size:12px; }
+.kadochi-support-unread { position:absolute; inset-block-start:12px; inset-inline-end:12px; min-width:20px; padding:2px 6px; border-radius:20px; background:#d63638; color:#fff; text-align:center; }
+.kadochi-support-pager { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px; border-top:1px solid #ddd; }
+.kadochi-support-detail { display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; min-width:0; }
+.kadochi-support-detail-header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px; border-bottom:1px solid #ddd; }
+.kadochi-support-detail-header h2,.kadochi-support-detail-header p { margin:0 0 4px; }
+.kadochi-support-controls { display:flex; gap:8px; }
+.kadochi-support-new-messages { padding:6px 12px; border-bottom:1px solid #dcdcde; background:#f0f6fc; text-align:center; }
+.kadochi-support-new-messages:empty { display:none; }
+.kadochi-support-new-message-button { border-color:#2271b1 !important; color:#135e96 !important; font-weight:600; }
+.kadochi-support-history { display:flex; flex-direction:column; gap:10px; max-height:510px; margin:0; padding:18px; overflow:auto; background:#f6f7f7; }
+.kadochi-support-message { align-self:flex-start; max-width:75%; margin:0; padding:10px 12px; border-radius:10px; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.08); list-style:none; }
+.kadochi-support-message.is-administrator { align-self:flex-end; background:#e7f5ff; }
+.kadochi-support-message p { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; }
+.kadochi-support-message time { display:block; margin-top:6px; color:#646970; font-size:11px; }
+.kadochi-support-load-older { align-self:center; list-style:none; }
+.kadochi-support-composer { display:grid; grid-template-columns:1fr auto; gap:10px; padding:14px; border-top:1px solid #ddd; }
+.kadochi-support-composer textarea { width:100%; resize:vertical; }
+.kadochi-support-composer-actions { grid-column:1/-1; display:flex; align-items:center; min-height:30px; }
+.kadochi-support-quick-replies { position:relative; }
+.kadochi-support-quick-replies-menu { position:absolute; z-index:20; inset-inline-start:0; inset-block-end:calc(100% + 6px); display:grid; width:min(420px,calc(100vw - 80px)); max-height:360px; padding:6px; overflow:auto; border:1px solid #c3c4c7; border-radius:6px; background:#fff; box-shadow:0 8px 24px rgba(0,0,0,.16); }
+.kadochi-support-quick-replies-menu[hidden] { display:none; }
+.kadochi-support-quick-reply { display:grid; gap:3px; width:100%; padding:9px 10px; border:0; border-radius:4px; background:transparent; color:#1d2327; text-align:start; cursor:pointer; }
+.kadochi-support-quick-reply:hover,.kadochi-support-quick-reply:focus { background:#f0f6fc; outline-color:#2271b1; }
+.kadochi-support-quick-reply strong { font-size:13px; }
+.kadochi-support-quick-reply span { color:#646970; font-size:12px; line-height:1.55; }
+.kadochi-support-empty { padding:24px; color:#646970; text-align:center; }
+@media (max-width: 900px) { .kadochi-support-filters { grid-template-columns:1fr 1fr; } .kadochi-support-grid { grid-template-columns:1fr; } .kadochi-support-grid aside { border:0; border-bottom:1px solid #ddd; } }

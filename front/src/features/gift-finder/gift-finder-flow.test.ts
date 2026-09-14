@@ -15,15 +15,15 @@ import {
 } from "./gift-finder-flow";
 
 const recipient: GiftFinderTagOption = {
-  id: "young-woman",
+  id: "woman",
   label: "زن جوان",
-  tagSlugs: ["young-woman"],
+  tagSlugs: ["woman"],
 };
 
 const occasion: GiftFinderTagOption = {
   id: "birthday",
   label: "جشن تولد",
-  tagSlugs: ["birthday", "young-woman"],
+  tagSlugs: ["birthday", "woman"],
 };
 
 const category: GiftFinderCategoryOption = {
@@ -39,12 +39,14 @@ const midRange = giftFinderPriceOptions[1];
 const tehran = giftFinderCityOptions[0];
 
 const recipientAudienceOptions: GiftFinderRecipientOption[] = [
-  { ageBand: "child", gender: "female", id: "baby-girl", label: "دختر بچه", tagSlugs: ["baby-girl"] },
-  { ageBand: "child", gender: "male", id: "baby-boy", label: "پسر بچه", tagSlugs: ["baby-boy"] },
-  { ageBand: "teen", gender: "female", id: "teenage-girl", label: "دختر نوجوان", tagSlugs: ["teenage-girl"] },
-  { ageBand: "teen", gender: "male", id: "teenage-boy", label: "پسر نوجوان", tagSlugs: ["teenage-boy"] },
-  { ageBand: "young-adult", gender: "female", id: "young-woman", label: "زن جوان", tagSlugs: ["young-woman"] },
-  { ageBand: "young-adult", gender: "male", id: "young-man", label: "مرد جوان", tagSlugs: ["young-man"] },
+  { ageBand: "child", gender: "female", id: "girl-kid", label: "دختر بچه", tagSlugs: ["girl-kid"] },
+  { ageBand: "child", gender: "male", id: "boy-kid", label: "پسر بچه", tagSlugs: ["boy-kid"] },
+  { ageBand: "child", gender: "any", id: "هدیه-برای-کودک", label: "کودک، فرقی ندارد", tagSlugs: ["هدیه-برای-کودک"] },
+  { ageBand: "teen", gender: "female", id: "girl-teen", label: "دختر نوجوان", tagSlugs: ["girl-teen"] },
+  { ageBand: "teen", gender: "male", id: "boy-teen", label: "پسر نوجوان", tagSlugs: ["boy-teen"] },
+  { ageBand: "teen", gender: "any", id: "هدیه-برای-نوجوان", label: "نوجوان، فرقی ندارد", tagSlugs: ["هدیه-برای-نوجوان"] },
+  { ageBand: "young-adult", gender: "female", id: "woman", label: "زن جوان", tagSlugs: ["woman"] },
+  { ageBand: "young-adult", gender: "male", id: "man", label: "مرد جوان", tagSlugs: ["man"] },
   { ageBand: "adult", gender: "female", id: "adult-woman", label: "زن بزرگسال", tagSlugs: ["adult-woman"] },
   { ageBand: "adult", gender: "male", id: "adult-man", label: "مرد بزرگسال", tagSlugs: ["adult-man"] },
 ];
@@ -216,7 +218,7 @@ describe("gift finder flow", () => {
         city: tehran,
       }),
     ).toBe(
-      "/products?tag=young-woman%2Cbirthday&min_price=1000000&max_price=3000000&delivery=today",
+      "/products?tag=woman%2Cbirthday&min_price=1000000&max_price=3000000&delivery=today",
     );
     expect(
       giftFinderProductPath({
@@ -258,14 +260,10 @@ describe("gift finder flow", () => {
     expect(suggestions.find((item) => item.id === "flowers")?.answers).toEqual({ category });
   });
 
-  it("limits romantic and formal occasions to adult recipient age bands", () => {
+  it("limits romantic occasions to adult recipient age bands", () => {
     const romantic = giftFinderRecipientExperience(recipientAudienceOptions, occasionFor("valentine"));
-    const formal = giftFinderRecipientExperience(recipientAudienceOptions, occasionFor("professional-gift"));
 
     expect(romantic.options.map((option) => option.ageBand)).toEqual([
-      "young-adult", "young-adult", "adult", "adult",
-    ]);
-    expect(formal.options.map((option) => option.ageBand)).toEqual([
       "young-adult", "young-adult", "adult", "adult",
     ]);
   });
@@ -276,9 +274,9 @@ describe("gift finder flow", () => {
 
     expect(mothersDay.inferredGender).toBe("female");
     expect(mothersDay.question).toBe("سن گیرنده را انتخاب کنید.");
-    expect(mothersDay.options.map((option) => option.id)).toEqual(["young-woman", "adult-woman"]);
+    expect(mothersDay.options.map((option) => option.id)).toEqual(["woman", "adult-woman"]);
     expect(fathersDay.inferredGender).toBe("male");
-    expect(fathersDay.options.map((option) => option.id)).toEqual(["young-man", "adult-man"]);
+    expect(fathersDay.options.map((option) => option.id)).toEqual(["man", "adult-man"]);
   });
 
   it("uses child-only gender choices for a child birthday", () => {
@@ -288,12 +286,12 @@ describe("gift finder flow", () => {
     );
 
     expect(experience.options.map((option) => option.id)).toEqual([
-      "baby-girl",
-      "baby-boy",
-      "teenage-girl",
-      "teenage-boy",
-      "any-child",
-      "any-teen",
+      "girl-kid",
+      "boy-kid",
+      "هدیه-برای-کودک",
+      "girl-teen",
+      "boy-teen",
+      "هدیه-برای-نوجوان",
     ]);
     expect(experience.options.filter((option) => option.gender === "any").map((option) => option.label)).toEqual([
       "کودک، فرقی ندارد",
@@ -305,20 +303,8 @@ describe("gift finder flow", () => {
     const experience = giftFinderRecipientExperience(recipientAudienceOptions, occasionFor("graduation"));
 
     expect(experience.options.map((option) => option.ageBand)).toEqual([
-      "teen", "teen", "young-adult", "young-adult", "adult", "adult",
+      "teen", "teen", "teen", "young-adult", "young-adult", "adult", "adult",
     ]);
   });
 
-  it("adds the existing romantic tag to proposal recommendations", () => {
-    const proposal = occasionFor("proposal", ["proposal"]);
-    const proposalPath = giftFinderProductPath({
-      occasion: proposal,
-      delivery: today,
-      recipient,
-      price: midRange,
-      city: tehran,
-    });
-
-    expect(proposalPath).toContain("tag=young-woman%2Cproposal%2Cvalentine");
-  });
 });

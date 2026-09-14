@@ -15,6 +15,7 @@ import { GiftFinderTrigger } from "@/features/gift-finder/components/gift-finder
 import { AnimatedProductSearch } from "@/features/products/components/product-search";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
+import { MobileHeaderSearch } from "./mobile-header-search";
 
 const SideMenu = dynamic(
   () => import("./side-menu").then((module) => module.SideMenu),
@@ -49,6 +50,8 @@ export type HeaderProps = {
   isAuthenticated?: boolean;
   /** Optional user data for a controlled auth state. */
   user?: HeaderUser | null;
+  /** Shows the shared PLP search controls below the mobile storefront header. */
+  showMobileSearch?: boolean;
   className?: string;
 };
 
@@ -160,6 +163,7 @@ function DefaultHeader({
   basketCount: controlledBasketCount,
   isAuthenticated: controlledAuthentication,
   user: controlledUser,
+  showMobileSearch = false,
   className,
 }: Omit<HeaderProps, "variant" | "title" | "backUrl">) {
   const pathname = usePathname();
@@ -347,6 +351,7 @@ function DefaultHeader({
             ))}
           </nav>
         </header>
+        {showMobileSearch ? <MobileHeaderSearch /> : null}
       </div>
 
       {hasOpenedMenu ? (
