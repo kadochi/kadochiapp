@@ -1,3 +1,4 @@
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -28,5 +29,17 @@ describe("CheckoutReturnRoute", () => {
     await expect(CheckoutReturnRoute({ searchParams: Promise.resolve({ order: "72" }) }))
       .rejects.toThrow("NEXT_REDIRECT");
     expect(mocks.redirect).toHaveBeenLastCalledWith(destination);
+  });
+
+  it.each(["pending", "unknown"])("offers recovery actions for a %s payment", async (state) => {
+    mocks.redirect.mockReset();
+    mocks.getStoredAuthToken.mockResolvedValue("jwt");
+    mocks.orderSummary.mockResolvedValue({ id: 72, payment: { provider: "zarinpal", state } });
+
+    const markup = renderToStaticMarkup(await CheckoutReturnRoute({ searchParams: Promise.resolve({ order: "72" }) }));
+
+    expect(mocks.redirect).not.toHaveBeenCalled();
+    expect(markup).toContain('href="/checkout/return?order=72"');
+    expect(markup).toContain('href="/profile/orders"');
   });
 });

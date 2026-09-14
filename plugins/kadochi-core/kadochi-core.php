@@ -53,6 +53,8 @@ final class Kadochi_Core {
 	private $bearer_error = null;
 	/** @var array<string, mixed>|null Context used only while the gateway emits its redirect. */
 	private $active_payment_attempt = null;
+	/** @var int Order whose ZarinPal verification callback is being handled in this request. */
+	private $gateway_callback_order_id = 0;
 
 	public function boot() {
 		self::maybe_install_product_actions_table();
@@ -2329,15 +2331,20 @@ final class Kadochi_Core {
 			return 'paid';
 		}
 		$stored = sanitize_key( (string) $order->get_meta( self::PAYMENT_STATE_META_KEY, true ) );
-		if ( $this->valid_payment_state( $stored ) ) {
+		if ( in_array( $stored, array( 'failed', 'cancelled' ), true ) ) {
 			return $stored;
 		}
+		// A terminal Woo status (unpaid-order timeout, admin action, refund) must
+		// override a stale `pending` or `paid` recorded earlier in the attempt.
 		$status = sanitize_key( $order->get_status() );
 		if ( 'failed' === $status ) {
 			return 'failed';
 		}
-		if ( 'cancelled' === $status ) {
+		if ( in_array( $status, array( 'cancelled', 'refunded' ), true ) ) {
 			return 'cancelled';
+		}
+		if ( $this->valid_payment_state( $stored ) ) {
+			return $stored;
 		}
 		if ( in_array( $status, array( 'draft', 'checkout-draft', 'pending', 'pending-payment', 'on-hold' ), true ) ) {
 			return 'pending';
@@ -2788,10 +2795,13 @@ final class Kadochi_Core {
 	public function redirect_cancelled_gateway_payment() {
 		// The gateway uses any value other than OK when the customer cancels.
 		$status = isset( $_GET['Status'] ) ? sanitize_text_field( wp_unslash( $_GET['Status'] ) ) : '';
+		$order_id = isset( $_GET['wc_order'] ) ? absint( wp_unslash( $_GET['wc_order'] ) ) : 0;
 		if ( 'OK' === $status ) {
+			// Let the gateway verify, but intercept its failure exit (see below).
+			$this->gateway_callback_order_id = $order_id;
+			add_filter( 'wp_redirect', array( $this, 'redirect_failed_gateway_verification' ), 999 );
 			return;
 		}
-		$order_id = isset( $_GET['wc_order'] ) ? absint( wp_unslash( $_GET['wc_order'] ) ) : 0;
 		$order = $order_id && function_exists( 'wc_get_order' ) ? wc_get_order( $order_id ) : false;
 		$provider = $this->payment_provider_for_order( $order );
 		if ( ! $order || $order->is_paid() || ! $provider || 'zarinpal' !== $provider['id'] ) {
@@ -2806,6 +2816,42 @@ final class Kadochi_Core {
 		}
 		wp_safe_redirect( $failure_url );
 		exit;
+	}
+
+	/**
+	 * ZarinPal 5.1.1 fires no failure hook: a rejected verification or a
+	 * mismatched authority only redirects to the WordPress checkout page and
+	 * leaves the order pending. Record that terminal outcome and send the
+	 * customer to the frontend result instead. ZarinPal reverses unverified
+	 * transactions, so a retry cannot double-charge.
+	 */
+	public function redirect_failed_gateway_verification( $location ) {
+		$order_id = $this->gateway_callback_order_id;
+		if ( ! $order_id || ! function_exists( 'wc_get_checkout_url' ) || ! is_string( $location ) || untrailingslashit( $location ) !== untrailingslashit( wc_get_checkout_url() ) ) {
+			return $location;
+		}
+		$this->gateway_callback_order_id = 0;
+		$order = function_exists( 'wc_get_order' ) ? wc_get_order( $order_id ) : false;
+		$provider = $this->payment_provider_for_order( $order );
+		if ( ! $order || ! $provider || 'zarinpal' !== $provider['id'] ) {
+			return $location;
+		}
+		if ( $order->is_paid() ) {
+			return $this->frontend_checkout_result_url( 'return', $order ) ?: $location;
+		}
+		// The callback is public. Only an authority the gateway issued for this
+		// order proves a genuine verification failure; a forged callback must not
+		// fail someone else's in-flight payment, so it only sees the neutral page.
+		$authority = isset( $_GET['Authority'] ) ? sanitize_text_field( wp_unslash( $_GET['Authority'] ) ) : '';
+		$history = $order->get_meta( '_zarinpal_authority_history', true );
+		$issued = array_merge( array( (string) $order->get_meta( '_zarinpal_authority', true ) ), is_array( $history ) ? $history : array() );
+		if ( '' === $authority || ! in_array( $authority, $issued, true ) ) {
+			return $this->frontend_checkout_result_url( 'return', $order ) ?: $location;
+		}
+		$this->set_payment_state( $order, $provider['id'], 'failed' );
+		$this->release_payment_attempt( $order, null, 'gateway_failure' );
+		$this->payment_log( 'payment_failed', array( 'order_id' => absint( $order->get_id() ), 'provider' => $provider['id'], 'failureCategory' => 'verification_rejected' ) );
+		return $this->frontend_checkout_result_url( 'failure', $order ) ?: $location;
 	}
 
 	/** Writes support-safe, provider-neutral payment lifecycle logs through WooCommerce. */

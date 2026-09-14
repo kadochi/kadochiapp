@@ -2,9 +2,10 @@ import { redirect } from "next/navigation";
 
 import { Header } from "@/components/layout/header";
 import { getStoredAuthToken } from "@/features/auth/services/auth.server";
-import { clearCart } from "@/features/cart/services/cart.server";
+import { ClearPaidCart } from "@/features/checkout/components/clear-paid-cart";
 import { OrderResult } from "@/features/checkout/components/order-result";
 import { orderSummary } from "@/features/checkout/services/checkout.server";
+import { isPendingPaymentOrder } from "@/features/checkout/services/paid-cart.server";
 import { resolvePaymentResult } from "@/features/payment/payment-result";
 import { hasApiErrorCode } from "@/lib/http/errors";
 import StateMessage from "@/components/layout/state-message";
@@ -29,12 +30,8 @@ export default async function CheckoutSuccessRoute({ searchParams }: Props) {
   }
   const payment = resolvePaymentResult(summary);
   if (payment.kind !== "success") redirect(payment.href);
-  try {
-    await clearCart(crypto.randomUUID());
-  } catch (error) {
-    // Payment has already been verified; retain the success result even if the
-    // cart-clearing request is temporarily unavailable.
-    console.error("[checkout] clear_paid_cart_failed", { orderId: summary.id, error });
-  }
-  return <><Header /><OrderResult order={summary} state="paid" /></>;
+  // Only the order this browser just paid for clears the cart; revisiting an
+  // older success link must not wipe a cart the customer has since built.
+  const clearsCart = await isPendingPaymentOrder(summary.id);
+  return <><Header />{clearsCart ? <ClearPaidCart orderId={summary.id} /> : null}<OrderResult order={summary} state="paid" /></>;
 }

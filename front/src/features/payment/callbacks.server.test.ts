@@ -27,6 +27,13 @@ describe("parsePaymentCallback", () => {
     expect(callback.relayQuery.toString()).toBe("wc_order=42&Status=NOK");
   });
 
+  it("relays a cancellation even when its authority is malformed", () => {
+    const callback = parsePaymentCallback(zarinpal, new URLSearchParams({ wc_order: "42", Status: "NOK", Authority: "bad!" }));
+
+    expect(callback.hintState).toBe("cancelled");
+    expect(callback.relayQuery.toString()).toBe("wc_order=42&Status=NOK");
+  });
+
   it.each([
     new URLSearchParams({ wc_order: "0", Status: "OK", Authority: "a1b2c3d4e5f6g7h8" }),
     new URLSearchParams({ wc_order: "42", Status: "OK" }),

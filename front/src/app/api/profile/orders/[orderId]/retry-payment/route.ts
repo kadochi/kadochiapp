@@ -1,3 +1,4 @@
+import { storePaymentOrder } from "@/features/checkout/services/paid-cart.server";
 import { retryProfileOrderPayment } from "@/features/profile/services/profile.server";
 import { ServiceError } from "@/lib/http/errors";
 import { assertSameOrigin, jsonError, jsonOk, requestId } from "@/lib/http/route";
@@ -15,7 +16,9 @@ export async function POST(request: Request, context: { params: Promise<{ orderI
     if (typeof attemptId !== "string") {
       throw new ServiceError({ code: "validation", status: 400, message: "Invalid payment attempt.", requestId: id, retryable: false });
     }
-    return jsonOk(await retryProfileOrderPayment(parsedOrderId, attemptId, id), id, { headers: { "Cache-Control": "no-store" } });
+    const response = jsonOk(await retryProfileOrderPayment(parsedOrderId, attemptId, id), id, { headers: { "Cache-Control": "no-store" } });
+    storePaymentOrder(response, parsedOrderId);
+    return response;
   } catch (error) {
     return jsonError(error, id);
   }

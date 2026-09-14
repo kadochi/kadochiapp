@@ -1,5 +1,6 @@
 import { applyCartToken } from "@/features/cart/services/cart.server";
 import { checkout, checkoutState } from "@/features/checkout/services/checkout.server";
+import { storePaymentOrder } from "@/features/checkout/services/paid-cart.server";
 import { assertSameOrigin, jsonError, jsonOk, requestId } from "@/lib/http/route";
 
 export async function GET(request: Request) {
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
     const completed = await checkout(await request.json(), id);
     const response = jsonOk(completed.result, id, { headers: { "Cache-Control": "no-store" } });
     applyCartToken(response, completed.cartToken);
+    if (completed.result.orderId) storePaymentOrder(response, completed.result.orderId);
     return response;
   } catch (error) {
     return jsonError(error, id);

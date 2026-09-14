@@ -43,10 +43,12 @@ export function parsePaymentCallback(provider: PaymentProvider, params: URLSearc
   if (hintState === "pending") {
     if (!authorityKey) throw new Error("Missing payment callback authority configuration.");
     relayQuery.set(authorityKey, authoritySchema.parse(authorityValue));
-  } else if (authority.length === 1 && authorityValue.trim()) {
-    // ZarinPal does not require an authority on cancellation, but preserving a
-    // well-formed one keeps the Woo callback compatible with provider variants.
-    if (authorityKey) relayQuery.set(authorityKey, authoritySchema.parse(authorityValue));
+  } else if (authorityKey) {
+    // ZarinPal does not require an authority on cancellation. Preserve a
+    // well-formed one for provider variants, but drop a malformed one so the
+    // cancellation still reaches Woo instead of leaving the order pending.
+    const parsedAuthority = authoritySchema.safeParse(authorityValue);
+    if (parsedAuthority.success) relayQuery.set(authorityKey, parsedAuthority.data);
   }
 
   return { orderId, provider, hintState, relayQuery };

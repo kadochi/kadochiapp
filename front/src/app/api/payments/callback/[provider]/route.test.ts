@@ -41,7 +41,7 @@ describe("GET /api/payments/callback/[provider]", () => {
     const response = await GET(new Request("https://shop.test/api/payments/callback/zarinpal"), { params: Promise.resolve({ provider: "zarinpal" }) });
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe(`https://shop.test${path}`);
+    expect(response.headers.get("location")).toBe(path);
   });
 
   it("renders generic failure when callback validation rejects input", async () => {
@@ -50,6 +50,6 @@ describe("GET /api/payments/callback/[provider]", () => {
     const response = await GET(new Request("https://shop.test/api/payments/callback/zarinpal?Authority=secret"), { params: Promise.resolve({ provider: "zarinpal" }) });
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe("https://shop.test/checkout/failure?state=failed");
+    expect(response.headers.get("location")).toBe("/checkout/failure?state=failed");
   });
 });

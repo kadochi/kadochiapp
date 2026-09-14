@@ -11,10 +11,12 @@ export const dynamic = "force-dynamic";
 
 type Context = { params: Promise<{ provider: string }> };
 
-function browserRedirect(request: Request, path: string): NextResponse {
-  const response = NextResponse.redirect(new URL(path, request.url), 303);
-  response.headers.set("Cache-Control", "no-store");
-  return response;
+/**
+ * A relative Location keeps the browser on its own public origin; behind the
+ * reverse proxy `request.url` can carry the internal container host or scheme.
+ */
+function browserRedirect(path: string): NextResponse {
+  return new NextResponse(null, { status: 303, headers: { Location: path, "Cache-Control": "no-store" } });
 }
 
 function methodNotAllowed(request: Request): NextResponse {
@@ -39,12 +41,12 @@ export async function GET(request: Request, { params }: Context) {
       orderId: callback.orderId,
       state,
     });
-    const response = browserRedirect(request, paymentResultPath(state, callback.orderId));
+    const response = browserRedirect(paymentResultPath(state, callback.orderId));
     response.headers.set("x-request-id", id);
     return response;
   } catch {
     console.warn("[payment] callback_rejected", { requestId: id, provider: provider.id });
-    const response = browserRedirect(request, "/checkout/failure?state=failed");
+    const response = browserRedirect("/checkout/failure?state=failed");
     response.headers.set("x-request-id", id);
     return response;
   }

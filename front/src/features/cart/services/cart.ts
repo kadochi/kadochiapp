@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { bffJson } from "@/lib/http/browser";
 import { cartSchema, addItemSchema, couponCodeSchema, selectShippingRateSchema, updateCustomerSchema, updateQuantitySchema } from "../schema/cart";
 import type { AddItemInput, Cart, CouponCodeInput, CustomerAddresses, ShippingRateInput } from "../types";
@@ -101,3 +103,14 @@ export const removeCoupon = (code: string) => executeCartMutation(
   { method: "DELETE" },
   true,
 );
+
+/** Clears the cart once after the order this browser handed to the gateway is paid. */
+export async function clearPaidOrderCart(orderId: number): Promise<void> {
+  beginCartMutation();
+  const { cleared } = await bffJson(
+    `/api/checkout/orders/${orderId}/paid-cart`,
+    { method: "POST" },
+    (value) => z.object({ cleared: z.boolean() }).parse(value),
+  );
+  if (cleared) announceCartChange();
+}

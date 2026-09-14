@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { Header } from "@/components/layout/header";
+import { Button } from "@/components/ui/button";
 import { getStoredAuthToken } from "@/features/auth/services/auth.server";
 import { orderSummary } from "@/features/checkout/services/checkout.server";
 import { hasApiErrorCode } from "@/lib/http/errors";
@@ -28,5 +30,19 @@ export default async function CheckoutReturnRoute({ searchParams }: Props) {
   const payment = resolvePaymentResult(summary);
   if (payment.kind !== "neutral") redirect(payment.href);
   const isPending = payment.state === "pending";
-  return <><Header variant="internal" title="وضعیت پرداخت" backUrl="/products" /><StateMessage imageSrc="/images/illustration-failed.png" title={isPending ? "پرداخت در حال بررسی است" : "وضعیت پرداخت نامشخص است"} subtitle={isPending ? "نتیجه پرداخت هنوز از درگاه دریافت نشده است. لطفاً بعداً از بخش سفارش‌های من وضعیت را بررسی کنید." : "نتیجه پرداخت هنوز قابل تأیید نیست. مبلغی را دوباره پرداخت نکنید و بعداً از بخش سفارش‌های من وضعیت را بررسی کنید."} /></>;
+  return (
+    <>
+      <Header variant="internal" title="وضعیت پرداخت" backUrl="/products" />
+      <StateMessage imageSrc="/images/illustration-failed.png" title={isPending ? "پرداخت در حال بررسی است" : "وضعیت پرداخت نامشخص است"} subtitle={isPending ? "نتیجه پرداخت هنوز از درگاه دریافت نشده است. لطفاً بعداً از بخش سفارش‌های من وضعیت را بررسی کنید." : "نتیجه پرداخت هنوز قابل تأیید نیست. مبلغی را دوباره پرداخت نکنید و بعداً از بخش سفارش‌های من وضعیت را بررسی کنید."} />
+      <div className="mx-auto flex max-w-[580px] flex-col gap-12 px-24 pb-32 [direction:rtl]">
+        {/* A full document request re-reads the authoritative order state. */}
+        <Button asChild size="large" variant="primary-filled">
+          <a href={`/checkout/return?order=${summary.id}`}>بررسی دوباره وضعیت پرداخت</a>
+        </Button>
+        <Button asChild size="large" variant="tertiary-outline">
+          <Link href="/profile/orders">مشاهده سفارش‌های من</Link>
+        </Button>
+      </div>
+    </>
+  );
 }
