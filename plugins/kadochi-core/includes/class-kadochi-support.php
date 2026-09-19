@@ -9,6 +9,7 @@ final class Kadochi_Support {
 	const CAPABILITY = 'manage_kadochi_support';
 	const GUEST_TTL = 15552000; // 180 days.
 	const MAX_MESSAGE_LENGTH = 2000;
+	const INITIAL_SUPPORT_MESSAGE = 'سلام 👋 برای انتخاب محصول، ثبت سفارش یا هر سوالی که دارید در خدمتیم.';
 
 	public function boot() {
 		self::maybe_install();
@@ -345,6 +346,13 @@ final class Kadochi_Support {
 		if ( false === $inserted ) { wp_delete_post( $post_id, true ); return $this->error( 'kadochi_support_storage', __( 'The conversation could not be created.', 'kadochi-core' ), 500 ); }
 		$row = $this->row_by_public_id( $public_id );
 		$this->sync_conversation_meta( $row );
+		$initial_message = $this->insert_initial_support_message( $row );
+		if ( is_wp_error( $initial_message ) ) {
+			$wpdb->delete( self::conversation_table(), array( 'conversation_post_id'=>$post_id ), array( '%d' ) );
+			wp_delete_post( $post_id, true );
+			return $initial_message;
+		}
+		$row = $this->row_by_public_id( $public_id );
 		$response = new WP_REST_Response( array( 'conversation' => $this->conversation_dto( $row ) ), 201 );
 		if ( $issued_token ) $response->header( 'X-Kadochi-Support-Guest', $issued_token );
 		return $response;
@@ -382,7 +390,7 @@ final class Kadochi_Support {
 
 	public function list_messages( $request ) { $row = $this->visible_row( $request['id'] ); if ( is_wp_error( $row ) ) return $row; $messages = $this->messages_response( $row, $request ); return is_wp_error( $messages ) ? $messages : rest_ensure_response( $messages ); }
 
-	private function insert_message( $conversation, $role, $user_id, $input ) {
+	private function insert_message( $conversation, $role, $user_id, $input, $automated = false ) {
 		global $wpdb;
 		if ( ! $this->only_keys( $input, array( 'body', 'operationId' ) ) ) return $this->error( 'kadochi_support_validation', __( 'The message request is invalid.', 'kadochi-core' ), 400 );
 		$body = isset( $input['body'] ) && is_string( $input['body'] ) ? sanitize_textarea_field( trim( $input['body'] ) ) : '';
@@ -390,8 +398,10 @@ final class Kadochi_Support {
 		if ( '' === $body || $this->text_length( $body ) > self::MAX_MESSAGE_LENGTH || ! $this->valid_uuid( $operation ) ) return $this->error( 'kadochi_support_validation', __( 'Enter a valid message.', 'kadochi-core' ), 400 );
 		$existing = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . self::message_table() . ' WHERE conversation_post_id = %d AND sender_role = %s AND operation_id = %s', $conversation->conversation_post_id, $role, $operation ) );
 		if ( $existing ) return rest_ensure_response( $this->message_dto( $existing ) );
-		$rate = $this->rate_limit( 'message', $role . ':' . ( $user_id ?: $conversation->guest_id ), 'administrator' === $role ? 120 : 60, MINUTE_IN_SECONDS );
-		if ( is_wp_error( $rate ) ) return $rate;
+		if ( ! $automated ) {
+			$rate = $this->rate_limit( 'message', $role . ':' . ( $user_id ?: $conversation->guest_id ), 'administrator' === $role ? 120 : 60, MINUTE_IN_SECONDS );
+			if ( is_wp_error( $rate ) ) return $rate;
+		}
 		$public_id = wp_generate_uuid4(); $now = $this->now();
 		$post_id = wp_insert_post( array( 'post_type'=>'support_message', 'post_status'=>'private', 'post_parent'=>(int)$conversation->conversation_post_id, 'post_title'=>'Support message ' . $public_id, 'post_name'=>$public_id, 'post_content'=>$body, 'post_author'=>$user_id ? (int)$user_id : 0, 'post_date_gmt'=>$now ), true );
 		if ( is_wp_error( $post_id ) ) return $post_id;
@@ -403,13 +413,17 @@ final class Kadochi_Support {
 		}
 		foreach ( array( '_kadochi_support_public_id'=>$public_id, '_kadochi_support_sender_role'=>$role, '_kadochi_support_sender_id'=>$user_id, '_kadochi_support_operation_id'=>$operation, '_kadochi_support_created_at_gmt'=>$now, '_kadochi_support_read_at_gmt'=>'' ) as $key=>$value ) update_post_meta( $post_id, $key, $value );
 		$unread = 'administrator' === $role ? 'customer_unread_count' : 'admin_unread_count';
-		$status = 'administrator' === $role ? 'pending' : 'open';
-		$assign = 'administrator' === $role && ! $conversation->assigned_admin_id ? $wpdb->prepare( ', assigned_admin_id = %d', $user_id ) : '';
+		$status = $automated ? $conversation->status : ( 'administrator' === $role ? 'pending' : 'open' );
+		$assign = 'administrator' === $role && $user_id && ! $conversation->assigned_admin_id ? $wpdb->prepare( ', assigned_admin_id = %d', $user_id ) : '';
 		$wpdb->query( $wpdb->prepare( 'UPDATE ' . self::conversation_table() . " SET {$unread} = {$unread} + 1, status = %s, last_message_at_gmt = %s, updated_at_gmt = %s, revision = revision + 1 {$assign} WHERE conversation_post_id = %d", $status, $now, $now, $conversation->conversation_post_id ) );
 		$this->sync_conversation_meta( $this->row_by_public_id( $conversation->public_id ) );
 		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . self::message_table() . ' WHERE message_post_id = %d', $post_id ) );
 		$response = new WP_REST_Response( $this->message_dto( $row ), 201 );
 		return $response;
+	}
+
+	private function insert_initial_support_message( $conversation ) {
+		return $this->insert_message( $conversation, 'administrator', 0, array( 'body'=>self::INITIAL_SUPPORT_MESSAGE, 'operationId'=>$conversation->public_id ), true );
 	}
 
 	public function send_customer_message( $request ) {

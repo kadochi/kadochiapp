@@ -172,7 +172,7 @@ const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
             }}
           />
           {trailingAction ? (
-            <span className="absolute end-4 bottom-4 inline-flex shrink-0 items-center justify-center">
+            <span className="absolute end-4 top-1/2 inline-flex shrink-0 -translate-y-1/2 items-center justify-center">
               {trailingAction}
             </span>
           ) : null}

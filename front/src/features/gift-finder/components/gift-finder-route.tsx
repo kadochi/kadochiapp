@@ -11,10 +11,8 @@ import type {
 const recipientDefinitions = [
   { ageBand: "child", description: "تا ۵ سال", gender: "female", imageUrl: "/images/gift-finder/girl-kid.png", label: "دختر بچه", tagName: "دختر بچه", tagSlug: "girl-kid" },
   { ageBand: "child", description: "تا ۵ سال", gender: "male", imageUrl: "/images/gift-finder/boy-kid.png", label: "پسر بچه", tagName: "پسر بچه", tagSlug: "boy-kid" },
-  { ageBand: "child", description: "تا ۵ سال", gender: "any", label: "کودک، فرقی ندارد", tagName: "هدیه برای کودک", tagSlug: "هدیه-برای-کودک" },
   { ageBand: "teen", description: "۶ تا ۱۸ سال", gender: "female", imageUrl: "/images/gift-finder/girl.png", label: "دختر نوجوان", tagName: "دختر نوجوان", tagSlug: "girl-teen" },
   { ageBand: "teen", description: "۶ تا ۱۸ سال", gender: "male", imageUrl: "/images/gift-finder/boy.png", label: "پسر نوجوان", tagName: "پسر نوجوان", tagSlug: "boy-teen" },
-  { ageBand: "teen", description: "۶ تا ۱۸ سال", gender: "any", label: "نوجوان، فرقی ندارد", tagName: "هدیه برای نوجوان", tagSlug: "هدیه-برای-نوجوان" },
   { ageBand: "young-adult", description: "۱۹ تا ۳۵ سال", gender: "female", imageUrl: "/images/gift-finder/woman.png", label: "زن جوان", tagName: "زن جوان", tagSlug: "woman" },
   { ageBand: "young-adult", description: "۱۹ تا ۳۵ سال", gender: "male", imageUrl: "/images/gift-finder/man.png", label: "مرد جوان", tagName: "مرد جوان", tagSlug: "man" },
   { ageBand: "adult", description: "۳۶ سال به بالا", gender: "female", imageUrl: "/images/gift-finder/adult-woman.png", label: "زن بزرگسال", tagName: "زن بزرگسال", tagSlug: "adult-woman" },

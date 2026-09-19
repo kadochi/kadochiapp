@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { Dialog } from "radix-ui";
 import { ChevronUp, MessageCircle, RefreshCw, Send, WifiOff, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
@@ -19,6 +20,27 @@ export const SUPPORT_AGENT = {
   avatar: "/images/support-agent-nazanin.png",
 } as const;
 export const SUPPORT_GREETING = "چطور می‌تونم کمکتون کنم؟";
+export const SUPPORT_OFFLINE_LABEL = "آفلاین (پشتیبانی از ۹:۰۰ الی ۲۱:۰۰)";
+
+const supportTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Tehran",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+export function isSupportOnline(at = new Date()): boolean {
+  const parts = supportTimeFormatter.formatToParts(at);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
+  const minutesSinceMidnight = hour * 60 + minute;
+  return minutesSinceMidnight >= 9 * 60 && minutesSinceMidnight < 21 * 60;
+}
+
+export function shouldShowSupportChat(pathname: string): boolean {
+  const normalized = pathname === "/" ? pathname : pathname.replace(/\/+$/, "");
+  return normalized === "/" || normalized === "/about" || normalized === "/contact" || normalized === "/products" || normalized.startsWith("/products/") || normalized.startsWith("/product/");
+}
 
 export function mergeMessages(current: LocalMessage[], incoming: LocalMessage[]): LocalMessage[] {
   const byId = new Map(current.map((message) => [message.id, message]));
@@ -36,9 +58,10 @@ export function ChatStatus({ online, error, onRetry }: { online: boolean; error:
   return <div className="flex items-center justify-between gap-8 bg-error-container px-12 py-8 text-label-12 text-on-error-container" role="alert"><span>دریافت پیام‌ها ممکن نشد.</span><button className="font-bold underline" onClick={onRetry} type="button">تلاش دوباره</button></div>;
 }
 
-export function ConversationHeader({ conversation }: { conversation: ConversationType | null }) {
-  const status = conversation?.status === "closed" ? "بسته‌شده" : conversation?.status === "pending" ? "منتظر پاسخ شما" : "در حال پیگیری";
-  return <div className="flex min-w-0 items-center gap-8"><Image alt={`تصویر ${SUPPORT_AGENT.name}`} className="size-48 shrink-0 rounded-full object-cover" height={96} priority src={SUPPORT_AGENT.avatar} width={96}/><div className="min-w-0"><Dialog.Title className="m-0 text-title-18 font-bold text-text-primary">{SUPPORT_AGENT.name}</Dialog.Title><Dialog.Description className="m-0 mt-2 truncate text-label-12 text-text-secondary">{conversation ? status : "پشتیبانی کادوچی"}</Dialog.Description></div></div>;
+export function ConversationHeader() {
+  const [available,setAvailable]=useState(()=>isSupportOnline());
+  useEffect(()=>{const update=()=>setAvailable(isSupportOnline());const timer=window.setInterval(update,30000);document.addEventListener("visibilitychange",update);return()=>{window.clearInterval(timer);document.removeEventListener("visibilitychange",update);};},[]);
+  return <div className="flex min-w-0 items-center gap-8"><Image alt={`تصویر ${SUPPORT_AGENT.name}`} className="size-48 shrink-0 rounded-full object-cover" height={96} priority src={SUPPORT_AGENT.avatar} width={96}/><div className="min-w-0"><Dialog.Title className="m-0 text-title-16 font-bold text-text-primary">{SUPPORT_AGENT.name}</Dialog.Title><Dialog.Description className="m-0 mt-2 text-label-12 text-text-secondary">{available?<span className="inline-flex items-center gap-4"><span aria-hidden className="size-8 rounded-full bg-success"/>آنلاین</span>:SUPPORT_OFFLINE_LABEL}</Dialog.Description></div></div>;
 }
 
 export function MessageBubble({ message, onRetry }: { message: LocalMessage; onRetry?: (message: LocalMessage) => void }) {
@@ -100,14 +123,14 @@ export function Conversation({ conversation, messages, hasMore, loadingOlder, on
 }
 
 export function ChatLauncher({ buttonRef, onOpen, unread, showGreeting }: { buttonRef: React.RefObject<HTMLButtonElement|null>; onOpen: () => void; unread: number; showGreeting: boolean }) {
-  return <button aria-label={unread?`پشتیبانی، ${unread} پیام خوانده‌نشده`:"باز کردن گفتگوی پشتیبانی"} className="fixed bottom-[calc(80px+max(env(safe-area-inset-bottom),var(--spacing-16)))] right-16 z-[1050] grid size-56 place-items-center rounded-full bg-secondary text-on-secondary shadow-[0_6px_20px_rgb(0_0_0_/_0.25)] transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 lg:bottom-24 lg:right-24" onClick={onOpen} ref={buttonRef} type="button">{showGreeting?<span className="absolute bottom-[calc(100%+8px)] right-0 inline-flex w-fit max-w-[calc(100vw-32px)] items-center whitespace-nowrap rounded-lg bg-surface-background p-8 text-right text-label-12 font-medium leading-none text-text-primary shadow-lg" dir="rtl" role="status">{SUPPORT_GREETING}<span aria-hidden className="absolute -bottom-4 right-16 size-8 rotate-45 bg-surface-background"/></span>:null}<MessageCircle aria-hidden className="size-28" />{unread>0?<span className="absolute -right-4 -top-4 grid min-h-22 min-w-22 place-items-center rounded-full bg-error px-4 text-label-10 font-bold text-on-error">{unread>99?"۹۹+":unread.toLocaleString("fa-IR")}</span>:null}</button>;
+  return <button aria-label={unread?`پشتیبانی، ${unread} پیام خوانده‌نشده`:"باز کردن گفتگوی پشتیبانی"} className="fixed bottom-[calc(80px+max(env(safe-area-inset-bottom),var(--spacing-16)))] right-16 z-[1050] grid size-56 cursor-pointer place-items-center rounded-full bg-secondary text-on-secondary shadow-[0_6px_20px_rgb(0_0_0_/_0.25)] transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 lg:bottom-24 lg:right-24" onClick={onOpen} ref={buttonRef} type="button">{showGreeting?<span className="absolute bottom-[calc(100%+8px)] right-0 inline-flex w-fit max-w-[calc(100vw-32px)] items-center whitespace-nowrap rounded-lg bg-surface-background p-8 text-right text-label-12 font-medium leading-none text-text-primary shadow-lg" dir="rtl" role="status">{SUPPORT_GREETING}<span aria-hidden className="absolute -bottom-4 right-16 size-8 rotate-45 bg-surface-background"/></span>:null}<MessageCircle aria-hidden className="size-28" />{unread>0?<span className="absolute -right-4 -top-4 grid min-h-22 min-w-22 place-items-center rounded-full bg-error px-4 text-label-10 font-bold text-on-error">{unread>99?"۹۹+":unread.toLocaleString("fa-IR")}</span>:null}</button>;
 }
 
-export function ChatWindow({ children, conversation, onRestoreFocus }: { children: React.ReactNode; conversation: ConversationType|null; onRestoreFocus: () => void }) {
-  return <Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-[1299] bg-surface-scrim"/><Dialog.Content className="fixed inset-0 z-[1300] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-surface-background text-text-primary outline-none sm:inset-auto sm:bottom-24 sm:right-24 sm:h-[min(620px,calc(100dvh-48px))] sm:w-[420px] sm:rounded-xl sm:shadow-2xl" dir="rtl" onCloseAutoFocus={(event)=>{event.preventDefault();onRestoreFocus();}}><header className="flex min-h-64 shrink-0 items-center justify-between gap-12 border-b border-border-low-emphasis px-16"><ConversationHeader conversation={conversation}/><Dialog.Close asChild><Button aria-label="بستن گفتگو" className="size-40 px-0" size="small" variant="link-ghost"><X aria-hidden /></Button></Dialog.Close></header>{children}</Dialog.Content></Dialog.Portal>;
+export function ChatWindow({ children, onRestoreFocus }: { children: React.ReactNode; conversation: ConversationType|null; onRestoreFocus: () => void }) {
+  return <Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-[1299] bg-surface-scrim"/><Dialog.Content className="fixed inset-0 z-[1300] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-surface-background text-text-primary outline-none sm:inset-auto sm:bottom-24 sm:right-24 sm:h-[min(620px,calc(100dvh-48px))] sm:w-[420px] sm:rounded-xl sm:shadow-2xl" dir="rtl" onCloseAutoFocus={(event)=>{event.preventDefault();onRestoreFocus();}}><header className="flex min-h-64 shrink-0 items-center justify-between gap-12 border-b border-border-low-emphasis px-16"><ConversationHeader/><Dialog.Close asChild><Button aria-label="بستن گفتگو" className="size-40 px-0" size="small" variant="link-ghost"><X aria-hidden /></Button></Dialog.Close></header>{children}</Dialog.Content></Dialog.Portal>;
 }
 
-export function SupportChat() {
+function SupportChatWidget() {
   const auth=useAuth();const [open,setOpen]=useState(false);const [showGreeting,setShowGreeting]=useState(false);const [conversation,setConversation]=useState<ConversationType|null>(null);const [messages,setMessages]=useState<LocalMessage[]>([]);const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);const [loadingOlder,setLoadingOlder]=useState(false);const [hasMore,setHasMore]=useState(false);const [online,setOnline]=useState(()=>typeof navigator==="undefined"?true:navigator.onLine);const [error,setError]=useState<Error|null>(null);const newest=messages.filter((m)=>!m.delivery).at(-1)?.id;const oldest=messages.filter((m)=>!m.delivery).at(0)?.id;const conversationId=conversation?.id;const openRef=useRef(false);const launcherRef=useRef<HTMLButtonElement>(null);
   const authenticatedName=auth.customer?[auth.customer.firstName,auth.customer.lastName].filter(Boolean).join(" ").trim()||auth.customer.displayName:"";
   const authenticatedPhone=auth.customer?.phone||"";
@@ -125,6 +148,11 @@ export function SupportChat() {
   function openChat(){setShowGreeting(false);setOpen(true);void loadConversation();}
   const content=loading||auth.status==="loading"?<div className="grid min-h-0 flex-1 place-content-center" role="status"><RefreshCw aria-hidden className="size-32 animate-spin text-secondary"/><span className="sr-only">در حال بارگذاری گفتگو</span></div>:conversation?<Conversation conversation={conversation} error={error} hasMore={hasMore} loadingOlder={loadingOlder} messages={messages} online={online} onLoadOlder={()=>void loadOlder()} onRetryLoad={()=>void loadConversation()} onRetryMessage={(message)=>void retryMessage(message)} onSend={send} onStartNew={()=>start(auth.status==="authenticated"?authenticatedName:conversation.displayName,auth.status==="authenticated"?authenticatedPhone:"",true)}/>:auth.status==="authenticated"?<div className="grid min-h-0 flex-1 place-content-center gap-10 px-24 py-20 text-center"><MessageCircle aria-hidden className="mx-auto size-40 text-secondary"/><p className="m-0 text-body-14">برای ارتباط با پشتیبانی یک گفتگو ایجاد کنید.</p><Button loading={busy} onClick={()=>void start(authenticatedName||"کاربر کادوچی",authenticatedPhone)} variant="secondary-filled">شروع گفتگو</Button></div>:<GuestOnboarding busy={busy} onStart={(name,phone,initialMessage,operationId)=>start(name,phone,false,initialMessage,operationId)}/>;
   return <Dialog.Root onOpenChange={setOpen} open={open}><ChatLauncher buttonRef={launcherRef} onOpen={openChat} showGreeting={showGreeting&&!open} unread={conversation?.unreadCount??0}/><ChatWindow conversation={conversation} onRestoreFocus={()=>launcherRef.current?.focus()}>{content}</ChatWindow></Dialog.Root>;
+}
+
+export function SupportChat() {
+  const pathname=usePathname();
+  return shouldShowSupportChat(pathname)?<SupportChatWidget/>:null;
 }
 
 export default SupportChat;

@@ -41,10 +41,8 @@ const tehran = giftFinderCityOptions[0];
 const recipientAudienceOptions: GiftFinderRecipientOption[] = [
   { ageBand: "child", gender: "female", id: "girl-kid", label: "دختر بچه", tagSlugs: ["girl-kid"] },
   { ageBand: "child", gender: "male", id: "boy-kid", label: "پسر بچه", tagSlugs: ["boy-kid"] },
-  { ageBand: "child", gender: "any", id: "هدیه-برای-کودک", label: "کودک، فرقی ندارد", tagSlugs: ["هدیه-برای-کودک"] },
   { ageBand: "teen", gender: "female", id: "girl-teen", label: "دختر نوجوان", tagSlugs: ["girl-teen"] },
   { ageBand: "teen", gender: "male", id: "boy-teen", label: "پسر نوجوان", tagSlugs: ["boy-teen"] },
-  { ageBand: "teen", gender: "any", id: "هدیه-برای-نوجوان", label: "نوجوان، فرقی ندارد", tagSlugs: ["هدیه-برای-نوجوان"] },
   { ageBand: "young-adult", gender: "female", id: "woman", label: "زن جوان", tagSlugs: ["woman"] },
   { ageBand: "young-adult", gender: "male", id: "man", label: "مرد جوان", tagSlugs: ["man"] },
   { ageBand: "adult", gender: "female", id: "adult-woman", label: "زن بزرگسال", tagSlugs: ["adult-woman"] },
@@ -288,14 +286,8 @@ describe("gift finder flow", () => {
     expect(experience.options.map((option) => option.id)).toEqual([
       "girl-kid",
       "boy-kid",
-      "هدیه-برای-کودک",
       "girl-teen",
       "boy-teen",
-      "هدیه-برای-نوجوان",
-    ]);
-    expect(experience.options.filter((option) => option.gender === "any").map((option) => option.label)).toEqual([
-      "کودک، فرقی ندارد",
-      "نوجوان، فرقی ندارد",
     ]);
   });
 
@@ -303,7 +295,7 @@ describe("gift finder flow", () => {
     const experience = giftFinderRecipientExperience(recipientAudienceOptions, occasionFor("graduation"));
 
     expect(experience.options.map((option) => option.ageBand)).toEqual([
-      "teen", "teen", "teen", "young-adult", "young-adult", "adult", "adult",
+      "teen", "teen", "young-adult", "young-adult", "adult", "adult",
     ]);
   });
 

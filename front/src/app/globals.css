@@ -304,15 +304,16 @@
   margin-inline-start: var(--spacing-8);
 }
 
-.mobile-hero-offer-swiper:not(.swiper-initialized) .swiper-wrapper {
+/* Scope the fallback to the outer rail so it cannot resize the nested Hero Swiper. */
+.mobile-hero-offer-swiper:not(.swiper-initialized) > .swiper-wrapper {
   gap: var(--spacing-12);
 }
 
-.mobile-hero-offer-swiper:not(.swiper-initialized) .swiper-slide {
+.mobile-hero-offer-swiper:not(.swiper-initialized) > .swiper-wrapper > .swiper-slide {
   width: calc((100% - 0.96px) / 1.08);
 }
 
-.mobile-hero-offer-swiper:not(.swiper-initialized) .swiper-slide:first-child {
+.mobile-hero-offer-swiper:not(.swiper-initialized) > .swiper-wrapper > .swiper-slide:first-child {
   margin-inline-start: var(--spacing-12);
 }
 

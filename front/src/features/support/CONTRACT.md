@@ -8,6 +8,10 @@ Conversation status is `open`, `pending`, or `closed`. Customer messages move an
 active conversation to `open`; staff replies move it to `pending`; closed threads
 are read-only and a customer explicitly starts a new thread.
 
+Each newly created conversation receives one persisted automated support greeting.
+It keeps the conversation open, does not assign an operator, and is not repeated
+when an existing conversation is resumed.
+
 Messages are plain text with a 2,000-character maximum. `operationId` is a UUID
 idempotency key and must be reused when retrying an ambiguous send. Message pages
 use UUID `before`/`after` cursors, default to 30 items, and never exceed 50.

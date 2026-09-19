@@ -26,6 +26,12 @@ final class Kadochi_Support_Test extends WP_UnitTestCase {
 		$conversation = $response->get_data()['conversation'];
 		$this->assertMatchesRegularExpression( '/^[a-f0-9-]{36}$/', $conversation['id'] );
 		$_SERVER['HTTP_X_KADOCHI_SUPPORT_GUEST'] = $response->get_headers()['X-Kadochi-Support-Guest'];
+		$list = new WP_REST_Request( 'GET', '/kadochi/v1/support/conversations/' . $conversation['id'] . '/messages' );
+		$list['id'] = $conversation['id'];
+		$initial_messages = $this->support->list_messages( $list )->get_data()['items'];
+		$this->assertCount( 1, $initial_messages );
+		$this->assertSame( 'administrator', $initial_messages[0]['senderRole'] );
+		$this->assertSame( Kadochi_Support::INITIAL_SUPPORT_MESSAGE, $initial_messages[0]['body'] );
 
 		$send = new WP_REST_Request( 'POST', '/kadochi/v1/support/conversations/' . $conversation['id'] . '/messages' );
 		$send['id'] = $conversation['id'];
