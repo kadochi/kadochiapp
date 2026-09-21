@@ -5,7 +5,7 @@ import { OccasionsPage } from "@/features/occasions/components/occasions-page";
 export const metadata: Metadata = {
   title: "کادوچی | تقویم مناسبت‌ها",
   description: "مناسبت‌های شخصی خود را در تقویم کادوچی ثبت و پیگیری کنید.",
-  robots: { index: false, follow: false },
+  robots: { index: true, follow: true },
   alternates: { canonical: "/occasions" },
 };
 

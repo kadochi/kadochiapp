@@ -13,7 +13,7 @@ export function ProductDescription({ product }: Readonly<ProductDescriptionProps
   const category = product.categories[0];
 
   return (
-    <section>
+    <section className="product-description">
       <SectionHeader
         as="h2"
         title="درباره محصول"
@@ -29,7 +29,10 @@ export function ProductDescription({ product }: Readonly<ProductDescriptionProps
       {html ? (
         <div className="px-16">
           <ExpandableContent>
-            <div dangerouslySetInnerHTML={{ __html: html }} />
+            <div
+              className="product-description-content"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
           </ExpandableContent>
         </div>
       ) : null}

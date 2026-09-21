@@ -501,3 +501,62 @@
   margin: var(--spacing-24) auto;
   border-radius: var(--radius-l);
 }
+
+/* WooCommerce returns the product description as WordPress-authored HTML.
+ * Restore the hierarchy and spacing removed by the CSS reset while keeping
+ * its headings subordinate to the responsive section title (16px / 18px). */
+.product-description {
+  --product-description-title-size: var(--text-title-16);
+}
+
+.product-description-content {
+  overflow-wrap: anywhere;
+}
+
+.product-description-content > :first-child {
+  margin-top: 0;
+}
+
+.product-description-content > :last-child {
+  margin-bottom: 0;
+}
+
+.product-description-content p {
+  min-height: var(--text-body-14--line-height);
+  margin-top: 0;
+  margin-bottom: var(--spacing-12);
+  white-space: pre-line;
+}
+
+.product-description-content h2,
+.product-description-content h3 {
+  color: var(--color-surface-neutral-high-emphasis);
+  font-weight: var(--font-weight-bold);
+}
+
+.product-description-content h2 {
+  margin-top: var(--spacing-24);
+  margin-bottom: var(--spacing-8);
+  font-size: calc(var(--product-description-title-size) - 0.0625rem);
+  line-height: 1.5;
+}
+
+.product-description-content h3 {
+  margin-top: var(--spacing-20);
+  margin-bottom: var(--spacing-8);
+  font-size: calc(var(--product-description-title-size) - 0.125rem);
+  line-height: 1.5;
+}
+
+.product-description-content a {
+  color: var(--color-secondary);
+  font-weight: var(--font-weight-bold);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+@media (min-width: 580px) {
+  .product-description {
+    --product-description-title-size: var(--text-title-18);
+  }
+}

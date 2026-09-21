@@ -18,7 +18,6 @@ export default function robots(): MetadataRoute.Robots {
         "/basket",
         "/checkout",
         "/login",
-        "/occasions",
         "/preview",
         "/profile/",
       ],
