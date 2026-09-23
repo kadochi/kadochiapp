@@ -53,3 +53,40 @@ describe("paymentErrorMessage", () => {
     });
   });
 });
+
+describe("paymentErrorMessage for Snapp! Pay", () => {
+  function snapppayError(code: number | undefined, category: "configuration" | "temporarily_unavailable" | "rejected" | "unknown") {
+    return new ServiceError({
+      code: "upstream_failure",
+      status: 422,
+      message: "The payment gateway could not start a payment.",
+      requestId: "request-9",
+      retryable: category === "temporarily_unavailable",
+      payment: { provider: "snapppay", ...(code === undefined ? {} : { code }), category },
+    });
+  }
+
+  it("uses Snapp's customer-safe wording for credit ineligibility", () => {
+    expect(paymentErrorMessage(snapppayError(1048, "rejected")).message).toBe("امکان استفاده از سرویس اعتباری را ندارید. لطفاً روش پرداخت دیگری انتخاب کنید.");
+  });
+
+  it("maps invalid mobile and temporary outages", () => {
+    expect(paymentErrorMessage(snapppayError(1005, "rejected")).message).toContain("شماره موبایل");
+    expect(paymentErrorMessage(snapppayError(1000, "temporarily_unavailable"))).toMatchObject({ retryable: true, code: 1000 });
+  });
+
+  it("falls back to category copy for untagged failures", () => {
+    expect(paymentErrorMessage(snapppayError(undefined, "rejected")).message).toBe("اسنپ‌پی این پرداخت را نپذیرفت. لطفاً روش پرداخت دیگری انتخاب کنید.");
+  });
+
+  it("surfaces an unavailable selected method as a choose-again message", () => {
+    expect(paymentErrorMessage(new ServiceError({
+      code: "validation",
+      status: 400,
+      message: "The selected payment method is no longer available.",
+      requestId: "request-9",
+      retryable: false,
+      fieldErrors: { paymentMethodId: ["این روش پرداخت برای مبلغ فعلی سفارش در دسترس نیست. روش دیگری انتخاب کنید."] },
+    })).message).toContain("روش دیگری انتخاب کنید");
+  });
+});

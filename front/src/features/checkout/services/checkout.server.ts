@@ -7,6 +7,7 @@ import { getCurrentCustomer, getStoredAuthToken, wordpressBearerHeaders } from "
 import { retryProfileOrderPayment } from "@/features/profile/services/profile.server";
 import { ServiceError } from "@/lib/http/errors";
 import { parseUpstreamJson, UpstreamError, wordpressFetch } from "@/lib/http/upstream";
+import { isTrustedGatewayRedirect, paymentProvider, SNAPPPAY_GATEWAY_ID, ZARINPAL_GATEWAY_ID } from "@/lib/payments/redirect-hosts";
 import { env } from "@/lib/server/env";
 import { upstreamCartSchema } from "../../cart/schema/cart";
 import { mapCart } from "../../cart/utils/map-cart";
@@ -17,11 +18,13 @@ import {
   createSavedAddressSchema,
   mapCheckoutResult,
   orderSummarySchema,
+  paymentMethodSchema,
   postcardDesignSchema,
   savedAddressListSchema,
   savedAddressSchema,
   submitCheckoutSchema,
   upstreamCheckoutDraftSchema,
+  upstreamPaymentOptionsSchema,
 } from "../schema/checkout";
 
 const cartTokenCookie = "kadochi_cart_token";
@@ -32,9 +35,11 @@ const postcardDesignField = "kadochi/postcard-design";
 const locationField = "kadochi/location";
 const operationField = "kadochi/operation-id";
 
-type ZarinpalPaymentMetadata = NonNullable<import("@/lib/http/errors").ApiError["payment"]>;
+type PaymentMetadata = NonNullable<import("@/lib/http/errors").ApiError["payment"]>;
+type PaymentMethod = z.infer<typeof paymentMethodSchema>;
+type Cart = ReturnType<typeof mapCart>;
 
-const zarinpalCategories: Record<number, ZarinpalPaymentMetadata["category"]> = {
+const zarinpalCategories: Record<number, PaymentMetadata["category"]> = {
   "-9": "rejected",
   "-10": "configuration",
   "-11": "configuration",
@@ -47,36 +52,64 @@ const zarinpalCategories: Record<number, ZarinpalPaymentMetadata["category"]> = 
   "-51": "cancelled",
 };
 
-function zarinpalFailure(value: unknown, requestId: string): ServiceError | null {
-  const response = z.object({
-    code: z.string().optional(),
-    message: z.string().optional(),
-    data: z.object({ status: z.number().int().optional(), code: z.union([z.number().int(), z.string()]).optional() }).passthrough().optional(),
-    errors: z.array(z.object({ code: z.union([z.number().int(), z.string()]).optional(), message: z.string().optional() }).passthrough()).optional(),
-  }).passthrough().safeParse(value);
-  if (!response.success) return null;
-  const message = response.data.message ?? response.data.errors?.[0]?.message ?? "";
-  // WooCommerce gateway errors are user-facing notices. Preserve only ZarinPal's
-  // documented numeric code; do not forward the raw gateway notice to browsers.
-  const code = response.data.errors?.[0]?.code ?? response.data.data?.code
-    ?? /(?:zarin\s*pal|زرین\s*پال).{0,80}?(?:code|کد)?\s*[:：#-]?\s*(-?\d+)/iu.exec(message)?.[1]
-    ?? /(?:code|کد)\s*[:：#-]?\s*(-?\d+)/iu.exec(message)?.[1];
-  const gatewayCode = code !== undefined && /^-?\d+$/.test(String(code)) ? Number(code) : undefined;
-  // This handler only invokes the configured ZarinPal gateway. Some plugin
-  // releases omit the provider name from their Store API notice, so a documented
-  // numeric code is sufficient to classify it safely here.
-  if (!/zarin\s*pal|زرین\s*پال/iu.test(message) && (gatewayCode === undefined || env.KADOCHI_PAYMENT_METHOD_ID !== "WC_ZPal")) return null;
-  const category = gatewayCode === undefined ? "unknown" : zarinpalCategories[gatewayCode] ?? "unknown";
+/** Tags emitted by Kadochi_SnappPay::start_error_message() as `[snapppay:<code>]`. */
+const snapppayCategories: Record<string, PaymentMetadata["category"]> = {
+  "1000": "temporarily_unavailable",
+  unavailable: "temporarily_unavailable",
+  timeout: "temporarily_unavailable",
+  network: "temporarily_unavailable",
+  "1005": "rejected",
+  "1048": "rejected",
+  "1051": "configuration",
+  auth: "configuration",
+  configuration: "configuration",
+  invalid_redirect: "configuration",
+  payload: "configuration",
+};
+
+const upstreamGatewayErrorSchema = z.object({
+  code: z.string().optional(),
+  message: z.string().optional(),
+  data: z.object({ status: z.number().int().optional(), code: z.union([z.number().int(), z.string()]).optional() }).passthrough().optional(),
+  errors: z.array(z.object({ code: z.union([z.number().int(), z.string()]).optional(), message: z.string().optional() }).passthrough()).optional(),
+}).passthrough();
+
+function paymentFailure(requestId: string, provider: PaymentMetadata["provider"], gatewayCode: number | undefined, category: PaymentMetadata["category"]) {
   const retryable = category === "temporarily_unavailable" || category === "unknown";
-  console.error("[payment] gateway_rejected_checkout", { requestId, provider: "zarinpal", gatewayCode, category });
+  console.error("[payment] gateway_rejected_checkout", { requestId, provider, gatewayCode, category });
   return new ServiceError({
     code: "upstream_failure",
     status: category === "configuration" ? 503 : 422,
     message: "The payment gateway could not start a payment.",
     requestId,
     retryable,
-    payment: { provider: "zarinpal", ...(gatewayCode !== undefined ? { code: gatewayCode } : {}), category },
+    payment: { provider, ...(gatewayCode !== undefined ? { code: gatewayCode } : {}), category },
   });
+}
+
+/**
+ * Classifies a Woo Store API gateway notice. WooCommerce gateway errors are
+ * user-facing notices, so only the documented numeric code or Kadochi's
+ * `[snapppay:…]` tag is kept; the raw notice is never forwarded to browsers.
+ */
+function gatewayFailure(value: unknown, requestId: string, methodId: string): ServiceError | null {
+  const response = upstreamGatewayErrorSchema.safeParse(value);
+  if (!response.success) return null;
+  const message = response.data.message ?? response.data.errors?.[0]?.message ?? "";
+  const snapppayTag = /\[snapppay:([a-z0-9_-]{1,40})\]/i.exec(message)?.[1]?.toLowerCase();
+  if (snapppayTag || paymentProvider(methodId) === "snapppay") {
+    if (!snapppayTag) return null;
+    const gatewayCode = /^\d+$/.test(snapppayTag) ? Number(snapppayTag) : undefined;
+    return paymentFailure(requestId, "snapppay", gatewayCode, snapppayCategories[snapppayTag] ?? "unknown");
+  }
+  const code = response.data.errors?.[0]?.code ?? response.data.data?.code
+    ?? /(?:zarin\s*pal|زرین\s*پال).{0,80}?(?:code|کد)?\s*[:：#-]?\s*(-?\d+)/iu.exec(message)?.[1]
+    ?? /(?:code|کد)\s*[:：#-]?\s*(-?\d+)/iu.exec(message)?.[1];
+  const gatewayCode = code !== undefined && /^-?\d+$/.test(String(code)) ? Number(code) : undefined;
+  // Some ZarinPal plugin releases omit the provider name from their Store API
+  // notice, so a documented numeric code is sufficient for the ZarinPal method.
+  if (!/zarin\s*pal|زرین\s*پال/iu.test(message) && (gatewayCode === undefined || methodId !== ZARINPAL_GATEWAY_ID)) return null;
+  return paymentFailure(requestId, "zarinpal", gatewayCode, gatewayCode === undefined ? "unknown" : zarinpalCategories[gatewayCode] ?? "unknown");
 }
 
 async function authenticatedCustomer(requestId: string) {
@@ -92,18 +125,81 @@ async function checkoutHeaders(cartToken?: string): Promise<Record<string, strin
   };
 }
 
-function paymentMethod(requestId: string, paymentMethodIds: string[]) {
-  const id = env.KADOCHI_PAYMENT_METHOD_ID;
-  if (!paymentMethodIds.includes(id)) {
-    throw new ServiceError({
-      code: "configuration",
-      status: 503,
-      message: "Online payment is not available for this cart.",
+/** Allow-listed gateway IDs that Woo also offers for this cart, in allow-list order. */
+function offeredPaymentMethodIds(requestId: string, cart: Cart) {
+  const ids = env.paymentMethodIds.filter((id) => cart.paymentMethodIds.includes(id));
+  if (!ids.length) noPaymentMethod(requestId);
+  return ids;
+}
+
+function noPaymentMethod(requestId: string): never {
+  throw new ServiceError({
+    code: "configuration",
+    status: 503,
+    message: "Online payment is not available for this cart.",
+    requestId,
+    retryable: false,
+  });
+}
+
+/** Converts Woo's authoritative cart total to whole Rials, or null for an unsupported currency. */
+export function cartTotalIrr(total: Cart["totals"]["totalPrice"]): number | null {
+  if (!/^\d+$/.test(total.amount)) return null;
+  const major = Number(total.amount) / (10 ** total.minorUnit);
+  if (!Number.isSafeInteger(Math.round(major))) return null;
+  if (total.currencyCode === "IRR") return Math.round(major);
+  if (total.currencyCode === "IRT") return Math.round(major * 10);
+  return null;
+}
+
+/**
+ * Asks WordPress (and through it Snapp!) whether Snapp! Pay may be offered for
+ * this exact amount. Any failure hides the method rather than blocking checkout.
+ */
+async function snapppayOffer(cart: Cart, requestId: string): Promise<PaymentMethod | null> {
+  const amount = cartTotalIrr(cart.totals.totalPrice);
+  if (!amount) return null;
+  try {
+    const response = await wordpressFetch(`/wp-json/kadochi/v1/checkout/payment-options?amount=${amount}`, {
+      headers: await wordpressBearerHeaders(),
+      cache: "no-store",
       requestId,
-      retryable: false,
+      timeoutMs: 12_000,
     });
+    const options = await parseUpstreamJson(response, (value) => upstreamPaymentOptionsSchema.parse(value), requestId);
+    const offer = options.items.find((item) => item.id === SNAPPPAY_GATEWAY_ID && item.eligible && item.title.trim());
+    return offer ? paymentMethodSchema.parse({
+      id: SNAPPPAY_GATEWAY_ID,
+      title: offer.title.trim(),
+      ...(offer.description.trim() ? { description: offer.description.trim() } : {}),
+      provider: "snapppay",
+    }) : null;
+  } catch (error) {
+    console.error("[payment] snapppay_eligibility_unavailable", { requestId, code: error instanceof UpstreamError ? error.detail.code : "invalid" });
+    return null;
   }
-  return { id, title: "پرداخت آنلاین زرین‌پال" };
+}
+
+async function paymentMethods(requestId: string, cart: Cart): Promise<PaymentMethod[]> {
+  const ids = offeredPaymentMethodIds(requestId, cart);
+  const snapppay = ids.includes(SNAPPPAY_GATEWAY_ID) ? await snapppayOffer(cart, requestId) : null;
+  const methods = ids.flatMap((id): PaymentMethod[] => {
+    if (id === SNAPPPAY_GATEWAY_ID) return snapppay ? [snapppay] : [];
+    return [{ id, title: "پرداخت آنلاین", description: "از طریق درگاه پرداخت الکترونیک", provider: "zarinpal" }];
+  });
+  if (!methods.length) noPaymentMethod(requestId);
+  return methods;
+}
+
+function unavailablePaymentMethod(requestId: string): never {
+  throw new ServiceError({
+    code: "validation",
+    status: 400,
+    message: "The selected payment method is no longer available.",
+    requestId,
+    retryable: false,
+    fieldErrors: { paymentMethodId: ["این روش پرداخت برای مبلغ فعلی سفارش در دسترس نیست. روش دیگری انتخاب کنید."] },
+  });
 }
 
 function checkoutCart(requestId: string, cart: ReturnType<typeof mapCart>) {
@@ -170,25 +266,15 @@ function additionalFields(input: ReturnType<typeof submitCheckoutSchema.parse>) 
   };
 }
 
-function isTrustedZarinpalRedirect(url: string | undefined): boolean {
-  if (!url) return false;
-  try {
-    const host = new URL(url).hostname;
-    return host === "payment.zarinpal.com" || host === "sandbox.zarinpal.com";
-  } catch {
-    return false;
-  }
-}
-
 /** Starts the gateway through the owner-protected endpoint used by payment retries. */
 async function startGatewayPayment(orderId: number, attemptId: string, requestId: string) {
   const { redirectUrl } = await retryProfileOrderPayment(orderId, attemptId, requestId);
   return { paymentStatus: "pending", redirectUrl };
 }
 
-function checkoutFailureAfterUnmaterializedOrder(responseBody: unknown, requestId: string): never {
-  const gatewayFailure = zarinpalFailure(responseBody, requestId);
-  if (gatewayFailure) throw gatewayFailure;
+function checkoutFailureAfterUnmaterializedOrder(responseBody: unknown, requestId: string, methodId: string): never {
+  const failure = gatewayFailure(responseBody, requestId, methodId);
+  if (failure) throw failure;
   throw new ServiceError({
     code: "validation",
     status: 400,
@@ -229,10 +315,18 @@ export async function checkoutState(requestId: string) {
       { id: "normal", label: "بسته‌بندی معمولی", imageUrl: "/images/normal-pack.png", fee: { amount: "0", currencyCode: "IRR", minorUnit: 0 }, default: false },
     ],
     postcardDesigns: postcardDesigns.items,
-    paymentMethod: paymentMethod(requestId, cart.paymentMethodIds),
+    paymentMethods: await paymentMethods(requestId, cart),
     savedAddresses: savedAddresses.items,
   });
   return { state, cartToken };
+}
+
+/** Re-evaluates payment methods after the cart total changes (for example, a coupon). */
+export async function checkoutPaymentMethods(requestId: string) {
+  await authenticatedCustomer(requestId);
+  const { cart: currentCart, cartToken } = await cartForCheckout(await checkoutHeaders(), requestId);
+  const cart = checkoutCart(requestId, currentCart);
+  return { items: await paymentMethods(requestId, cart), cartToken };
 }
 
 export async function createSavedAddress(input: unknown, requestId: string) {
@@ -309,7 +403,10 @@ export async function checkout(input: unknown, requestId: string) {
     const { cart: currentCart, cartToken } = await cartForCheckout(initialHeaders, requestId);
     const cart = checkoutCart(requestId, currentCart);
     lastCartToken = cartToken;
-    paymentMethod(requestId, cart.paymentMethodIds);
+    const offeredIds = offeredPaymentMethodIds(requestId, cart);
+    const methodId = parsed.paymentMethodId ?? offeredIds[0];
+    if (!offeredIds.includes(methodId)) unavailablePaymentMethod(requestId);
+    const provider = paymentProvider(methodId);
     if (!createDeliverySlots(cart).some((slot) => slot.id === parsed.deliverySlotId && slot.available)) unavailableSlot(requestId);
 
     const draftHeaders = await checkoutHeaders(cartToken ?? undefined);
@@ -317,7 +414,7 @@ export async function checkout(input: unknown, requestId: string) {
       method: "PUT",
       headers: { ...draftHeaders, "Content-Type": "application/json" },
       body: JSON.stringify({
-        payment_method: env.KADOCHI_PAYMENT_METHOD_ID,
+        payment_method: methodId,
         additional_fields: additionalFields(parsed),
       }),
       cache: "no-store",
@@ -325,6 +422,9 @@ export async function checkout(input: unknown, requestId: string) {
     });
     lastCartToken = draft.headers.get("cart-token") ?? lastCartToken;
     await parseUpstreamJson(draft, (value) => upstreamCheckoutDraftSchema.parse(value), requestId);
+    // Snapp! Pay eligibility depends on the exact amount, which may have changed
+    // since the payment step loaded. Snapp requires a fresh check per amount.
+    if (provider === "snapppay" && !(await snapppayOffer(cart, requestId))) unavailablePaymentMethod(requestId);
 
     paymentSubmitted = true;
     const response = await wordpressFetch("/wp-json/wc/store/v1/checkout", {
@@ -336,7 +436,7 @@ export async function checkout(input: unknown, requestId: string) {
       },
       body: JSON.stringify({
         ...checkoutAddresses(parsed, customer),
-        payment_method: env.KADOCHI_PAYMENT_METHOD_ID,
+        payment_method: methodId,
         payment_data: [],
         // Required again on POST by current Woo versions even when PUT stored the
         // values in the shopper session or an older persisted draft order.
@@ -347,6 +447,8 @@ export async function checkout(input: unknown, requestId: string) {
       // Woo represents a gateway-declared payment failure as HTTP 400 with a
       // normal checkout result body. The schema below still rejects error DTOs.
       acceptStatuses: [400],
+      // Snapp! Pay requests its payment token inside this POST.
+      ...(provider === "snapppay" ? { timeoutMs: 25_000 } : {}),
     });
     lastCartToken = response.headers.get("cart-token") ?? lastCartToken;
     let responseBody: unknown;
@@ -382,7 +484,7 @@ export async function checkout(input: unknown, requestId: string) {
         };
       } catch (error) {
         if (error instanceof UpstreamError && error.detail.code === "not_found") {
-          checkoutFailureAfterUnmaterializedOrder(responseBody, requestId);
+          checkoutFailureAfterUnmaterializedOrder(responseBody, requestId, methodId);
         }
         throw error;
       }
@@ -397,10 +499,19 @@ export async function checkout(input: unknown, requestId: string) {
     // URL from Store API. Its retry endpoint performs the real authority request.
     // A direct, validated ZarinPal URL is already a completed gateway start and
     // must not create a second authority.
-    if (result.orderId && env.KADOCHI_PAYMENT_METHOD_ID === "WC_ZPal" && !isTrustedZarinpalRedirect(result.paymentResult?.redirectUrl)) {
+    if (result.orderId && methodId === ZARINPAL_GATEWAY_ID && !isTrustedGatewayRedirect(result.paymentResult?.redirectUrl, methodId, env)) {
       const paymentResult = await startGatewayPayment(result.orderId, parsed.operationId, requestId);
       return {
         result: checkoutResultSchema.parse({ ...result, paymentResult }),
+        cartToken: lastCartToken,
+      };
+    }
+    // Snapp! Pay's process_payment() returns its payment page directly. Never
+    // send the customer to an unexpected host; the order's failure page can retry.
+    if (provider === "snapppay" && result.paymentResult?.redirectUrl && !isTrustedGatewayRedirect(result.paymentResult.redirectUrl, methodId, env)) {
+      console.error("[payment] untrusted_gateway_redirect", { requestId, provider });
+      return {
+        result: checkoutResultSchema.parse({ orderId: result.orderId, status: result.status, reconciliation: result.orderId ? "unpaid" : "unknown" }),
         cartToken: lastCartToken,
       };
     }

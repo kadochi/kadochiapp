@@ -22,11 +22,12 @@ import { updateProfile } from "@/features/profile/services/profile";
 import { AddressEditorSheet } from "./address-editor-sheet";
 import { SavedAddressCard } from "./saved-address-card";
 import { submitCheckoutSchema } from "../schema/checkout";
-import { createSavedAddress, deleteSavedAddress, submitCheckout, updateSavedAddress } from "../services/checkout";
+import { createSavedAddress, deleteSavedAddress, getPaymentMethods, submitCheckout, updateSavedAddress } from "../services/checkout";
 import type { CheckoutState, SavedAddress } from "../types";
 import { checkoutResultAction } from "../utils/checkout-result";
 import { logPaymentFailure, paymentErrorMessage } from "../utils/payment-error";
 import { iranianPhoneSchema } from "../../auth/schema/auth";
+import { hasApiErrorCode } from "@/lib/http/errors";
 
 type RecipientKind = "self" | "other";
 type DetailsErrors = Partial<Record<"senderFirstName" | "senderLastName" | "recipientFirstName" | "recipientLastName" | "recipientPhone", string>>;
@@ -79,6 +80,8 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   const [postcardText, setPostcardText] = useState("");
   const [postcardEnabled, setPostcardEnabled] = useState(false);
   const [postcardDesignId, setPostcardDesignId] = useState<number | null>(null);
+  const [paymentMethodId, setPaymentMethodId] = useState(initialState.paymentMethods[0]?.id ?? "");
+  const [paymentMethodNotice, setPaymentMethodNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingAddress, setSavingAddress] = useState(false);
   const [pendingRate, setPendingRate] = useState<string | null>(null);
@@ -181,6 +184,8 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
       }
     }
     if (step === 1 && !deliverySlotId) return setError("یک بازه ارسال انتخاب کنید.");
+    // Address and shipping-rate choices change the total after the page loaded.
+    if (step === 1) void refreshPaymentMethods();
     setStep((current) => Math.min(2, current + 1));
   };
 
@@ -203,6 +208,25 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
     }
   };
 
+  /** Snapp! Pay eligibility depends on the total, so re-query it whenever the total changes. */
+  const refreshPaymentMethods = async () => {
+    try {
+      const { items } = await getPaymentMethods();
+      setState((current) => ({ ...current, paymentMethods: items }));
+      if (!items.some((method) => method.id === paymentMethodId)) {
+        setPaymentMethodId(items[0].id);
+        setPaymentMethodNotice("روش پرداخت انتخاب‌شده برای مبلغ جدید سفارش در دسترس نیست؛ روش دیگری انتخاب شد.");
+      }
+    } catch {
+      // The BFF re-validates the selected method on submission.
+    }
+  };
+
+  const choosePaymentMethod = (id: string) => {
+    setPaymentMethodId(id);
+    setPaymentMethodNotice(null);
+  };
+
   const addCoupon = async (code: string) => {
     if (pendingCoupon) return false;
     if (state.cart.coupons.length > 0) {
@@ -216,6 +240,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
     try {
       const cart = await applyCoupon({ code });
       setState((current) => ({ ...current, cart }));
+      void refreshPaymentMethods();
       toast({
         tone: "success",
         title: "کد تخفیف اعمال شد",
@@ -240,6 +265,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
     try {
       const cart = await removeCoupon(code);
       setState((current) => ({ ...current, cart }));
+      void refreshPaymentMethods();
       toast({
         tone: "success",
         title: "کد تخفیف حذف شد",
@@ -298,6 +324,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         postcardEnabled,
         postcardDesignId,
         postcardText,
+        paymentMethodId: paymentMethodId || undefined,
         operationId: operationId.current ?? (operationId.current = crypto.randomUUID()),
       });
       const result = await submitCheckout(payload);
@@ -325,6 +352,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
       } else {
         logPaymentFailure("checkout_submission_failed", caught);
         setError(paymentErrorMessage(caught, "ثبت سفارش ناموفق بود.").message);
+        if (hasApiErrorCode(caught, "validation")) void refreshPaymentMethods();
       }
     } finally {
       if (unlockAfterAttempt) {
@@ -357,7 +385,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         pendingRate={pendingRate}
         onDeliverySlot={setDeliverySlotId} onPackaging={setPackagingId} onPostcardEnabled={(enabled) => { setPostcardEnabled(enabled); if (enabled) { setPostcardDesignId((current) => current ?? state.postcardDesigns[0]?.id ?? null); } else { setPostcardDesignId(null); setPostcardText(""); } }} onPostcardDesign={setPostcardDesignId} onPostcard={setPostcardText} onShippingRate={chooseShippingRate}
       /> : null}
-      {step === 2 ? <PaymentStep state={state} couponPending={pendingCoupon} onApplyCoupon={addCoupon} onRemoveCoupon={deleteCoupon} /> : null}
+      {step === 2 ? <PaymentStep state={state} couponPending={pendingCoupon} paymentMethodId={paymentMethodId} paymentMethodNotice={paymentMethodNotice} onApplyCoupon={addCoupon} onPaymentMethod={choosePaymentMethod} onRemoveCoupon={deleteCoupon} /> : null}
 
       <CheckoutFooter
         canContinue={step === 0 ? true : Boolean(deliverySlotId)}
@@ -559,8 +587,9 @@ function DeliveryStep(props: {
   </>;
 }
 
-function PaymentStep({ state, couponPending, onApplyCoupon, onRemoveCoupon }: {
-  state: CheckoutState; couponPending: string | null; onApplyCoupon: (code: string) => Promise<boolean>; onRemoveCoupon: (code: string) => Promise<void>;
+export function PaymentStep({ state, couponPending, paymentMethodId, paymentMethodNotice, onApplyCoupon, onPaymentMethod, onRemoveCoupon }: {
+  state: CheckoutState; couponPending: string | null; paymentMethodId: string; paymentMethodNotice: string | null;
+  onApplyCoupon: (code: string) => Promise<boolean>; onPaymentMethod: (id: string) => void; onRemoveCoupon: (code: string) => Promise<void>;
 }) {
   const [couponCode, setCouponCode] = useState("");
   const hasCoupon = state.cart.coupons.length > 0;
@@ -573,13 +602,15 @@ function PaymentStep({ state, couponPending, onApplyCoupon, onRemoveCoupon }: {
   return <>
     <SectionHeader as="h2" title="شیوه پرداخت" />
     <section className="px-16 pb-16">
-      <RadioGroup className="gap-0" value={state.paymentMethod.id}>
-        <RadioGroupItem
-          className="w-full rounded-m border-2 border-secondary p-16 shadow-[0_0_0_4px_var(--color-secondary-container)]"
-          label={<span className="grid gap-4"><span className="text-title-14 font-bold">پرداخت آنلاین</span><span className="text-label-12 text-surface-neutral-mid-emphasis">از طریق درگاه پرداخت الکترونیک</span></span>}
-          value={state.paymentMethod.id}
-        />
+      <RadioGroup aria-label="شیوه پرداخت" className="gap-12" value={paymentMethodId} onValueChange={onPaymentMethod}>
+        {state.paymentMethods.map((method) => <RadioGroupItem
+          key={method.id}
+          className="w-full items-start rounded-m border border-border-high-emphasis p-16 has-[[data-state=checked]]:border-2 has-[[data-state=checked]]:border-secondary has-[[data-state=checked]]:shadow-[0_0_0_4px_var(--color-secondary-container)]"
+          label={<PaymentMethodLabel method={method} />}
+          value={method.id}
+        />)}
       </RadioGroup>
+      {paymentMethodNotice ? <p className="mb-0 mt-12 text-label-12 text-surface-neutral-mid-emphasis" role="status">{paymentMethodNotice}</p> : null}
     </section>
 
     <Divider size="md" variant="spacer" />
@@ -629,6 +660,23 @@ function PaymentStep({ state, couponPending, onApplyCoupon, onRemoveCoupon }: {
       <PaymentRow bold label="جمع کل" value={formatIrrAsToman(state.cart.totals.totalPrice)} />
     </section>
   </>;
+}
+
+/**
+ * Snapp! Pay rows follow Snapp's payment-method style guide: logo (32px mobile,
+ * 40px desktop/tablet) then its eligibility title and description, verbatim.
+ */
+function PaymentMethodLabel({ method }: { method: CheckoutState["paymentMethods"][number] }) {
+  if (method.provider !== "snapppay") {
+    return <span className="grid gap-4"><span className="text-title-14 font-bold">{method.title}</span>{method.description ? <span className="text-label-12 text-surface-neutral-mid-emphasis">{method.description}</span> : null}</span>;
+  }
+  return <span className="flex flex-row items-start gap-12 md:gap-16">
+    <Image alt="اسنپ‌پی" className="size-32 shrink-0 md:size-40" height={40} src="/images/payment/snapppay.svg" unoptimized width={40} />
+    <span className="grid min-w-0 gap-4">
+      <span className="text-title-14 font-bold">{method.title}</span>
+      {method.description ? <span className="text-label-12 text-surface-neutral-mid-emphasis">{method.description}</span> : null}
+    </span>
+  </span>;
 }
 
 function PaymentRow({ label, value, bold = false, className = "" }: { label: string; value: string; bold?: boolean; className?: string }) {
