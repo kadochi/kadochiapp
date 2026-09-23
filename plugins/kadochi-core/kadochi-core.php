@@ -11,6 +11,8 @@
 defined( 'ABSPATH' ) || exit;
 
 require_once __DIR__ . '/includes/class-kadochi-support.php';
+require_once __DIR__ . '/includes/class-kadochi-snapppay-client.php';
+require_once __DIR__ . '/includes/class-kadochi-snapppay.php';
 
 final class Kadochi_Core {
 	const REST_NAMESPACE = 'kadochi/v1';
@@ -53,8 +55,29 @@ final class Kadochi_Core {
 	private $bearer_error = null;
 	/** @var array<string, mixed>|null Context used only while the gateway emits its redirect. */
 	private $active_payment_attempt = null;
+	/** @var Kadochi_SnappPay|null */
+	private $snapppay = null;
+	/** @var Kadochi_Core|null */
+	private static $instance = null;
+
+	public static function instance() {
+		return self::$instance;
+	}
+
+	/** Lazily builds the Snapp! Pay service with this plugin's logging and payment-attempt helpers. */
+	public function snapppay() {
+		if ( ! $this->snapppay ) {
+			$core = $this;
+			$client = new Kadochi_SnappPay_Client( null, null, function ( $event, $context ) use ( $core ) {
+				$core->payment_log( $event, $context, 'snapppay' );
+			} );
+			$this->snapppay = new Kadochi_SnappPay( $client, $this );
+		}
+		return $this->snapppay;
+	}
 
 	public function boot() {
+		self::$instance = $this;
 		self::maybe_install_product_actions_table();
 		self::maybe_install_notifications_table();
 		self::maybe_grant_editorial_capabilities();
@@ -99,6 +122,16 @@ final class Kadochi_Core {
 		// The official ZarinPal gateway sends a cancelled payment to Woo's checkout
 		// URL directly, so handle its API callback before the gateway's own handler.
 		add_action( 'woocommerce_api_wc_zpal', array( $this, 'redirect_cancelled_gateway_payment' ), 1 );
+		add_filter( 'woocommerce_payment_gateways', array( $this, 'register_payment_gateways' ) );
+		// Snapp! Pay POSTs the customer's browser to WordPress; verify and settle
+		// run server-to-server before the customer returns to the frontend.
+		add_action( 'woocommerce_api_' . Kadochi_SnappPay::GATEWAY_ID, array( $this, 'handle_snapppay_callback' ) );
+		add_action( 'init', array( $this, 'schedule_snapppay_reconciliation' ) );
+		add_action( 'init', array( $this, 'check_snapppay_health' ) );
+		add_action( Kadochi_SnappPay::RECONCILE_HOOK, array( $this, 'reconcile_snapppay_payments' ) );
+		add_filter( 'woocommerce_order_actions', array( $this, 'add_snapppay_order_action' ), 10, 2 );
+		add_action( 'woocommerce_order_action_kadochi_snapppay_sync', array( $this, 'sync_snapppay_order' ) );
+		add_action( 'woocommerce_admin_order_data_after_order_details', array( $this, 'render_snapppay_order_details' ) );
 		add_filter( 'get_avatar_url', array( $this, 'customer_avatar_url_filter' ), 10, 3 );
 		add_action( 'show_user_profile', array( $this, 'render_customer_profile_fields' ) );
 		add_action( 'edit_user_profile', array( $this, 'render_customer_profile_fields' ) );
@@ -517,6 +550,14 @@ final class Kadochi_Core {
 				),
 			),
 		) );
+		register_rest_route( self::REST_NAMESPACE, '/checkout/payment-options', array(
+			'methods' => WP_REST_Server::READABLE,
+			'callback' => array( $this, 'checkout_payment_options' ),
+			'permission_callback' => array( $this, 'authenticated' ),
+			'args' => array(
+				'amount' => array( 'required' => true, 'type' => 'integer', 'minimum' => 1, 'sanitize_callback' => 'absint' ),
+			),
+		) );
 		register_rest_route( self::REST_NAMESPACE, '/checkout/postcard-designs', array(
 			'methods' => WP_REST_Server::READABLE,
 			'callback' => array( $this, 'postcard_designs' ),
@@ -879,14 +920,23 @@ final class Kadochi_Core {
 	}
 
 	private function latin_digits( $value ) {
+		return self::to_latin_digits( $value );
+	}
+
+	private static function to_latin_digits( $value ) {
 		return strtr( $value, array( '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4', '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9', '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9' ) );
 	}
 
 	private function canonical_phone( $value ) {
+		return self::normalize_phone( $value );
+	}
+
+	/** Returns an Iranian mobile number as +98XXXXXXXXXX, or null. */
+	public static function normalize_phone( $value ) {
 		if ( ! is_string( $value ) ) {
 			return null;
 		}
-		$phone = preg_replace( '/[\s\-()]+/', '', $this->latin_digits( trim( $value ) ) );
+		$phone = preg_replace( '/[\s\-()]+/', '', self::to_latin_digits( trim( $value ) ) );
 		if ( preg_match( '/^09\d{9}$/', $phone ) ) {
 			return '+98' . substr( $phone, 1 );
 		}
@@ -2385,10 +2435,28 @@ final class Kadochi_Core {
 		return $customer ? rest_ensure_response( $customer ) : $this->auth_error( 'kadochi_customer_unavailable', __( 'The customer service is unavailable.', 'kadochi-core' ), 503 );
 	}
 
+	/** Legacy single-gateway setting; the fallback when KADOCHI_PAYMENT_METHOD_IDS is not set. */
 	private function payment_method_id() {
 		$value = getenv( 'KADOCHI_PAYMENT_METHOD_ID' );
 		$value = is_string( $value ) ? trim( $value ) : '';
 		return preg_match( '/^[A-Za-z0-9_-]{1,100}$/', $value ) ? $value : 'WC_ZPal';
+	}
+
+	/** Ordered, case-sensitive gateway allow-list from KADOCHI_PAYMENT_METHOD_IDS. */
+	public function payment_method_ids() {
+		$raw = getenv( 'KADOCHI_PAYMENT_METHOD_IDS' );
+		$ids = array();
+		foreach ( explode( ',', is_string( $raw ) ? $raw : '' ) as $value ) {
+			$value = trim( $value );
+			if ( preg_match( '/^[A-Za-z0-9_-]{1,100}$/', $value ) && ! in_array( $value, $ids, true ) ) {
+				$ids[] = $value;
+			}
+		}
+		return $ids ?: array( $this->payment_method_id() );
+	}
+
+	public function is_allowed_payment_method( $id ) {
+		return is_string( $id ) && in_array( $id, $this->payment_method_ids(), true );
 	}
 
 	/** Registers Store API-persisted values; the headless BFF writes these before payment. */
@@ -2675,7 +2743,7 @@ final class Kadochi_Core {
 		// official Zarinpal ID (`WC_ZPal`) and consequently rejects it before Woo
 		// can create the redirect URL.
 		$method = sanitize_text_field( (string) $request->get_param( 'payment_method' ) );
-		if ( $this->payment_method_id() !== $method ) {
+		if ( ! $this->is_allowed_payment_method( $method ) ) {
 			throw new Exception( __( 'The selected payment method is unavailable.', 'kadochi-core' ) );
 		}
 		if ( ! is_object( $order ) || ! method_exists( $order, 'get_meta' ) ) {
@@ -2728,7 +2796,7 @@ final class Kadochi_Core {
 	}
 
 	public function checkout_return_url( $url, $order ) {
-		if ( ! is_object( $order ) || ! method_exists( $order, 'get_payment_method' ) || $this->payment_method_id() !== $order->get_payment_method() ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'get_payment_method' ) || ! $this->is_allowed_payment_method( $order->get_payment_method() ) ) {
 			return $url;
 		}
 		$frontend_return_url = $this->frontend_checkout_result_url( 'return', $order );
@@ -2756,7 +2824,7 @@ final class Kadochi_Core {
 		}
 		$order_id = isset( $_GET['wc_order'] ) ? absint( wp_unslash( $_GET['wc_order'] ) ) : 0;
 		$order = $order_id && function_exists( 'wc_get_order' ) ? wc_get_order( $order_id ) : false;
-		if ( ! $order || $order->is_paid() || $this->payment_method_id() !== $order->get_payment_method() ) {
+		if ( ! $order || $order->is_paid() || Kadochi_SnappPay::GATEWAY_ID === $order->get_payment_method() || ! $this->is_allowed_payment_method( $order->get_payment_method() ) ) {
 			return;
 		}
 		$this->release_payment_attempt( $order, null, 'cancelled' );
@@ -2769,22 +2837,26 @@ final class Kadochi_Core {
 		exit;
 	}
 
-	/** Writes support-safe, structured ZarinPal lifecycle logs through WooCommerce. */
-	private function payment_log( $event, $context = array() ) {
+	/**
+	 * Writes support-safe, structured gateway lifecycle logs through WooCommerce.
+	 * Callers pass identifiers and codes only: never tokens, phones, or credentials.
+	 */
+	public function payment_log( $event, $context = array(), $gateway = 'zarinpal' ) {
+		$gateway = sanitize_key( $gateway );
 		$payload = array_merge(
 			array(
 				'event' => sanitize_key( $event ),
-				'gateway' => 'zarinpal',
+				'gateway' => $gateway,
 				'requestId' => $this->payment_request_id(),
 			),
 			is_array( $context ) ? $context : array()
 		);
 		$message = wp_json_encode( $payload );
 		if ( function_exists( 'wc_get_logger' ) ) {
-			wc_get_logger()->info( $message, array( 'source' => 'kadochi-zarinpal' ) );
+			wc_get_logger()->info( $message, array( 'source' => 'kadochi-' . $gateway ) );
 			return;
 		}
-		error_log( '[kadochi-zarinpal] ' . $message ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+		error_log( '[kadochi-' . $gateway . '] ' . $message ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 	}
 
 	/** Returns an opaque correlation ID and never includes customer or payment data. */
@@ -2807,14 +2879,69 @@ final class Kadochi_Core {
 		return '_kadochi_payment_attempt_failure';
 	}
 
-	/** Allows only the two ZarinPal handoff hosts; the authority is never logged separately. */
-	private function trusted_zarinpal_redirect( $redirect ) {
+	/**
+	 * Allows only a gateway's own handoff hosts. ZarinPal uses its two payment
+	 * hosts; Snapp! Pay uses its API host plus SNAPPPAY_PAYMENT_HOSTS, HTTPS only.
+	 */
+	public function trusted_gateway_redirect( $redirect, $gateway_id = 'WC_ZPal' ) {
 		$redirect = is_string( $redirect ) ? esc_url_raw( $redirect, array( 'http', 'https' ) ) : '';
 		$parts = $redirect ? wp_parse_url( $redirect ) : false;
-		if ( ! is_array( $parts ) || empty( $parts['host'] ) || empty( $parts['scheme'] ) || ! in_array( strtolower( $parts['scheme'] ), array( 'http', 'https' ), true ) ) {
+		if ( ! is_array( $parts ) || empty( $parts['host'] ) || empty( $parts['scheme'] ) || ! in_array( strtolower( $parts['scheme'] ), array( 'http', 'https' ), true ) || isset( $parts['user'] ) || isset( $parts['pass'] ) ) {
 			return false;
 		}
-		return in_array( strtolower( $parts['host'] ), array( 'payment.zarinpal.com', 'sandbox.zarinpal.com' ), true ) ? $redirect : false;
+		$host = strtolower( $parts['host'] );
+		if ( Kadochi_SnappPay::GATEWAY_ID === $gateway_id ) {
+			return 'https' === strtolower( $parts['scheme'] ) && in_array( $host, $this->snapppay_payment_hosts(), true ) ? $redirect : false;
+		}
+		return in_array( $host, array( 'payment.zarinpal.com', 'sandbox.zarinpal.com' ), true ) ? $redirect : false;
+	}
+
+	private function trusted_zarinpal_redirect( $redirect ) {
+		return $this->trusted_gateway_redirect( $redirect, 'WC_ZPal' );
+	}
+
+	/** @return string[] */
+	private function snapppay_payment_hosts() {
+		$hosts = array( $this->snapppay()->client()->base_host() );
+		$configured = getenv( 'SNAPPPAY_PAYMENT_HOSTS' );
+		foreach ( explode( ',', is_string( $configured ) ? $configured : '' ) as $host ) {
+			$hosts[] = strtolower( trim( $host ) );
+		}
+		return array_values( array_filter( array_unique( $hosts ), function ( $host ) {
+			return (bool) preg_match( '/^[a-z0-9.-]+\.[a-z]{2,}$/', $host );
+		} ) );
+	}
+
+	/**
+	 * Ensures a payment-attempt lock exists when a gateway starts directly from
+	 * the Store API. The checkout operation ID is the attempt ID, so the BFF's
+	 * recovery call for the same operation finds this attempt's redirect.
+	 */
+	public function gateway_attempt_started( $order ) {
+		$lock_key = $this->payment_attempt_lock_key( $order );
+		if ( is_array( get_option( $lock_key, false ) ) ) {
+			return true;
+		}
+		$operation = (string) $order->get_meta( $this->checkout_operation_meta_key(), true );
+		if ( ! $this->valid_payment_attempt_id( $operation ) ) {
+			return false;
+		}
+		return add_option( $lock_key, array( 'attemptId' => $operation, 'startedAt' => time() ), '', 'no' );
+	}
+
+	/** Stores a started gateway's redirect so a repeated attempt recovers it instead of starting another payment. */
+	public function gateway_attempt_redirect( $order, $redirect, $ttl = 0 ) {
+		$lock_key = $this->payment_attempt_lock_key( $order );
+		$existing = get_option( $lock_key, false );
+		if ( ! is_array( $existing ) ) {
+			return;
+		}
+		$existing['redirectUrl'] = $redirect;
+		$existing['redirectedAt'] = time();
+		if ( $ttl > 0 ) {
+			$existing['expiresAt'] = time() + absint( $ttl );
+		}
+		update_option( $lock_key, $existing, false );
 	}
 
 	/**
@@ -2829,12 +2956,13 @@ final class Kadochi_Core {
 		if ( is_array( $existing ) ) {
 			$existing_id = isset( $existing['attemptId'] ) && is_string( $existing['attemptId'] ) ? $existing['attemptId'] : '';
 			$started_at = isset( $existing['startedAt'] ) ? absint( $existing['startedAt'] ) : 0;
-			$redirect = isset( $existing['redirectUrl'] ) ? $this->trusted_zarinpal_redirect( $existing['redirectUrl'] ) : false;
+			$expired = isset( $existing['expiresAt'] ) && absint( $existing['expiresAt'] ) <= $now;
+			$redirect = ! $expired && isset( $existing['redirectUrl'] ) ? $this->trusted_gateway_redirect( $existing['redirectUrl'], $order->get_payment_method() ) : false;
 			if ( $redirect ) {
 				$this->payment_log( 'payment_authority_recovered', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'same_attempt' => hash_equals( $existing_id, $attempt_id ) ) );
 				return array( 'redirectUrl' => $redirect );
 			}
-			if ( $started_at && $started_at > $now - self::PAYMENT_ATTEMPT_LOCK_SECONDS ) {
+			if ( ! $expired && $started_at && $started_at > $now - self::PAYMENT_ATTEMPT_LOCK_SECONDS ) {
 				$retry_after = max( 1, self::PAYMENT_ATTEMPT_LOCK_SECONDS - ( $now - $started_at ) );
 				$this->payment_log( 'payment_in_progress_detected', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'retry_after' => $retry_after ) );
 				return $this->auth_error( 'kadochi_payment_in_progress', __( 'A payment attempt is already in progress.', 'kadochi-core' ), 409, array( 'retryAfter' => $retry_after ) );
@@ -2862,7 +2990,7 @@ final class Kadochi_Core {
 	}
 
 	/** Releases a failed or cancelled attempt while retaining only a bounded safe tombstone. */
-	private function release_payment_attempt( $order, $attempt_id = null, $reason = 'gateway_failure' ) {
+	public function release_payment_attempt( $order, $attempt_id = null, $reason = 'gateway_failure' ) {
 		$lock_key = $this->payment_attempt_lock_key( $order );
 		$existing = get_option( $lock_key, false );
 		if ( ! is_array( $existing ) || ! isset( $existing['attemptId'] ) || ! is_string( $existing['attemptId'] ) ) {
@@ -2931,16 +3059,17 @@ final class Kadochi_Core {
 		return esc_url_raw( $frontend, array( 'http', 'https' ) );
 	}
 
-	/** Builds a trusted frontend result URL for a WooCommerce order. */
-	private function frontend_checkout_result_url( $result, $order ) {
-		if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) || ! in_array( $result, array( 'return', 'failure' ), true ) ) {
+	/** Builds a trusted frontend result URL for a WooCommerce order, or without one when it is unknown. */
+	public function frontend_checkout_result_url( $result, $order ) {
+		if ( ! in_array( $result, array( 'return', 'failure' ), true ) ) {
 			return false;
 		}
 		$frontend = $this->trusted_frontend_url();
 		if ( ! $frontend ) {
 			return false;
 		}
-		return add_query_arg( 'order', absint( $order->get_id() ), trailingslashit( $frontend ) . 'checkout/' . $result );
+		$url = trailingslashit( $frontend ) . 'checkout/' . $result;
+		return is_object( $order ) && method_exists( $order, 'get_id' ) ? add_query_arg( 'order', absint( $order->get_id() ), $url ) : $url;
 	}
 
 	private function order_money( $order ) {
@@ -2979,6 +3108,10 @@ final class Kadochi_Core {
 
 	private function expire_draft_order_if_needed( $order ) {
 		if ( ! $this->is_draft_order( $order ) || ! method_exists( $order, 'get_date_created' ) ) {
+			return false;
+		}
+		// A Snapp! Pay token may still be paid and must be verified or reverted first.
+		if ( '' !== (string) $order->get_meta( Kadochi_SnappPay::META_TOKEN, true ) ) {
 			return false;
 		}
 		$created = $order->get_date_created();
@@ -3071,7 +3204,31 @@ final class Kadochi_Core {
 
 	public function order_summary( WP_REST_Request $request ) {
 		$order = $this->owned_order( $request['id'] );
-		return is_wp_error( $order ) ? $order : rest_ensure_response( $this->order_summary_dto( $order ) );
+		if ( is_wp_error( $order ) ) {
+			return $order;
+		}
+		$this->maybe_reconcile_snapppay_on_read( $order );
+		return rest_ensure_response( $this->order_summary_dto( $order ) );
+	}
+
+	/**
+	 * The result page polls this summary. When a Snapp! Pay callback left the
+	 * payment unresolved, resume finalisation here too: production WP-Cron may be
+	 * paused, so the cron reconciler cannot be the only path. Throttled per order.
+	 */
+	private function maybe_reconcile_snapppay_on_read( $order ) {
+		if ( Kadochi_SnappPay::GATEWAY_ID !== $order->get_payment_method() || $order->is_paid() ) {
+			return;
+		}
+		if ( ! in_array( (string) $order->get_meta( Kadochi_SnappPay::META_STATUS, true ), array( 'UNKNOWN', 'VERIFY_SENT', 'VERIFY' ), true ) ) {
+			return;
+		}
+		$throttle = 'kadochi_snapppay_read_sync_' . absint( $order->get_id() );
+		if ( get_transient( $throttle ) ) {
+			return;
+		}
+		set_transient( $throttle, 1, 20 );
+		$this->snapppay()->reconcile( $order );
 	}
 
 	private function profile_order_item_dto( $item ) {
@@ -3206,7 +3363,8 @@ final class Kadochi_Core {
 			$this->payment_log( 'payment_start_rejected', array( 'order_id' => absint( $order->get_id() ), 'reason' => 'not_payable' ) );
 			return $this->auth_error( 'kadochi_order_not_payable', __( 'This order is no longer awaiting payment.', 'kadochi-core' ), 409 );
 		}
-		if ( $order->is_paid() || $this->payment_method_id() !== $order->get_payment_method() ) {
+		$method = (string) $order->get_payment_method();
+		if ( $order->is_paid() || ! $this->is_allowed_payment_method( $method ) ) {
 			$this->payment_log( 'payment_start_rejected', array( 'order_id' => absint( $order->get_id() ), 'reason' => 'gateway_mismatch_or_paid' ) );
 			return $this->auth_error( 'kadochi_order_not_payable', __( 'This order cannot be paid with the configured gateway.', 'kadochi-core' ), 409 );
 		}
@@ -3220,7 +3378,7 @@ final class Kadochi_Core {
 		$woocommerce = function_exists( 'WC' ) ? WC() : null;
 		$gateway_manager = is_object( $woocommerce ) && method_exists( $woocommerce, 'payment_gateways' ) ? $woocommerce->payment_gateways() : null;
 		$gateways = is_object( $gateway_manager ) && method_exists( $gateway_manager, 'payment_gateways' ) ? $gateway_manager->payment_gateways() : array();
-		$gateway = isset( $gateways[ $this->payment_method_id() ] ) ? $gateways[ $this->payment_method_id() ] : null;
+		$gateway = isset( $gateways[ $method ] ) ? $gateways[ $method ] : null;
 		if ( ! $gateway || ! method_exists( $gateway, 'process_payment' ) ) {
 			$this->release_payment_attempt( $order, $attempt_id, 'gateway_unavailable' );
 			$this->payment_log( 'payment_gateway_unavailable', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id ) );
@@ -3229,7 +3387,7 @@ final class Kadochi_Core {
 		// The official ZarinPal gateway's process_payment() intentionally returns
 		// WooCommerce's order-pay page. Its public handoff method creates the real
 		// ZarinPal authority and responds with the gateway redirect instead.
-		if ( 'WC_ZPal' === $this->payment_method_id() && method_exists( $gateway, 'Send_to_ZarinPal_Gateway' ) ) {
+		if ( 'WC_ZPal' === $method && method_exists( $gateway, 'Send_to_ZarinPal_Gateway' ) ) {
 			$started_at = microtime( true );
 			$this->active_payment_attempt = array(
 				'orderId' => absint( $order->get_id() ),
@@ -3248,13 +3406,23 @@ final class Kadochi_Core {
 			$this->payment_log( 'payment_gateway_start_failed', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'reason' => 'no_redirect', 'duration_ms' => max( 0, (int) round( ( microtime( true ) - $started_at ) * 1000 ) ) ) );
 			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway could not start a payment.', 'kadochi-core' ), 502 );
 		}
-		$result = $gateway->process_payment( $order->get_id() );
+		try {
+			$result = $gateway->process_payment( $order->get_id() );
+		} catch ( Exception $exception ) {
+			// Gateways signal a definite start failure by throwing; its notice is not
+			// forwarded because it may carry provider detail.
+			$result = null;
+		}
 		$redirect = is_array( $result ) && isset( $result['redirect'] ) ? esc_url_raw( $result['redirect'], array( 'http', 'https' ) ) : '';
+		if ( $redirect && Kadochi_SnappPay::GATEWAY_ID === $method ) {
+			$redirect = $this->trusted_gateway_redirect( $redirect, $method ) ?: '';
+		}
 		if ( ! $redirect ) {
 			$this->release_payment_attempt( $order, $attempt_id, 'invalid_redirect' );
 			$this->payment_log( 'payment_gateway_start_failed', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'reason' => 'invalid_redirect' ) );
 			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway could not start a payment.', 'kadochi-core' ), 502 );
 		}
+		$this->gateway_attempt_redirect( $order, $redirect, Kadochi_SnappPay::GATEWAY_ID === $method ? Kadochi_SnappPay::PAYMENT_PAGE_TTL : 0 );
 		$this->payment_log( 'payment_start_redirect_ready', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id ) );
 		return rest_ensure_response( array( 'redirectUrl' => $redirect ) );
 	}
@@ -3602,6 +3770,127 @@ final class Kadochi_Core {
 		if ( ! $this->check_version( $post, $input ) ) return new WP_Error( 'kadochi_occasion_conflict', __( 'The occasion has changed. Refresh and try again.', 'kadochi-core' ), array( 'status' => 409 ) );
 		$result = wp_trash_post( $post->ID ); if ( ! $result ) return new WP_Error( 'kadochi_delete_failed', __( 'The occasion could not be deleted.', 'kadochi-core' ), array( 'status' => 500 ) );
 		return rest_ensure_response( $this->occasion_dto( $post ) );
+	}
+
+	/** Registers the Snapp! Pay gateway once WooCommerce's gateway base class is loaded. */
+	public function register_payment_gateways( $gateways ) {
+		if ( class_exists( 'WC_Payment_Gateway' ) ) {
+			require_once __DIR__ . '/includes/class-kadochi-snapppay-gateway.php';
+			$gateways[] = 'Kadochi_SnappPay_Gateway';
+		}
+		return $gateways;
+	}
+
+	/** Snapp! Pay's browser form POST: finalise server-side, then return the customer to the frontend. */
+	public function handle_snapppay_callback() {
+		$method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_key( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : '';
+		if ( 'POST' !== $method ) {
+			$redirect = $this->frontend_checkout_result_url( 'failure', null );
+		} else {
+			$input = array();
+			foreach ( array( 'transactionId', 'state', 'amount' ) as $field ) {
+				// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Cross-site gateway callback; authenticity comes from server-side verify.
+				$input[ $field ] = isset( $_POST[ $field ] ) ? sanitize_text_field( wp_unslash( (string) $_POST[ $field ] ) ) : '';
+			}
+			$redirect = $this->snapppay()->handle_callback( $input );
+		}
+		if ( ! $redirect ) {
+			wp_die( esc_html__( 'Payment result received. Please return to Kadochi to see your order status.', 'kadochi-core' ), '', array( 'response' => 200 ) );
+		}
+		nocache_headers();
+		wp_safe_redirect( $redirect, 303 );
+		exit;
+	}
+
+	public function schedule_snapppay_reconciliation() {
+		if ( ! $this->is_allowed_payment_method( Kadochi_SnappPay::GATEWAY_ID ) ) {
+			$timestamp = wp_next_scheduled( Kadochi_SnappPay::RECONCILE_HOOK );
+			if ( $timestamp ) {
+				wp_unschedule_event( $timestamp, Kadochi_SnappPay::RECONCILE_HOOK );
+			}
+			return;
+		}
+		if ( ! wp_next_scheduled( Kadochi_SnappPay::RECONCILE_HOOK ) ) {
+			wp_schedule_event( time() + 300, 'kadochi_every_five_minutes', Kadochi_SnappPay::RECONCILE_HOOK );
+		}
+	}
+
+	public function reconcile_snapppay_payments() {
+		if ( $this->is_allowed_payment_method( Kadochi_SnappPay::GATEWAY_ID ) && $this->snapppay()->is_configured() ) {
+			$this->snapppay()->reconcile_due_orders();
+		}
+	}
+
+	public function check_snapppay_health() {
+		if ( $this->is_allowed_payment_method( Kadochi_SnappPay::GATEWAY_ID ) && ! $this->snapppay()->is_configured() ) {
+			$this->health['snapppay'] = __( 'Snapp! Pay is in KADOCHI_PAYMENT_METHOD_IDS but SNAPPPAY_BASE_URL (HTTPS), SNAPPPAY_CLIENT_ID, SNAPPPAY_CLIENT_SECRET, SNAPPPAY_USERNAME, or SNAPPPAY_PASSWORD is missing.', 'kadochi-core' );
+		}
+	}
+
+	public function add_snapppay_order_action( $actions, $order = null ) {
+		if ( is_object( $order ) && Kadochi_SnappPay::GATEWAY_ID === $order->get_payment_method() && '' !== (string) $order->get_meta( Kadochi_SnappPay::META_TOKEN, true ) ) {
+			$actions['kadochi_snapppay_sync'] = __( 'Sync Snapp! Pay status', 'kadochi-core' );
+		}
+		return $actions;
+	}
+
+	/** Manual admin sync: queries Snapp and runs the same finalisation as the callback. */
+	public function sync_snapppay_order( $order ) {
+		if ( ! current_user_can( 'edit_shop_orders' ) || ! is_object( $order ) ) {
+			return;
+		}
+		$outcome = $this->snapppay()->reconcile( $order );
+		$order->add_order_note( sprintf( 'Snapp! Pay manual sync: %s.', $outcome ) );
+	}
+
+	public function render_snapppay_order_details( $order ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'get_payment_method' ) || Kadochi_SnappPay::GATEWAY_ID !== $order->get_payment_method() ) {
+			return;
+		}
+		$transaction = sanitize_text_field( (string) $order->get_meta( Kadochi_SnappPay::META_TRANSACTION, true ) );
+		$status = sanitize_text_field( (string) $order->get_meta( Kadochi_SnappPay::META_STATUS, true ) );
+		$synced = absint( $order->get_meta( Kadochi_SnappPay::META_LAST_SYNC, true ) );
+		echo '<div class="kadochi-snapppay-order-details"><h3>' . esc_html__( 'Snapp! Pay', 'kadochi-core' ) . '</h3>';
+		echo '<p><strong>' . esc_html__( 'Transaction:', 'kadochi-core' ) . '</strong> ' . esc_html( $transaction ?: '—' ) . '<br>';
+		echo '<strong>' . esc_html__( 'Status:', 'kadochi-core' ) . '</strong> ' . esc_html( $status ?: '—' ) . '<br>';
+		echo '<strong>' . esc_html__( 'Last sync:', 'kadochi-core' ) . '</strong> ' . esc_html( $synced ? wp_date( 'Y-m-d H:i', $synced ) : '—' ) . '</p></div>';
+	}
+
+	/**
+	 * Payment options for the current checkout amount (IRR). Snapp! Pay is
+	 * listed only when its gateway is enabled and Snapp confirms eligibility;
+	 * its title and description are Snapp's own text, never cached.
+	 */
+	public function checkout_payment_options( WP_REST_Request $request ) {
+		$amount = absint( $request->get_param( 'amount' ) );
+		$rate_key = $this->transient_key( 'payment_options_rate', (string) get_current_user_id() );
+		if ( $this->counter_value( $rate_key ) >= 120 ) {
+			return $this->auth_error( 'kadochi_rate_limited', __( 'Too many requests. Please try again later.', 'kadochi-core' ), 429 );
+		}
+		$this->increment_counter( $rate_key, HOUR_IN_SECONDS );
+		$items = array();
+		foreach ( $this->payment_method_ids() as $id ) {
+			if ( Kadochi_SnappPay::GATEWAY_ID !== $id ) {
+				$items[] = array( 'id' => $id, 'title' => 'پرداخت آنلاین', 'description' => 'از طریق درگاه پرداخت الکترونیک', 'eligible' => true );
+				continue;
+			}
+			$gateway = $this->woo_gateway( $id );
+			if ( ! $gateway || 'yes' !== $gateway->enabled || ! $this->snapppay()->is_configured() || ! Kadochi_SnappPay::amount_in_configured_range( $amount ) ) {
+				continue;
+			}
+			$offer = $this->snapppay()->client()->eligible( $amount );
+			if ( $offer['eligible'] && '' !== $offer['title'] ) {
+				$items[] = array( 'id' => $id, 'title' => $offer['title'], 'description' => $offer['description'], 'eligible' => true );
+			}
+		}
+		return rest_ensure_response( array( 'items' => $items ) );
+	}
+
+	private function woo_gateway( $id ) {
+		$woocommerce = function_exists( 'WC' ) ? WC() : null;
+		$manager = is_object( $woocommerce ) && method_exists( $woocommerce, 'payment_gateways' ) ? $woocommerce->payment_gateways() : null;
+		$gateways = is_object( $manager ) && method_exists( $manager, 'payment_gateways' ) ? $manager->payment_gateways() : array();
+		return isset( $gateways[ $id ] ) ? $gateways[ $id ] : null;
 	}
 
 	public function render_admin_notices() {
