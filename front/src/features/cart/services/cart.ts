@@ -1,6 +1,6 @@
 import { bffJson } from "@/lib/http/browser";
-import { cartSchema, addItemSchema, couponCodeSchema, selectShippingRateSchema, updateCustomerSchema, updateQuantitySchema } from "../schema/cart";
-import type { AddItemInput, Cart, CouponCodeInput, CustomerAddresses, ShippingRateInput } from "../types";
+import { cartSchema, addItemSchema, couponCodeSchema, selectDeliverySlotSchema, selectShippingRateSchema, updateCustomerSchema, updateQuantitySchema } from "../schema/cart";
+import type { AddItemInput, Cart, CouponCodeInput, CustomerAddresses, DeliverySlotInput, ShippingRateInput } from "../types";
 import { productSchema } from "@/features/products/schema/products";
 import type { Product } from "@/features/products/types";
 
@@ -89,6 +89,11 @@ export const updateCustomer = (addresses: CustomerAddresses) => executeCartMutat
 export const selectShippingRate = (input: ShippingRateInput) => executeCartMutation(
   "/api/cart/shipping-rate",
   { method: "POST", body: JSON.stringify(selectShippingRateSchema.parse(input)) },
+  false,
+);
+export const selectDeliverySlot = (input: DeliverySlotInput) => executeCartMutation(
+  "/api/cart/delivery-slot",
+  { method: "POST", body: JSON.stringify(selectDeliverySlotSchema.parse(input)) },
   false,
 );
 export const applyCoupon = (input: CouponCodeInput) => executeCartMutation(

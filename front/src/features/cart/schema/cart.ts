@@ -41,6 +41,10 @@ export const selectShippingRateSchema = z.object({
   rateId: z.string().trim().min(1).max(200),
 }).strict();
 
+export const selectDeliverySlotSchema = z.object({
+  deliverySlotId: z.string().regex(/^\d{4}-\d{2}-\d{2}-(10|13|16|19)$/),
+}).strict();
+
 /** Coupon codes are normalized by WooCommerce; keep browser input bounded before forwarding it. */
 export const couponCodeSchema = z.object({
   code: z.string().trim().min(1, "کد تخفیف را وارد کنید.").max(100),

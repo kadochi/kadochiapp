@@ -11,12 +11,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Chip } from "@/components/ui/chip";
 import { Divider } from "@/components/ui/divider";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ProgressStepper } from "@/components/ui/progress-stepper";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio";
 import { useToast } from "@/components/ui/toaster";
 import SectionHeader from "@/components/layout/section-header";
 import { TextArea } from "@/components/ui/textarea";
-import { applyCoupon, removeCoupon, selectShippingRate, updateCustomer } from "@/features/cart/services/cart";
+import { applyCoupon, removeCoupon, selectDeliverySlot, selectShippingRate, updateCustomer } from "@/features/cart/services/cart";
 import { formatIrrAsToman } from "@/features/cart/utils/money";
 import { updateProfile } from "@/features/profile/services/profile";
 import { AddressEditorSheet } from "./address-editor-sheet";
@@ -42,7 +43,7 @@ const faDate = new Intl.DateTimeFormat("fa-IR", { day: "numeric", month: "long" 
 
 function deliveryPart(startHour: number) {
   if (startHour === 10) return "صبح";
-  if (startHour === 13) return "بعدازظهر";
+  if (startHour === 13) return "ظهر";
   if (startHour === 19) return "شب";
   return "عصر";
 }
@@ -72,7 +73,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<SavedAddress | null>(null);
   const [removingAddressId, setRemovingAddressId] = useState<string | null>(null);
-  const [deliverySlotId, setDeliverySlotId] = useState(initialState.deliverySlots.find((slot) => slot.available)?.id ?? "");
+  const [deliverySlotId, setDeliverySlotId] = useState("");
   const [packagingId, setPackagingId] = useState<"gift" | "normal">(
     initialState.packagingOptions.find((option) => option.default)?.id ?? "gift",
   );
@@ -82,6 +83,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
   const [error, setError] = useState<string | null>(null);
   const [savingAddress, setSavingAddress] = useState(false);
   const [pendingRate, setPendingRate] = useState<string | null>(null);
+  const [pendingDeliverySlot, setPendingDeliverySlot] = useState<string | null>(null);
   const [pendingCoupon, setPendingCoupon] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [reconciliationUnknown, setReconciliationUnknown] = useState(false);
@@ -200,6 +202,21 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
       setError(caught instanceof Error ? caught.message : "انتخاب روش ارسال ذخیره نشد.");
     } finally {
       setPendingRate(null);
+    }
+  };
+
+  const chooseDeliverySlot = async (slotId: string) => {
+    if (pendingDeliverySlot || slotId === deliverySlotId) return;
+    setPendingDeliverySlot(slotId);
+    setError(null);
+    try {
+      const cart = await selectDeliverySlot({ deliverySlotId: slotId });
+      setState((current) => ({ ...current, cart }));
+      setDeliverySlotId(slotId);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "ثبت بازه زمانی ارسال انجام نشد.");
+    } finally {
+      setPendingDeliverySlot(null);
     }
   };
 
@@ -354,8 +371,8 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
       /> : null}
       {step === 1 ? <DeliveryStep
         state={state} deliverySlotId={deliverySlotId} packagingId={packagingId} postcardEnabled={postcardEnabled} postcardDesignId={postcardDesignId} postcardText={postcardText}
-        pendingRate={pendingRate}
-        onDeliverySlot={setDeliverySlotId} onPackaging={setPackagingId} onPostcardEnabled={(enabled) => { setPostcardEnabled(enabled); if (enabled) { setPostcardDesignId((current) => current ?? state.postcardDesigns[0]?.id ?? null); } else { setPostcardDesignId(null); setPostcardText(""); } }} onPostcardDesign={setPostcardDesignId} onPostcard={setPostcardText} onShippingRate={chooseShippingRate}
+        pendingRate={pendingRate} pendingDeliverySlot={pendingDeliverySlot}
+        onDeliverySlot={chooseDeliverySlot} onPackaging={setPackagingId} onPostcardEnabled={(enabled) => { setPostcardEnabled(enabled); if (enabled) { setPostcardDesignId((current) => current ?? state.postcardDesigns[0]?.id ?? null); } else { setPostcardDesignId(null); setPostcardText(""); } }} onPostcardDesign={setPostcardDesignId} onPostcard={setPostcardText} onShippingRate={chooseShippingRate}
       /> : null}
       {step === 2 ? <PaymentStep state={state} couponPending={pendingCoupon} onApplyCoupon={addCoupon} onRemoveCoupon={deleteCoupon} /> : null}
 
@@ -364,7 +381,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
         onNext={next}
         onPay={pay}
         onPrevious={previous}
-        nextPending={savingAddress}
+        nextPending={savingAddress || pendingDeliverySlot !== null}
         reconciliationUnknown={reconciliationUnknown}
         step={step}
         submitting={submitting}
@@ -440,7 +457,7 @@ function DetailsStep(props: {
 }
 
 function DeliveryStep(props: {
-  state: CheckoutState; deliverySlotId: string; packagingId: "gift" | "normal"; postcardEnabled: boolean; postcardDesignId: number | null; postcardText: string; pendingRate: string | null;
+  state: CheckoutState; deliverySlotId: string; packagingId: "gift" | "normal"; postcardEnabled: boolean; postcardDesignId: number | null; postcardText: string; pendingRate: string | null; pendingDeliverySlot: string | null;
   onDeliverySlot: (value: string) => void; onPackaging: (value: "gift" | "normal") => void; onPostcardEnabled: (enabled: boolean) => void; onPostcardDesign: (id: number) => void; onPostcard: (value: string) => void; onShippingRate: (packageId: number, rateId: string) => void;
 }) {
   const deliveryDays = props.state.deliverySlots.reduce<Array<{ date: string; slots: CheckoutState["deliverySlots"][number][] }>>((days, slot) => {
@@ -466,7 +483,7 @@ function DeliveryStep(props: {
             key={day.date}
             aria-pressed={selected}
             className={`relative grid min-h-[96px] place-items-center rounded-m border bg-surface-background p-12 text-center transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${selected ? "border-2 border-secondary shadow-[0_0_0_4px_var(--color-secondary-container)]" : "border-border-high-emphasis"} ${available ? "" : "cursor-not-allowed border-disable bg-disable-container text-on-disable"}`}
-            disabled={!available}
+            disabled={!available || props.pendingDeliverySlot !== null}
             type="button"
             onClick={() => props.onDeliverySlot(day.slots.find((slot) => slot.available)!.id)}
           >
@@ -482,8 +499,8 @@ function DeliveryStep(props: {
           {selectedDay.slots.map((slot) => <RadioGroupItem
             key={slot.id}
             className="relative w-full rounded-m border border-border-high-emphasis p-16 has-[:disabled]:border-disable has-[:disabled]:bg-disable-container has-[[data-state=checked]]:border-2 has-[[data-state=checked]]:border-secondary has-[[data-state=checked]]:shadow-[0_0_0_4px_var(--color-secondary-container)]"
-            disabled={!slot.available}
-            label={<span className="flex w-full items-center justify-between gap-12 text-body-14"><span className="font-bold">{deliveryPart(slot.startHour)}</span><span className="text-surface-neutral-mid-emphasis">{slot.startHour} الی {slot.endHour}</span>{!slot.available ? <span className="absolute -top-12 left-8 rounded-full bg-disable-container px-8 py-2 text-label-12 font-bold text-on-disable">غیر فعال</span> : null}</span>}
+            disabled={!slot.available || props.pendingDeliverySlot !== null}
+            label={<span className="flex w-full flex-wrap items-center justify-between gap-12 text-body-14"><span className="flex items-center gap-8"><span className="font-bold">{deliveryPart(slot.startHour)}</span><span className="text-surface-neutral-mid-emphasis">{slot.startHour} الی {slot.endHour}</span></span><span className="flex flex-wrap items-center justify-end gap-8">{slot.startHour >= 16 ? <Label appearance="soft" size="sm" variant="warning">بازه پر ترافیک</Label> : null}{!slot.available ? <Label appearance="soft" size="sm" variant="neutral">غیر فعال</Label> : null}</span></span>}
             value={slot.id}
           />)}
         </RadioGroup>

@@ -46,6 +46,8 @@ final class Kadochi_Core {
 	const EDITORIAL_REQUESTS_PER_HOUR = 30;
 	const EDITORIAL_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 	const DAILY_SPECIAL_PRODUCT_OPTION = 'kadochi_daily_special_product_id';
+	const DELIVERY_SLOT_OPTION_PREFIX = 'kadochi_delivery_slot_fee_';
+	const DELIVERY_SLOT_SESSION_KEY = 'kadochi_delivery_slot';
 
 	/** @var array<string, string> */
 	private $health = array();
@@ -79,7 +81,10 @@ final class Kadochi_Core {
 		add_filter( 'determine_current_user', array( $this, 'determine_current_user' ), 30 );
 		add_filter( 'rest_authentication_errors', array( $this, 'rest_authentication_errors' ), 30 );
 		add_action( 'woocommerce_init', array( $this, 'register_checkout_fields' ) );
+		add_action( 'wc_payment_gateways_initialized', array( $this, 'configure_snapppay_admin_metadata' ) );
 		add_action( 'woocommerce_blocks_loaded', array( $this, 'register_store_api_data' ) );
+		add_filter( 'woocommerce_get_sections_shipping', array( $this, 'add_delivery_slot_shipping_section' ) );
+		add_filter( 'woocommerce_get_settings_shipping', array( $this, 'delivery_slot_shipping_settings' ), 10, 2 );
 		add_filter( 'woocommerce_store_api_add_to_cart_data', array( $this, 'mark_cross_sell_cart_item' ), 10, 2 );
 		add_action( 'woocommerce_product_options_general_product_data', array( $this, 'render_product_preparation_hours_field' ) );
 		add_action( 'woocommerce_process_product_meta', array( $this, 'save_product_preparation_hours_field' ) );
@@ -121,6 +126,23 @@ final class Kadochi_Core {
 		add_action( 'manage_story_posts_custom_column', array( $this, 'render_story_view_column' ), 10, 2 );
 		add_action( 'admin_head-edit.php', array( $this, 'style_story_view_column' ) );
 		add_action( 'admin_notices', array( $this, 'render_admin_notices' ) );
+	}
+
+	/** Adds merchant-facing metadata for Snapp Pay to WooCommerce's payment provider list. */
+	public function configure_snapppay_admin_metadata( $payment_gateways ) {
+		if ( ! is_object( $payment_gateways ) || ! isset( $payment_gateways->payment_gateways ) || ! is_array( $payment_gateways->payment_gateways ) ) {
+			return;
+		}
+
+		foreach ( $payment_gateways->payment_gateways as $gateway ) {
+			if ( ! is_object( $gateway ) || ! isset( $gateway->id ) || 'kadochi_snapppay' !== $gateway->id ) {
+				continue;
+			}
+
+			$gateway->icon = plugins_url( 'assets/images/snapppay.svg', __FILE__ );
+			$gateway->method_description = __( 'به مشتریان امکان می‌دهد هزینه سفارش را به‌صورت اقساطی از طریق اسنپ‌پی پرداخت کنند.', 'kadochi-core' );
+			break;
+		}
 	}
 
 	/** Keeps the headless CMS surface out of search results when its origin is public. */
@@ -2460,6 +2482,12 @@ final class Kadochi_Core {
 		if ( ! function_exists( 'woocommerce_store_api_register_endpoint_data' ) ) {
 			return;
 		}
+		if ( function_exists( 'woocommerce_store_api_register_update_callback' ) ) {
+			woocommerce_store_api_register_update_callback( array(
+				'namespace' => 'kadochi',
+				'callback' => array( $this, 'update_cart_delivery_slot' ),
+			) );
+		}
 		if ( class_exists( '\\Automattic\\WooCommerce\\StoreApi\\Schemas\\V1\\CartItemSchema' ) ) {
 			woocommerce_store_api_register_endpoint_data( array(
 				'endpoint' => \Automattic\WooCommerce\StoreApi\Schemas\V1\CartItemSchema::IDENTIFIER,
@@ -2563,13 +2591,97 @@ final class Kadochi_Core {
 		return 'IR' === $country && in_array( $city, array( 'تهران', 'Tehran', 'TEHRAN' ), true );
 	}
 
-	/** WooCommerce owns shipping prices; Kadochi only limits their availability to Tehran. */
+	/** Adds a dedicated, visible subsection under WooCommerce > Settings > Shipping. */
+	public function add_delivery_slot_shipping_section( $sections ) {
+		$sections['kadochi-delivery-slots'] = __( 'Delivery time slots', 'kadochi-core' );
+		return $sections;
+	}
+
+	/** Renders one merchant-managed price for each delivery window. */
+	public function delivery_slot_shipping_settings( $settings, $section ) {
+		if ( 'kadochi-delivery-slots' !== $section ) {
+			return $settings;
+		}
+		$settings = array(
+			array(
+				'title' => __( 'Delivery time slot fees', 'kadochi-core' ),
+				'desc' => __( 'These prices replace the selected shipping rate price when the customer chooses a delivery time slot.', 'kadochi-core' ),
+				'type' => 'title',
+				'id' => 'kadochi_delivery_slot_fees',
+			),
+		);
+		foreach ( $this->delivery_slot_windows() as $window ) {
+			$settings[] = array(
+				'title' => $window['adminLabel'],
+				'id' => self::DELIVERY_SLOT_OPTION_PREFIX . $window['startHour'],
+				'type' => 'number',
+				'default' => '0',
+				'suffix' => get_woocommerce_currency_symbol(),
+				'css' => 'width: 140px;',
+				'custom_attributes' => array( 'min' => '0', 'step' => '1', 'inputmode' => 'numeric' ),
+				'autoload' => false,
+			);
+		}
+		$settings[] = array( 'type' => 'sectionend', 'id' => 'kadochi_delivery_slot_fees' );
+		return $settings;
+	}
+
+	private function delivery_slot_windows() {
+		return array(
+			array( 'startHour' => 10, 'endHour' => 13, 'adminLabel' => __( 'Morning (10:00–13:00)', 'kadochi-core' ) ),
+			array( 'startHour' => 13, 'endHour' => 16, 'adminLabel' => __( 'Noon (13:00–16:00)', 'kadochi-core' ) ),
+			array( 'startHour' => 16, 'endHour' => 19, 'adminLabel' => __( 'Evening (16:00–19:00)', 'kadochi-core' ) ),
+			array( 'startHour' => 19, 'endHour' => 22, 'adminLabel' => __( 'Night (19:00–22:00)', 'kadochi-core' ) ),
+		);
+	}
+
+	private function delivery_slot_fee( $slot_id ) {
+		if ( ! is_string( $slot_id ) || ! preg_match( '/-(10|13|16|19)$/', $slot_id, $matches ) ) {
+			return null;
+		}
+		$value = get_option( self::DELIVERY_SLOT_OPTION_PREFIX . $matches[1], '0' );
+		return is_scalar( $value ) ? max( 0, (float) wc_format_decimal( $value ) ) : 0.0;
+	}
+
+	/** Stores the chosen window in the tokenized Woo session before totals are recalculated. */
+	public function update_cart_delivery_slot( $data ) {
+		$slot_id = is_array( $data ) && isset( $data['deliverySlotId'] ) ? sanitize_text_field( $data['deliverySlotId'] ) : '';
+		if ( ! $this->valid_delivery_slot( $slot_id ) ) {
+			throw new InvalidArgumentException( __( 'The selected delivery slot is no longer available.', 'kadochi-core' ) );
+		}
+		if ( ! function_exists( 'WC' ) || ! WC()->session ) {
+			throw new RuntimeException( __( 'The delivery session is unavailable.', 'kadochi-core' ) );
+		}
+		WC()->session->set( self::DELIVERY_SLOT_SESSION_KEY, $slot_id );
+		// Shipping packages are otherwise cached without our custom session value,
+		// which would leave the previous slot's price in the Store API response.
+		if ( WC()->cart ) {
+			foreach ( array_keys( WC()->cart->get_shipping_packages() ) as $package_key ) {
+				WC()->session->set( 'shipping_for_package_' . $package_key, false );
+			}
+		}
+	}
+
+	/** Limits delivery to Tehran and prices every available method for the selected time slot. */
 	public function limit_shipping_to_tehran( $rates, $package ) {
 		$destination = is_array( $package ) && isset( $package['destination'] ) && is_array( $package['destination'] ) ? $package['destination'] : array();
 		$country = isset( $destination['country'] ) ? $destination['country'] : '';
 		$city = isset( $destination['city'] ) ? $destination['city'] : '';
 		if ( ! $this->tehran_destination( $country, $city ) ) {
 			return array();
+		}
+		$slot_id = function_exists( 'WC' ) && WC()->session ? WC()->session->get( self::DELIVERY_SLOT_SESSION_KEY, '' ) : '';
+		$fee = $this->delivery_slot_fee( $slot_id );
+		if ( null !== $fee ) {
+			foreach ( $rates as $rate ) {
+				if ( ! is_object( $rate ) || ! method_exists( $rate, 'set_cost' ) ) {
+					continue;
+				}
+				$rate->set_cost( $fee );
+				if ( method_exists( $rate, 'set_taxes' ) && class_exists( 'WC_Tax' ) ) {
+					$rate->set_taxes( WC_Tax::calc_shipping_tax( $fee, WC_Tax::get_shipping_tax_rates() ) );
+				}
+			}
 		}
 		return $rates;
 	}
@@ -2592,7 +2704,7 @@ final class Kadochi_Core {
 		$now = new DateTimeImmutable( 'now', $timezone );
 		$today = $now->setTime( 0, 0, 0 );
 		$ready_at = $now->modify( '+' . $this->cart_preparation_hours() . ' hours' );
-		$windows = array( array( 10, 13 ), array( 13, 16 ), array( 16, 19 ), array( 19, 22 ) );
+		$windows = array_map( function ( $window ) { return array( $window['startHour'], $window['endHour'] ); }, $this->delivery_slot_windows() );
 		$slots = array();
 		for ( $offset = 0; $offset < 4; $offset++ ) {
 			$day = $today->modify( '+' . $offset . ' days' );
@@ -2685,6 +2797,7 @@ final class Kadochi_Core {
 		if ( ! $this->valid_delivery_slot( $delivery_slot ) ) {
 			throw new Exception( __( 'The selected delivery slot is no longer available.', 'kadochi-core' ) );
 		}
+		$this->apply_delivery_slot_fee_to_order( $order, $delivery_slot );
 		$packaging = (string) $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_PACKAGING, true );
 		if ( ! in_array( $packaging, array( 'gift', 'normal' ), true ) ) {
 			throw new Exception( __( 'Choose a valid packaging option.', 'kadochi-core' ) );
@@ -2705,6 +2818,30 @@ final class Kadochi_Core {
 			throw new Exception( __( 'The checkout operation was not recorded.', 'kadochi-core' ) );
 		}
 		$order->update_meta_data( '_kadochi_checkout_operation', $operation );
+	}
+
+	/** Reasserts the selected slot price on the draft/order so request tampering cannot bypass it. */
+	private function apply_delivery_slot_fee_to_order( $order, $delivery_slot ) {
+		$fee = $this->delivery_slot_fee( $delivery_slot );
+		if ( null === $fee || ! method_exists( $order, 'get_items' ) ) {
+			return;
+		}
+		$shipping_items = $order->get_items( 'shipping' );
+		$first = true;
+		foreach ( $shipping_items as $item ) {
+			if ( ! is_object( $item ) || ! method_exists( $item, 'set_total' ) ) {
+				continue;
+			}
+			$item->set_total( $first ? $fee : 0 );
+			if ( method_exists( $item, 'calculate_taxes' ) && method_exists( $order, 'get_address' ) ) {
+				$item->calculate_taxes( $order->get_address( 'shipping' ) );
+			}
+			$item->save();
+			$first = false;
+		}
+		if ( ! $first && method_exists( $order, 'calculate_totals' ) ) {
+			$order->calculate_totals( false );
+		}
 	}
 
 	/** Acquires the idempotency lock after validation and immediately before payment. */
