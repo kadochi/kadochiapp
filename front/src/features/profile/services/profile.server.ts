@@ -3,6 +3,8 @@ import "server-only";
 import { wordpressBearerHeaders } from "@/features/auth/services/auth.server";
 import { ServiceError } from "@/lib/http/errors";
 import { parseUpstreamJson, wordpressFetch } from "@/lib/http/upstream";
+import { isTrustedGatewayRedirect, SNAPPPAY_GATEWAY_ID, ZARINPAL_GATEWAY_ID } from "@/lib/payments/redirect-hosts";
+import { env } from "@/lib/server/env";
 import { listProducts } from "@/features/products/services/products.server";
 
 import {
@@ -73,8 +75,7 @@ export async function retryProfileOrderPayment(orderId: number, attemptId: strin
     const redirectUrl = response.headers.get("location");
     try {
       const result = profileOrderRetryPaymentSchema.parse({ redirectUrl });
-      const host = new URL(result.redirectUrl).hostname;
-      if (host === "payment.zarinpal.com" || host === "sandbox.zarinpal.com") return result;
+      if (isTrustedPaymentRedirect(result.redirectUrl)) return result;
     } catch {
       // Normalized below so the BFF returns a safe service error.
     }
@@ -86,7 +87,20 @@ export async function retryProfileOrderPayment(orderId: number, attemptId: strin
       retryable: true,
     });
   }
-  return parseUpstreamJson(response, (value) => profileOrderRetryPaymentSchema.parse(value), requestId);
+  const result = await parseUpstreamJson(response, (value) => profileOrderRetryPaymentSchema.parse(value), requestId);
+  if (isTrustedPaymentRedirect(result.redirectUrl)) return result;
+  throw new ServiceError({
+    code: "upstream_failure",
+    status: 502,
+    message: "The payment gateway returned an invalid redirect.",
+    requestId,
+    retryable: true,
+  });
+}
+
+/** WordPress resolves the order's own gateway; the BFF still accepts only known gateway hosts. */
+function isTrustedPaymentRedirect(url: string) {
+  return isTrustedGatewayRedirect(url, ZARINPAL_GATEWAY_ID, env) || isTrustedGatewayRedirect(url, SNAPPPAY_GATEWAY_ID, env);
 }
 
 export async function listProfileProducts(action: unknown, page: number, perPage: number, requestId: string) {

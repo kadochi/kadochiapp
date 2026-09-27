@@ -26,10 +26,27 @@ export const postcardDesignSchema = z.object({
   imageUrl: z.string().url(),
 }).strict();
 
+export const paymentMethodIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,100}$/);
+
 export const paymentMethodSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1),
+  id: paymentMethodIdSchema,
+  /** Snapp! Pay's title and description are its eligibility text, shown verbatim. */
+  title: z.string().min(1).max(300),
+  description: z.string().max(500).optional(),
+  provider: z.enum(["zarinpal", "snapppay"]),
 }).strict();
+
+export const paymentMethodListSchema = z.object({ items: z.array(paymentMethodSchema).min(1).max(5) }).strict();
+
+/** WordPress `GET kadochi/v1/checkout/payment-options?amount=<IRR>`. */
+export const upstreamPaymentOptionsSchema = z.object({
+  items: z.array(z.object({
+    id: paymentMethodIdSchema,
+    title: z.string(),
+    description: z.string(),
+    eligible: z.boolean(),
+  }).passthrough()).max(10),
+}).passthrough();
 
 export const savedAddressSchema = z.object({
   id: z.string().uuid(),
@@ -55,7 +72,7 @@ export const checkoutStateSchema = z.object({
   deliverySlots: z.array(deliverySlotSchema).max(120),
   packagingOptions: z.array(packagingOptionSchema).length(2),
   postcardDesigns: z.array(postcardDesignSchema).max(50),
-  paymentMethod: paymentMethodSchema,
+  paymentMethods: z.array(paymentMethodSchema).min(1).max(5),
   savedAddresses: z.array(savedAddressSchema).max(20),
 }).strict();
 
@@ -85,7 +102,10 @@ const deliveryAddressSchema = z.object({
   }).strict().optional(),
 }).strict();
 
-/** Browser payload deliberately excludes totals, payment gateway, sender phone/email, country, and city. */
+/**
+ * Browser payload deliberately excludes totals, sender phone/email, country, and city.
+ * `paymentMethodId` is only a choice among the offered methods; the BFF re-validates it.
+ */
 export const submitCheckoutSchema = z.object({
   sender: senderSchema,
   recipient: recipientSchema,
@@ -95,6 +115,7 @@ export const submitCheckoutSchema = z.object({
   postcardEnabled: z.boolean().default(false),
   postcardDesignId: z.number().int().positive().nullable().optional().default(null),
   postcardText: z.string().trim().max(200).optional().default(""),
+  paymentMethodId: paymentMethodIdSchema.optional(),
   operationId: z.string().uuid(),
 }).strict().superRefine((value, context) => {
   if (value.postcardEnabled && !value.postcardDesignId) {

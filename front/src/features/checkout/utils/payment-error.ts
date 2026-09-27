@@ -20,6 +20,14 @@ const zarinpalMessages: Record<number, string> = {
   "-51": "پرداخت لغو شد.",
 };
 
+const snapppayMessages: Record<number, string> = {
+  1000: "سرویس اسنپ‌پی موقتاً در دسترس نیست. چند دقیقه دیگر دوباره تلاش کنید یا روش پرداخت دیگری انتخاب کنید.",
+  1005: "شماره موبایل حساب شما برای پرداخت با اسنپ‌پی معتبر نیست. لطفاً روش پرداخت دیگری انتخاب کنید.",
+  // Snapp's own wording for this code is customer-safe and required by Snapp.
+  1048: "امکان استفاده از سرویس اعتباری را ندارید. لطفاً روش پرداخت دیگری انتخاب کنید.",
+  1051: "تنظیمات اسنپ‌پی نیاز به بررسی دارد. لطفاً روش پرداخت دیگری انتخاب کنید یا با پشتیبانی تماس بگیرید.",
+};
+
 /** Converts the safe BFF payment contract into customer-facing Persian copy. */
 export function paymentErrorMessage(error: unknown, fallback = "شروع پرداخت انجام نشد. لطفاً دوباره تلاش کنید."): PaymentError {
   const detail = error instanceof ServiceError
@@ -27,7 +35,10 @@ export function paymentErrorMessage(error: unknown, fallback = "شروع پرد�
     : typeof error === "object" && error !== null && "detail" in error
       ? apiErrorSchema.safeParse((error as { detail: unknown }).detail).data
       : undefined;
-  if (!detail?.payment || detail.payment.provider !== "zarinpal") {
+  if (detail?.code === "validation" && detail.fieldErrors?.paymentMethodId?.[0]) {
+    return { message: detail.fieldErrors.paymentMethodId[0], requestId: detail.requestId, retryable: true };
+  }
+  if (!detail?.payment) {
     if (detail?.code === "payment_in_progress") {
       return {
         message: "پرداخت قبلی هنوز در حال شروع است. لطفاً چند لحظه بعد دوباره بررسی کنید.",
@@ -38,15 +49,18 @@ export function paymentErrorMessage(error: unknown, fallback = "شروع پرد�
     return { message: fallback, retryable: false };
   }
   const code = detail.payment.code;
+  const messages = detail.payment.provider === "snapppay" ? snapppayMessages : zarinpalMessages;
   const categoryMessage = detail.payment.category === "cancelled"
     ? "پرداخت لغو شد."
     : detail.payment.category === "temporarily_unavailable"
       ? "درگاه پرداخت موقتاً در دسترس نیست. چند دقیقه دیگر دوباره تلاش کنید."
       : detail.payment.category === "configuration"
         ? "تنظیمات درگاه پرداخت نیاز به بررسی دارد. لطفاً با پشتیبانی تماس بگیرید."
-        : fallback;
+        : detail.payment.category === "rejected" && detail.payment.provider === "snapppay"
+          ? "اسنپ‌پی این پرداخت را نپذیرفت. لطفاً روش پرداخت دیگری انتخاب کنید."
+          : fallback;
   return {
-    message: code !== undefined ? zarinpalMessages[code] ?? categoryMessage : categoryMessage,
+    message: code !== undefined ? messages[code] ?? categoryMessage : categoryMessage,
     requestId: detail.requestId,
     code,
     retryable: detail.retryable,
@@ -56,9 +70,10 @@ export function paymentErrorMessage(error: unknown, fallback = "شروع پرد�
 /** Browser diagnostics deliberately contain only support-safe identifiers. */
 export function logPaymentFailure(event: string, error: unknown): void {
   const payment = paymentErrorMessage(error);
+  const detail = error instanceof ServiceError ? error.detail : undefined;
   console.error("[payment]", {
     event,
-    provider: "zarinpal",
+    provider: detail?.payment?.provider ?? "unknown",
     requestId: payment.requestId,
     gatewayCode: payment.code,
     retryable: payment.retryable,

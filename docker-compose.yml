@@ -53,6 +53,12 @@ services:
       COOKIE_DOMAIN: ""
       COOKIE_SECURE: "true"
       ZARINPAL_MODE: production
+      # Ordered gateway allow-list shared with WordPress. Leave unset to keep the
+      # single-gateway KADOCHI_PAYMENT_METHOD_ID from front/.env.production.
+      KADOCHI_PAYMENT_METHOD_IDS: ${KADOCHI_PAYMENT_METHOD_IDS:-}
+      # Non-secret Snapp! Pay hosts the BFF may redirect customers to.
+      SNAPPPAY_BASE_URL: ${SNAPPPAY_BASE_URL:-}
+      SNAPPPAY_PAYMENT_HOSTS: ${SNAPPPAY_PAYMENT_HOSTS:-}
       # HMAC-authenticates private OTP calls from Next.js to WordPress.
       KADOCHI_INTERNAL_API_SECRET: ${KADOCHI_INTERNAL_API_SECRET:?Set KADOCHI_INTERNAL_API_SECRET in the deployment environment}
       # Shared with WordPress solely for the private cache-invalidation route.
@@ -183,7 +189,24 @@ services:
       MELIPAYAMAK_OTP_URL: ${MELIPAYAMAK_OTP_URL:?Set MELIPAYAMAK_OTP_URL in the deployment environment}
       KADOCHI_INTERNAL_API_SECRET: ${KADOCHI_INTERNAL_API_SECRET:?Set KADOCHI_INTERNAL_API_SECRET in the deployment environment}
       KADOCHI_PAYMENT_METHOD_ID: ${KADOCHI_PAYMENT_METHOD_ID:-WC_ZPal}
+      KADOCHI_PAYMENT_METHOD_IDS: ${KADOCHI_PAYMENT_METHOD_IDS:-}
       KADOCHI_FRONTEND_URL: https://kadochi.com
+      # Snapp! Pay credentials come only from the deployment secret store. The
+      # callback lands on this WordPress origin, which Snapp must whitelist, and
+      # Snapp accepts API calls only from this server's whitelisted outgoing IP.
+      SNAPPPAY_BASE_URL: ${SNAPPPAY_BASE_URL:-}
+      SNAPPPAY_CLIENT_ID: ${SNAPPPAY_CLIENT_ID:-}
+      SNAPPPAY_CLIENT_SECRET: ${SNAPPPAY_CLIENT_SECRET:-}
+      SNAPPPAY_USERNAME: ${SNAPPPAY_USERNAME:-}
+      SNAPPPAY_PASSWORD: ${SNAPPPAY_PASSWORD:-}
+      SNAPPPAY_PAYMENT_HOSTS: ${SNAPPPAY_PAYMENT_HOSTS:-}
+      SNAPPPAY_MIN_IRR: ${SNAPPPAY_MIN_IRR:-}
+      SNAPPPAY_MAX_IRR: ${SNAPPPAY_MAX_IRR:-}
+      SNAPPPAY_TIMEOUT: ${SNAPPPAY_TIMEOUT:-}
+      SNAPPPAY_FORCED_METHODS: ${SNAPPPAY_FORCED_METHODS:-}
+      SNAPPPAY_COMMISSION_TYPE: ${SNAPPPAY_COMMISSION_TYPE:-}
+      SNAPPPAY_REVERT_ON_FAILED: ${SNAPPPAY_REVERT_ON_FAILED:-}
+      SNAPPPAY_VENTURE: ${SNAPPPAY_VENTURE:-}
       # The editorial service accepts requests only with this secret. Keep it
       # in the deployment secret manager, never in the repository.
       KADOCHI_EDITORIAL_API_SECRET: ${KADOCHI_EDITORIAL_API_SECRET:?Set KADOCHI_EDITORIAL_API_SECRET in the deployment environment}

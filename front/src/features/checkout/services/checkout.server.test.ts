@@ -9,13 +9,17 @@ const auth = vi.hoisted(() => ({
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
-vi.mock("@/lib/server/env", () => ({
+const environment = vi.hoisted(() => ({
   env: {
     WORDPRESS_INTERNAL_URL: "http://wordpress",
     KADOCHI_PAYMENT_METHOD_ID: "WC_ZPal",
     KADOCHI_FRONTEND_URL: "http://localhost:3000",
+    SNAPPPAY_BASE_URL: "https://snapp.example",
+    SNAPPPAY_PAYMENT_HOSTS: "pay.snapp.example",
+    paymentMethodIds: ["WC_ZPal"],
   },
 }));
+vi.mock("@/lib/server/env", () => environment);
 vi.mock("@/features/auth/services/auth.server", () => auth);
 vi.mock("@/lib/http/upstream", () => {
   class UpstreamError extends Error {
@@ -37,7 +41,7 @@ vi.mock("@/lib/http/upstream", () => {
 });
 
 import { UpstreamError } from "@/lib/http/upstream";
-import { checkout } from "./checkout.server";
+import { cartTotalIrr, checkout, checkoutState } from "./checkout.server";
 import { createDeliverySlots } from "../utils/delivery-slots";
 
 const operationId = "c5012c57-cd10-4ed6-b2be-9f28df81c49e";
@@ -158,6 +162,7 @@ function notFoundError() {
 
 describe("checkout service", () => {
   beforeEach(() => {
+    environment.env.paymentMethodIds = ["WC_ZPal"];
     transport.fetch.mockReset();
     auth.getStoredAuthToken.mockResolvedValue("jwt");
     auth.wordpressBearerHeaders.mockResolvedValue({ Authorization: "Bearer jwt" });
@@ -370,3 +375,123 @@ describe("checkout service", () => {
     expect(transport.fetch).toHaveBeenCalledTimes(4);
   });
 });
+
+describe("checkout with Snapp! Pay", () => {
+  const snappCart = { ...rawCart, payment_methods: ["WC_ZPal", "kadochi_snapppay"] };
+  const eligible = { items: [
+    { id: "WC_ZPal", title: "پرداخت آنلاین", description: "", eligible: true },
+    { id: "kadochi_snapppay", title: "۴ قسط ماهانه", description: "بدون سود، چک و ضامن", eligible: true },
+  ] };
+
+  beforeEach(() => {
+    environment.env.paymentMethodIds = ["WC_ZPal", "kadochi_snapppay"];
+    transport.fetch.mockReset();
+    auth.getStoredAuthToken.mockResolvedValue("jwt");
+    auth.wordpressBearerHeaders.mockResolvedValue({ Authorization: "Bearer jwt" });
+    auth.getCurrentCustomer.mockResolvedValue(customer);
+  });
+
+  function stateResponses(options: unknown) {
+    transport.fetch.mockImplementation(async (path: string) => {
+      if (path === "/wp-json/wc/store/v1/cart") return response(snappCart, "cart-1");
+      if (path.startsWith("/wp-json/kadochi/v1/checkout/payment-options")) return response(options);
+      if (path === "/wp-json/kadochi/v1/customer/addresses") return response({ items: [] });
+      if (path === "/wp-json/kadochi/v1/checkout/postcard-designs") return response({ items: [] });
+      throw new Error(`unexpected ${path}`);
+    });
+  }
+
+  it("converts Woo totals to whole Rials", () => {
+    expect(cartTotalIrr({ amount: "58000000", currencyCode: "IRR", minorUnit: 0 })).toBe(58000000);
+    expect(cartTotalIrr({ amount: "580000", currencyCode: "IRT", minorUnit: 0 })).toBe(5800000);
+    expect(cartTotalIrr({ amount: "100", currencyCode: "USD", minorUnit: 2 })).toBeNull();
+  });
+
+  it("offers Snapp! Pay with its eligibility text verbatim after ZarinPal", async () => {
+    stateResponses(eligible);
+    const { state } = await checkoutState("request-1");
+    expect(state.paymentMethods).toEqual([
+      { id: "WC_ZPal", title: "پرداخت آنلاین", description: "از طریق درگاه پرداخت الکترونیک", provider: "zarinpal" },
+      { id: "kadochi_snapppay", title: "۴ قسط ماهانه", description: "بدون سود، چک و ضامن", provider: "snapppay" },
+    ]);
+    expect(transport.fetch.mock.calls.find(([path]) => String(path).startsWith("/wp-json/kadochi/v1/checkout/payment-options"))?.[0])
+      .toBe("/wp-json/kadochi/v1/checkout/payment-options?amount=58000000");
+  });
+
+  it("hides Snapp! Pay when ineligible or when eligibility fails", async () => {
+    stateResponses({ items: [eligible.items[0]] });
+    expect((await checkoutState("request-1")).state.paymentMethods.map((method) => method.id)).toEqual(["WC_ZPal"]);
+    stateResponses("not json shape");
+    expect((await checkoutState("request-1")).state.paymentMethods.map((method) => method.id)).toEqual(["WC_ZPal"]);
+  });
+
+  it("re-checks eligibility and redirects to a trusted Snapp! Pay page", async () => {
+    transport.fetch
+      .mockResolvedValueOnce(response(snappCart, "cart-1"))
+      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(eligible))
+      .mockResolvedValueOnce(response({
+        order_id: 97,
+        status: "pending",
+        payment_result: { payment_status: "success", redirect_url: "https://pay.snapp.example/checkout/abc" },
+      }, "cart-3"));
+
+    await expect(checkout({ ...input(), paymentMethodId: "kadochi_snapppay" }, "request-1")).resolves.toMatchObject({
+      result: { orderId: 97, paymentResult: { redirectUrl: "https://pay.snapp.example/checkout/abc" } },
+    });
+    const [, draftOptions] = transport.fetch.mock.calls[1] as [string, RequestInit];
+    const [postPath, postOptions] = transport.fetch.mock.calls[3] as [string, RequestInit & { timeoutMs?: number }];
+    expect(JSON.parse(draftOptions.body as string).payment_method).toBe("kadochi_snapppay");
+    expect(postPath).toBe("/wp-json/wc/store/v1/checkout");
+    expect(JSON.parse(postOptions.body as string).payment_method).toBe("kadochi_snapppay");
+    expect(postOptions.timeoutMs).toBe(25_000);
+    expect(transport.fetch).toHaveBeenCalledTimes(4);
+  });
+
+  it("asks the customer to choose again when Snapp! Pay is no longer eligible", async () => {
+    transport.fetch
+      .mockResolvedValueOnce(response(snappCart, "cart-1"))
+      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response({ items: [eligible.items[0]] }));
+
+    await expect(checkout({ ...input(), paymentMethodId: "kadochi_snapppay" }, "request-1")).rejects.toMatchObject({
+      detail: { code: "validation", fieldErrors: { paymentMethodId: [expect.any(String)] } },
+    });
+    expect(transport.fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("rejects a method Woo does not offer before touching the order", async () => {
+    transport.fetch.mockResolvedValueOnce(response(rawCart, "cart-1"));
+    await expect(checkout({ ...input(), paymentMethodId: "kadochi_snapppay" }, "request-1")).rejects.toMatchObject({ detail: { code: "validation" } });
+    expect(transport.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("never redirects to an untrusted Snapp! Pay host", async () => {
+    transport.fetch
+      .mockResolvedValueOnce(response(snappCart, "cart-1"))
+      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(eligible))
+      .mockResolvedValueOnce(response({
+        order_id: 98,
+        status: "pending",
+        payment_result: { payment_status: "success", redirect_url: "https://evil.example/pay" },
+      }, "cart-3"));
+
+    const completed = await checkout({ ...input(), paymentMethodId: "kadochi_snapppay" }, "request-1");
+    expect(completed.result).toEqual({ orderId: 98, status: "pending", reconciliation: "unpaid" });
+  });
+
+  it("classifies a tagged Snapp! Pay start failure without leaking the notice", async () => {
+    transport.fetch
+      .mockResolvedValueOnce(response(snappCart, "cart-1"))
+      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(eligible))
+      .mockResolvedValueOnce(response({ code: "woocommerce_rest_checkout_process_payment_error", message: "شروع پرداخت با اسنپ‌پی انجام نشد. [snapppay:1048]" }, "cart-3", 400))
+      .mockRejectedValueOnce(notFoundError());
+
+    await expect(checkout({ ...input(), paymentMethodId: "kadochi_snapppay" }, "request-1")).rejects.toMatchObject({
+      detail: { code: "upstream_failure", retryable: false, payment: { provider: "snapppay", code: 1048, category: "rejected" } },
+    });
+  });
+});
+

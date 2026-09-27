@@ -20,6 +20,12 @@ describe("submitCheckoutSchema", () => {
     expect(submitCheckoutSchema.parse({ ...validInput, deliverySlotId: "2026-07-18-19" }).deliverySlotId).toBe("2026-07-18-19");
   });
 
+  it("accepts only a well-formed payment method choice", () => {
+    expect(submitCheckoutSchema.parse({ ...validInput, paymentMethodId: "kadochi_snapppay" }).paymentMethodId).toBe("kadochi_snapppay");
+    expect(() => submitCheckoutSchema.parse({ ...validInput, paymentMethodId: "cod gateway" })).toThrow();
+    expect(() => submitCheckoutSchema.parse({ ...validInput, paymentMethodId: "" })).toThrow();
+  });
+
   it("does not let the browser choose totals, gateway, or customer identity", () => {
     expect(() => submitCheckoutSchema.parse({ ...validInput, total: "1" })).toThrow();
     expect(() => submitCheckoutSchema.parse({ ...validInput, paymentMethod: "cod" })).toThrow();

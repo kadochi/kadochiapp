@@ -1,6 +1,6 @@
 # Snapp! Pay integration plan
 
-Status: plan only, nothing implemented yet. Written 2026-09-21 from the vendor bundle in `snapp/`:
+Status: Phases 0 (code part), 1, 2 and 4 (docs) implemented on 2026-09-21; Phase 3 (PDP messaging) not started. Staging end-to-end tests (§5), the IP/returnURL whitelisting, and the open questions (§6) are still pending. Written 2026-09-21 from the vendor bundle in `snapp/`:
 
 - REST API document v2.1 (updated 2026-01-19)
 - Postman collection
