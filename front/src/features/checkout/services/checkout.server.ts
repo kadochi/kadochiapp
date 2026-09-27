@@ -455,6 +455,7 @@ export async function checkout(input: unknown, requestId: string) {
     try {
       responseBody = await response.json();
     } catch {
+      console.error("[payment] malformed_checkout_response", { requestId, status: response.status, phase: "json", contentType: response.headers.get("content-type") });
       throw new UpstreamError({ code: "malformed_upstream_response", status: 502, message: "The upstream service returned invalid JSON.", requestId, retryable: true });
     }
     if (response.status === 400) {
@@ -493,6 +494,7 @@ export async function checkout(input: unknown, requestId: string) {
     try {
       result = mapCheckoutResult(responseBody);
     } catch {
+      console.error("[payment] malformed_checkout_response", { requestId, status: response.status, phase: "schema", contentType: response.headers.get("content-type") });
       throw new UpstreamError({ code: "malformed_upstream_response", status: 502, message: "The upstream service returned an unexpected response.", requestId, retryable: true });
     }
     // The pinned ZarinPal gateway normally returns Woo's intermediate order-pay

@@ -33,7 +33,7 @@ export function isTrustedGatewayRedirect(url: string | undefined, methodId: stri
     if (parsed.username || parsed.password) return false;
     const host = parsed.hostname.toLowerCase();
     if (paymentProvider(methodId) === "snapppay") return parsed.protocol === "https:" && snapppayHosts(config).includes(host);
-    return (parsed.protocol === "https:" || parsed.protocol === "http:") && zarinpalHosts.includes(host);
+    return parsed.protocol === "https:" && zarinpalHosts.includes(host);
   } catch {
     return false;
   }

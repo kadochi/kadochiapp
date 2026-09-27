@@ -119,6 +119,7 @@ final class Kadochi_Core {
 		add_action( 'woocommerce_payment_complete', array( $this, 'notify_paid_order' ) );
 		add_action( 'woocommerce_order_status_changed', array( $this, 'notify_order_status_change' ), 10, 4 );
 		add_filter( 'woocommerce_package_rates', array( $this, 'limit_shipping_to_tehran' ), 10, 2 );
+		add_filter( 'woocommerce_cart_shipping_packages', array( $this, 'include_delivery_slot_in_shipping_packages' ) );
 		add_filter( 'woocommerce_customer_taxable_address', array( $this, 'limit_tax_to_tehran' ), 10, 2 );
 		add_filter( 'woocommerce_get_return_url', array( $this, 'checkout_return_url' ), 20, 2 );
 		// The gateway verifies its callback on the WordPress origin, then uses
@@ -2721,13 +2722,16 @@ final class Kadochi_Core {
 			throw new RuntimeException( __( 'The delivery session is unavailable.', 'kadochi-core' ) );
 		}
 		WC()->session->set( self::DELIVERY_SLOT_SESSION_KEY, $slot_id );
-		// Shipping packages are otherwise cached without our custom session value,
-		// which would leave the previous slot's price in the Store API response.
-		if ( WC()->cart ) {
-			foreach ( array_keys( WC()->cart->get_shipping_packages() ) as $package_key ) {
-				WC()->session->set( 'shipping_for_package_' . $package_key, false );
-			}
+	}
+
+	/** WooCommerce hashes shipping packages to cache rates; the selected slot affects that hash. */
+	public function include_delivery_slot_in_shipping_packages( $packages ) {
+		$slot_id = function_exists( 'WC' ) && WC()->session ? WC()->session->get( self::DELIVERY_SLOT_SESSION_KEY, '' ) : '';
+		foreach ( $packages as &$package ) {
+			$package['kadochi_delivery_slot'] = $slot_id;
 		}
+		unset( $package );
+		return $packages;
 	}
 
 	/** Limits delivery to Tehran and prices every available method for the selected time slot. */
@@ -3030,7 +3034,7 @@ final class Kadochi_Core {
 		if ( Kadochi_SnappPay::GATEWAY_ID === $gateway_id ) {
 			return 'https' === strtolower( $parts['scheme'] ) && in_array( $host, $this->snapppay_payment_hosts(), true ) ? $redirect : false;
 		}
-		return in_array( $host, array( 'payment.zarinpal.com', 'sandbox.zarinpal.com' ), true ) ? $redirect : false;
+		return 'https' === strtolower( $parts['scheme'] ) && in_array( $host, array( 'payment.zarinpal.com', 'sandbox.zarinpal.com' ), true ) ? $redirect : false;
 	}
 
 	private function trusted_zarinpal_redirect( $redirect ) {

@@ -185,6 +185,7 @@ export async function wordpressFetch(path: string, options: UpstreamOptions): Pr
 
 export async function parseUpstreamJson<T>(response: Response, parse: (value: unknown) => T, requestId: string): Promise<T> {
   const deadline = responseDeadlines.get(response);
+  const endpoint = (() => { try { return new URL(response.url).pathname; } catch { return "unknown"; } })();
   let value: unknown;
   try {
     value = await withDeadline(
@@ -196,6 +197,7 @@ export async function parseUpstreamJson<T>(response: Response, parse: (value: un
     if (error instanceof UpstreamDeadlineError || (error instanceof DOMException && error.name === "AbortError")) {
       throw new UpstreamError({ code: "timeout", status: 504, message: "The upstream service timed out.", requestId, retryable: true });
     }
+    console.error("[upstream] malformed_response", { requestId, endpoint, status: response.status, phase: "json", contentType: response.headers.get("content-type") });
     throw new UpstreamError({ code: "malformed_upstream_response", status: 502, message: "The upstream service returned invalid JSON.", requestId, retryable: true });
   } finally {
     clearResponseDeadline(response);
@@ -203,6 +205,7 @@ export async function parseUpstreamJson<T>(response: Response, parse: (value: un
   try {
     return parse(value);
   } catch {
+    console.error("[upstream] malformed_response", { requestId, endpoint, status: response.status, phase: "schema", contentType: response.headers.get("content-type") });
     throw new UpstreamError({ code: "malformed_upstream_response", status: 502, message: "The upstream service returned an unexpected response.", requestId, retryable: true });
   }
 }
