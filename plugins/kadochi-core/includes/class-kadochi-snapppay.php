@@ -282,11 +282,24 @@ final class Kadochi_SnappPay {
 		}
 		$data = is_array( $result['data'] ) ? $result['data'] : array();
 		$token = isset( $data['paymentToken'] ) && is_string( $data['paymentToken'] ) ? $data['paymentToken'] : '';
-		$page = isset( $data['paymentPageUrl'] ) ? $this->core->trusted_gateway_redirect( $data['paymentPageUrl'], self::GATEWAY_ID ) : false;
+		$page_url = isset( $data['paymentPageUrl'] ) && is_string( $data['paymentPageUrl'] ) ? $data['paymentPageUrl'] : '';
+		$page = '' !== $page_url ? $this->core->trusted_gateway_redirect( $page_url, self::GATEWAY_ID ) : false;
 		if ( ! $result['ok'] || '' === $token || ! $page ) {
 			$this->core->release_payment_attempt( $order, null, 'gateway_failure' );
 			$code = $result['ok'] ? 'invalid_redirect' : ( in_array( $result['errorCode'], array( 'auth', 'configuration' ), true ) || 401 === $result['httpStatus'] ? 'configuration' : ( $result['errorCode'] ?: 'unavailable' ) );
-			return $this->start_error( $code, $log + array( 'transaction_id' => $transaction_id ) );
+			$failure = $log + array( 'transaction_id' => $transaction_id );
+			if ( $result['ok'] ) {
+				// A successful token call can still lack a usable redirect. Log only
+				// presence and URL origin, never the payment token or page path/query.
+				$parts = '' !== $page_url ? wp_parse_url( $page_url ) : false;
+				$host = is_array( $parts ) && isset( $parts['host'] ) ? strtolower( $parts['host'] ) : '';
+				$failure['token_present'] = '' !== $token;
+				$failure['page_url_present'] = '' !== $page_url;
+				$failure['page_host'] = strlen( $host ) <= 253 && preg_match( '/^[a-z0-9.-]+$/', $host ) ? $host : '';
+				$failure['page_scheme'] = is_array( $parts ) && isset( $parts['scheme'] ) ? sanitize_key( $parts['scheme'] ) : '';
+				$failure['page_has_userinfo'] = is_array( $parts ) && ( isset( $parts['user'] ) || isset( $parts['pass'] ) );
+			}
+			return $this->start_error( $code, $failure );
 		}
 
 		$attempts = $this->attempts( $order );
