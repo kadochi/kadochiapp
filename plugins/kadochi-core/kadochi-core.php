@@ -3042,7 +3042,7 @@ final class Kadochi_Core {
 	}
 
 	/** @return string[] */
-	private function snapppay_payment_hosts() {
+	public function snapppay_payment_hosts() {
 		$hosts = array( $this->snapppay()->client()->base_host() );
 		$configured = getenv( 'SNAPPPAY_PAYMENT_HOSTS' );
 		foreach ( explode( ',', is_string( $configured ) ? $configured : '' ) as $host ) {

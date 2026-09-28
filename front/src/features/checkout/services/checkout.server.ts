@@ -7,7 +7,7 @@ import { getCurrentCustomer, getStoredAuthToken, wordpressBearerHeaders } from "
 import { retryProfileOrderPayment } from "@/features/profile/services/profile.server";
 import { ServiceError } from "@/lib/http/errors";
 import { parseUpstreamJson, UpstreamError, wordpressFetch } from "@/lib/http/upstream";
-import { isTrustedGatewayRedirect, paymentProvider, SNAPPPAY_GATEWAY_ID, ZARINPAL_GATEWAY_ID } from "@/lib/payments/redirect-hosts";
+import { inspectGatewayRedirect, isTrustedGatewayRedirect, paymentProvider, SNAPPPAY_GATEWAY_ID, ZARINPAL_GATEWAY_ID } from "@/lib/payments/redirect-hosts";
 import { env } from "@/lib/server/env";
 import { upstreamCartSchema } from "../../cart/schema/cart";
 import { mapCart } from "../../cart/utils/map-cart";
@@ -519,7 +519,8 @@ export async function checkout(input: unknown, requestId: string) {
     // Snapp! Pay's process_payment() returns its payment page directly. Never
     // send the customer to an unexpected host; the order's failure page can retry.
     if (provider === "snapppay" && result.paymentResult?.redirectUrl && !isTrustedGatewayRedirect(result.paymentResult.redirectUrl, methodId, env)) {
-      console.error("[payment] untrusted_gateway_redirect", { requestId, provider });
+      const { reason, host, scheme, allowedHosts } = inspectGatewayRedirect(result.paymentResult.redirectUrl, methodId, env);
+      console.error("[payment] untrusted_gateway_redirect", { requestId, provider, orderId: result.orderId, reason, host, scheme, allowedHosts });
       return {
         result: checkoutResultSchema.parse({ orderId: result.orderId, status: result.status, reconciliation: result.orderId ? "unpaid" : "unknown" }),
         cartToken: lastCartToken,

@@ -136,4 +136,5 @@ final class Kadochi_Test_Snapp_Core {
 	public function gateway_attempt_started( $order ) { return true; }
 	public function gateway_attempt_redirect( $order, $redirect, $ttl = 0 ) { $this->redirects[] = $redirect; }
 	public function trusted_gateway_redirect( $url, $gateway_id ) { return 0 === strpos( (string) $url, 'https://snapp.example/' ) ? $url : false; }
+	public function snapppay_payment_hosts() { return array( 'snapp.example' ); }
 }

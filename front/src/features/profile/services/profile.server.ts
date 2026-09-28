@@ -3,7 +3,7 @@ import "server-only";
 import { wordpressBearerHeaders } from "@/features/auth/services/auth.server";
 import { ServiceError } from "@/lib/http/errors";
 import { parseUpstreamJson, wordpressFetch } from "@/lib/http/upstream";
-import { isTrustedGatewayRedirect, SNAPPPAY_GATEWAY_ID, ZARINPAL_GATEWAY_ID } from "@/lib/payments/redirect-hosts";
+import { inspectGatewayRedirect, isTrustedGatewayRedirect, SNAPPPAY_GATEWAY_ID, ZARINPAL_GATEWAY_ID } from "@/lib/payments/redirect-hosts";
 import { env } from "@/lib/server/env";
 import { listProducts } from "@/features/products/services/products.server";
 
@@ -79,16 +79,25 @@ export async function retryProfileOrderPayment(orderId: number, attemptId: strin
     } catch {
       // Normalized below so the BFF returns a safe service error.
     }
-    throw new ServiceError({
-      code: "upstream_failure",
-      status: 502,
-      message: "The payment gateway returned an invalid redirect.",
-      requestId,
-      retryable: true,
-    });
+    invalidPaymentRedirect(redirectUrl ?? undefined, requestId);
   }
   const result = await parseUpstreamJson(response, (value) => profileOrderRetryPaymentSchema.parse(value), requestId);
   if (isTrustedPaymentRedirect(result.redirectUrl)) return result;
+  invalidPaymentRedirect(result.redirectUrl, requestId);
+}
+
+function invalidPaymentRedirect(url: string | undefined, requestId: string): never {
+  const snapp = inspectGatewayRedirect(url, SNAPPPAY_GATEWAY_ID, env);
+  const zarinpal = inspectGatewayRedirect(url, ZARINPAL_GATEWAY_ID, env);
+  console.error("[payment] untrusted_gateway_redirect", {
+    requestId,
+    phase: "retry-payment",
+    host: snapp.host,
+    scheme: snapp.scheme,
+    snappReason: snapp.reason,
+    zarinpalReason: zarinpal.reason,
+    allowedSnappHosts: snapp.allowedHosts,
+  });
   throw new ServiceError({
     code: "upstream_failure",
     status: 502,

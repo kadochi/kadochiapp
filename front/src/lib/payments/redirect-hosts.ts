@@ -26,15 +26,23 @@ export function snapppayHosts(config: { SNAPPPAY_BASE_URL?: string; SNAPPPAY_PAY
  * Accepts only a gateway's own handoff hosts, so a compromised or misconfigured
  * upstream cannot send customers to an arbitrary site. Snapp! Pay requires HTTPS.
  */
-export function isTrustedGatewayRedirect(url: string | undefined, methodId: string, config: { SNAPPPAY_BASE_URL?: string; SNAPPPAY_PAYMENT_HOSTS?: string }): boolean {
-  if (!url) return false;
+export function inspectGatewayRedirect(url: string | undefined, methodId: string, config: { SNAPPPAY_BASE_URL?: string; SNAPPPAY_PAYMENT_HOSTS?: string }) {
+  const allowedHosts = paymentProvider(methodId) === "snapppay" ? snapppayHosts(config) : zarinpalHosts;
+  if (!url) return { trusted: false, reason: "missing_url", host: "", scheme: "", allowedHosts };
   try {
     const parsed = new URL(url);
-    if (parsed.username || parsed.password) return false;
     const host = parsed.hostname.toLowerCase();
-    if (paymentProvider(methodId) === "snapppay") return parsed.protocol === "https:" && snapppayHosts(config).includes(host);
-    return parsed.protocol === "https:" && zarinpalHosts.includes(host);
+    const safeHost = host.length <= 253 && /^[a-z0-9.-]+$/.test(host) ? host : "";
+    const scheme = parsed.protocol.replace(/:$/, "").toLowerCase();
+    if (parsed.username || parsed.password) return { trusted: false, reason: "userinfo", host: safeHost, scheme, allowedHosts };
+    if (scheme !== "https") return { trusted: false, reason: "non_https", host: safeHost, scheme, allowedHosts };
+    if (!allowedHosts.includes(host)) return { trusted: false, reason: "host_not_allowed", host: safeHost, scheme, allowedHosts };
+    return { trusted: true, reason: "trusted", host: safeHost, scheme, allowedHosts };
   } catch {
-    return false;
+    return { trusted: false, reason: "malformed_url", host: "", scheme: "", allowedHosts };
   }
+}
+
+export function isTrustedGatewayRedirect(url: string | undefined, methodId: string, config: { SNAPPPAY_BASE_URL?: string; SNAPPPAY_PAYMENT_HOSTS?: string }): boolean {
+  return inspectGatewayRedirect(url, methodId, config).trusted;
 }

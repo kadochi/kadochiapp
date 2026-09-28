@@ -281,7 +281,7 @@ final class Kadochi_SnappPay {
 			}
 		}
 		$data = is_array( $result['data'] ) ? $result['data'] : array();
-		$token = isset( $data['paymentToken'] ) && is_string( $data['paymentToken'] ) ? $data['paymentToken'] : '';
+		$token = isset( $data['paymentToken'] ) && is_string( $data['paymentToken'] ) ? trim( $data['paymentToken'] ) : '';
 		$page_url = isset( $data['paymentPageUrl'] ) && is_string( $data['paymentPageUrl'] ) ? $data['paymentPageUrl'] : '';
 		$page = '' !== $page_url ? $this->core->trusted_gateway_redirect( $page_url, self::GATEWAY_ID ) : false;
 		if ( ! $result['ok'] || '' === $token || ! $page ) {
@@ -289,15 +289,7 @@ final class Kadochi_SnappPay {
 			$code = $result['ok'] ? 'invalid_redirect' : ( in_array( $result['errorCode'], array( 'auth', 'configuration' ), true ) || 401 === $result['httpStatus'] ? 'configuration' : ( $result['errorCode'] ?: 'unavailable' ) );
 			$failure = $log + array( 'transaction_id' => $transaction_id );
 			if ( $result['ok'] ) {
-				// A successful token call can still lack a usable redirect. Log only
-				// presence and URL origin, never the payment token or page path/query.
-				$parts = '' !== $page_url ? wp_parse_url( $page_url ) : false;
-				$host = is_array( $parts ) && isset( $parts['host'] ) ? strtolower( $parts['host'] ) : '';
-				$failure['token_present'] = '' !== $token;
-				$failure['page_url_present'] = '' !== $page_url;
-				$failure['page_host'] = strlen( $host ) <= 253 && preg_match( '/^[a-z0-9.-]+$/', $host ) ? $host : '';
-				$failure['page_scheme'] = is_array( $parts ) && isset( $parts['scheme'] ) ? sanitize_key( $parts['scheme'] ) : '';
-				$failure['page_has_userinfo'] = is_array( $parts ) && ( isset( $parts['user'] ) || isset( $parts['pass'] ) );
+				$failure += $this->payment_page_failure_diagnostics( $result['data'] );
 			}
 			return $this->start_error( $code, $failure );
 		}
@@ -321,6 +313,56 @@ final class Kadochi_SnappPay {
 		$this->core->gateway_attempt_redirect( $order, $page, self::PAYMENT_PAGE_TTL );
 		$this->log( 'payment_authority_ready', $log + array( 'transaction_id' => $transaction_id ) );
 		return $page;
+	}
+
+	/** Only safe response shape and URL origin data may enter the payment log. */
+	private function payment_page_failure_diagnostics( $data ) {
+		$token_state = self::response_field_state( $data, 'paymentToken' );
+		$page_state = self::response_field_state( $data, 'paymentPageUrl' );
+		$page_url = 'present' === $page_state ? $data['paymentPageUrl'] : '';
+		$parts = '' !== $page_url ? wp_parse_url( $page_url ) : false;
+		$host = is_array( $parts ) && isset( $parts['host'] ) ? strtolower( $parts['host'] ) : '';
+		$host = strlen( $host ) <= 253 && preg_match( '/^[a-z0-9.-]+$/', $host ) ? $host : '';
+		$scheme = is_array( $parts ) && isset( $parts['scheme'] ) ? sanitize_key( $parts['scheme'] ) : '';
+		$has_userinfo = is_array( $parts ) && ( isset( $parts['user'] ) || isset( $parts['pass'] ) );
+		$allowed_hosts = $this->core->snapppay_payment_hosts();
+
+		if ( 'present' !== $token_state ) {
+			$reason = 'payment_token_' . $token_state;
+		} elseif ( 'present' !== $page_state ) {
+			$reason = 'payment_page_url_' . $page_state;
+		} elseif ( ! is_array( $parts ) || '' === $host || '' === $scheme ) {
+			$reason = 'malformed_payment_page_url';
+		} elseif ( 'https' !== $scheme ) {
+			$reason = 'payment_page_requires_https';
+		} elseif ( $has_userinfo ) {
+			$reason = 'payment_page_has_userinfo';
+		} elseif ( ! in_array( $host, $allowed_hosts, true ) ) {
+			$reason = 'payment_page_host_not_allowed';
+		} else {
+			$reason = 'payment_page_validator_rejected';
+		}
+
+		return array(
+			'redirect_validation' => $reason,
+			'response_type' => gettype( $data ),
+			'token_field' => $token_state,
+			'page_url_field' => $page_state,
+			'page_host' => $host,
+			'page_scheme' => $scheme,
+			'page_has_userinfo' => $has_userinfo,
+			'allowed_page_hosts' => $allowed_hosts,
+		);
+	}
+
+	private static function response_field_state( $data, $field ) {
+		if ( ! is_array( $data ) || ! array_key_exists( $field, $data ) ) {
+			return 'missing';
+		}
+		if ( ! is_string( $data[ $field ] ) ) {
+			return 'non_string';
+		}
+		return '' === trim( $data[ $field ] ) ? 'empty' : 'present';
 	}
 
 	private function start_error( $code, array $log ) {

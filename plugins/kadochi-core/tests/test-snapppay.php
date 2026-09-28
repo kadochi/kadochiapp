@@ -139,9 +139,12 @@ final class Kadochi_SnappPay_Test extends WP_UnitTestCase {
 		$this->assertSame( array( 'gateway_failure' ), $this->core->released );
 		$failure = end( $this->core->logs );
 		$this->assertSame( 'payment_gateway_start_failed', $failure[0] );
-		$this->assertSame( true, $failure[1]['token_present'] );
+		$this->assertSame( 'payment_page_host_not_allowed', $failure[1]['redirect_validation'] );
+		$this->assertSame( 'present', $failure[1]['token_field'] );
+		$this->assertSame( 'present', $failure[1]['page_url_field'] );
 		$this->assertSame( 'evil.example', $failure[1]['page_host'] );
 		$this->assertSame( 'https', $failure[1]['page_scheme'] );
+		$this->assertSame( array( 'snapp.example' ), $failure[1]['allowed_page_hosts'] );
 		$this->assertStringNotContainsString( '/pay', wp_json_encode( $failure ) );
 	}
 
@@ -149,9 +152,28 @@ final class Kadochi_SnappPay_Test extends WP_UnitTestCase {
 		$this->client->script( 'token', Kadochi_Test_Snapp_Client::ok( array( 'paymentToken' => 'secret-token' ) ) );
 		$this->assertWPError( $this->service->start_payment( $this->order, 'https://api.kadochi.test/cb' ) );
 		$failure = end( $this->core->logs );
-		$this->assertSame( false, $failure[1]['page_url_present'] );
+		$this->assertSame( 'payment_page_url_missing', $failure[1]['redirect_validation'] );
+		$this->assertSame( 'missing', $failure[1]['page_url_field'] );
 		$this->assertSame( '', $failure[1]['page_host'] );
 		$this->assertStringNotContainsString( 'secret-token', wp_json_encode( $failure ) );
+	}
+
+	public function test_successful_token_response_logs_precise_redirect_rejection_reason() {
+		$cases = array(
+			array( array( 'paymentPageUrl' => 'https://snapp.example/pay/secret' ), 'payment_token_missing' ),
+			array( array( 'paymentToken' => 'secret', 'paymentPageUrl' => array( 'url' => 'https://snapp.example/pay/secret' ) ), 'payment_page_url_non_string' ),
+			array( array( 'paymentToken' => 'secret', 'paymentPageUrl' => 'not a URL' ), 'malformed_payment_page_url' ),
+			array( array( 'paymentToken' => 'secret', 'paymentPageUrl' => 'http://snapp.example/pay/secret' ), 'payment_page_requires_https' ),
+			array( array( 'paymentToken' => 'secret', 'paymentPageUrl' => 'https://user:secret@snapp.example/pay/secret' ), 'payment_page_has_userinfo' ),
+		);
+		foreach ( $cases as $case ) {
+			$this->client->script( 'token', Kadochi_Test_Snapp_Client::ok( $case[0] ) );
+			$this->assertWPError( $this->service->start_payment( $this->order, 'https://api.kadochi.test/cb' ) );
+			$failure = end( $this->core->logs );
+			$this->assertSame( $case[1], $failure[1]['redirect_validation'] );
+			$this->assertStringNotContainsString( '/pay/secret', wp_json_encode( $failure ) );
+			$this->assertStringNotContainsString( 'user:secret', wp_json_encode( $failure ) );
+		}
 	}
 
 	public function test_ok_callback_verifies_then_settles() {
