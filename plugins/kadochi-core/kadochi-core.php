@@ -3113,7 +3113,10 @@ final class Kadochi_Core {
 			$this->payment_log( 'payment_attempt_lock_expired', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id ) );
 		}
 
-		$failure = $order->get_meta( $this->payment_attempt_failure_meta_key(), true );
+		$is_snapppay = Kadochi_SnappPay::GATEWAY_ID === $order->get_payment_method();
+		$failure = $is_snapppay
+			? $order->get_meta( $this->payment_attempt_failure_meta_key(), true )
+			: get_post_meta( $order->get_id(), $this->payment_attempt_failure_meta_key(), true );
 		if ( is_array( $failure ) && isset( $failure['attemptId'] ) && is_string( $failure['attemptId'] ) && hash_equals( $failure['attemptId'], $attempt_id ) ) {
 			$this->payment_log( 'payment_start_rejected', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'reason' => 'previous_failure' ) );
 			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway could not start a payment.', 'kadochi-core' ), 502 );
@@ -3126,8 +3129,12 @@ final class Kadochi_Core {
 			$this->payment_log( 'payment_in_progress_detected', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'retry_after' => 1 ) );
 			return $this->auth_error( 'kadochi_payment_in_progress', __( 'A payment attempt is already in progress.', 'kadochi-core' ), 409, array( 'retryAfter' => 1 ) );
 		}
-		$order->delete_meta_data( $this->payment_attempt_failure_meta_key() );
-		$order->save();
+		if ( $is_snapppay ) {
+			$order->delete_meta_data( $this->payment_attempt_failure_meta_key() );
+			$order->save();
+		} else {
+			delete_post_meta( $order->get_id(), $this->payment_attempt_failure_meta_key() );
+		}
 		return true;
 	}
 
@@ -3142,12 +3149,17 @@ final class Kadochi_Core {
 			return;
 		}
 		delete_option( $lock_key );
-		$order->update_meta_data( $this->payment_attempt_failure_meta_key(), array(
+		$failure = array(
 			'attemptId' => $existing['attemptId'],
 			'failedAt' => time(),
 			'reason' => sanitize_key( $reason ),
-		) );
-		$order->save();
+		);
+		if ( Kadochi_SnappPay::GATEWAY_ID === $order->get_payment_method() ) {
+			$order->update_meta_data( $this->payment_attempt_failure_meta_key(), $failure );
+			$order->save();
+		} else {
+			update_post_meta( $order->get_id(), $this->payment_attempt_failure_meta_key(), $failure );
+		}
 	}
 
 	/** Persists the redirect before the official gateway exits the PHP request. */

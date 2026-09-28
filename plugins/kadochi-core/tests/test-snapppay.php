@@ -329,4 +329,23 @@ final class Kadochi_SnappPay_Test extends WP_UnitTestCase {
 		$this->assertSame( 'kadochi_payment_unavailable', $result->get_error_code() );
 		$this->assertFalse( get_option( $lock_key, false ) );
 	}
+
+	public function test_zarinpal_attempt_keeps_legacy_post_meta_behavior() {
+		$core = Kadochi_Core::instance();
+		$order = self::order();
+		$order->id = self::factory()->post->create();
+		$order->payment_method = 'WC_ZPal';
+		$attempt_id = 'b1111111-1111-4111-8111-111111111111';
+		$lock_key = 'kadochi_payment_attempt_' . $order->get_id();
+		add_option( $lock_key, array( 'attemptId' => $attempt_id, 'startedAt' => time() ), '', 'no' );
+
+		$core->release_payment_attempt( $order, $attempt_id, 'gateway_failure' );
+		$this->assertSame( $attempt_id, get_post_meta( $order->get_id(), '_kadochi_payment_attempt_failure', true )['attemptId'] );
+		$this->assertSame( '', $order->get_meta( '_kadochi_payment_attempt_failure', true ) );
+
+		$begin = new ReflectionMethod( Kadochi_Core::class, 'begin_payment_attempt' );
+		$result = $begin->invoke( $core, $order, $attempt_id );
+		$this->assertWPError( $result );
+		$this->assertSame( 'kadochi_payment_unavailable', $result->get_error_code() );
+	}
 }

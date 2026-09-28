@@ -44,5 +44,15 @@ export function inspectGatewayRedirect(url: string | undefined, methodId: string
 }
 
 export function isTrustedGatewayRedirect(url: string | undefined, methodId: string, config: { SNAPPPAY_BASE_URL?: string; SNAPPPAY_PAYMENT_HOSTS?: string }): boolean {
+  if (paymentProvider(methodId) === "zarinpal") {
+    if (!url) return false;
+    try {
+      const parsed = new URL(url);
+      if (parsed.username || parsed.password) return false;
+      return parsed.protocol === "https:" && zarinpalHosts.includes(parsed.hostname.toLowerCase());
+    } catch {
+      return false;
+    }
+  }
   return inspectGatewayRedirect(url, methodId, config).trusted;
 }
