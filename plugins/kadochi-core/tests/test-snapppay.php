@@ -302,6 +302,17 @@ final class Kadochi_SnappPay_Test extends WP_UnitTestCase {
 		$this->assertFalse( $core->is_allowed_payment_method( 'wc_zpal' ) );
 	}
 
+	public function test_tehran_address_does_not_require_an_uncollected_postcode() {
+		$locale = array(
+			'IR' => array( 'state' => array( 'required' => true ), 'postcode' => array( 'required' => true ) ),
+			'DE' => array( 'postcode' => array( 'required' => true ) ),
+		);
+		$actual = Kadochi_Core::instance()->optional_iran_postcode( $locale );
+		$this->assertFalse( $actual['IR']['postcode']['required'] );
+		$this->assertTrue( $actual['IR']['state']['required'] );
+		$this->assertTrue( $actual['DE']['postcode']['required'] );
+	}
+
 	public function test_trusted_gateway_redirect_hosts() {
 		$core = Kadochi_Core::instance();
 		putenv( 'SNAPPPAY_PAYMENT_HOSTS=pay.snapp.example' );

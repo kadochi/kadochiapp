@@ -238,6 +238,7 @@ function checkoutAddresses(input: ReturnType<typeof submitCheckoutSchema.parse>,
     address_1: input.address.address1,
     address_2: [input.address.buildingNumber ? `پلاک ${input.address.buildingNumber}` : "", input.address.unitNumber ? `واحد ${input.address.unitNumber}` : "", input.address.address2 ?? ""].filter(Boolean).join("، "),
     city: "تهران",
+    state: "THR",
     country: "IR",
   };
   return {

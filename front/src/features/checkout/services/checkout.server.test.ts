@@ -189,8 +189,8 @@ describe("checkout service", () => {
     expect(postPath).toBe("/wp-json/wc/store/v1/checkout");
     expect(postOptions.headers).toMatchObject({ "Cart-Token": "cart-2", "Idempotency-Key": operationId });
     expect(JSON.parse(postOptions.body as string)).toMatchObject({
-      billing_address: { first_name: "Sender", email: customer.email, phone: customer.phone, country: "IR", city: "تهران" },
-      shipping_address: { first_name: "Recipient", last_name: "Person", phone: "+989121234567", country: "IR", city: "تهران" },
+      billing_address: { first_name: "Sender", email: customer.email, phone: customer.phone, country: "IR", state: "THR", city: "تهران" },
+      shipping_address: { first_name: "Recipient", last_name: "Person", phone: "+989121234567", country: "IR", state: "THR", city: "تهران" },
       payment_method: "WC_ZPal",
       additional_fields: {
         "kadochi/delivery-slot": input().deliverySlotId,

@@ -165,6 +165,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
             address1: address.address1,
             address2: addressLine2 || undefined,
             city: "تهران",
+            state: "THR",
             country: "IR",
             email: state.customer.email,
             phone: state.customer.phone,
@@ -174,6 +175,7 @@ export function CheckoutFlow({ initialState }: { initialState: CheckoutState }) 
             address1: address.address1,
             address2: addressLine2 || undefined,
             city: "تهران",
+            state: "THR",
             country: "IR",
           },
         });

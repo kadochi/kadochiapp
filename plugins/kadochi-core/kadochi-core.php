@@ -119,6 +119,7 @@ final class Kadochi_Core {
 		add_action( 'woocommerce_payment_complete', array( $this, 'notify_paid_order' ) );
 		add_action( 'woocommerce_order_status_changed', array( $this, 'notify_order_status_change' ), 10, 4 );
 		add_filter( 'woocommerce_package_rates', array( $this, 'limit_shipping_to_tehran' ), 10, 2 );
+		add_filter( 'woocommerce_get_country_locale', array( $this, 'optional_iran_postcode' ) );
 		add_filter( 'woocommerce_cart_shipping_packages', array( $this, 'include_delivery_slot_in_shipping_packages' ) );
 		add_filter( 'woocommerce_customer_taxable_address', array( $this, 'limit_tax_to_tehran' ), 10, 2 );
 		add_filter( 'woocommerce_get_return_url', array( $this, 'checkout_return_url' ), 20, 2 );
@@ -2722,6 +2723,23 @@ final class Kadochi_Core {
 			throw new RuntimeException( __( 'The delivery session is unavailable.', 'kadochi-core' ) );
 		}
 		WC()->session->set( self::DELIVERY_SLOT_SESSION_KEY, $slot_id );
+	}
+
+	/** Aligns Woo's Iran address requirements with Kadochi's Tehran delivery form. */
+	public function optional_iran_postcode( $locale ) {
+		if ( ! is_array( $locale ) ) {
+			return $locale;
+		}
+		// Our Tehran delivery form collects a street address and map location, but
+		// has no postcode input. Keep Woo's Store API validation in sync with it.
+		if ( ! isset( $locale['IR'] ) || ! is_array( $locale['IR'] ) ) {
+			$locale['IR'] = array();
+		}
+		if ( ! isset( $locale['IR']['postcode'] ) || ! is_array( $locale['IR']['postcode'] ) ) {
+			$locale['IR']['postcode'] = array();
+		}
+		$locale['IR']['postcode']['required'] = false;
+		return $locale;
 	}
 
 	/** WooCommerce hashes shipping packages to cache rates; the selected slot affects that hash. */
