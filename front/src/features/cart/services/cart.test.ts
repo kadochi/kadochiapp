@@ -136,4 +136,29 @@ describe("cart browser service", () => {
     await expect(latestRead).resolves.toBe(latestCart);
     await expect(getCart()).resolves.toBe(latestCart);
   });
+
+  it("confirms coupon removal after a retryable browser-facing failure", async () => {
+    const windowTarget = new EventTarget();
+    vi.stubGlobal("window", windowTarget);
+    const changed = vi.fn();
+    windowTarget.addEventListener("kadochi:cart-changed", changed);
+    const { removeCoupon } = await import("./cart");
+    const { ServiceError } = await import("@/lib/http/errors");
+    const failure = new ServiceError({ code: "upstream_failure", status: 502, message: "Upstream failed", requestId: "request-1", retryable: true });
+    mocks.bffJson.mockRejectedValueOnce(failure).mockResolvedValueOnce(mutationCart);
+
+    await expect(removeCoupon("SAVE10")).resolves.toBe(mutationCart);
+    expect(mocks.bffJson.mock.calls.map(([path]) => path)).toEqual(["/api/cart/coupons/SAVE10", "/api/cart"]);
+    expect(changed).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the removal error when Woo still has the coupon", async () => {
+    const { removeCoupon } = await import("./cart");
+    const { ServiceError } = await import("@/lib/http/errors");
+    const failure = new ServiceError({ code: "upstream_failure", status: 502, message: "Upstream failed", requestId: "request-2", retryable: true });
+    mocks.bffJson.mockRejectedValueOnce(failure).mockResolvedValueOnce({ ...mutationCart, coupons: [{ code: "save10" }] });
+
+    await expect(removeCoupon("SAVE10")).rejects.toBe(failure);
+    expect(mocks.bffJson).toHaveBeenCalledTimes(2);
+  });
 });

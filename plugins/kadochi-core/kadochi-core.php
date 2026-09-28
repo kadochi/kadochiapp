@@ -2767,6 +2767,11 @@ final class Kadochi_Core {
 				if ( ! is_object( $rate ) || ! method_exists( $rate, 'set_cost' ) ) {
 					continue;
 				}
+				// A Woo free-shipping method may be enabled by a coupon or by the
+				// merchant's shipping-zone rules; the slot fee must not override it.
+				if ( method_exists( $rate, 'get_method_id' ) && 'free_shipping' === $rate->get_method_id() ) {
+					continue;
+				}
 				$rate->set_cost( $fee );
 				if ( method_exists( $rate, 'set_taxes' ) && class_exists( 'WC_Tax' ) ) {
 					$rate->set_taxes( WC_Tax::calc_shipping_tax( $fee, WC_Tax::get_shipping_tax_rates() ) );

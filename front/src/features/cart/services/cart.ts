@@ -1,4 +1,5 @@
 import { bffJson } from "@/lib/http/browser";
+import { ServiceError } from "@/lib/http/errors";
 import { cartSchema, addItemSchema, couponCodeSchema, selectDeliverySlotSchema, selectShippingRateSchema, updateCustomerSchema, updateQuantitySchema } from "../schema/cart";
 import type { AddItemInput, Cart, CouponCodeInput, CustomerAddresses, DeliverySlotInput, ShippingRateInput } from "../types";
 import { productSchema } from "@/features/products/schema/products";
@@ -101,8 +102,25 @@ export const applyCoupon = (input: CouponCodeInput) => executeCartMutation(
   { method: "POST", body: JSON.stringify(couponCodeSchema.parse(input)) },
   true,
 );
-export const removeCoupon = (code: string) => executeCartMutation(
-  `/api/cart/coupons/${encodeURIComponent(code)}`,
-  { method: "DELETE" },
-  true,
-);
+export async function removeCoupon(code: string): Promise<Cart> {
+  try {
+    return await executeCartMutation(
+      `/api/cart/coupons/${encodeURIComponent(code)}`,
+      { method: "DELETE" },
+      true,
+    );
+  } catch (error) {
+    if (!(error instanceof ServiceError) || !error.detail.retryable) throw error;
+    // The browser can lose the response after Woo has already removed the code.
+    // Read the current cart before showing an error or inviting another removal.
+    let cart: Cart;
+    try {
+      cart = await getCart();
+    } catch {
+      throw error;
+    }
+    if (cart.coupons.some((coupon) => coupon.code.toLowerCase() === code.toLowerCase())) throw error;
+    announceCartChange();
+    return cart;
+  }
+}
