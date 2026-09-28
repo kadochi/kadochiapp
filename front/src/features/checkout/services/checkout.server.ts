@@ -422,9 +422,13 @@ export async function checkout(input: unknown, requestId: string) {
     });
     lastCartToken = draft.headers.get("cart-token") ?? lastCartToken;
     await parseUpstreamJson(draft, (value) => upstreamCheckoutDraftSchema.parse(value), requestId);
-    // Snapp! Pay eligibility depends on the exact amount, which may have changed
-    // since the payment step loaded. Snapp requires a fresh check per amount.
-    if (provider === "snapppay" && !(await snapppayOffer(cart, requestId))) unavailablePaymentMethod(requestId);
+    // The draft can recalculate shipping and tax. Check Snapp against the
+    // resulting cart amount, rather than the amount fetched before the PUT.
+    if (provider === "snapppay") {
+      const recalculated = await cartForCheckout(await checkoutHeaders(lastCartToken ?? undefined), requestId);
+      lastCartToken = recalculated.cartToken ?? lastCartToken;
+      if (!recalculated.cart.paymentMethodIds.includes(methodId) || !(await snapppayOffer(recalculated.cart, requestId))) unavailablePaymentMethod(requestId);
+    }
 
     paymentSubmitted = true;
     const response = await wordpressFetch("/wp-json/wc/store/v1/checkout", {
@@ -459,6 +463,10 @@ export async function checkout(input: unknown, requestId: string) {
       throw new UpstreamError({ code: "malformed_upstream_response", status: 502, message: "The upstream service returned invalid JSON.", requestId, retryable: true });
     }
     if (response.status === 400) {
+      // Snapp's gateway returns a tagged, definite rejection through Woo's
+      // checkout 400. Retrying the same order here masks that provider code
+      // with a generic retry-payment 502 and can start another token request.
+      if (provider === "snapppay") checkoutFailureAfterUnmaterializedOrder(responseBody, requestId, methodId);
       // ZarinPal can return a Store API 400 after Woo has already materialized
       // the order. The operation ID is the owner-scoped source of truth; never
       // trust the partial Store API response to choose an order for payment.
@@ -521,7 +529,10 @@ export async function checkout(input: unknown, requestId: string) {
   } catch (error) {
     // A known gateway rejection is definitive: move the customer to the order's
     // failure result so a later explicit retry gets a fresh payment-attempt ID.
-    if (paymentSubmitted && error instanceof UpstreamError && error.detail.code === "upstream_failure" && !error.detail.retryable) {
+    if (paymentSubmitted && (
+      (error instanceof UpstreamError && error.detail.code === "upstream_failure" && !error.detail.retryable)
+      || (error instanceof ServiceError && Boolean(error.detail.payment))
+    )) {
       try {
         const summary = await orderSummaryForOperation(parsed.operationId, requestId);
         return {

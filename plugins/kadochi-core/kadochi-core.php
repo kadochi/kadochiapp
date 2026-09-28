@@ -3113,7 +3113,7 @@ final class Kadochi_Core {
 			$this->payment_log( 'payment_attempt_lock_expired', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id ) );
 		}
 
-		$failure = get_post_meta( $order->get_id(), $this->payment_attempt_failure_meta_key(), true );
+		$failure = $order->get_meta( $this->payment_attempt_failure_meta_key(), true );
 		if ( is_array( $failure ) && isset( $failure['attemptId'] ) && is_string( $failure['attemptId'] ) && hash_equals( $failure['attemptId'], $attempt_id ) ) {
 			$this->payment_log( 'payment_start_rejected', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'reason' => 'previous_failure' ) );
 			return $this->auth_error( 'kadochi_payment_unavailable', __( 'The payment gateway could not start a payment.', 'kadochi-core' ), 502 );
@@ -3126,7 +3126,8 @@ final class Kadochi_Core {
 			$this->payment_log( 'payment_in_progress_detected', array( 'order_id' => absint( $order->get_id() ), 'attempt_id' => $attempt_id, 'retry_after' => 1 ) );
 			return $this->auth_error( 'kadochi_payment_in_progress', __( 'A payment attempt is already in progress.', 'kadochi-core' ), 409, array( 'retryAfter' => 1 ) );
 		}
-		delete_post_meta( $order->get_id(), $this->payment_attempt_failure_meta_key() );
+		$order->delete_meta_data( $this->payment_attempt_failure_meta_key() );
+		$order->save();
 		return true;
 	}
 
@@ -3141,11 +3142,12 @@ final class Kadochi_Core {
 			return;
 		}
 		delete_option( $lock_key );
-		update_post_meta( $order->get_id(), $this->payment_attempt_failure_meta_key(), array(
+		$order->update_meta_data( $this->payment_attempt_failure_meta_key(), array(
 			'attemptId' => $existing['attemptId'],
 			'failedAt' => time(),
 			'reason' => sanitize_key( $reason ),
 		) );
+		$order->save();
 	}
 
 	/** Persists the redirect before the official gateway exits the PHP request. */

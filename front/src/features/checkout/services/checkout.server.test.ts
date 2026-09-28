@@ -426,9 +426,11 @@ describe("checkout with Snapp! Pay", () => {
   });
 
   it("re-checks eligibility and redirects to a trusted Snapp! Pay page", async () => {
+    const recalculatedCart = { ...snappCart, totals: { ...snappCart.totals, total_shipping: "2000000", total_price: "60000000" } };
     transport.fetch
       .mockResolvedValueOnce(response(snappCart, "cart-1"))
       .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(recalculatedCart, "cart-2b"))
       .mockResolvedValueOnce(response(eligible))
       .mockResolvedValueOnce(response({
         order_id: 97,
@@ -440,19 +442,33 @@ describe("checkout with Snapp! Pay", () => {
       result: { orderId: 97, paymentResult: { redirectUrl: "https://pay.snapp.example/checkout/abc" } },
     });
     const [, draftOptions] = transport.fetch.mock.calls[1] as [string, RequestInit];
-    const [postPath, postOptions] = transport.fetch.mock.calls[3] as [string, RequestInit & { timeoutMs?: number }];
+    const [postPath, postOptions] = transport.fetch.mock.calls[4] as [string, RequestInit & { timeoutMs?: number }];
     expect(JSON.parse(draftOptions.body as string).payment_method).toBe("kadochi_snapppay");
     expect(postPath).toBe("/wp-json/wc/store/v1/checkout");
     expect(JSON.parse(postOptions.body as string).payment_method).toBe("kadochi_snapppay");
     expect(postOptions.timeoutMs).toBe(25_000);
-    expect(transport.fetch).toHaveBeenCalledTimes(4);
+    expect(transport.fetch.mock.calls[3]?.[0]).toBe("/wp-json/kadochi/v1/checkout/payment-options?amount=60000000");
+    expect(transport.fetch).toHaveBeenCalledTimes(5);
   });
 
   it("asks the customer to choose again when Snapp! Pay is no longer eligible", async () => {
     transport.fetch
       .mockResolvedValueOnce(response(snappCart, "cart-1"))
       .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(snappCart, "cart-2b"))
       .mockResolvedValueOnce(response({ items: [eligible.items[0]] }));
+
+    await expect(checkout({ ...input(), paymentMethodId: "kadochi_snapppay" }, "request-1")).rejects.toMatchObject({
+      detail: { code: "validation", fieldErrors: { paymentMethodId: [expect.any(String)] } },
+    });
+    expect(transport.fetch).toHaveBeenCalledTimes(4);
+  });
+
+  it("stops before placing the order when Woo removes Snapp! Pay after recalculation", async () => {
+    transport.fetch
+      .mockResolvedValueOnce(response(snappCart, "cart-1"))
+      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(rawCart, "cart-2b"));
 
     await expect(checkout({ ...input(), paymentMethodId: "kadochi_snapppay" }, "request-1")).rejects.toMatchObject({
       detail: { code: "validation", fieldErrors: { paymentMethodId: [expect.any(String)] } },
@@ -470,6 +486,7 @@ describe("checkout with Snapp! Pay", () => {
     transport.fetch
       .mockResolvedValueOnce(response(snappCart, "cart-1"))
       .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(snappCart, "cart-2b"))
       .mockResolvedValueOnce(response(eligible))
       .mockResolvedValueOnce(response({
         order_id: 98,
@@ -485,13 +502,28 @@ describe("checkout with Snapp! Pay", () => {
     transport.fetch
       .mockResolvedValueOnce(response(snappCart, "cart-1"))
       .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(snappCart, "cart-2b"))
       .mockResolvedValueOnce(response(eligible))
-      .mockResolvedValueOnce(response({ code: "woocommerce_rest_checkout_process_payment_error", message: "شروع پرداخت با اسنپ‌پی انجام نشد. [snapppay:1048]" }, "cart-3", 400))
-      .mockRejectedValueOnce(notFoundError());
+      .mockResolvedValueOnce(response({ code: "woocommerce_rest_checkout_process_payment_error", message: "شروع پرداخت با اسنپ‌پی انجام نشد. [snapppay:1048]" }, "cart-3", 400));
 
     await expect(checkout({ ...input(), paymentMethodId: "kadochi_snapppay" }, "request-1")).rejects.toMatchObject({
       detail: { code: "upstream_failure", retryable: false, payment: { provider: "snapppay", code: 1048, category: "rejected" } },
     });
+    expect(transport.fetch.mock.calls.some(([path]) => String(path).includes("retry-payment"))).toBe(false);
+  });
+
+  it("keeps a materialized Snapp! Pay failure on the order failure page without retrying the token", async () => {
+    transport.fetch
+      .mockResolvedValueOnce(response(snappCart, "cart-1"))
+      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(snappCart, "cart-2b"))
+      .mockResolvedValueOnce(response(eligible))
+      .mockResolvedValueOnce(response({ code: "woocommerce_rest_checkout_process_payment_error", message: "شروع پرداخت با اسنپ‌پی انجام نشد. [snapppay:1048]" }, "cart-3", 400))
+      .mockResolvedValueOnce(response(orderSummary(1913, false)));
+
+    await expect(checkout({ ...input(), paymentMethodId: "kadochi_snapppay" }, "request-1")).resolves.toMatchObject({
+      result: { orderId: 1913, reconciliation: "unpaid" },
+    });
+    expect(transport.fetch.mock.calls.some(([path]) => String(path).includes("retry-payment"))).toBe(false);
   });
 });
-
