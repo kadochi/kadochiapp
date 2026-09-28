@@ -2849,6 +2849,13 @@ final class Kadochi_Core {
 		return '_wc_other/' . self::CHECKOUT_FIELD_OPERATION;
 	}
 
+	/** Logs only a fixed reason code; checkout field values and notices stay out of logs. */
+	private function reject_store_checkout_order( $reason, $message, $method = '' ) {
+		$gateway = Kadochi_SnappPay::GATEWAY_ID === $method ? 'snapppay' : ( 'WC_ZPal' === $method ? 'zarinpal' : 'checkout' );
+		$this->payment_log( 'checkout_validation_failed', array( 'reason' => $reason ), $gateway );
+		throw new Exception( $message );
+	}
+
 	/** Validates the materialized Store API order before Woo's own final order checks. */
 	public function validate_store_checkout_order( $order, WP_REST_Request $request ) {
 		// PUT stores the draft fields; only POST materializes an order for payment.
@@ -2860,25 +2867,25 @@ final class Kadochi_Core {
 		// can create the redirect URL.
 		$method = sanitize_text_field( (string) $request->get_param( 'payment_method' ) );
 		if ( ! $this->is_allowed_payment_method( $method ) ) {
-			throw new Exception( __( 'The selected payment method is unavailable.', 'kadochi-core' ) );
+			$this->reject_store_checkout_order( 'payment_method_unavailable', __( 'The selected payment method is unavailable.', 'kadochi-core' ), $method );
 		}
 		if ( ! is_object( $order ) || ! method_exists( $order, 'get_meta' ) ) {
 			return;
 		}
 		$delivery_slot = (string) $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_DELIVERY_SLOT, true );
 		if ( ! $this->valid_delivery_slot( $delivery_slot ) ) {
-			throw new Exception( __( 'The selected delivery slot is no longer available.', 'kadochi-core' ) );
+			$this->reject_store_checkout_order( 'delivery_slot_unavailable', __( 'The selected delivery slot is no longer available.', 'kadochi-core' ), $method );
 		}
 		$this->apply_delivery_slot_fee_to_order( $order, $delivery_slot );
 		$packaging = (string) $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_PACKAGING, true );
 		if ( ! in_array( $packaging, array( 'gift', 'normal' ), true ) ) {
-			throw new Exception( __( 'Choose a valid packaging option.', 'kadochi-core' ) );
+			$this->reject_store_checkout_order( 'invalid_packaging', __( 'Choose a valid packaging option.', 'kadochi-core' ), $method );
 		}
 		$postcard_design = (string) $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_POSTCARD_DESIGN, true );
 		if ( '' !== $postcard_design ) {
 			$design = $this->postcard_design( $postcard_design );
 			if ( ! $design ) {
-				throw new Exception( __( 'Choose a valid postcard design.', 'kadochi-core' ) );
+				$this->reject_store_checkout_order( 'invalid_postcard_design', __( 'Choose a valid postcard design.', 'kadochi-core' ), $method );
 			}
 			// Snapshot the title: a later editorial rename must not alter an order's fulfillment instructions.
 			$order->update_meta_data( '_kadochi_postcard_design_title', $design['title'] );
@@ -2887,7 +2894,7 @@ final class Kadochi_Core {
 		}
 		$operation = (string) $order->get_meta( $this->checkout_operation_meta_key(), true );
 		if ( ! preg_match( '/^[a-f0-9-]{36}$/i', $operation ) ) {
-			throw new Exception( __( 'The checkout operation was not recorded.', 'kadochi-core' ) );
+			$this->reject_store_checkout_order( 'operation_missing', __( 'The checkout operation was not recorded.', 'kadochi-core' ), $method );
 		}
 		$order->update_meta_data( '_kadochi_checkout_operation', $operation );
 	}
@@ -2919,7 +2926,7 @@ final class Kadochi_Core {
 	/** Acquires the idempotency lock after validation and immediately before payment. */
 	public function lock_store_checkout_order( $order ) {
 		if ( ! is_object( $order ) || ! method_exists( $order, 'get_meta' ) ) {
-			throw new Exception( __( 'The checkout order is unavailable.', 'kadochi-core' ) );
+			$this->reject_store_checkout_order( 'order_unavailable', __( 'The checkout order is unavailable.', 'kadochi-core' ) );
 		}
 		// `woocommerce_store_api_checkout_update_order_from_request` can update an
 		// order object that WooCommerce subsequently reloads before this hook. The
@@ -2928,11 +2935,11 @@ final class Kadochi_Core {
 		// value for this checkout and is already persisted with the order.
 		$operation = (string) $order->get_meta( $this->checkout_operation_meta_key(), true );
 		if ( ! preg_match( '/^[a-f0-9-]{36}$/i', $operation ) ) {
-			throw new Exception( __( 'The checkout operation was not recorded.', 'kadochi-core' ) );
+			$this->reject_store_checkout_order( 'operation_missing', __( 'The checkout operation was not recorded.', 'kadochi-core' ), $order->get_payment_method() );
 		}
 		$lock_key = 'kadochi_checkout_operation_' . hash( 'sha256', $operation );
 		if ( ! add_option( $lock_key, array( 'order' => method_exists( $order, 'get_id' ) ? $order->get_id() : 0, 'createdAt' => time() ), '', 'no' ) ) {
-			throw new Exception( __( 'This checkout is already being processed.', 'kadochi-core' ) );
+			$this->reject_store_checkout_order( 'operation_already_processed', __( 'This checkout is already being processed.', 'kadochi-core' ), $order->get_payment_method() );
 		}
 	}
 

@@ -95,10 +95,14 @@ function paymentFailure(requestId: string, provider: PaymentMetadata["provider"]
 function gatewayFailure(value: unknown, requestId: string, methodId: string): ServiceError | null {
   const response = upstreamGatewayErrorSchema.safeParse(value);
   if (!response.success) return null;
-  const message = response.data.message ?? response.data.errors?.[0]?.message ?? "";
+  const message = [response.data.message, ...(response.data.errors ?? []).map((error) => error.message)].filter(Boolean).join(" ");
   const snapppayTag = /\[snapppay:([a-z0-9_-]{1,40})\]/i.exec(message)?.[1]?.toLowerCase();
   if (snapppayTag || paymentProvider(methodId) === "snapppay") {
-    if (!snapppayTag) return null;
+    if (!snapppayTag) {
+      return response.data.code === "woocommerce_rest_checkout_process_payment_error"
+        ? paymentFailure(requestId, "snapppay", undefined, "unknown")
+        : null;
+    }
     const gatewayCode = /^\d+$/.test(snapppayTag) ? Number(snapppayTag) : undefined;
     return paymentFailure(requestId, "snapppay", gatewayCode, snapppayCategories[snapppayTag] ?? "unknown");
   }
@@ -273,6 +277,22 @@ async function startGatewayPayment(orderId: number, attemptId: string, requestId
 }
 
 function checkoutFailureAfterUnmaterializedOrder(responseBody: unknown, requestId: string, methodId: string): never {
+  const parsed = upstreamGatewayErrorSchema.safeParse(responseBody);
+  const safeCode = (value: unknown) => {
+    const code = typeof value === "number" && Number.isSafeInteger(value) ? String(value) : value;
+    return typeof code === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(code) ? code : null;
+  };
+  const notice = parsed.success ? [parsed.data.message, ...(parsed.data.errors ?? []).map((error) => error.message)].filter(Boolean).join(" ") : "";
+  const gatewayTag = /\[snapppay:([a-z0-9_-]{1,40})\]/i.exec(notice)?.[1]?.toLowerCase() ?? null;
+  console.error("[payment] woo_checkout_rejected", {
+    requestId,
+    provider: paymentProvider(methodId),
+    upstreamCode: parsed.success ? safeCode(parsed.data.code) : null,
+    upstreamStatus: parsed.success ? parsed.data.data?.status ?? null : null,
+    errorCodes: parsed.success ? (parsed.data.errors ?? []).slice(0, 5).map((error) => safeCode(error.code)) : [],
+    gatewayTag,
+    responseShape: parsed.success ? "woo_error" : Array.isArray(responseBody) ? "array" : typeof responseBody,
+  });
   const failure = gatewayFailure(responseBody, requestId, methodId);
   if (failure) throw failure;
   throw new ServiceError({

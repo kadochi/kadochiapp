@@ -512,6 +512,64 @@ describe("checkout with Snapp! Pay", () => {
     expect(transport.fetch.mock.calls.some(([path]) => String(path).includes("retry-payment"))).toBe(false);
   });
 
+  it("logs Woo checkout rejection codes without logging its notice", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      transport.fetch
+        .mockResolvedValueOnce(response(snappCart, "cart-1"))
+        .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+        .mockResolvedValueOnce(response(snappCart, "cart-2b"))
+        .mockResolvedValueOnce(response(eligible))
+        .mockResolvedValueOnce(response({
+          code: "woocommerce_rest_checkout_validation_error",
+          message: "Customer-private checkout notice",
+          data: { status: 400 },
+        }, "cart-3", 400));
+
+      await expect(checkout({ ...input(), paymentMethodId: "kadochi_snapppay" }, "request-1")).rejects.toMatchObject({ detail: { code: "validation" } });
+      expect(log).toHaveBeenCalledWith("[payment] woo_checkout_rejected", expect.objectContaining({
+        requestId: "request-1",
+        provider: "snapppay",
+        upstreamCode: "woocommerce_rest_checkout_validation_error",
+        upstreamStatus: 400,
+        gatewayTag: null,
+      }));
+      expect(JSON.stringify(log.mock.calls)).not.toContain("Customer-private checkout notice");
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("finds a Snapp failure tag inside Woo's nested notices", async () => {
+    transport.fetch
+      .mockResolvedValueOnce(response(snappCart, "cart-1"))
+      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(snappCart, "cart-2b"))
+      .mockResolvedValueOnce(response(eligible))
+      .mockResolvedValueOnce(response({
+        code: "woocommerce_rest_checkout_process_payment_error",
+        message: "Checkout failed",
+        errors: [{ message: "Snapp payment failed [snapppay:invalid_redirect]" }],
+      }, "cart-3", 400));
+
+    await expect(checkout({ ...input(), paymentMethodId: "kadochi_snapppay" }, "request-1")).rejects.toMatchObject({
+      detail: { code: "upstream_failure", payment: { provider: "snapppay", category: "configuration" } },
+    });
+  });
+
+  it("classifies Woo's untagged Snapp payment-start error as a gateway failure", async () => {
+    transport.fetch
+      .mockResolvedValueOnce(response(snappCart, "cart-1"))
+      .mockResolvedValueOnce(response({ order_id: 0, status: "checkout-draft" }, "cart-2"))
+      .mockResolvedValueOnce(response(snappCart, "cart-2b"))
+      .mockResolvedValueOnce(response(eligible))
+      .mockResolvedValueOnce(response({ code: "woocommerce_rest_checkout_process_payment_error", message: "Payment failed" }, "cart-3", 400));
+
+    await expect(checkout({ ...input(), paymentMethodId: "kadochi_snapppay" }, "request-1")).rejects.toMatchObject({
+      detail: { code: "upstream_failure", payment: { provider: "snapppay", category: "unknown" } },
+    });
+  });
+
   it("keeps a materialized Snapp! Pay failure on the order failure page without retrying the token", async () => {
     transport.fetch
       .mockResolvedValueOnce(response(snappCart, "cart-1"))
