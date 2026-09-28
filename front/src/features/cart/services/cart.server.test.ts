@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const transport = vi.hoisted(() => ({ fetch: vi.fn() }));
+const auth = vi.hoisted(() => ({ headers: vi.fn<() => Promise<Record<string, string>>>() }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: (name: string) => name === "kadochi_cart_token" ? { value: "cart-token" } : undefined }),
 }));
+vi.mock("@/features/auth/services/auth.server", () => ({ wordpressBearerHeaders: auth.headers }));
 vi.mock("@/lib/http/upstream", () => ({
   UpstreamError: class UpstreamError extends Error {
     constructor(public readonly detail: { status: number; retryable: boolean }) { super("Upstream failure"); }
@@ -15,7 +17,7 @@ vi.mock("@/lib/http/upstream", () => ({
 }));
 
 import { UpstreamError } from "@/lib/http/upstream";
-import { clearCart, removeCartCoupon } from "./cart.server";
+import { clearCart, executeCart, removeCartCoupon } from "./cart.server";
 
 function cartResponse(coupons: string[]) {
   return new Response(JSON.stringify({
@@ -33,7 +35,10 @@ function cartResponse(coupons: string[]) {
 const transientFailure = () => new UpstreamError({ code: "upstream_failure", status: 502, message: "Upstream failure", requestId: "request-1", retryable: true });
 
 describe("clearCart", () => {
-  beforeEach(() => transport.fetch.mockReset());
+  beforeEach(() => {
+    transport.fetch.mockReset();
+    auth.headers.mockReset().mockResolvedValue({ Authorization: "Bearer customer-token" });
+  });
 
   it("empties the current tokenized cart, including its applied coupons", async () => {
     transport.fetch.mockResolvedValue(new Response(JSON.stringify([]), {
@@ -44,15 +49,41 @@ describe("clearCart", () => {
     await expect(clearCart("request-1")).resolves.toEqual({ cartToken: "cleared-cart-token" });
     expect(transport.fetch).toHaveBeenCalledWith("/wp-json/wc/store/v1/cart/items", {
       method: "DELETE",
-      headers: { "Cart-Token": "cart-token" },
+      headers: { "Cart-Token": "cart-token", Authorization: "Bearer customer-token" },
       cache: "no-store",
       requestId: "request-1",
     });
   });
 });
 
+describe("executeCart", () => {
+  beforeEach(() => {
+    transport.fetch.mockReset().mockImplementation(async () => cartResponse([]));
+    auth.headers.mockReset().mockResolvedValue({ Authorization: "Bearer customer-token" });
+  });
+
+  it("keeps Woo's customer identity on cart reads and coupon mutations", async () => {
+    await executeCart({ method: "GET", path: "/wp-json/wc/store/v1/cart" }, "request-1");
+    await executeCart({ method: "POST", path: "/wp-json/wc/store/v1/cart/apply-coupon", body: { code: "SAVE10" } }, "request-1");
+
+    expect(transport.fetch.mock.calls[0][1].headers).toEqual({ "Cart-Token": "cart-token", Authorization: "Bearer customer-token" });
+    expect(transport.fetch.mock.calls[1][1].headers).toEqual({ "Cart-Token": "cart-token", Authorization: "Bearer customer-token", "Content-Type": "application/json" });
+  });
+
+  it("continues to support guest carts without an auth cookie", async () => {
+    auth.headers.mockResolvedValue({});
+
+    await executeCart({ method: "GET", path: "/wp-json/wc/store/v1/cart" }, "request-1");
+
+    expect(transport.fetch.mock.calls[0][1].headers).toEqual({ "Cart-Token": "cart-token" });
+  });
+});
+
 describe("removeCartCoupon", () => {
-  beforeEach(() => transport.fetch.mockReset());
+  beforeEach(() => {
+    transport.fetch.mockReset();
+    auth.headers.mockReset().mockResolvedValue({ Authorization: "Bearer customer-token" });
+  });
 
   it("accepts an already removed coupon after a failed upstream response", async () => {
     transport.fetch.mockRejectedValueOnce(transientFailure()).mockResolvedValueOnce(cartResponse([]));

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { wordpressBearerHeaders } from "@/features/auth/services/auth.server";
 import { parseUpstreamJson, UpstreamError, wordpressFetch } from "@/lib/http/upstream";
 import { upstreamCartSchema } from "../schema/cart";
 import { mapCart } from "../utils/map-cart";
@@ -10,7 +11,18 @@ type CartAction = { method: "GET" | "POST" | "PATCH" | "DELETE"; path: string; b
 
 export async function executeCart(action: CartAction, requestId: string) {
   const token = (await cookies()).get(cartTokenCookie)?.value;
-  const response = await wordpressFetch(action.path, { method: action.method, body: action.body ? JSON.stringify(action.body) : undefined, headers: { ...(token ? { "Cart-Token": token } : {}), ...(action.body ? { "Content-Type": "application/json" } : {}) }, cache: "no-store", requestId });
+  const headers = {
+    ...(token ? { "Cart-Token": token } : {}),
+    ...(await wordpressBearerHeaders()),
+    ...(action.body ? { "Content-Type": "application/json" } : {}),
+  };
+  const response = await wordpressFetch(action.path, {
+    method: action.method,
+    body: action.body ? JSON.stringify(action.body) : undefined,
+    headers,
+    cache: "no-store",
+    requestId,
+  });
   const cart = mapCart(await parseUpstreamJson(response, (value) => upstreamCartSchema.parse(value), requestId));
   return { cart, cartToken: response.headers.get("cart-token") };
 }
@@ -45,7 +57,7 @@ export async function clearCart(requestId: string) {
   const token = (await cookies()).get(cartTokenCookie)?.value;
   const response = await wordpressFetch("/wp-json/wc/store/v1/cart/items", {
     method: "DELETE",
-    headers: token ? { "Cart-Token": token } : {},
+    headers: { ...(token ? { "Cart-Token": token } : {}), ...(await wordpressBearerHeaders()) },
     cache: "no-store",
     requestId,
   });
