@@ -27,7 +27,8 @@ export function snapppayHosts(config: { SNAPPPAY_BASE_URL?: string; SNAPPPAY_PAY
  * upstream cannot send customers to an arbitrary site. Snapp! Pay requires HTTPS.
  */
 export function inspectGatewayRedirect(url: string | undefined, methodId: string, config: { SNAPPPAY_BASE_URL?: string; SNAPPPAY_PAYMENT_HOSTS?: string }) {
-  const allowedHosts = paymentProvider(methodId) === "snapppay" ? snapppayHosts(config) : zarinpalHosts;
+  const provider = paymentProvider(methodId);
+  const allowedHosts = provider === "snapppay" ? snapppayHosts(config) : zarinpalHosts;
   if (!url) return { trusted: false, reason: "missing_url", host: "", scheme: "", allowedHosts };
   try {
     const parsed = new URL(url);
@@ -35,7 +36,8 @@ export function inspectGatewayRedirect(url: string | undefined, methodId: string
     const safeHost = host.length <= 253 && /^[a-z0-9.-]+$/.test(host) ? host : "";
     const scheme = parsed.protocol.replace(/:$/, "").toLowerCase();
     if (parsed.username || parsed.password) return { trusted: false, reason: "userinfo", host: safeHost, scheme, allowedHosts };
-    if (scheme !== "https") return { trusted: false, reason: "non_https", host: safeHost, scheme, allowedHosts };
+    const allowedScheme = scheme === "https" || (provider === "zarinpal" && scheme === "http");
+    if (!allowedScheme) return { trusted: false, reason: provider === "snapppay" ? "non_https" : "invalid_scheme", host: safeHost, scheme, allowedHosts };
     if (!allowedHosts.includes(host)) return { trusted: false, reason: "host_not_allowed", host: safeHost, scheme, allowedHosts };
     return { trusted: true, reason: "trusted", host: safeHost, scheme, allowedHosts };
   } catch {
@@ -49,7 +51,7 @@ export function isTrustedGatewayRedirect(url: string | undefined, methodId: stri
     try {
       const parsed = new URL(url);
       if (parsed.username || parsed.password) return false;
-      return parsed.protocol === "https:" && zarinpalHosts.includes(parsed.hostname.toLowerCase());
+      return (parsed.protocol === "https:" || parsed.protocol === "http:") && zarinpalHosts.includes(parsed.hostname.toLowerCase());
     } catch {
       return false;
     }

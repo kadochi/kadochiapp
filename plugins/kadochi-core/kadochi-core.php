@@ -3034,7 +3034,7 @@ final class Kadochi_Core {
 		if ( Kadochi_SnappPay::GATEWAY_ID === $gateway_id ) {
 			return 'https' === strtolower( $parts['scheme'] ) && in_array( $host, $this->snapppay_payment_hosts(), true ) ? $redirect : false;
 		}
-		return 'https' === strtolower( $parts['scheme'] ) && in_array( $host, array( 'payment.zarinpal.com', 'sandbox.zarinpal.com' ), true ) ? $redirect : false;
+		return in_array( $host, array( 'payment.zarinpal.com', 'sandbox.zarinpal.com' ), true ) ? $redirect : false;
 	}
 
 	private function trusted_zarinpal_redirect( $redirect ) {

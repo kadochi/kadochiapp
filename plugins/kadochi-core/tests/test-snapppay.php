@@ -306,7 +306,7 @@ final class Kadochi_SnappPay_Test extends WP_UnitTestCase {
 		$core = Kadochi_Core::instance();
 		putenv( 'SNAPPPAY_PAYMENT_HOSTS=pay.snapp.example' );
 		$this->assertSame( 'https://payment.zarinpal.com/pg/StartPay/x', $core->trusted_gateway_redirect( 'https://payment.zarinpal.com/pg/StartPay/x', 'WC_ZPal' ) );
-		$this->assertFalse( $core->trusted_gateway_redirect( 'http://payment.zarinpal.com/pg/StartPay/x', 'WC_ZPal' ) );
+		$this->assertSame( 'http://payment.zarinpal.com/pg/StartPay/x', $core->trusted_gateway_redirect( 'http://payment.zarinpal.com/pg/StartPay/x', 'WC_ZPal' ) );
 		$this->assertFalse( $core->trusted_gateway_redirect( 'https://pay.snapp.example/x', 'WC_ZPal' ) );
 		$this->assertSame( 'https://pay.snapp.example/x', $core->trusted_gateway_redirect( 'https://pay.snapp.example/x', 'kadochi_snapppay' ) );
 		$this->assertFalse( $core->trusted_gateway_redirect( 'http://pay.snapp.example/x', 'kadochi_snapppay' ) );

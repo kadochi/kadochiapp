@@ -218,11 +218,11 @@ describe("checkout service", () => {
       }, "cart-3"))
       .mockResolvedValueOnce(new Response(null, {
         status: 302,
-        headers: { Location: "https://payment.zarinpal.com/pg/StartPay/authority" },
+        headers: { Location: "http://payment.zarinpal.com/pg/StartPay/authority" },
       }));
 
     await expect(checkout(input(), "request-1")).resolves.toMatchObject({
-      result: { orderId: 93, paymentResult: { paymentStatus: "pending", redirectUrl: "https://payment.zarinpal.com/pg/StartPay/authority" } },
+      result: { orderId: 93, paymentResult: { paymentStatus: "pending", redirectUrl: "http://payment.zarinpal.com/pg/StartPay/authority" } },
     });
     expect(transport.fetch.mock.calls[3]?.[0]).toBe("/wp-json/kadochi/v1/profile/orders/93/retry-payment");
     expect(transport.fetch.mock.calls[3]?.[1]).toMatchObject({

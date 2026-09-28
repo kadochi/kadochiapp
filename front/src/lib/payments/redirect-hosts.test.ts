@@ -8,7 +8,8 @@ describe("isTrustedGatewayRedirect", () => {
   it("keeps ZarinPal limited to its two payment hosts", () => {
     expect(isTrustedGatewayRedirect("https://payment.zarinpal.com/pg/StartPay/a", "WC_ZPal", config)).toBe(true);
     expect(isTrustedGatewayRedirect("https://sandbox.zarinpal.com/pg/StartPay/a", "WC_ZPal", config)).toBe(true);
-    expect(isTrustedGatewayRedirect("http://payment.zarinpal.com/pg/StartPay/a", "WC_ZPal", config)).toBe(false);
+    expect(isTrustedGatewayRedirect("http://payment.zarinpal.com/pg/StartPay/a", "WC_ZPal", config)).toBe(true);
+    expect(inspectGatewayRedirect("http://payment.zarinpal.com/pg/StartPay/a", "WC_ZPal", config).trusted).toBe(true);
     expect(isTrustedGatewayRedirect("https://pay.snapp.example/a", "WC_ZPal", config)).toBe(false);
   });
 
