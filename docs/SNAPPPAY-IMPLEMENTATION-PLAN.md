@@ -186,7 +186,7 @@ settle ─► success → order paid
   - `retry_profile_order_payment()` resolves the gateway from `$order->get_payment_method()` (it must be allowed). ZarinPal keeps its special `Send_to_ZarinPal_Gateway` path. Other gateways call `process_payment()`, and the returned redirect is stored in the attempt lock (`redirectUrl`) so the existing recovery path in `begin_payment_attempt()` works unchanged.
 - Generalise `trusted_zarinpal_redirect()` into `trusted_gateway_redirect( $url, $gateway_id )`:
   - ZarinPal: `payment.zarinpal.com` and `sandbox.zarinpal.com`.
-  - Snapp: the host of `SNAPPPAY_BASE_URL` plus the hosts in `SNAPPPAY_PAYMENT_HOSTS` (production page host is unknown, Q2), HTTPS only.
+  - Snapp: the host of `SNAPPPAY_BASE_URL` plus the hosts in `SNAPPPAY_PAYMENT_HOSTS` (see Q2 for the observed staging payment-page host), HTTPS only.
 - Generalise `payment_log( $event, $context, $gateway = 'zarinpal' )` so the source becomes `kadochi-{gateway}`.
 - **New REST route** `GET kadochi/v1/checkout/payment-options`, authenticated, reading the current session cart. It returns `{ items: [{ id, title, description, eligible }] }`:
   - ZarinPal always appears.
@@ -293,7 +293,7 @@ Scenarios:
 ## 6. Open questions for Snapp or the team
 
 1. **Q1: returnURL domain.** Which origin do we register with Snapp: the WordPress host (the plan's D2) or the storefront host? If Snapp only accepts the storefront domain, add a thin Next.js route `POST /api/payments/snapppay/callback` that forwards the form, HMAC-signed with `KADOCHI_INTERNAL_API_SECRET`, to the WordPress handler and relays the redirect.
-2. **Q2: production payment page host,** for the redirect allow-list (`SNAPPPAY_PAYMENT_HOSTS`).
+2. **Q2: payment page host.** The staging token response for order 1917 on 2026-09-28 returned `live-test-develop-merchant-growth.apps.public.okd4.teh-1.snappcloud.io`. The request succeeded, but WordPress rejected its HTTPS redirect because only the staging API host was allowed. Set `SNAPPPAY_PAYMENT_HOSTS=live-test-develop-merchant-growth.apps.public.okd4.teh-1.snappcloud.io` in the deployment's root `.env`; Docker Compose passes it to both `nextjs` and `wordpress`. Recreate both services with `docker compose up -d --force-recreate nextjs wordpress`, then verify with `docker compose exec -T nextjs printenv SNAPPPAY_PAYMENT_HOSTS` and `docker compose exec -T wordpress printenv SNAPPPAY_PAYMENT_HOSTS`. The payment-page host for production Snapp credentials remains unconfirmed; obtain it from a production token response or Snapp before switching environments.
 3. **Q3: commission types.** Does our contract map product categories to specific `commissionType` codes, or is it `100` everywhere?
 4. **Q4: revert on FAILED.** Should we call revert when the callback state is `FAILED`? The callback section says yes; the revert section says it is not needed unless Snapp instructs us.
 5. **Q5: caching eligibility.** Is short caching acceptable for PDP messaging (Phase 3)? Which payment types (`INSTALLMENT`, `POSTPAID`, `FINANCING`) are enabled for Kadochi, and do we want `forcedPaymentMethodTypes`?
