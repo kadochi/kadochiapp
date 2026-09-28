@@ -39,6 +39,13 @@ export function paymentErrorMessage(error: unknown, fallback = "شروع پرد�
     return { message: detail.fieldErrors.paymentMethodId[0], requestId: detail.requestId, retryable: true };
   }
   if (!detail?.payment) {
+    if (detail?.code === "timeout") {
+      return {
+        message: "پاسخ ثبت سفارش دیر رسید. پیش از تلاش دوباره، وضعیت سفارش‌های خود را بررسی کنید.",
+        requestId: detail.requestId,
+        retryable: true,
+      };
+    }
     if (detail?.code === "payment_in_progress") {
       return {
         message: "پرداخت قبلی هنوز در حال شروع است. لطفاً چند لحظه بعد دوباره بررسی کنید.",
@@ -46,7 +53,7 @@ export function paymentErrorMessage(error: unknown, fallback = "شروع پرد�
         retryable: true,
       };
     }
-    return { message: fallback, retryable: false };
+    return { message: fallback, ...(detail?.requestId ? { requestId: detail.requestId } : {}), retryable: detail?.retryable ?? false };
   }
   const code = detail.payment.code;
   const messages = detail.payment.provider === "snapppay" ? snapppayMessages : zarinpalMessages;
@@ -75,6 +82,8 @@ export function logPaymentFailure(event: string, error: unknown): void {
     event,
     provider: detail?.payment?.provider ?? "unknown",
     requestId: payment.requestId,
+    errorCode: detail?.code ?? "unexpected",
+    status: detail?.status,
     gatewayCode: payment.code,
     retryable: payment.retryable,
   });

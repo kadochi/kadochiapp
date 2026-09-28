@@ -38,6 +38,16 @@ describe("paymentErrorMessage", () => {
     });
   });
 
+  it("retains the request ID and retry status for a generic checkout error", () => {
+    expect(paymentErrorMessage(new ServiceError({
+      code: "upstream_failure",
+      status: 502,
+      message: "private upstream detail",
+      requestId: "request-123",
+      retryable: true,
+    }))).toEqual({ message: "شروع پرداخت انجام نشد. لطفاً دوباره تلاش کنید.", requestId: "request-123", retryable: true });
+  });
+
   it("explains that an existing payment attempt is still being recovered", () => {
     expect(paymentErrorMessage(new ServiceError({
       code: "payment_in_progress",
@@ -51,6 +61,16 @@ describe("paymentErrorMessage", () => {
       retryable: true,
       message: "پرداخت قبلی هنوز در حال شروع است. لطفاً چند لحظه بعد دوباره بررسی کنید.",
     });
+  });
+
+  it("warns customers to check their order after a checkout timeout", () => {
+    expect(paymentErrorMessage(new ServiceError({
+      code: "timeout",
+      status: 504,
+      message: "timed out",
+      requestId: "request-123",
+      retryable: true,
+    }))).toMatchObject({ requestId: "request-123", retryable: true, message: expect.stringContaining("وضعیت سفارش") });
   });
 });
 

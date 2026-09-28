@@ -397,6 +397,7 @@ export async function checkout(input: unknown, requestId: string) {
   const customer = await authenticatedCustomer(requestId);
   let lastCartToken: string | null = null;
   let paymentSubmitted = false;
+  let phase = "initial_cart";
 
   try {
     const initialHeaders = await checkoutHeaders();
@@ -409,6 +410,7 @@ export async function checkout(input: unknown, requestId: string) {
     const provider = paymentProvider(methodId);
     if (!createDeliverySlots(cart).some((slot) => slot.id === parsed.deliverySlotId && slot.available)) unavailableSlot(requestId);
 
+    phase = "draft_update";
     const draftHeaders = await checkoutHeaders(cartToken ?? undefined);
     const draft = await wordpressFetch("/wp-json/wc/store/v1/checkout?__experimental_calc_totals=true", {
       method: "PUT",
@@ -425,11 +427,14 @@ export async function checkout(input: unknown, requestId: string) {
     // The draft can recalculate shipping and tax. Check Snapp against the
     // resulting cart amount, rather than the amount fetched before the PUT.
     if (provider === "snapppay") {
+      phase = "recalculated_cart";
       const recalculated = await cartForCheckout(await checkoutHeaders(lastCartToken ?? undefined), requestId);
       lastCartToken = recalculated.cartToken ?? lastCartToken;
+      phase = "snapppay_eligibility";
       if (!recalculated.cart.paymentMethodIds.includes(methodId) || !(await snapppayOffer(recalculated.cart, requestId))) unavailablePaymentMethod(requestId);
     }
 
+    phase = "store_checkout";
     paymentSubmitted = true;
     const response = await wordpressFetch("/wp-json/wc/store/v1/checkout", {
       method: "POST",
@@ -577,6 +582,14 @@ export async function checkout(input: unknown, requestId: string) {
         };
       }
     }
+    const detail = error instanceof ServiceError || error instanceof UpstreamError ? error.detail : null;
+    console.error("[payment] checkout_failed", {
+      requestId,
+      phase,
+      paymentSubmitted,
+      code: detail?.code ?? (error instanceof z.ZodError ? "validation" : "unexpected"),
+      status: detail?.status,
+    });
     throw error;
   }
 }

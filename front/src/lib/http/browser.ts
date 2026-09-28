@@ -3,7 +3,7 @@ import { apiErrorSchema, ServiceError } from "./errors";
 const browserRequestTimeoutMs = 20_000;
 
 /** Calls only action-specific, same-origin BFF routes. Browser code never sees upstream credentials or cart tokens. */
-export async function bffJson<T>(path: string, init: RequestInit, parse: (value: unknown) => T): Promise<T> {
+export async function bffJson<T>(path: string, init: RequestInit, parse: (value: unknown) => T, timeoutMs = browserRequestTimeoutMs): Promise<T> {
   const controller = new AbortController();
   let timedOut = false;
   const abortFromCaller = () => controller.abort();
@@ -12,7 +12,7 @@ export async function bffJson<T>(path: string, init: RequestInit, parse: (value:
   const timer = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, browserRequestTimeoutMs);
+  }, timeoutMs);
 
   try {
     const response = await fetch(path, {

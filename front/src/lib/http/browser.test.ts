@@ -46,4 +46,23 @@ describe("bffJson", () => {
     await vi.advanceTimersByTimeAsync(20_000);
     await rejection;
   });
+
+  it("lets checkout override the default deadline for payment initiation", async () => {
+    vi.useFakeTimers();
+    let aborted = false;
+    vi.stubGlobal("fetch", vi.fn((_path: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => {
+        aborted = true;
+        reject(new DOMException("Aborted", "AbortError"));
+      });
+    })));
+
+    const pending = bffJson("/api/checkout", { method: "POST" }, (value) => value, 90_000);
+    const rejection = expect(pending).rejects.toMatchObject({ detail: { code: "timeout", status: 504 } });
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(70_000);
+    await rejection;
+    expect(aborted).toBe(true);
+  });
 });
