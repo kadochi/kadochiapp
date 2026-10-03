@@ -54,6 +54,7 @@ export function OrderFailure({ order }: { order: OrderSummary }) {
 
         <section className="mt-56" aria-label="اطلاعات سفارش">
           <OrderDetail label="مبلغ قابل پرداخت" value={formatIrrAsToman(order.total)} />
+          {order.snappPayTransactionId ? <OrderDetail label="شناسه تراکنش اسنپ‌پی" value={order.snappPayTransactionId} /> : null}
           <OrderDetail label="فرستنده" value={order.sender || "—"} />
           <OrderDetail label="گیرنده" value={recipient} />
           <OrderDetail label="زمان ارسال" value={formatDeliverySlot(order.deliverySlot)} />

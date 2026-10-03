@@ -146,6 +146,7 @@ export const orderSummarySchema = z.object({
   recipient: z.object({ firstName: z.string(), lastName: z.string() }).strict(),
   deliverySlot: z.string().nullable(),
   address: z.string(),
+  snappPayTransactionId: z.string().regex(/^[A-Za-z0-9]{5,10}$/).nullable().optional(),
 }).strict();
 
 const upstreamCheckoutResultSchema = z.object({

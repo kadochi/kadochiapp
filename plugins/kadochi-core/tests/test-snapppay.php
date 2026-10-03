@@ -20,6 +20,16 @@ final class Kadochi_SnappPay_Test extends WP_UnitTestCase {
 		$this->client = new Kadochi_Test_Snapp_Client();
 		$this->core = new Kadochi_Test_Snapp_Core();
 		$this->order = self::order();
+		if ( ! taxonomy_exists( 'product_cat' ) ) {
+			register_taxonomy( 'product_cat', 'product', array( 'hierarchical' => true ) );
+		}
+		$parent = self::factory()->term->create( array( 'taxonomy' => 'product_cat', 'name' => 'Gifts' ) );
+		foreach ( array( 11 => 'Flower boxes', 12 => 'Greeting cards' ) as $key => $name ) {
+			$product_id = self::factory()->post->create( array( 'post_type' => 'product' ) );
+			$category = self::factory()->term->create( array( 'taxonomy' => 'product_cat', 'name' => $name, 'parent' => $parent ) );
+			wp_set_object_terms( $product_id, array( $parent, $category ), 'product_cat' );
+			$this->order->items[ $key ]->product_id = $product_id;
+		}
 		$order = $this->order;
 		$this->service = new Kadochi_SnappPay( $this->client, $this->core, function ( $transaction_id ) use ( $order ) {
 			return in_array( $transaction_id, array_keys( (array) $order->get_meta( Kadochi_SnappPay::META_ATTEMPTS, true ) ), true ) ? $order : null;
@@ -41,11 +51,15 @@ final class Kadochi_SnappPay_Test extends WP_UnitTestCase {
 		return $order;
 	}
 
-	private function start() {
-		$this->client->script( 'token', Kadochi_Test_Snapp_Client::ok( array( 'paymentToken' => 'tok-1', 'paymentPageUrl' => 'https://snapp.example/pay/tok-1' ) ) );
+	private function start( $token = 'tok-1' ) {
+		$this->client->script( 'token', Kadochi_Test_Snapp_Client::ok( array( 'paymentToken' => $token, 'paymentPageUrl' => 'https://snapp.example/pay/' . $token ) ) );
 		$redirect = $this->service->start_payment( $this->order, 'https://api.kadochi.test/wc-api/kadochi_snapppay/' );
-		$this->assertSame( 'https://snapp.example/pay/tok-1', $redirect );
+		$this->assertSame( 'https://snapp.example/pay/' . $token, $redirect );
 		return (string) $this->order->get_meta( Kadochi_SnappPay::META_TRANSACTION, true );
+	}
+
+	private function status_result( $status, $amount = 3780500 ) {
+		return Kadochi_Test_Snapp_Client::ok( array( 'status' => $status, 'amount' => $amount, 'transactionId' => (string) $this->order->get_meta( Kadochi_SnappPay::META_TRANSACTION, true ) ) );
 	}
 
 	private static function assert_identities( $test, array $payload, $expected_amount ) {
@@ -55,7 +69,9 @@ final class Kadochi_SnappPay_Test extends WP_UnitTestCase {
 			$test->assertIsInt( $item['amount'] );
 			$items += $item['count'] * $item['amount'];
 		}
-		$test->assertSame( $cart['totalAmount'], $items + $cart['shippingAmount'] + $cart['taxAmount'] );
+		$test->assertTrue( $cart['isShipmentIncluded'] );
+		$test->assertTrue( $cart['isTaxIncluded'] );
+		$test->assertSame( $cart['totalAmount'], $items );
 		$test->assertSame( $payload['amount'], $cart['totalAmount'] - $payload['discountAmount'] - $payload['externalSourceAmount'] );
 		$test->assertSame( $expected_amount, $payload['amount'] );
 	}
@@ -63,16 +79,21 @@ final class Kadochi_SnappPay_Test extends WP_UnitTestCase {
 	public function test_payload_satisfies_amount_identities_and_adds_fee_line() {
 		$payload = Kadochi_SnappPay::build_cart_payload( $this->order );
 		self::assert_identities( $this, $payload, 3780500 );
-		$this->assertCount( 3, $payload['cartList'][0]['cartItems'] );
-		$this->assertSame( array( 'id' => 101, 'amount' => 1250000, 'category' => 'gift', 'count' => 2, 'name' => 'Rose box', 'commissionType' => 100 ), $payload['cartList'][0]['cartItems'][0] );
-		$this->assertSame( 50000, $payload['cartList'][0]['cartItems'][2]['amount'] );
-		$this->assertFalse( $payload['cartList'][0]['isShipmentIncluded'] );
+		$items = $payload['cartList'][0]['cartItems'];
+		$this->assertSame( 'Flower boxes', $items[0]['category'] );
+		$this->assertSame( 'Rose box', $items[0]['name'] );
+		$this->assertSame( 'Greeting cards', $items[ count( $items ) - 2 ]['category'] );
+		$this->assertSame( 'Gift wrapping', $items[ count( $items ) - 1 ]['category'] );
+		$this->assertSame( 4, array_sum( array_column( $items, 'count' ) ) );
+		$this->assertSame( 300000, $payload['cartList'][0]['shippingAmount'] );
+		$this->assertSame( 330500, $payload['cartList'][0]['taxAmount'] );
+		$this->assertSame( 200000, $payload['discountAmount'] );
 		$this->assertSame( 4321, $payload['cartList'][0]['cartId'] );
 	}
 
 	public function test_toman_orders_are_converted_to_rials() {
 		$this->order->currency = 'IRT';
-		$this->order->items = array( 1 => new Kadochi_Test_Snapp_Item( 5, 'Gift', 1, 45000 ) );
+		$this->order->items = array( 1 => new Kadochi_Test_Snapp_Item( $this->order->items[11]->product_id, 'Gift', 1, 45000 ) );
 		$this->order->fees = array();
 		$this->order->shipping = 0;
 		$this->order->tax = 4500;
@@ -85,7 +106,7 @@ final class Kadochi_SnappPay_Test extends WP_UnitTestCase {
 
 	public function test_rounding_drift_is_folded_and_real_mismatch_fails_closed() {
 		// Three units at 333,333.33 each round per unit; the drift is absorbed.
-		$this->order->items = array( 1 => new Kadochi_Test_Snapp_Item( 5, 'Gift', 3, 1000000 ) );
+		$this->order->items = array( 1 => new Kadochi_Test_Snapp_Item( $this->order->items[11]->product_id, 'Gift', 3, 1000000 ) );
 		$this->order->fees = array();
 		$this->order->shipping = 0;
 		$this->order->tax = 0;
@@ -190,7 +211,7 @@ final class Kadochi_SnappPay_Test extends WP_UnitTestCase {
 	public function test_verify_timeout_resumes_from_verify_status() {
 		$transaction_id = $this->start();
 		$this->client->script( 'verify', Kadochi_Test_Snapp_Client::fail( 0, 'timeout', true ) )
-			->script( 'status', Kadochi_Test_Snapp_Client::ok( array( 'status' => 'VERIFY' ) ) );
+			->script( 'status', $this->status_result( 'VERIFY' ) );
 		$this->service->handle_callback( array( 'transactionId' => $transaction_id, 'state' => 'OK', 'amount' => '3780500' ) );
 		$this->assertTrue( $this->order->paid );
 		$this->assertSame( 1, $this->client->count( 'verify' ) );
@@ -200,7 +221,7 @@ final class Kadochi_SnappPay_Test extends WP_UnitTestCase {
 	public function test_pending_after_verify_failure_is_verified_again() {
 		$transaction_id = $this->start();
 		$this->client->script( 'verify', Kadochi_Test_Snapp_Client::fail( 503 ) )
-			->script( 'status', Kadochi_Test_Snapp_Client::ok( array( 'status' => 'PENDING' ) ) );
+			->script( 'status', $this->status_result( 'PENDING' ) );
 		$this->service->handle_callback( array( 'transactionId' => $transaction_id, 'state' => 'OK', 'amount' => '3780500' ) );
 		$this->assertTrue( $this->order->paid );
 		$this->assertSame( 2, $this->client->count( 'verify' ) );
@@ -218,7 +239,7 @@ final class Kadochi_SnappPay_Test extends WP_UnitTestCase {
 
 	public function test_amount_mismatch_is_left_for_reconciliation() {
 		$transaction_id = $this->start();
-		$this->client->script( 'status', Kadochi_Test_Snapp_Client::ok( array( 'status' => 'PENDING', 'amount' => 1 ) ) );
+		$this->client->script( 'status', $this->status_result( 'PENDING', 1 ) );
 		$this->service->handle_callback( array( 'transactionId' => $transaction_id, 'state' => 'OK', 'amount' => '1' ) );
 		$this->assertFalse( $this->order->paid );
 		$this->assertSame( 'UNKNOWN', $this->order->get_meta( Kadochi_SnappPay::META_STATUS, true ) );
@@ -249,13 +270,153 @@ final class Kadochi_SnappPay_Test extends WP_UnitTestCase {
 
 	public function test_reconcile_settles_verified_payment_but_never_verifies_without_callback() {
 		$this->start();
-		$this->client->script( 'status', Kadochi_Test_Snapp_Client::ok( array( 'status' => 'PENDING' ) ) );
+		$this->client->script( 'status', $this->status_result( 'PENDING' ) );
 		$this->assertSame( 'unknown', $this->service->reconcile( $this->order ) );
 		$this->assertSame( 0, $this->client->count( 'verify' ) );
 
-		$this->client->script( 'status', Kadochi_Test_Snapp_Client::ok( array( 'status' => 'VERIFY' ) ) );
+		$this->client->script( 'status', $this->status_result( 'VERIFY' ) );
 		$this->assertSame( 'paid', $this->service->reconcile( $this->order ) );
 		$this->assertTrue( $this->order->paid );
+	}
+
+	public function test_uncategorized_product_is_not_sent_as_a_generic_gift() {
+		$product_id = $this->order->items[11]->product_id;
+		$default = self::factory()->term->create( array( 'taxonomy' => 'product_cat', 'name' => 'Uncategorized' ) );
+		update_option( 'default_product_cat', $default );
+		wp_set_object_terms( $product_id, array( $default ), 'product_cat' );
+		$result = Kadochi_SnappPay::build_cart_payload( $this->order );
+		$this->assertWPError( $result );
+		$this->assertSame( 'kadochi_snapppay_category_missing', $result->get_error_code() );
+		$this->assertSame( $product_id, $result->get_error_data()['product_id'] );
+		$this->assertWPError( $this->service->start_payment( $this->order, 'https://api.kadochi.test/cb' ) );
+		$this->assertSame( 0, $this->client->count( 'token' ) );
+	}
+
+	public function test_included_charge_rounding_preserves_product_quantity_and_order_amount() {
+		$product_id = $this->order->items[11]->product_id;
+		$this->order->items = array( 11 => new Kadochi_Test_Snapp_Item( $product_id, 'Rose box', 3, 300 ) );
+		$this->order->fees = array();
+		$this->order->shipping = 1;
+		$this->order->tax = 1;
+		$this->order->discount = 0;
+		$this->order->total = 302;
+		$payload = Kadochi_SnappPay::build_cart_payload( $this->order );
+		self::assert_identities( $this, $payload, 302 );
+		$this->assertSame( array( 1, 2 ), array_column( $payload['cartList'][0]['cartItems'], 'count' ) );
+		$this->assertSame( array( 100, 101 ), array_column( $payload['cartList'][0]['cartItems'], 'amount' ) );
+		$this->assertSame( array( $product_id, $product_id ), array_column( $payload['cartList'][0]['cartItems'], 'id' ) );
+		$this->assertSame( array( 'Flower boxes', 'Flower boxes' ), array_column( $payload['cartList'][0]['cartItems'], 'category' ) );
+	}
+
+	public function test_a_specific_category_can_also_be_the_store_default() {
+		$terms = get_the_terms( $this->order->items[11]->product_id, 'product_cat' );
+		foreach ( $terms as $term ) {
+			if ( 'Flower boxes' === $term->name ) {
+				update_option( 'default_product_cat', $term->term_id );
+			}
+		}
+		$payload = Kadochi_SnappPay::build_cart_payload( $this->order );
+		$this->assertNotWPError( $payload );
+		$this->assertSame( 'Flower boxes', $payload['cartList'][0]['cartItems'][0]['category'] );
+	}
+
+	public function test_result_reference_is_returned_only_for_the_current_or_settled_attempt() {
+		$first = $this->start();
+		$this->assertNull( $this->service->result_transaction_id( $this->order ) );
+		$this->service->handle_callback( array( 'transactionId' => $first, 'state' => 'FAILED' ) );
+		$this->assertSame( $first, $this->service->result_transaction_id( $this->order ) );
+		$second = $this->start( 'tok-2' );
+		$this->assertNull( $this->service->result_transaction_id( $this->order ) );
+		$this->service->handle_callback( array( 'transactionId' => $first, 'state' => 'FAILED' ) );
+		$this->assertSame( 'pending', $this->order->status );
+		$this->assertSame( 'PENDING', $this->order->get_meta( Kadochi_SnappPay::META_STATUS, true ) );
+		$this->assertNull( $this->service->result_transaction_id( $this->order ) );
+		$this->service->handle_callback( array( 'transactionId' => $second, 'state' => 'OK', 'amount' => '3780500' ) );
+		$this->assertSame( $second, $this->service->result_transaction_id( $this->order ) );
+		$this->service->handle_callback( array( 'transactionId' => $first, 'state' => 'FAILED' ) );
+		$this->assertSame( $second, $this->service->result_transaction_id( $this->order ) );
+	}
+
+	public function test_order_summary_exposes_only_the_snapp_receipt_reference() {
+		$id = $this->start();
+		$this->service->handle_callback( array( 'transactionId' => $id, 'state' => 'OK', 'amount' => '3780500' ) );
+		$summary = new ReflectionMethod( Kadochi_Core::class, 'order_summary_dto' );
+		$data = $summary->invoke( Kadochi_Core::instance(), $this->order );
+		$this->assertSame( $id, $data['snappPayTransactionId'] );
+		$this->assertStringNotContainsString( 'tok-1', wp_json_encode( $data ) );
+		$this->order->payment_method = 'WC_ZPal';
+		$this->assertArrayNotHasKey( 'snappPayTransactionId', $summary->invoke( Kadochi_Core::instance(), $this->order ) );
+	}
+
+	public function test_status_rejects_mismatched_or_malformed_responses_without_marking_paid() {
+		$id = $this->start();
+		$valid = array( 'status' => 'SETTLE', 'transactionId' => $id, 'amount' => 3780500 );
+		foreach ( array(
+			array_replace( $valid, array( 'transactionId' => 'KSOTHER01' ) ),
+			array_replace( $valid, array( 'amount' => 1 ) ),
+			array_replace( $valid, array( 'status' => 'UNRECOGNIZED' ) ),
+			array_replace( $valid, array( 'status' => array( 'SETTLE' ) ) ),
+			array( 'status' => 'SETTLE' ),
+		) as $data ) {
+			$this->client->script( 'status', Kadochi_Test_Snapp_Client::ok( $data ) );
+			$this->assertSame( 'unknown', $this->service->reconcile( $this->order ) );
+			$this->assertFalse( $this->order->paid );
+			$this->assertNull( $this->service->result_transaction_id( $this->order ) );
+		}
+		$this->assertSame( 0, $this->client->count( 'verify' ) );
+		$this->assertSame( 0, $this->client->count( 'settle' ) );
+		$this->assertStringNotContainsString( 'KSOTHER01', wp_json_encode( $this->core->logs ) );
+		$this->assertStringNotContainsString( 'tok-1', wp_json_encode( $this->core->logs ) );
+	}
+
+	public function test_status_settle_confirms_payment_and_persists_its_reference() {
+		$id = $this->start();
+		$this->client->script( 'status', $this->status_result( 'SETTLE' ) );
+		$this->assertSame( 'paid', $this->service->reconcile( $this->order ) );
+		$this->assertSame( $id, $this->service->result_transaction_id( $this->order ) );
+		$this->assertSame( 0, $this->client->count( 'verify' ) );
+		$this->assertSame( 0, $this->client->count( 'settle' ) );
+	}
+
+	public function test_callback_amount_mismatch_uses_the_confirmed_status_without_reverifying() {
+		$id = $this->start();
+		$this->client->script( 'status', $this->status_result( 'SETTLE' ) );
+		$this->service->handle_callback( array( 'transactionId' => $id, 'state' => 'OK', 'amount' => '1' ) );
+		$this->assertTrue( $this->order->paid );
+		$this->assertSame( $id, $this->service->result_transaction_id( $this->order ) );
+		$this->assertSame( 0, $this->client->count( 'verify' ) );
+		$this->assertSame( 0, $this->client->count( 'settle' ) );
+		$this->assertSame( 1, $this->client->count( 'status' ) );
+	}
+
+	public function test_settle_timeout_uses_status_before_retrying_settle() {
+		$id = $this->start();
+		$this->client->script( 'settle', Kadochi_Test_Snapp_Client::fail( 0, 'timeout', true ) )
+			->script( 'status', $this->status_result( 'VERIFY' ) );
+		$this->service->handle_callback( array( 'transactionId' => $id, 'state' => 'OK', 'amount' => '3780500' ) );
+		$this->assertTrue( $this->order->paid );
+		$this->assertSame( 2, $this->client->count( 'settle' ) );
+		$this->assertSame( 1, $this->client->count( 'verify' ) );
+	}
+
+	public function test_reverted_and_cancelled_statuses_fail_the_current_attempt() {
+		foreach ( array( 'REVERT', 'CANCEL' ) as $status ) {
+			$this->start();
+			$this->client->script( 'status', $this->status_result( $status ) );
+			$this->assertSame( 'failed', $this->service->reconcile( $this->order ) );
+			$this->assertSame( 'failed', $this->order->status );
+			$this->assertFalse( $this->order->paid );
+		}
+	}
+
+	public function test_wrong_transaction_on_successful_settle_is_not_accepted() {
+		$id = $this->start();
+		$this->client->script( 'settle', Kadochi_Test_Snapp_Client::ok( array( 'transactionId' => 'KSOTHER01' ) ) )
+			->script( 'status', Kadochi_Test_Snapp_Client::fail( 503 ) );
+		$this->service->handle_callback( array( 'transactionId' => $id, 'state' => 'OK', 'amount' => '3780500' ) );
+		$this->assertFalse( $this->order->paid );
+		$this->assertSame( 'UNKNOWN', $this->order->get_meta( Kadochi_SnappPay::META_STATUS, true ) );
+		$this->assertSame( $id, $this->service->result_transaction_id( $this->order ) );
 	}
 
 	private function settled() {

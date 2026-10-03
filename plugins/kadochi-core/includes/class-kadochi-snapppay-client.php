@@ -61,7 +61,7 @@ final class Kadochi_SnappPay_Client {
 		return is_array( $this->config );
 	}
 
-	/** Host of the configured API, which also serves the staging payment page. */
+	/** Host of the configured API; additional payment-page hosts are configured separately. */
 	public function base_host() {
 		$host = $this->is_configured() ? wp_parse_url( $this->config['baseUrl'], PHP_URL_HOST ) : '';
 		return is_string( $host ) ? strtolower( $host ) : '';
@@ -228,7 +228,7 @@ final class Kadochi_SnappPay_Client {
 		if ( ! is_array( $body ) ) {
 			return self::result( false, $status, $status >= 200 && $status < 300 ? 'malformed' : null, '', null, false );
 		}
-		if ( ! empty( $body['successful'] ) && $status >= 200 && $status < 300 ) {
+		if ( isset( $body['successful'] ) && true === $body['successful'] && $status >= 200 && $status < 300 ) {
 			return self::result( true, $status, null, '', isset( $body['response'] ) ? $body['response'] : null, false );
 		}
 		$error = isset( $body['errorData'] ) && is_array( $body['errorData'] ) ? $body['errorData'] : array();

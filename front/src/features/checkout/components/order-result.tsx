@@ -29,6 +29,10 @@ function OrderSuccess({ order }: { order: OrderSummary }) {
           <SuccessRow label="مبلغ پرداخت‌شده" value={formatIrrAsToman(order.total)} />
           <SuccessDivider />
           <SuccessRow label="شماره سفارش" value={`#${order.id.toLocaleString("fa-IR")}`} />
+          {order.snappPayTransactionId ? <>
+            <SuccessDivider />
+            <SuccessRow label="شناسه تراکنش اسنپ‌پی" value={order.snappPayTransactionId} />
+          </> : null}
           <SuccessDivider />
           <SuccessRow label="تاریخ سفارش" value={formatOrderDate(order.createdAt)} />
           <SuccessDivider />

@@ -24,6 +24,8 @@ final class Kadochi_Test_Snapp_Fee {
 	public $total;
 	public function __construct( $total ) { $this->total = $total; }
 	public function get_total() { return $this->total; }
+	public function get_name() { return 'Gift wrapping'; }
+	public function get_id() { return 21; }
 }
 
 final class Kadochi_Test_Snapp_Order {
@@ -57,6 +59,15 @@ final class Kadochi_Test_Snapp_Order {
 	public function get_total() { return $this->total; }
 	public function get_billing_phone() { return $this->phone; }
 	public function get_customer_id() { return 0; }
+	public function get_date_created() { return null; }
+	public function get_billing_first_name() { return 'Test'; }
+	public function get_billing_last_name() { return 'Customer'; }
+	public function get_shipping_first_name() { return 'Test'; }
+	public function get_shipping_last_name() { return 'Recipient'; }
+	public function get_shipping_state() { return 'THR'; }
+	public function get_shipping_city() { return 'Tehran'; }
+	public function get_shipping_address_1() { return 'Test address'; }
+	public function get_shipping_address_2() { return ''; }
 	public function get_status() { return $this->status; }
 	public function get_payment_method() { return $this->payment_method; }
 	public function is_paid() { return $this->paid; }
@@ -88,6 +99,7 @@ final class Kadochi_Test_Snapp_Client {
 	public $calls = array();
 	public $queue = array();
 	public $configured = true;
+	public $transactions = array();
 
 	public function is_configured() { return $this->configured; }
 	public function base_host() { return 'snapp.example'; }
@@ -107,14 +119,20 @@ final class Kadochi_Test_Snapp_Client {
 
 	private function next( $operation, $argument ) {
 		$this->calls[] = array( $operation, $argument );
-		return empty( $this->queue[ $operation ] ) ? self::ok() : array_shift( $this->queue[ $operation ] );
+		return empty( $this->queue[ $operation ] ) ? self::ok( is_string( $argument ) && isset( $this->transactions[ $argument ] ) ? array( 'transactionId' => $this->transactions[ $argument ] ) : array() ) : array_shift( $this->queue[ $operation ] );
 	}
 
 	public function count( $operation ) {
 		return count( array_filter( $this->calls, function ( $call ) use ( $operation ) { return $call[0] === $operation; } ) );
 	}
 
-	public function payment_token( array $payload ) { return $this->next( 'token', $payload ); }
+	public function payment_token( array $payload ) {
+		$result = $this->next( 'token', $payload );
+		if ( $result['ok'] && isset( $result['data']['paymentToken'] ) ) {
+			$this->transactions[ $result['data']['paymentToken'] ] = $payload['transactionId'];
+		}
+		return $result;
+	}
 	public function verify( $token ) { return $this->next( 'verify', $token ); }
 	public function settle( $token ) { return $this->next( 'settle', $token ); }
 	public function status( $token ) { return $this->next( 'status', $token ); }

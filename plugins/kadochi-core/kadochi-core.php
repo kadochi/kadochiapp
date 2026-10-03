@@ -3374,7 +3374,7 @@ final class Kadochi_Core {
 	private function order_summary_dto( $order ) {
 		$created = $order->get_date_created();
 		$shipping_parts = array_filter( array( $order->get_shipping_state(), $order->get_shipping_city(), $order->get_shipping_address_1(), $order->get_shipping_address_2() ) );
-		return array(
+		$summary = array(
 			'id' => (int) $order->get_id(),
 			'paid' => (bool) $order->is_paid(),
 			'status' => sanitize_key( $order->get_status() ),
@@ -3385,6 +3385,10 @@ final class Kadochi_Core {
 			'deliverySlot' => ( $slot = $order->get_meta( '_wc_other/' . self::CHECKOUT_FIELD_DELIVERY_SLOT, true ) ) ? sanitize_text_field( $slot ) : null,
 			'address' => implode( '، ', array_map( 'sanitize_text_field', $shipping_parts ) ),
 		);
+		if ( Kadochi_SnappPay::GATEWAY_ID === $order->get_payment_method() ) {
+			$summary['snappPayTransactionId'] = $this->snapppay()->result_transaction_id( $order );
+		}
+		return $summary;
 	}
 
 	public function order_summary( WP_REST_Request $request ) {
@@ -3975,7 +3979,7 @@ final class Kadochi_Core {
 			$input = array();
 			foreach ( array( 'transactionId', 'state', 'amount' ) as $field ) {
 				// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Cross-site gateway callback; authenticity comes from server-side verify.
-				$input[ $field ] = isset( $_POST[ $field ] ) ? sanitize_text_field( wp_unslash( (string) $_POST[ $field ] ) ) : '';
+				$input[ $field ] = isset( $_POST[ $field ] ) && is_string( $_POST[ $field ] ) ? wp_unslash( $_POST[ $field ] ) : '';
 			}
 			$redirect = $this->snapppay()->handle_callback( $input );
 		}

@@ -87,7 +87,7 @@ final class Kadochi_SnappPay {
 
 	/**
 	 * Builds the token/update cart. Amount identities (doc §1.2):
-	 *   cart.totalAmount = Σ(count × amount) + shipping + tax
+	 *   cart.totalAmount = Σ(count × amount), with shipping and tax included
 	 *   amount           = Σ cart.totalAmount − discountAmount − externalSourceAmount
 	 * `amount` must equal `$target_irr` (the order total by default). Small
 	 * rounding differences are folded into the discount or a single-unit item;
@@ -117,10 +117,14 @@ final class Kadochi_SnappPay {
 				continue;
 			}
 			$product_id = method_exists( $item, 'get_product_id' ) ? absint( $item->get_product_id() ) : 0;
+			$category = self::product_category( $product_id );
+			if ( '' === $category ) {
+				return new WP_Error( 'kadochi_snapppay_category_missing', 'A purchased product needs a specific WooCommerce product category.', array( 'product_id' => $product_id ) );
+			}
 			$items[] = array(
 				'id' => $product_id ?: absint( $item_id ),
 				'amount' => $unit,
-				'category' => self::product_category( $product_id ),
+				'category' => $category,
 				'count' => $quantity,
 				'name' => self::safe_name( $item->get_name() ),
 				'commissionType' => self::commission_type(),
@@ -129,15 +133,18 @@ final class Kadochi_SnappPay {
 		}
 
 		$discount = self::to_irr( (float) $order->get_discount_total(), $currency );
-		$fee_total = 0;
 		foreach ( method_exists( $order, 'get_fees' ) ? $order->get_fees() : array() as $fee ) {
-			$fee_total += self::to_irr( (float) $fee->get_total(), $currency );
-		}
-		if ( $fee_total > 0 ) {
-			$items[] = array( 'id' => absint( $order->get_id() ), 'amount' => $fee_total, 'category' => 'service', 'count' => 1, 'name' => 'هزینه خدمات', 'commissionType' => self::commission_type() );
-			$units++;
-		} elseif ( $fee_total < 0 ) {
-			$discount += -$fee_total;
+			$fee_total = self::to_irr( (float) $fee->get_total(), $currency );
+			if ( $fee_total > 0 ) {
+				$name = sanitize_text_field( $fee->get_name() );
+				if ( '' === trim( $name ) ) {
+					return new WP_Error( 'kadochi_snapppay_category_missing', 'A payable service needs a descriptive WooCommerce fee name.' );
+				}
+				$items[] = array( 'id' => absint( $fee->get_id() ), 'amount' => $fee_total, 'category' => self::safe_name( $name, 100 ), 'count' => 1, 'name' => self::safe_name( $name ), 'commissionType' => self::commission_type() );
+				$units++;
+			} elseif ( $fee_total < 0 ) {
+				$discount += -$fee_total;
+			}
 		}
 		if ( empty( $items ) ) {
 			return new WP_Error( 'kadochi_snapppay_empty_cart', 'The order has no payable items.' );
@@ -198,9 +205,9 @@ final class Kadochi_SnappPay {
 			'amount' => $amount,
 			'cartList' => array( array(
 				'cartId' => absint( $order->get_id() ),
-				'cartItems' => array_values( $items ),
-				'isShipmentIncluded' => false,
-				'isTaxIncluded' => false,
+				'cartItems' => self::include_cart_charges( $items, $shipping + $tax ),
+				'isShipmentIncluded' => true,
+				'isTaxIncluded' => true,
 				'shippingAmount' => $shipping,
 				'taxAmount' => $tax,
 				'totalAmount' => $cart_total,
@@ -210,12 +217,49 @@ final class Kadochi_SnappPay {
 		);
 	}
 
+	/** Allocate included charges in integer Rials without changing quantities or discounts. */
+	private static function include_cart_charges( array $items, $charges ) {
+		$total = array_sum( array_map( function ( $item ) { return $item['amount'] * $item['count']; }, $items ) );
+		$remaining = $charges;
+		$result = array();
+		$last = count( $items ) - 1;
+		foreach ( $items as $index => $item ) {
+			$share = $index === $last ? $remaining : ( $total > 0 ? (int) floor( $charges * ( $item['amount'] * $item['count'] / $total ) ) : 0 );
+			$remaining -= $share;
+			$item['amount'] += intdiv( $share, $item['count'] );
+			$remainder = $share % $item['count'];
+			if ( $remainder ) {
+				// Identical units can differ by one Rial. Keep the same product ID
+				// and category on both rows instead of inventing a rounding item.
+				$extra = $item;
+				$extra['count'] = $remainder;
+				$extra['amount']++;
+				$item['count'] -= $remainder;
+				$result[] = $item;
+				$result[] = $extra;
+			} else {
+				$result[] = $item;
+			}
+		}
+		return $result;
+	}
+
+	/** Snapp documents category as a string, not a code: use the most specific assigned product_cat name. */
 	private static function product_category( $product_id ) {
 		$terms = $product_id && function_exists( 'get_the_terms' ) ? get_the_terms( $product_id, 'product_cat' ) : false;
-		if ( is_array( $terms ) && ! empty( $terms ) && isset( $terms[0]->name ) ) {
-			return self::safe_name( $terms[0]->name, 100 );
+		if ( ! is_array( $terms ) ) {
+			return '';
 		}
-		return 'gift';
+		$placeholders = array( 'uncategorized', strtolower( __( 'Uncategorized', 'woocommerce' ) ), 'بدون دسته بندی', 'بدون دسته‌بندی' );
+		$terms = array_values( array_filter( $terms, function ( $term ) use ( $placeholders ) {
+			$name = trim( sanitize_text_field( $term->name ) );
+			return '' !== $name && ! in_array( strtolower( $name ), $placeholders, true );
+		} ) );
+		usort( $terms, function ( $a, $b ) {
+			$depth = count( get_ancestors( $b->term_id, 'product_cat', 'taxonomy' ) ) <=> count( get_ancestors( $a->term_id, 'product_cat', 'taxonomy' ) );
+			return $depth ?: ( (int) $a->term_id <=> (int) $b->term_id );
+		} );
+		return $terms ? self::safe_name( $terms[0]->name, 100 ) : '';
 	}
 
 	private static function commission_type() {
@@ -251,9 +295,11 @@ final class Kadochi_SnappPay {
 		}
 		$payload = self::build_cart_payload( $order );
 		if ( is_wp_error( $payload ) ) {
-			$this->log( 'payment_payload_mismatch', $log + array( 'reason' => $payload->get_error_code() ) );
+			$details = $payload->get_error_data();
+			$this->log( 'payment_payload_rejected', $log + array( 'reason' => $payload->get_error_code(), 'product_id' => is_array( $details ) && isset( $details['product_id'] ) ? $details['product_id'] : null ) );
 			return $this->start_error( 'payload', $log );
 		}
+		$this->log( 'payment_payload_ready', $log + array( 'item_rows' => count( $payload['cartList'][0]['cartItems'] ), 'isShipmentIncluded' => true, 'isTaxIncluded' => true ) );
 		$mobile = self::order_mobile( $order );
 		if ( ! $mobile ) {
 			return $this->start_error( 1005, $log );
@@ -392,6 +438,35 @@ final class Kadochi_SnappPay {
 		return null;
 	}
 
+	/** Public receipt reference, selected from this order's current/settled attempt only. */
+	public function result_transaction_id( $order ) {
+		if ( self::GATEWAY_ID !== $order->get_payment_method() ) {
+			return null;
+		}
+		$id = (string) $order->get_meta( $order->is_paid() ? self::META_SETTLED_TRANSACTION : self::META_TRANSACTION, true );
+		$attempt = $this->attempt( $order, $id );
+		return $attempt && isset( $attempt['returnedTransactionId'] ) && $id === $attempt['returnedTransactionId'] ? $id : null;
+	}
+
+	/** Persist only an exact echo of an ID already associated with the stored token. */
+	private function remember_returned_transaction( $order, $transaction_id, $returned_id, $source ) {
+		$attempt = $this->attempt( $order, $transaction_id );
+		if ( ! $attempt || ! is_string( $returned_id ) || $returned_id !== $transaction_id ) {
+			$this->log( 'payment_response_rejected', array( 'order_id' => absint( $order->get_id() ), 'source' => $source, 'reason' => 'transaction_mismatch' ) );
+			return false;
+		}
+		$attempts = $this->attempts( $order );
+		$attempt['returnedTransactionId'] = $returned_id;
+		$attempts[ $transaction_id ] = $attempt;
+		$order->update_meta_data( self::META_ATTEMPTS, $attempts );
+		$order->save();
+		return true;
+	}
+
+	private function accept_transaction_response( $order, $transaction_id, array $result, $source ) {
+		return $result['ok'] && $this->remember_returned_transaction( $order, $transaction_id, is_array( $result['data'] ) && isset( $result['data']['transactionId'] ) ? $result['data']['transactionId'] : null, $source );
+	}
+
 	public function find_order_by_transaction( $transaction_id ) {
 		if ( ! function_exists( 'wc_get_orders' ) ) {
 			return null;
@@ -413,17 +488,21 @@ final class Kadochi_SnappPay {
 	 * @param array<string, mixed> $input Unslashed POST fields.
 	 */
 	public function handle_callback( array $input ) {
-		$transaction_id = isset( $input['transactionId'] ) ? sanitize_text_field( (string) $input['transactionId'] ) : '';
-		$state = isset( $input['state'] ) ? strtoupper( sanitize_text_field( (string) $input['state'] ) ) : '';
+		$transaction_id = isset( $input['transactionId'] ) && is_string( $input['transactionId'] ) ? $input['transactionId'] : '';
+		$state = isset( $input['state'] ) && in_array( $input['state'], array( 'OK', 'FAILED' ), true ) ? $input['state'] : '';
 		$amount = isset( $input['amount'] ) && is_numeric( $input['amount'] ) ? (int) $input['amount'] : null;
 		$order = preg_match( '/^[A-Za-z0-9]{5,10}$/', $transaction_id ) ? call_user_func( $this->order_finder, $transaction_id ) : null;
 		$attempt = $order ? $this->attempt( $order, $transaction_id ) : null;
 		if ( ! $order || ! $attempt || '' === $attempt['token'] ) {
-			$this->log( 'payment_callback_unmatched', array( 'transaction_id' => $transaction_id ? substr( $transaction_id, 0, 10 ) : '' ) );
+			$this->log( 'payment_callback_unmatched', array( 'reason' => 'unknown_attempt' ) );
 			return $this->core->frontend_checkout_result_url( 'failure', null );
 		}
 		$log = array( 'order_id' => absint( $order->get_id() ), 'transaction_id' => $transaction_id, 'state' => $state );
 		$this->log( 'payment_callback_received', $log );
+		if ( '' === $state ) {
+			$this->log( 'payment_callback_rejected', array( 'order_id' => absint( $order->get_id() ), 'reason' => 'invalid_state' ) );
+			return $this->core->frontend_checkout_result_url( 'return', $order );
+		}
 
 		if ( $order->is_paid() ) {
 			// A second paid attempt for an already-paid order is refunded; a
@@ -440,6 +519,7 @@ final class Kadochi_SnappPay {
 			return $this->core->frontend_checkout_result_url( 'return', $order );
 		}
 		try {
+			$this->remember_returned_transaction( $order, $transaction_id, $transaction_id, 'callback' );
 			if ( 'OK' !== $state ) {
 				$this->mark_failed( $order, $transaction_id, sprintf( 'Snapp! Pay reported state %s for transaction %s.', $state ?: 'EMPTY', $transaction_id ) );
 				if ( self::env_flag( 'SNAPPPAY_REVERT_ON_FAILED' ) ) {
@@ -447,18 +527,20 @@ final class Kadochi_SnappPay {
 				}
 				return $this->core->frontend_checkout_result_url( 'failure', $order );
 			}
-			$order->update_meta_data( self::META_CALLBACK_OK, $transaction_id );
-			$order->save();
+			$status = null;
 			if ( null === $amount || $amount !== (int) $attempt['amount'] ) {
 				$this->log( 'payment_callback_amount_mismatch', $log );
-				$status = $this->client->status( $attempt['token'] );
-				$confirmed = $status['ok'] && is_array( $status['data'] ) && isset( $status['data']['amount'] ) && (int) $status['data']['amount'] === (int) $attempt['amount'];
-				if ( ! $confirmed ) {
+				$status = $this->payment_status( $order, $transaction_id, $attempt['token'] );
+				if ( '' === $status ) {
 					$this->record_outcome( $order, $transaction_id, 'unknown', 'Snapp! Pay callback amount did not match; left for reconciliation.' );
 					return $this->core->frontend_checkout_result_url( 'return', $order );
 				}
 			}
-			$outcome = $this->finalize( $order, $transaction_id, $attempt['token'] );
+			$order->update_meta_data( self::META_CALLBACK_OK, $transaction_id );
+			$order->save();
+			$outcome = null !== $status && $this->can_fulfil( $order )
+				? $this->resume_from_status( $order, $transaction_id, $attempt['token'], true, $status )
+				: $this->finalize( $order, $transaction_id, $attempt['token'] );
 			return $this->core->frontend_checkout_result_url( 'failed' === $outcome ? 'failure' : 'return', $order );
 		} finally {
 			$this->release_lock( $order );
@@ -482,13 +564,13 @@ final class Kadochi_SnappPay {
 			return 'failed';
 		}
 		$phase = (string) $order->get_meta( self::META_STATUS, true );
-		if ( in_array( $phase, array( 'VERIFY_SENT', 'VERIFY', 'UNKNOWN' ), true ) ) {
+		if ( (string) $order->get_meta( self::META_TRANSACTION, true ) !== $transaction_id || in_array( $phase, array( 'VERIFY_SENT', 'VERIFY', 'UNKNOWN' ), true ) ) {
 			return $this->resume_from_status( $order, $transaction_id, $token, true );
 		}
 		$order->update_meta_data( self::META_STATUS, 'VERIFY_SENT' );
 		$order->save();
 		$verify = $this->client->verify( $token );
-		if ( $verify['ok'] ) {
+		if ( $this->accept_transaction_response( $order, $transaction_id, $verify, 'verify' ) ) {
 			return $this->settle( $order, $transaction_id, $token );
 		}
 		// Timeouts, 5xx, and 4xx wrong-state/bad-token answers are all resolved
@@ -497,7 +579,7 @@ final class Kadochi_SnappPay {
 	}
 
 	private function resume_from_status( $order, $transaction_id, $token, $may_verify, $status = null ) {
-		$status = null === $status ? $this->payment_status( $token ) : $status;
+		$status = null === $status ? $this->payment_status( $order, $transaction_id, $token ) : $status;
 		if ( 'SETTLE' === $status ) {
 			return $this->record_outcome( $order, $transaction_id, 'paid', 'Snapp! Pay reports the payment as settled.' );
 		}
@@ -506,7 +588,7 @@ final class Kadochi_SnappPay {
 		}
 		if ( 'PENDING' === $status && $may_verify ) {
 			$verify = $this->client->verify( $token );
-			return $verify['ok'] ? $this->settle( $order, $transaction_id, $token ) : $this->record_outcome( $order, $transaction_id, 'unknown', 'Snapp! Pay verify did not complete; left for reconciliation.' );
+			return $this->accept_transaction_response( $order, $transaction_id, $verify, 'verify' ) ? $this->settle( $order, $transaction_id, $token ) : $this->record_outcome( $order, $transaction_id, 'unknown', 'Snapp! Pay verify did not complete; left for reconciliation.' );
 		}
 		if ( in_array( $status, array( 'REVERT', 'CANCEL' ), true ) ) {
 			return $this->record_outcome( $order, $transaction_id, 'failed', sprintf( 'Snapp! Pay reports status %s.', $status ) );
@@ -515,14 +597,16 @@ final class Kadochi_SnappPay {
 	}
 
 	private function settle( $order, $transaction_id, $token ) {
-		$order->update_meta_data( self::META_STATUS, 'VERIFY' );
-		$order->save();
+		if ( (string) $order->get_meta( self::META_TRANSACTION, true ) === $transaction_id ) {
+			$order->update_meta_data( self::META_STATUS, 'VERIFY' );
+			$order->save();
+		}
 		for ( $try = 0; $try < 2; $try++ ) {
 			$settle = $this->client->settle( $token );
-			if ( $settle['ok'] ) {
+			if ( $this->accept_transaction_response( $order, $transaction_id, $settle, 'settle' ) ) {
 				return $this->record_outcome( $order, $transaction_id, 'paid', 'Snapp! Pay payment verified and settled.' );
 			}
-			$status = $this->payment_status( $token );
+			$status = $this->payment_status( $order, $transaction_id, $token );
 			if ( 'SETTLE' === $status ) {
 				return $this->record_outcome( $order, $transaction_id, 'paid', 'Snapp! Pay payment settled.' );
 			}
@@ -536,13 +620,36 @@ final class Kadochi_SnappPay {
 		return $this->record_outcome( $order, $transaction_id, 'unknown', 'Snapp! Pay settle did not complete; left for reconciliation.' );
 	}
 
-	private function payment_status( $token ) {
+	private function payment_status( $order, $transaction_id, $token ) {
 		$result = $this->client->status( $token );
-		$status = $result['ok'] && is_array( $result['data'] ) && isset( $result['data']['status'] ) ? strtoupper( sanitize_key( (string) $result['data']['status'] ) ) : '';
-		return in_array( $status, array( 'PENDING', 'VERIFY', 'SETTLE', 'REVERT', 'CANCEL' ), true ) ? $status : '';
+		$data = $result['data'];
+		$attempt = $this->attempt( $order, $transaction_id );
+		$reason = ! $result['ok'] ? 'request_failed' : '';
+		if ( '' === $reason && ( ! is_array( $data ) || ! isset( $data['status'], $data['transactionId'], $data['amount'] ) || ! is_string( $data['status'] ) || ! is_int( $data['amount'] ) || $data['amount'] < 0 ) ) {
+			$reason = 'malformed_response';
+		}
+		if ( '' === $reason && ! in_array( $data['status'], array( 'PENDING', 'VERIFY', 'SETTLE', 'REVERT', 'CANCEL' ), true ) ) {
+			$reason = 'unknown_status';
+		}
+		if ( '' === $reason && ( ! $attempt || $data['transactionId'] !== $transaction_id ) ) {
+			$reason = 'transaction_mismatch';
+		}
+		if ( '' === $reason && $data['amount'] !== (int) $attempt['amount'] ) {
+			$reason = 'amount_mismatch';
+		}
+		$this->log( 'payment_status_checked', array( 'order_id' => absint( $order->get_id() ), 'accepted' => '' === $reason, 'reason' => $reason ?: 'matched', 'status' => '' === $reason ? $data['status'] : null ) );
+		if ( '' !== $reason ) {
+			return '';
+		}
+		$this->remember_returned_transaction( $order, $transaction_id, $data['transactionId'], 'status' );
+		return $data['status'];
 	}
 
 	private function record_outcome( $order, $transaction_id, $outcome, $note ) {
+		if ( 'paid' !== $outcome && (string) $order->get_meta( self::META_TRANSACTION, true ) !== $transaction_id ) {
+			$this->log( 'payment_stale_attempt_ignored', array( 'order_id' => absint( $order->get_id() ), 'reason' => 'older_attempt_unpaid' ) );
+			return $outcome;
+		}
 		$order->update_meta_data( self::META_LAST_SYNC, time() );
 		if ( 'paid' === $outcome ) {
 			$order->update_meta_data( self::META_STATUS, 'SETTLE' );
@@ -573,6 +680,10 @@ final class Kadochi_SnappPay {
 	}
 
 	private function mark_failed( $order, $transaction_id, $note ) {
+		if ( (string) $order->get_meta( self::META_TRANSACTION, true ) !== $transaction_id ) {
+			$this->log( 'payment_stale_attempt_ignored', array( 'order_id' => absint( $order->get_id() ), 'reason' => 'older_attempt_failed' ) );
+			return;
+		}
 		$order->update_meta_data( self::META_STATUS, 'FAILED' );
 		$order->update_meta_data( self::META_LAST_SYNC, time() );
 		$order->save();
@@ -607,13 +718,13 @@ final class Kadochi_SnappPay {
 		}
 		try {
 			$callback_ok = (string) $order->get_meta( self::META_CALLBACK_OK, true ) === $transaction_id;
-			$status = $this->payment_status( $attempt['token'] );
+			$status = $this->payment_status( $order, $transaction_id, $attempt['token'] );
 			if ( 'PENDING' === $status && ! $callback_ok ) {
 				$order->update_meta_data( self::META_LAST_SYNC, time() );
 				$order->save();
 				return 'unknown';
 			}
-			if ( '' === $status && ! $callback_ok ) {
+			if ( '' === $status ) {
 				return 'unknown';
 			}
 			if ( 'VERIFY' === $status || 'SETTLE' === $status || in_array( $status, array( 'REVERT', 'CANCEL' ), true ) ) {
@@ -691,6 +802,10 @@ final class Kadochi_SnappPay {
 			return new WP_Error( 'kadochi_snapppay_update_failed', $message );
 		}
 		$order->update_meta_data( self::META_AMOUNT, $remaining );
+		$attempts = $this->attempts( $order );
+		$attempt['amount'] = $remaining;
+		$attempts[ $transaction_id ] = $attempt;
+		$order->update_meta_data( self::META_ATTEMPTS, $attempts );
 		$order->save();
 		$order->add_order_note( sprintf( 'Snapp! Pay payment updated to %d IRR.', $remaining ) . ( $reason ? ' ' . sanitize_text_field( $reason ) : '' ) );
 		$this->log( 'payment_updated', $log );
